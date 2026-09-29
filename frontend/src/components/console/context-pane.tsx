@@ -31,18 +31,38 @@ import { MarkdownEditor } from "./markdown-editor"
  * heading as an agent gets it.
  */
 
+/* The text half-typed, outside the pane.
+ *
+ * The pane used to stay mounted, hidden, while another was shown, so a trip
+ * through the menu cost nothing. Each page of the admin layout is drawn afresh
+ * now, so what was being typed is kept here instead — until it is saved, or
+ * until "Reread" is asked for, which is asking to drop it. */
+let draft: string | null = null
+/** What the page said the last time it was read, which a draft is measured against. */
+let read = ""
+
 export function ContextPane() {
   const t = useT()
   const [drawn, setDrawn] = React.useState<Context | null>(null)
-  const [text, setText] = React.useState("")
+  const [text, setTyped] = React.useState(draft ?? "")
   const [problem, setProblem] = React.useState("")
   const [saving, setSaving] = React.useState(false)
 
-  const load = React.useCallback(async () => {
+  const setText = React.useCallback((value: string) => {
+    // A text back to what the page says is no draft at all.
+    draft = value.trim() === read.trim() ? null : value
+    setTyped(value)
+  }, [])
+
+  const load = React.useCallback(async (keepDraft: boolean) => {
     try {
       const fresh = await api.context()
       setDrawn(fresh)
-      setText(fresh.text)
+      read = fresh.text
+      if (!keepDraft || draft === null) {
+        draft = null
+        setTyped(fresh.text)
+      }
       setProblem("")
     } catch (error) {
       setProblem(why(error))
@@ -50,7 +70,7 @@ export function ContextPane() {
   }, [])
 
   React.useEffect(() => {
-    void load()
+    void load(true)
   }, [load])
 
   const save = async () => {
@@ -58,6 +78,8 @@ export function ContextPane() {
     try {
       await api.saveContext(text)
       setDrawn((known) => (known ? { ...known, text: text.trim() } : known))
+      read = text
+      draft = null
       toast.success(t("The context is saved"), {
         description: t("Every ticket from here on is told this."),
       })
@@ -73,7 +95,7 @@ export function ContextPane() {
   const changed = drawn !== null && text.trim() !== drawn.text.trim()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col p-3.5 sm:p-5">
+    <div className="flex flex-col">
       <PageHead
         title={t("What every ticket is told first.")}
         blurb={t(
@@ -81,7 +103,7 @@ export function ContextPane() {
         )}
         action={
           <>
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={saving}>
+            <Button variant="outline" size="sm" onClick={() => void load(false)} disabled={saving}>
               <RefreshCw />
               {t("Reread")}
             </Button>

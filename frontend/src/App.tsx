@@ -1,59 +1,96 @@
 import * as React from "react"
+import { RouterProvider } from "@tanstack/react-router"
 import { ActionList } from "react-data-form"
+import {
+  Navigate,
+  ScopeProvider,
+  ViewResourceContextProvider,
+  findResource,
+  useResolvedViewParams,
+  useScopeContext,
+  type ViewResourceContextParams,
+} from "react-resource-view"
 
-import { AppSidebar } from "@/components/console/app-sidebar"
-import { ContextPane } from "@/components/console/context-pane"
-import { Header } from "@/components/console/header"
-import { LivePane } from "@/components/console/live-pane"
-import { ResourcePane } from "@/components/console/resource-pane"
 import { TalkDrawer } from "@/components/console/talk-drawer"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ConsoleProvider, useConsole } from "@/hooks/use-console"
 import { useBoard } from "@/lib/board-store"
-import { useT } from "@/lib/i18n"
-import { useRoute, type Page } from "@/lib/router"
-import { cn } from "@/lib/utils"
-import { PROJECTS } from "@/resources/projects"
-import { SCHEDULES } from "@/resources/schedules"
-import { SETTINGS } from "@/resources/settings"
-import { TICKETS } from "@/resources/tickets"
+import { useLanguage, useT } from "@/lib/i18n"
+import { SCOPE } from "@/lib/resource-view"
+import { consoleRouter, useRoute } from "@/lib/router"
+import { consoleScope, scopes } from "@/resources/scope"
+import { TICKETS, boardHref } from "@/resources/tickets"
 
 /* The shape of the page.
  *
- * A menu down the left, and one column beside it: what the address names — the
- * board, a ticket, the live sessions, the settings. There used to be a second
- * one, holding whatever you talk to while looking at the first, with an entry
- * in the menu to reach it on a phone and a switch in the bar to fold it away.
- * It is a drawer now, opened by the bubble in the bottom corner, at every
- * width: the page keeps its width until you ask for the conversation, and
- * there is one way in rather than three. Below 768px the menu is a drawer too.
+ * react-resource-view's admin layout: a menu down the left built from the
+ * scope, a bar over the page, a bottom navigation on a phone. Every page is a
+ * resource of that scope — the board, a ticket, the live sessions, the
+ * context, the projects, the schedules, the settings — so what the address
+ * names is handed to the package, which draws the matching view inside the
+ * layout the scope declares.
+ *
+ * One thing stays outside it: the conversation, a drawer opened by the bubble
+ * in the bottom corner at every width. The page keeps its width until you ask
+ * for it, and a trip through the menu does not close it.
  */
 
-/** What each pane is called in the bar's path. Lower case: it is a segment, not a title. */
-const CRUMB: Record<Page, string> = {
-  live: "live",
-  context: "context",
+const ACTIONS = new Set<string>(Object.values(ActionList))
+
+/** The page the address names, drawn in the scope's layout. */
+function Page({ params }: { params: ViewResourceContextParams }) {
+  const language = useLanguage()
+  const scope = useScopeContext()?.scope
+  const action =
+    params.resourceAction && ACTIONS.has(params.resourceAction)
+      ? params.resourceAction
+      : ActionList.list
+  const resourceId = params.resourceId ?? TICKETS
+  const resource = findResource({ scope: SCOPE, resourceId })
+  const resolved = useResolvedViewParams({ ...params, resource, resourceAction: action })
+  // An address naming a page this console does not have lands on the board,
+  // rather than on an error thrown from inside the package.
+  if (!resource) return <Navigate to={boardHref()} replace />
+  return (
+    // The language is part of the key: what the package draws — the view's
+    // name, a column header, the words on a form — it reads from the
+    // dictionary as it builds, not as it renders. The resource, the action and
+    // the id are in it too, because the context resolves them once.
+    <ViewResourceContextProvider
+      key={`${language}:${resourceId}:${action}:${String(resolved.id ?? "")}`}
+      decoratorComponent={scope?.decoratorComponent}
+      {...resolved}
+    />
+  )
+}
+
+/** What the tab says: where you are, so seven tabs of "ticket-runner" are not a row to open one by one. */
+function useTitle(params: ViewResourceContextParams, ticketShort?: string) {
+  const t = useT()
+  const resourceId = String(params.resourceId ?? TICKETS)
+  const here =
+    resourceId === TICKETS && params.resourceAction === ActionList.read && params.id
+      ? `#${ticketShort ?? String(params.id).slice(-8)}`
+      : (consoleScope.menu?.find((item) => (item as { resource?: string }).resource === resourceId)
+          ?.name ?? t("Board"))
+  React.useEffect(() => {
+    document.title = here ? `${here} · ticket-runner` : "ticket-runner"
+  }, [here])
 }
 
 function Console() {
-  const route = useRoute()
+  const { params, moved } = useRoute()
   const board = useBoard()
-  const t = useT()
   const { ticket, openTicket, closeTicket } = useConsole()
-
-  // Which resource the address names. An address that names none is the board.
-  const resourceId = route.kind === "resource" ? (route.params.resourceId ?? TICKETS) : null
 
   // The address says which ticket is open; the board says what it is, so the
   // discussion loads while the page is still being read.
   const ticketId =
-    route.kind === "resource" &&
-    resourceId === TICKETS &&
-    route.params.resourceAction === ActionList.read &&
-    route.params.id
-      ? String(route.params.id)
+    (params.resourceId ?? TICKETS) === TICKETS &&
+    params.resourceAction === ActionList.read &&
+    params.id
+      ? String(params.id)
       : null
   React.useEffect(() => {
     if (!ticketId) {
@@ -64,74 +101,17 @@ function Console() {
     if (known) openTicket(known)
   }, [ticketId, board, openTicket, closeTicket])
 
-  // The bar says the path, not the title: `workspace / board / #3f2a1c`. The
-  // page under it opens with the heading, so a ticket is named here by its id
-  // — the short thing that fits a breadcrumb — rather than by its sentence.
-  const crumbs =
-    route.kind === "page"
-      ? [t("workspace"), t(CRUMB[route.page])]
-      : resourceId === SETTINGS
-        ? [t("workspace"), t("settings")]
-        : resourceId === PROJECTS
-          ? [t("workspace"), t("projects")]
-          : resourceId === SCHEDULES
-            ? [t("workspace"), t("schedules")]
-            : ticketId
-              ? [t("workspace"), t("board"), `#${ticket?.short ?? String(ticketId).slice(-8)}`]
-              : [t("workspace"), t("board")]
+  useTitle(params, ticket?.short)
 
-  // The tab says where you are too: seven tabs of "ticket-runner" is a row of
-  // tabs you open one by one to find the board.
-  const here = crumbs[crumbs.length - 1] ?? ""
-  React.useEffect(() => {
-    const said = here.charAt(0).toUpperCase() + here.slice(1)
-    document.title = said ? `${said} · ticket-runner` : "ticket-runner"
-  }, [here])
-
-  // Each pane keeps its place while another is shown, so a transcript
-  // half-read and a text half-typed survive a trip through the menu.
-  const cell = (name: "live" | "context", child: React.ReactNode) => {
-    const shown = route.kind === "page" && route.page === name
-    return (
-      <div
-        key={name}
-        className={cn(
-          "col-start-1 row-start-1 min-h-0 overflow-hidden",
-          shown ? "flex flex-col" : "hidden",
-          name === "live" && "scroll-thin overflow-y-auto"
-        )}
-      >
-        {child}
-      </div>
-    )
-  }
+  if (moved) return <Navigate to={moved} replace />
 
   return (
     <>
-      <AppSidebar route={route} />
-      <SidebarInset className="min-h-0 overflow-hidden">
-        <div className="flex h-full min-h-0 flex-col">
-          <Header crumbs={crumbs} />
-
-          <div className="grid min-h-0 flex-1 grid-cols-1">
-            {route.kind === "resource" ? (
-              <div
-                className={cn(
-                  "scroll-thin col-start-1 row-start-1 min-h-0",
-                  ticketId ? "flex flex-col overflow-hidden" : "overflow-y-auto"
-                )}
-              >
-                <ResourcePane params={route.params} />
-              </div>
-            ) : null}
-            {cell("live", <LivePane />)}
-            {/* A `cell` for the same reason the live pane is one: it holds a
-                text somebody is half-way through rewriting, and a trip through
-                the menu must not cost it. */}
-            {cell("context", <ContextPane />)}
-          </div>
-        </div>
-      </SidebarInset>
+      <React.Suspense fallback={null}>
+        <ScopeProvider scopeName={SCOPE} configScope={scopes}>
+          <Page params={params} />
+        </ScopeProvider>
+      </React.Suspense>
 
       {/* Over everything, at every width: the conversation is never a page you
           navigate to and lose your place for. */}
@@ -140,14 +120,14 @@ function Console() {
   )
 }
 
+const router = consoleRouter(Console)
+
 export default function App() {
   return (
     <TooltipProvider>
       <ConsoleProvider>
-        <SidebarProvider className="h-svh min-h-0">
-          <Console />
-          <Toaster />
-        </SidebarProvider>
+        <RouterProvider router={router} />
+        <Toaster />
       </ConsoleProvider>
     </TooltipProvider>
   )

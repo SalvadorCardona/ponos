@@ -60,11 +60,12 @@ export function TalkDrawer() {
           <SheetTrigger asChild>
             {/* Hidden while the drawer is over it: the sheet's own close is
                 where a reader looks for it, and a bubble under the overlay is
-                a button that answers nothing. */}
+                a button that answers nothing. Raised on a phone, where the
+                admin layout's navigation runs along the bottom edge. */}
             <Button
               size="icon-lg"
               aria-label={t("open {{pane}}", { pane: label })}
-              className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg data-[state=open]:hidden"
+              className="fixed right-4 bottom-24 z-40 md:bottom-4 size-12 rounded-full shadow-lg data-[state=open]:hidden"
             >
               <MessageCircle className="size-5" />
             </Button>

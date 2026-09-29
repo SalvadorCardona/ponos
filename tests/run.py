@@ -7603,23 +7603,22 @@ def the_console_ships_its_built_bundle():
 
 
 @case
-def the_console_says_the_version_it_is_running_at_the_foot_of_its_menu():
+def the_console_says_the_version_it_is_running_beside_the_stream_s_dot():
     """The number reaches the page, rather than staying in the payload.
 
     It used to be a pill in the bar, beside four others — the timer, a run in
     flight, what had been spent — and a row of states you cannot act on, drawn
-    over every page, is noise with a border around it. The bar says where you
-    are now; the version, and the day a newer one is waiting, sit at the foot
-    of the menu where the stream's own dot already sits.
+    over every page, is noise with a border around it. The version, and the day
+    a newer one is waiting, are said once, where the stream's own dot is: the
+    end of the admin layout's bar, the one place it leaves to the application.
 
     Read from the React source rather than the bundle: the bundle is minified,
     and asserting on minified identifiers is asserting on the minifier.
     """
-    header = (FRONTEND / "src/components/console/header.tsx").read_text(encoding="utf-8")
-    assert "Pill" not in header, "the bar carries a row of pills again"
-    sidebar = (FRONTEND / "src/components/console/app-sidebar.tsx").read_text(encoding="utf-8")
-    assert "runner.version" in sidebar, "the console has nowhere to print the version"
-    assert "runner.update" in sidebar, "an update waiting has to be said too"
+    shell = (FRONTEND / "src/components/console/shell.tsx").read_text(encoding="utf-8")
+    assert "Pill" not in shell, "the bar carries a row of pills again"
+    assert "runner.version" in shell, "the console has nowhere to print the version"
+    assert "runner.update" in shell, "an update waiting has to be said too"
 
 
 @case
@@ -7647,8 +7646,45 @@ def the_discussion_opens_from_a_bubble_rather_than_from_a_column():
     assert "TalkDrawer" in app, "nothing opens the discussion"
     assert "ConsolePane" not in app, "the console has a column of its own again"
     assert "asideLabel" not in app, "the bar carries the switch that folds it away again"
-    sidebar = (FRONTEND / "src/components/console/app-sidebar.tsx").read_text(encoding="utf-8")
-    assert 'page: "console"' not in sidebar, "the menu has an entry for the drawer again"
+    scope = (FRONTEND / "src/resources/scope.tsx").read_text(encoding="utf-8")
+    assert "ConsolePane" not in scope, "the menu has an entry for the drawer again"
+
+
+@case
+def the_console_is_drawn_in_react_resource_view_s_admin_layout():
+    """One admin interface, the package's, rather than two kept side by side.
+
+    The console had a frame of its own — a sidebar, a bar, a router over the
+    History API — around pages that were already react-resource-view's. The
+    frame is the package's now: a scope declares the resources and the menu,
+    `createAdminLayout` draws them, and TanStack Router holds the history
+    through the adapter the package ships for it. What the console drew by hand
+    is gone rather than kept beside it.
+
+    Read from the React source rather than from the bundle: the bundle is
+    minified, and what is being checked here is a decision, not a symbol.
+    """
+    scope = (FRONTEND / "src/resources/scope.tsx").read_text(encoding="utf-8")
+    assert "createAdminLayout" in scope, "the console draws its own frame again"
+    for resource in ("tickets", "live", "projects", "schedules", "context", "settings"):
+        assert f"entry({resource.upper()}" in scope, f"the menu has no entry for {resource}"
+    app = (FRONTEND / "src/App.tsx").read_text(encoding="utf-8")
+    assert "ScopeProvider" in app, "the pages are no longer drawn in the scope's layout"
+    assert "RouterProvider" in app, "TanStack Router no longer holds the history"
+    views = (FRONTEND / "src/lib/resource-view.ts").read_text(encoding="utf-8")
+    assert "tanstackAdapter" in views, "the views reach the router some other way again"
+    for gone in ("app-sidebar.tsx", "header.tsx", "resource-pane.tsx"):
+        assert not (FRONTEND / "src/components/console" / gone).exists(), (
+            f"{gone} is back, beside the layout that replaced it"
+        )
+    assert not (FRONTEND / "src/components/ui/sidebar.tsx").exists(), "a second sidebar is back"
+    # The list's `components` replace the resource's whole, so the one that
+    # rereads the board on every event has to be said on the list too — without
+    # it the board stops following the stream.
+    tickets = (FRONTEND / "src/resources/tickets.tsx").read_text(encoding="utf-8")
+    assert "components: { top: BoardTop, noResult: NoTicket }" in tickets, (
+        "the board no longer rereads itself when the stream moves it"
+    )
 
 
 @case
@@ -7720,12 +7756,11 @@ def the_console_menu_is_a_name_and_a_count():
     said again in the smaller type. What is worth knowing at a glance is a
     count, and a count fits beside a name.
     """
-    menu = (FRONTEND / "src/lib/menu.ts").read_text(encoding="utf-8")
-    assert "badge?" in menu, "an entry can no longer carry a count"
-    assert "detail" not in menu, "an entry carries a sentence again"
-    sidebar = (FRONTEND / "src/components/console/app-sidebar.tsx").read_text(encoding="utf-8")
-    assert "item.detail" not in sidebar, "the menu draws a sentence under a name again"
-    assert "SidebarMenuBadge" in sidebar, "the count beside a name is gone too"
+    shell = (FRONTEND / "src/components/console/shell.tsx").read_text(encoding="utf-8")
+    assert "badge?" in shell, "an entry can no longer carry a count"
+    assert "detail" not in shell, "an entry carries a sentence again"
+    scope = (FRONTEND / "src/resources/scope.tsx").read_text(encoding="utf-8")
+    assert "component: MenuEntry" in scope, "the menu is drawn without its counts again"
 
 
 @case

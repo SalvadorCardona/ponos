@@ -393,6 +393,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The console is drawn in react-resource-view's admin layout.** The menu, the
+  bar and the page's heading are the package's own now, around the same pages:
+  the board, a ticket, *Live*, the projects, the schedules, the context and the
+  settings. On a phone the menu runs along the bottom edge. The stream's dot,
+  the version, *Refresh* and the light moved from the foot of the menu to the
+  end of the bar; the menu no longer folds to a rail of icons. The old
+  `/?page=live` and `/?page=context` addresses still land where they did, and
+  the board follows the stream again without a reload — a card moved from
+  another tab or from Notion now moves on the one you are looking at.
+
 - **An installation updates to releases, not to every commit of `main`.** The
   runner followed the branch it was installed from, so anything merged into
   `main` was running everywhere within the hour, before anybody had called it a
