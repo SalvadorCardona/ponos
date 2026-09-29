@@ -218,6 +218,9 @@ export const FRENCH: Record<string, string> = {
   "Remove the banner from the dashboard": "Retirer le bandeau du dashboard",
   "Earlier columns": "Colonnes précédentes",
   "More columns": "Colonnes suivantes",
+  "{{count}} empty column(s) hidden": "{{count}} colonne(s) vide(s) masquée(s)",
+  "Hide empty columns": "Masquer les colonnes vides",
+  "Show them": "Les afficher",
   "The board could not be read again": "Le tableau n'a pas pu être relu",
   "Map a project to a folder": "Associer un projet à un dossier",
   "A schedule written here is a ticket that comes back on its own.":

@@ -16,6 +16,7 @@ import {
   generateLinkByResource,
   tableViewOptionFactory,
   useCurrentViewResourceContext,
+  useListViewContext,
   type ListComponentPropsInterface,
   type RowComponentPropsInterface,
 } from "react-resource-view"
@@ -256,6 +257,9 @@ const rowForm: FormInterface = {
  * react-resource-view draws around every record being pushed back out of the
  * way: the coloured edge has to be the card's own edge, not a stripe inside a
  * second border.
+ *
+ * The id and the age never wrap: "#3f2acf09" cut in two is a different id to
+ * read, and "il y a 1 j" over two lines was a line of the card spent on it.
  */
 function TicketCard({ row }: RowComponentPropsInterface) {
   const ticket = row?.data as TicketItem | undefined
@@ -266,17 +270,17 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   return (
     <div
       className={cn(
-        "-m-4 flex flex-col gap-2.5 rounded-2xl border-l-3 p-3.5",
+        "-m-4 flex flex-col gap-2 rounded-2xl border-l-3 p-3",
         EDGE[ticket.column] ?? "border-l-border"
       )}
     >
-      <div className="flex items-center gap-2 font-mono text-[0.7rem]">
-        <TicketRobot column={ticket.column} size={20} className="-my-1" />
-        <Link to={href} className="font-medium tracking-wide hover:underline">
+      <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
+        <TicketRobot column={ticket.column} size={20} className="-my-1 shrink-0" />
+        <Link to={href} className="shrink-0 font-medium tracking-wide hover:underline">
           #{ticket.short}
         </Link>
         <span className="flex-1" />
-        <span className="text-muted-foreground">{ago(ticket.created)}</span>
+        <span className="text-muted-foreground truncate">{ago(ticket.created)}</span>
       </div>
 
       <Link to={href} className="text-[0.93rem] leading-snug font-semibold hover:underline">
@@ -353,15 +357,91 @@ function heading(key: string, name: string) {
   )
 }
 
+/* The narrowest a column is drawn. Below it a card's title wraps a word to a
+ * line; above it the columns share the width, with no upper bound, and past
+ * what the screen holds the board scrolls sideways — the board, not the page. */
+const COLUMN_MIN = "min-w-[17.5rem]"
+
+/* Whether the empty columns are drawn anyway, as the last person at this
+ * browser left it. Hidden by default: on a board with three columns at "rien",
+ * those three took as much room as the ones with work in them. */
+const EMPTY_KEY = "ticket-runner-board-empty-columns"
+
+function useEmptyColumnsShown() {
+  const [shown, setShown] = React.useState(() => {
+    try {
+      return localStorage.getItem(EMPTY_KEY) === "shown"
+    } catch {
+      return false
+    }
+  })
+  const change = React.useCallback((next: boolean) => {
+    setShown(next)
+    try {
+      localStorage.setItem(EMPTY_KEY, next ? "shown" : "hidden")
+    } catch {
+      // Storage off: the choice lasts as long as the tab, which is still one.
+    }
+  }, [])
+  return [shown, change] as const
+}
+
+/* A hidden column, while a card is being dragged: a thin strip under its name
+ * that takes a drop the way a column does. Without it, hiding an empty column
+ * would have taken away the only way to move a card to Review or Blocked by
+ * hand. The drop is the one the package's column makes — the same
+ * `updateData`, so the same write — and the column is drawn again as soon as
+ * the card is in it, because it is no longer empty. */
+function DropZone({
+  column,
+  label,
+  onDropped,
+}: {
+  column: string
+  label: React.ReactNode
+  onDropped: () => void
+}) {
+  const list = useListViewContext()
+  const [over, setOver] = React.useState(false)
+  return (
+    <div
+      onDragOver={(event) => {
+        event.preventDefault()
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setOver(false)
+        const id = event.dataTransfer.getData("text")
+        if (id) list.updateData?.({ id, column }, true)
+        onDropped()
+      }}
+      className={cn(
+        "border-border bg-muted/30 flex min-h-40 w-10 shrink-0 snap-start justify-center self-stretch rounded-2xl border border-dashed py-3 text-xs font-medium transition-colors",
+        over && "border-primary bg-primary/5 w-24"
+      )}
+    >
+      <span className="[writing-mode:vertical-rl]">{label}</span>
+    </div>
+  )
+}
+
 /** The board's columns, in the board's order and words, each a drop target.
  *
  * Seven columns do not fit a laptop, and the board used to show four of them
- * with nothing to say there were three more. The columns are narrower now, the
- * strip snaps to a column's edge, and each end that has more beyond it says so
- * — a fade, and a button that scrolls one screen further. */
+ * with nothing to say there were three more. The columns share the width of
+ * the page now, none narrower than `COLUMN_MIN`, the strip snaps to a
+ * column's edge, and each end that has more beyond it says so — a fade, and a
+ * button that scrolls one screen further.
+ *
+ * A column with no card is not drawn, unless you asked for it: a line over the
+ * board says how many are hidden and brings them back. While a card is being
+ * dragged, each hidden column is a thin drop zone in its place. */
 function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
   const board = useBoard()
   const [dragging, setDragging] = React.useState(false)
+  const [emptyShown, setEmptyShown] = useEmptyColumnsShown()
   const strip = React.useRef<HTMLDivElement>(null)
   const [more, setMore] = React.useState({ left: false, right: false })
 
@@ -373,6 +453,22 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
     setMore((was) => (was.left === left && was.right === right ? was : { left, right }))
   }, [])
 
+  const columns = board.columns.filter(
+    (column) =>
+      // Offered only where the runner would honour a card dropped there.
+      (column.key !== "validated" || board.validate) &&
+      // A column of what is elsewhere is drawn only when something is.
+      (column.key !== "other" || rows.some((row) => row.data?.column === "other"))
+  )
+  // Counted on the rows the list was handed, so on what the filters left: a
+  // column emptied by a search is as empty as one with nothing in it.
+  const empty = new Set(
+    columns
+      .filter((column) => !rows.some((row) => row.data?.column === column.key))
+      .map((column) => column.key)
+  )
+  const hidden = emptyShown ? 0 : empty.size
+
   React.useEffect(() => {
     const element = strip.current
     if (!element) return
@@ -381,66 +477,86 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
     observer.observe(element)
     for (const child of Array.from(element.children)) observer.observe(child)
     return () => observer.disconnect()
-  }, [measure, board.columns.length, rows.length])
+  }, [measure, board.columns.length, rows.length, hidden, dragging])
 
   const scroll = (direction: 1 | -1) =>
     strip.current?.scrollBy({ left: direction * strip.current.clientWidth * 0.8, behavior: "smooth" })
 
-  const columns = board.columns.filter(
-    (column) =>
-      // Offered only where the runner would honour a card dropped there.
-      (column.key !== "validated" || board.validate) &&
-      // A column of what is elsewhere is drawn only when something is.
-      (column.key !== "other" || rows.some((row) => row.data?.column === "other"))
-  )
-
   return (
-    <div className="relative" data-wide="">
-      <div
-        ref={strip}
-        onScroll={measure}
-        className="scroll-thin flex snap-x snap-mandatory items-start gap-3 overflow-x-auto scroll-smooth pb-2 [&>*]:w-[14rem] [&>*]:min-w-[14rem] [&>*]:shrink-0 [&>*]:snap-start"
-      >
-        {columns.map((column) => (
-          <RowWrapperColumnComponent
-            key={column.key}
-            identifierKey="column"
-            valueIdentifier={{
-              value: column.key,
-              label: heading(column.key, column.name || t(LABEL[column.key] ?? "")),
-            }}
-            isDragging={dragging}
-            handleDragging={setDragging}
-            rows={rows}
-          />
-        ))}
+    <div className="flex min-w-0 flex-col gap-2">
+      {empty.size ? (
+        <p className="text-muted-foreground flex items-center justify-end gap-1 text-xs">
+          {emptyShown
+            ? null
+            : t("{{count}} empty column(s) hidden", { count: String(empty.size) })}
+          <Button variant="ghost" size="xs" onClick={() => setEmptyShown(!emptyShown)}>
+            {emptyShown ? t("Hide empty columns") : t("Show them")}
+          </Button>
+        </p>
+      ) : null}
+      <div className="relative">
+        <div
+          ref={strip}
+          onScroll={measure}
+          className="scroll-thin flex snap-x snap-mandatory items-start gap-3 overflow-x-auto scroll-smooth pb-2"
+        >
+          {columns.map((column) => {
+            const label = heading(column.key, column.name || t(LABEL[column.key] ?? ""))
+            if (!emptyShown && empty.has(column.key)) {
+              return dragging ? (
+                <DropZone
+                  key={column.key}
+                  column={column.key}
+                  label={label}
+                  onDropped={() => setDragging(false)}
+                />
+              ) : null
+            }
+            // The package draws its column 18rem wide and rigid; the wrapper
+            // is what shares the width, and the column fills it.
+            return (
+              <div
+                key={column.key}
+                className={cn("flex flex-1 basis-0 snap-start *:w-auto *:flex-1", COLUMN_MIN)}
+              >
+                <RowWrapperColumnComponent
+                  identifierKey="column"
+                  valueIdentifier={{ value: column.key, label }}
+                  isDragging={dragging}
+                  handleDragging={setDragging}
+                  rows={rows}
+                />
+              </div>
+            )
+          })}
+        </div>
+        {more.left ? (
+          <div className="from-background pointer-events-none absolute inset-y-0 left-0 flex w-12 items-start bg-gradient-to-r to-transparent pt-1">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="pointer-events-auto rounded-full shadow-sm"
+              aria-label={t("Earlier columns")}
+              onClick={() => scroll(-1)}
+            >
+              <ChevronLeft />
+            </Button>
+          </div>
+        ) : null}
+        {more.right ? (
+          <div className="from-background pointer-events-none absolute inset-y-0 right-0 flex w-12 items-start justify-end bg-gradient-to-l to-transparent pt-1">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="pointer-events-auto rounded-full shadow-sm"
+              aria-label={t("More columns")}
+              onClick={() => scroll(1)}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        ) : null}
       </div>
-      {more.left ? (
-        <div className="from-background pointer-events-none absolute inset-y-0 left-0 flex w-12 items-start bg-gradient-to-r to-transparent pt-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="pointer-events-auto rounded-full shadow-sm"
-            aria-label={t("Earlier columns")}
-            onClick={() => scroll(-1)}
-          >
-            <ChevronLeft />
-          </Button>
-        </div>
-      ) : null}
-      {more.right ? (
-        <div className="from-background pointer-events-none absolute inset-y-0 right-0 flex w-12 items-start justify-end bg-gradient-to-l to-transparent pt-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="pointer-events-auto rounded-full shadow-sm"
-            aria-label={t("More columns")}
-            onClick={() => scroll(1)}
-          >
-            <ChevronRight />
-          </Button>
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -538,6 +654,9 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       {
         ...columnViewOptionFactory({
           id: "board",
+          // The page's whole width, the board alone: the table and the forms
+          // keep the column every other page is drawn in.
+          fullWidth: true,
           listComponent: BoardColumns,
           rowComponent: TicketCard,
           identifierKey: "column",
