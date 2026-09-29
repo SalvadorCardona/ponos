@@ -277,6 +277,9 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
     [ActionList.read]: {
       name: "Settings",
       viewComponent: SettingsHead,
+      // The page's whole width rather than the layout's column: a column of
+      // tabs beside two columns of fields left each field the width of a word.
+      fullWidth: true,
       // The object is what the package reads the tabs off, so the getter on it
       // survives the copy `createViewResource` makes of the view itself.
       subViewResource: {

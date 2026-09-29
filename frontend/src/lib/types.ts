@@ -239,7 +239,7 @@ export interface NoticeEvent {
 
 /* -- settings --------------------------------------------------------------- */
 
-export type FieldKind = "text" | "int" | "bool" | "choice" | "events" | "secret"
+export type FieldKind = "text" | "path" | "int" | "bool" | "choice" | "events" | "secret"
 
 export interface SettingField {
   name: string
