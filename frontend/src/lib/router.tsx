@@ -64,14 +64,16 @@ export function consoleRouter(Shell: () => React.ReactNode) {
  * two were lists you open a record from, and `/?page=live` and `/?page=context`
  * were until the console moved onto the package's admin layout; a link
  * somebody bookmarked or pasted into a chat has to keep landing on them rather
- * than on the board. Written out rather than generated: this module is what
- * the resources address themselves through, and importing one from here would
- * be a circle.
+ * than on the board. The live page has since gone altogether — a session is
+ * followed on its ticket, and the running tickets are on the board — so
+ * `/?page=live` leads to the board. Written out rather than generated: this
+ * module is what the resources address themselves through, and importing one
+ * from here would be a circle.
  */
 const MOVED: Record<string, string> = {
   projects: "/?view=console/projects/list",
   schedules: "/?view=console/schedules/list",
-  live: "/?view=console/live/list",
+  live: "/?view=console/tickets/list",
   context: "/?view=console/context/list",
 }
 

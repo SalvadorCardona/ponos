@@ -33,6 +33,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   `runner.resolve_conflicts`, `resolve_conflicts_except`, `resolve_model` and
   `checks_timeout_minutes` configure it. See the README, “Ten tickets on one
   repository”.
+- **A running ticket is followed on the ticket, not on a page of sessions.**
+  The console's *Live* page listed sessions by the id of their log, and nothing
+  said which ticket `24f9704c` was. A ticket's page now has a *live* tab — the
+  one a ticket in progress opens on — with its session's journal as it is
+  written: what the agent says drawn as prose, each tool call folded to one
+  line with the worktree's path shortened to `./`, the scroll following the end
+  until you scroll up. A finished ticket shows its last session there,
+  read-only. On the board, a card in progress pulses, counts its steps and says
+  what it is on; the runner's figures — sessions, timer, tickets handled and
+  their cost — are a strip over the columns. The *Live* page and its menu entry
+  are gone, and its old address leads to the board.
 - **A ticket has a type, and the runner works it out when you did not.** A new
   `Type` column — *Code*, *Writing*, *External action*, *Publication* — says
   which road a ticket takes. Left empty, a short session on a light model

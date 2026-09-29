@@ -26,10 +26,9 @@ import { TICKETS, boardHref } from "@/resources/tickets"
  *
  * react-resource-view's admin layout: a menu down the left built from the
  * scope, a bar over the page, a bottom navigation on a phone. Every page is a
- * resource of that scope — the board, a ticket, the live sessions, the
- * context, the projects, the schedules, the settings — so what the address
- * names is handed to the package, which draws the matching view inside the
- * layout the scope declares.
+ * resource of that scope — the board, a ticket, the context, the projects, the
+ * schedules, the settings — so what the address names is handed to the
+ * package, which draws the matching view inside the layout the scope declares.
  *
  * One thing stays outside it: the conversation, a drawer opened by the bubble
  * in the bottom corner at every width. The page keeps its width until you ask
@@ -50,7 +49,9 @@ function Page({ params }: { params: ViewResourceContextParams }) {
   const resource = findResource({ scope: SCOPE, resourceId })
   const resolved = useResolvedViewParams({ ...params, resource, resourceAction: action })
   // An address naming a page this console does not have lands on the board,
-  // rather than on an error thrown from inside the package.
+  // rather than on an error thrown from inside the package — the live page's
+  // `/?view=console/live/list` among them, now that sessions are read on their
+  // tickets.
   if (!resource) return <Navigate to={boardHref()} replace />
   return (
     // The language is part of the key: what the package draws — the view's

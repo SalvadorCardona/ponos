@@ -52,8 +52,8 @@ export function Mark() {
 export interface ConsoleMenuItem extends MenuItemInterface {
   /** The resource the entry opens: it stays lit on every address of that resource. */
   resource: string
-  /** A number worth showing beside the name — tickets on the board, sessions live. */
-  badge?: "board" | "live"
+  /** A number worth showing beside the name — the tickets on the board. */
+  badge?: "board"
 }
 
 /** The resource the address names; an address that names none is the board. */
@@ -65,16 +65,10 @@ export function useCurrentResourceId(): string {
 export function MenuEntry({ menuItem }: { menuItem: MenuItemInterface }) {
   const item = menuItem as ConsoleMenuItem
   const { board } = useConsole()
-  const { running } = useStatus()
   const current = useCurrentResourceId()
   const active = current === item.resource
   const Icon = item.icon
-  const count =
-    item.badge === "board"
-      ? board.tickets.length
-      : item.badge === "live"
-        ? running.length
-        : 0
+  const count = item.badge === "board" ? board.tickets.length : 0
 
   return (
     <Link

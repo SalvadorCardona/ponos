@@ -35,6 +35,8 @@ import {
 } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
 import { Robot, TicketRobot } from "@/components/console/robot"
+import { RunnerStrip } from "@/components/console/runner-strip"
+import { CardLive } from "@/components/console/session-log"
 import { TicketPage } from "@/components/console/ticket-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -253,7 +255,8 @@ const rowForm: FormInterface = {
  *
  * Read top to bottom it answers, in order: which one is this, how long has it
  * been sitting there, what is it, what is said about it, what is it doing,
- * where does the work go and what has it cost. The `-m-4` is the frame
+ * where does the work go and what has it cost. "What is it doing" is live on a
+ * running card: what its session last said, as it says it. The `-m-4` is the frame
  * react-resource-view draws around every record being pushed back out of the
  * way: the coloured edge has to be the card's own edge, not a stripe inside a
  * second border.
@@ -289,7 +292,9 @@ function TicketCard({ row }: RowComponentPropsInterface) {
 
       <TicketTags ticket={ticket} />
 
-      {ticket.progress ? (
+      {ticket.column === "running" ? (
+        <CardLive ticket={ticket} />
+      ) : ticket.progress ? (
         <p className="text-muted-foreground line-clamp-3 text-xs leading-relaxed">
           {ticket.progress}
         </p>
@@ -305,8 +310,8 @@ function TicketCard({ row }: RowComponentPropsInterface) {
 
 /* What sits above whatever react-resource-view is drawing.
  *
- * One job, and it draws nothing once the board is there: it asks the list to
- * reread the store whenever the stream moves the board. The heading is the
+ * It asks the list to reread the store whenever the stream moves the board,
+ * and once the board is there it draws the runner's figures over it. The heading is the
  * package's own since 0.7.0 — the resource's icon, the view's name and the
  * line under it — so the board no longer opens with a `PageHead` of its own,
  * which would say it all twice.
@@ -317,12 +322,15 @@ function TicketCard({ row }: RowComponentPropsInterface) {
  * over the dots, says the same thing with the runner's own face.
  */
 function BoardTop() {
-  const { fetchData, isLoading } = useCurrentViewResourceContext()
+  const { fetchData, isLoading, resourceAction } = useCurrentViewResourceContext()
   useLayoutInTheAddress(TICKETS)
   const latest = React.useRef(fetchData)
   latest.current = fetchData
   React.useEffect(() => subscribeBoard(() => latest.current()), [])
-  if (!isLoading || currentBoard()) return null
+  // The figures are the board's: a ticket's page is drawn under the same
+  // `top`, and has its own column to say what it is doing.
+  if (!isLoading || currentBoard())
+    return resourceAction === ActionList.list ? <RunnerStrip /> : null
   return (
     <div className="bg-background fixed inset-0 z-[51] flex flex-col items-center justify-center gap-3">
       <Robot state="thinking" size={96} />

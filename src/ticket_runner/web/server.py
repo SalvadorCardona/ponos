@@ -341,7 +341,7 @@ class Handler(BaseHTTPRequestHandler):
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
                 return self._json(self.api.talk(match.group(1)))
             if route == "/api/logs":
-                return self._json(self.api.logs())
+                return self._json(self.api.logs((query.get("ticket") or [""])[0]))
             if match := re.fullmatch(r"/api/logs/([\w.\-]+)", route):
                 return self._json(self.api.log(match.group(1)))
         except store.StoreError as error:
