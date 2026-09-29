@@ -9,6 +9,7 @@ import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
+import { Robot } from "./robot"
 import { Away, Chip, reachable } from "./ticket-bits"
 
 /* One project, as a page.
@@ -55,6 +56,7 @@ export function ProjectPage() {
       {!project ? (
         context.error ? (
           <div className="flex flex-col gap-1.5">
+            <Robot state="error" size={56} className="mb-2" />
             <p className="text-destructive text-sm">{t("This project could not be read.")}</p>
             {/* And what the server answered, as it answered it: "no such route"
                 and "no project with id …" are two different afternoons, and the
@@ -65,6 +67,7 @@ export function ProjectPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
+            <Robot state="thinking" size={56} className="mb-2" />
             <Skeleton className="h-8 w-2/3" />
             <Skeleton className="mt-2 h-20 w-full" />
             <Skeleton className="h-3 w-full" />

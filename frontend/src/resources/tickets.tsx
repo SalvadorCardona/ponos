@@ -33,6 +33,7 @@ import {
   when,
 } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
+import { Robot, TicketRobot } from "@/components/console/robot"
 import { TicketPage } from "@/components/console/ticket-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -207,6 +208,22 @@ const createForm: FormInterface = {
   },
 }
 
+/* The status, in the table, with the robot the card wears beside it. The cell
+ * holds the board's word for the column, not its key: the key is found again
+ * by that word, and a status the board has no column for is "other", as it is
+ * on the board. */
+const StatusCell: InputControllerComponentInterface = ({ formInput }) => {
+  const status = String(formInput.value ?? "")
+  const column =
+    currentBoard()?.columns.find((candidate) => candidate.name === status)?.key ?? "other"
+  return (
+    <span className="inline-flex items-center gap-2">
+      <TicketRobot column={column} size={18} className="shrink-0" />
+      {status}
+    </span>
+  )
+}
+
 /* The columns of the table layout. Read only: a ticket is moved on the board,
  * not typed into here. The headings go through the dictionary on their way to
  * the page, and the two cells that are a number on the card — what it cost and
@@ -215,7 +232,7 @@ const rowForm: FormInterface = {
   inputs: {
     title: { label: "Ticket", readonly: true },
     project: { label: "Project", readonly: true },
-    status: { label: "Status", readonly: true },
+    status: { label: "Status", readonly: true, controller: StatusCell },
     priority: { label: "Priority", readonly: true },
     model: { label: "Model", readonly: true },
     spent: { label: "Cost", readonly: true },
@@ -250,6 +267,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       )}
     >
       <div className="flex items-center gap-2 font-mono text-[0.7rem]">
+        <TicketRobot column={ticket.column} size={20} className="-my-1" />
         <Link to={href} className="font-medium tracking-wide hover:underline">
           #{ticket.short}
         </Link>
@@ -279,18 +297,30 @@ function TicketCard({ row }: RowComponentPropsInterface) {
 
 /* What sits above whatever react-resource-view is drawing.
  *
- * One job, and it draws nothing: it asks the list to reread the store whenever
- * the stream moves the board. The heading is the package's own since 0.7.0 —
- * the resource's icon, the view's name and the line under it — so the board no
- * longer opens with a `PageHead` of its own, which would say it all twice.
+ * One job, and it draws nothing once the board is there: it asks the list to
+ * reread the store whenever the stream moves the board. The heading is the
+ * package's own since 0.7.0 — the resource's icon, the view's name and the
+ * line under it — so the board no longer opens with a `PageHead` of its own,
+ * which would say it all twice.
+ *
+ * Until the first board arrives, it is the page: the package covers the screen
+ * with three bouncing dots while the list loads, and the first thing a console
+ * shows is that wait — as long as Notion takes to answer. The robot, thinking,
+ * over the dots, says the same thing with the runner's own face.
  */
 function BoardTop() {
-  const { fetchData } = useCurrentViewResourceContext()
+  const { fetchData, isLoading } = useCurrentViewResourceContext()
   useLayoutInTheAddress(TICKETS)
   const latest = React.useRef(fetchData)
   latest.current = fetchData
   React.useEffect(() => subscribeBoard(() => latest.current()), [])
-  return null
+  if (!isLoading || currentBoard()) return null
+  return (
+    <div className="bg-background fixed inset-0 z-[51] flex flex-col items-center justify-center gap-3">
+      <Robot state="thinking" size={96} />
+      <p className="text-muted-foreground font-mono text-xs">{t("Reading the board…")}</p>
+    </div>
+  )
 }
 
 /* The board's own empty line.
@@ -302,7 +332,7 @@ function BoardTop() {
  * one is already at the top of the page. */
 function NoTicket() {
   return (
-    <EmptyState icon={LayoutGrid}>
+    <EmptyState robot="sleep">
       {t("Nothing on the board yet — a ticket moved to the ready column is a session that starts.")}
     </EmptyState>
   )

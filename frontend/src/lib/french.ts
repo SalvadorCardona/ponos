@@ -91,6 +91,16 @@ export const FRENCH: Record<string, string> = {
   "A sentence talks to your workspace; a line that starts with > runs a command.":
     "Une phrase parle à votre espace de travail ; une ligne qui commence par > lance une commande.",
   "No such page.": "Cette page n'existe pas.",
+  // The robot in the bar, and the few words beside it that say its mood.
+  "a ticket is back": "un ticket est revenu",
+  "claude is missing": "claude est introuvable",
+  "a ticket is blocked": "un ticket est bloqué",
+  "{{count}} session(s) at work": "{{count}} session(s) au travail",
+  "out of credit": "plus de crédit",
+  "taking a ticket": "prend un ticket",
+  "{{count}} ticket(s) ready": "{{count}} ticket(s) prêt(s)",
+  "nothing to do": "rien à faire",
+  "Reading the board…": "Lecture du tableau…",
 
   /* -- the menu ------------------------------------------------------------ */
   Board: "Tableau",

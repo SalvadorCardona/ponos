@@ -2259,7 +2259,7 @@ ssh tunnel above — never on `0.0.0.0` because it happened to be easier that ev
 
 ## Mascot
 
-![The six states, light and dark, and the same SVG from 24 to 160 px](docs/mascot/states.png)
+![Every state, light and dark, and the same SVG from 24 to 160 px](docs/mascot/states.png)
 
 The runner has a face: a small robot whose mood follows a ticket. It lives in one file,
 [`docs/mascot/ticket-runner-robot.js`](docs/mascot/ticket-runner-robot.js) — a Web
@@ -2273,10 +2273,11 @@ build step and has to load it from a `<script>` tag:
 
 | Attribute | Values |
 |---|---|
-| `state` | `idle` (default), `thinking`, `working`, `success`, `error`, `sleep` — any key of `STATES` |
+| `state` | `idle` (default), `thinking`, `working`, `success`, `error`, `sleep`, `waiting` — any key of `STATES` |
 | `theme` | `auto` (default, follows `prefers-color-scheme`), `light`, `dark` |
 | `size` | a width in pixels; without it the robot takes the width of its container |
 | `accessories` | space-separated keys of `ACCESSORIES`, e.g. `bowtie headset` |
+| `still` | present, and the robot holds the pose of its state: no animation, no blinking — for a list of many |
 
 | State | On the board | What it does |
 |---|---|---|
@@ -2286,10 +2287,24 @@ build step and has to load it from a `<script>` tag:
 | `success` | the pull request is open | hops, happy eyes, waves, sparkles |
 | `error` | the ticket is blocked | sad eyes, antenna crackles red |
 | `sleep` | the queue is empty | eyes closed, head down, floating *Z*s |
+| `waiting` | a person has the next move — a review, the credits | looks up over its shoulder at three dots that tick |
 
 With `prefers-reduced-motion`, every animation stops and the robot holds the pose of its
 state — closed eyes and *Z*s for `sleep`, raised arms for `success` — so the state still
 reads.
+
+### In the console
+
+The web console bundles the same file — `frontend/` imports it through the `@mascot` alias,
+and its favicon is `docs/mascot/favicon.svg` — so the robot is never drawn twice. It is the
+mark at the top of the menu; the face at the right of the bar, in the runner's mood right now
+(asleep on an empty queue, thinking while a ticket is claimed, working while a session runs,
+jumping for a few seconds when a ticket comes back, upset when one has just been blocked or
+the stream is lost, waiting when the credits are out), with the words beside it; one per card
+and per row of the board, in the mood of its column; and the face of every empty list,
+loading page, error and toast. Only a ticket in progress moves on the board — the others are
+`still` — and every robot follows the console's own light or dark theme and is hidden from
+screen readers, the words beside it carrying the state.
 
 ### Layers
 

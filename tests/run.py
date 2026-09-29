@@ -7791,6 +7791,34 @@ def the_console_ships_its_built_bundle():
 
 
 @case
+def the_console_and_the_landing_page_draw_one_robot():
+    """The mascot is one file, and the console bundles it rather than a copy.
+
+    The landing page loads `docs/mascot/ticket-runner-robot.js` from a <script>
+    tag; the console imports that very module through Vite, and takes its
+    favicon from the same directory. A second copy of the drawing would be a
+    robot that changes on one page and not on the other.
+    """
+    mascot = ROOT / "docs/mascot/ticket-runner-robot.js"
+    assert mascot.is_file(), "the mascot's one source is gone"
+    copies = [
+        path
+        for path in ROOT.rglob("ticket-runner-robot.js")
+        if "node_modules" not in path.parts and path != mascot
+    ]
+    assert not copies, f"a copy of the mascot: {copies}"
+    robot = (FRONTEND / "src/components/console/robot.tsx").read_text(encoding="utf-8")
+    assert '"@mascot/ticket-runner-robot.js"' in robot, "the console draws a robot of its own"
+    vite = (FRONTEND / "vite.config.ts").read_text(encoding="utf-8")
+    assert '"../docs/mascot"' in vite, "@mascot no longer points at the landing page's file"
+    page = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    assert "../docs/mascot/favicon.svg" in page, "the console's favicon is not the mascot's"
+    source = mascot.read_text(encoding="utf-8")
+    assert "waiting:" in source, "a ticket waiting on a person has no face of its own"
+    assert "'still'" in source, "a board of robots cannot hold them still"
+
+
+@case
 def the_console_says_the_version_it_is_running_beside_the_stream_s_dot():
     """The number reaches the page, rather than staying in the payload.
 

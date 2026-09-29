@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArrowLeft, RotateCw, TriangleAlert } from "lucide-react"
+import { ArrowLeft, RotateCw } from "lucide-react"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
 
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -13,9 +13,9 @@ import { boardHref, lastTicketProblem } from "@/resources/tickets"
 import { EmptyState } from "./empty-state"
 import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
+import { MOOD, Robot } from "./robot"
 import {
   LABEL,
-  SEED,
   TONE,
   TicketActions,
   TicketLinks,
@@ -85,14 +85,11 @@ export function TicketPage() {
         {ticket ? (
           <>
             {/* The column, across the top: the one fact that decides what the
-                runner will do with this ticket next. */}
+                runner will do with this ticket next — and the robot in the
+                mood of it, moving here, where it is the only one on the
+                page, whatever the column. */}
             <div className="bg-card mb-4 flex items-center gap-2 rounded-lg border px-3 py-2">
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  SEED[ticket.column] ?? "bg-muted-foreground"
-                )}
-              />
+              <Robot state={MOOD[ticket.column] ?? "sleep"} size={32} className="-my-1.5 shrink-0" />
               <span
                 className={cn(
                   "text-sm font-medium",
@@ -165,7 +162,7 @@ export function TicketPage() {
           // Why, as the server said it, and the two ways on from here: a
           // board that did not answer often answers the second time.
           <EmptyState
-            icon={TriangleAlert}
+            robot="error"
             title={t("This ticket could not be read.")}
             action={
               <>
@@ -184,6 +181,7 @@ export function TicketPage() {
           </EmptyState>
         ) : (
           <div className="flex flex-col gap-2">
+            <Robot state="thinking" size={56} className="mb-2" />
             <Skeleton className="h-8 w-2/3" />
             <Skeleton className="mt-2 h-20 w-full" />
             <Skeleton className="h-3 w-full" />

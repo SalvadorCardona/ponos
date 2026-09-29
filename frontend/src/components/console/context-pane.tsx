@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n"
 import type { Context } from "@/lib/types"
 
 import { EmptyState } from "./empty-state"
+import { Robot } from "./robot"
 import { Eyebrow, PageHead } from "./frame"
 import { MarkdownEditor } from "./markdown-editor"
 
@@ -129,7 +130,10 @@ export function ContextPane() {
           {problem}
         </p>
       ) : !drawn ? (
-        <p className="text-muted-foreground text-sm">{t("Reading the context…")}</p>
+        <p className="text-muted-foreground flex items-center gap-3 text-sm">
+          <Robot state="thinking" size={40} />
+          {t("Reading the context…")}
+        </p>
       ) : !drawn.editable ? (
         <EmptyState icon={BookOpen}>
           {t("This workspace has no “{{page}}” page, so there is nowhere to write.", {

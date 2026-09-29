@@ -6,7 +6,7 @@
  *   docs/mascot/robot.svg     the whole robot, layers and variables kept
  *   docs/mascot/favicon.svg   the bust, following the browser's colour scheme
  *   docs/mascot/og.png        the Open Graph card, 1200 × 630
- *   docs/mascot/states.png    the six states, light and dark, and the sizes
+ *   docs/mascot/states.png    every state, light and dark, and the sizes
  *
  *   node scripts/mascot.mjs
  *
@@ -58,11 +58,11 @@ const sheet = `<!doctype html><meta charset="utf-8">${fonts}
 <style>
   html, body { margin: 0; width: 1200px; }
   body { font-family: Inter, sans-serif; }
-  .row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 28px 28px 20px; }
+  .row { display: grid; grid-template-columns: repeat(${Object.keys(STATES).length}, 1fr); gap: 12px; padding: 28px 28px 20px; }
   .light { background: #f4f2ee; color: #0f172a; }
   .dark { background: #0b0d12; color: #e9ecf3; }
   figure { margin: 0; text-align: center; }
-  .bot { width: 150px; margin: 0 auto; }
+  .bot { width: min(150px, 100%); margin: 0 auto; }
   figcaption { font-size: 13px; opacity: .75; margin-top: 8px; }
   figcaption b { display: block; font: 600 15px 'JetBrains Mono', monospace; opacity: 1; margin-bottom: 2px; }
   .sizes { display: flex; align-items: flex-end; gap: 36px; padding: 16px 28px 32px; }

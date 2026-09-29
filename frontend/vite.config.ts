@@ -1,7 +1,7 @@
 import path from "node:path"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
-import { defineConfig } from "vite"
+import { defineConfig, searchForWorkspaceRoot } from "vite"
 
 /* The console is served by Python, not by Node.
  *
@@ -14,12 +14,19 @@ import { defineConfig } from "vite"
  *
  * Everything is served under `/static/`, which is the one route the server
  * hands files from, so that is the base every asset URL is written against.
+ *
+ * The robot is not the console's own: it is `docs/mascot/`, the file the
+ * landing page loads from a <script> tag, bundled here as it is — `@mascot` is
+ * that directory, and the favicon in `index.html` is read from it too. One
+ * drawing for both, and no copy to fall behind.
  */
+const MASCOT = path.resolve(import.meta.dirname, "../docs/mascot")
+
 export default defineConfig({
   base: "/static/",
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { "@": path.resolve(import.meta.dirname, "./src") },
+    alias: { "@": path.resolve(import.meta.dirname, "./src"), "@mascot": MASCOT },
   },
   build: {
     outDir: path.resolve(import.meta.dirname, "../src/ticket_runner/web/static"),
@@ -52,6 +59,9 @@ export default defineConfig({
     },
   },
   server: {
+    // The mascot sits outside this project, and the dev server serves nothing
+    // outside it unless told to.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), MASCOT] },
     // `npm run dev` gives hot reload against a console you started yourself:
     //   ticket-runner serve      (127.0.0.1:8787, prints its token)
     //   npm run dev -- --open

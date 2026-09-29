@@ -1,9 +1,18 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
+import { Robot } from "@/components/console/robot"
 import { useTheme } from "@/hooks/use-theme"
 
 /* shadcn's Toaster, with `next-themes` taken out of it: this console is not
- * Next, and the theme is one class on <html> and a line in localStorage. */
+ * Next, and the theme is one class on <html> and a line in localStorage.
+ *
+ * A toast that went well or badly wears the robot in that mood rather than a
+ * tick or a cross — the sentence beside it still says which. */
+const ICONS: ToasterProps["icons"] = {
+  success: <Robot state="success" size={20} />,
+  error: <Robot state="error" size={20} />,
+}
+
 function Toaster({ ...props }: ToasterProps) {
   const { theme } = useTheme()
 
@@ -12,6 +21,7 @@ function Toaster({ ...props }: ToasterProps) {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       position="bottom-right"
+      icons={ICONS}
       style={
         {
           "--normal-bg": "var(--popover)",

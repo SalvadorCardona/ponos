@@ -363,7 +363,7 @@ function NoSchedule() {
       {t("builds it.")}
     </EmptyState>
   ) : (
-    <EmptyState icon={CalendarClock} title={t("Nothing repeats here yet")}>
+    <EmptyState robot="sleep" title={t("Nothing repeats here yet")}>
       {markdown
         ? t("A schedule written here is a ticket that comes back on its own.")
         : t("A row in the “{{page}}” database is a ticket that comes back.", { page })}

@@ -23,7 +23,13 @@
  * Attributes: `state` (a key of STATES, idle by default), `theme` (light,
  * dark, or auto — the default, which follows prefers-color-scheme),
  * `size` (pixels; without it the robot takes the width of its container),
- * `accessories` (space-separated keys of ACCESSORIES).
+ * `accessories` (space-separated keys of ACCESSORIES), `still` (hold the pose,
+ * never move nor blink — what a list of a hundred robots asks for, where only
+ * the ones that are doing something should look like it).
+ *
+ * The web console bundles this very file rather than a copy of it: a hundred
+ * robots on one board is a hundred shadow roots, so they share one stylesheet
+ * and clone one parsed drawing instead of each parsing their own.
  */
 
 export const PALETTES = {
@@ -122,6 +128,11 @@ const DRAWING = `
       <path data-layer="z2" class="z" d="M100 10 h5 l-5 6 h5"/>
       <path data-layer="z3" class="z" d="M109 2 h4 l-4 5 h4"/>
     </g>
+    <g data-layer="fx-dots" class="fx-dots">
+      <circle data-layer="dot1" class="dot" cx="96" cy="18" r="2.8"/>
+      <circle data-layer="dot2" class="dot" cx="104.5" cy="18" r="2.8"/>
+      <circle data-layer="dot3" class="dot" cx="113" cy="18" r="2.8"/>
+    </g>
     <g data-layer="fx-sparks" class="fx-sparks">
       <path class="spark" d="M52 6 l-4 3 l3 1 l-4 3"/>
       <path class="spark" d="M76 6 l4 3 l-3 1 l4 3"/>
@@ -173,7 +184,8 @@ const BASE_STYLE = `
   .z { fill: none; stroke: var(--robot-body-shade); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .spark { fill: none; stroke: var(--robot-alert); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .star { fill: var(--robot-accent); }
-  .fx-zzz, .fx-sparks, .fx-stars { opacity: 0; }
+  .dot { fill: var(--robot-body-shade); }
+  .fx-zzz, .fx-sparks, .fx-stars, .fx-dots { opacity: 0; }
   svg.blinking[data-state] [data-layer^="lid-"] { transform: scaleY(1); }
 `;
 
@@ -198,6 +210,7 @@ export const KEYFRAMES = {
   flicker: '0%, 30%, 62%, 100% { fill: var(--robot-alert) } 15%, 50% { fill: var(--robot-screen) }',
   snooze: '0%, 100% { transform: translateY(0) rotate(-6deg) } 50% { transform: translateY(1.4px) rotate(-6deg) scaleY(.98) }',
   drift: '0% { opacity: 0; transform: translate(0, 4px) scale(.6) } 25%, 70% { opacity: 1 } 100% { opacity: 0; transform: translate(4px, -6px) scale(1.1) }',
+  tick: '0%, 60%, 100% { opacity: .25 } 30% { opacity: 1 }',
 };
 
 /*
@@ -290,6 +303,20 @@ export const STATES = {
       z3: { animation: 'drift 3s ease-in-out 2s infinite' },
     },
   },
+  waiting: {
+    label: 'Waiting',
+    means: 'waiting on a person',
+    blink: true,
+    layers: {
+      rig: { animation: 'breathe 4.8s ease-in-out infinite' },
+      head: { transform: 'rotate(-5deg)' },
+      eyes: { transform: 'translate(4px, -3px)' },
+      'fx-dots': { opacity: '1' },
+      dot1: { animation: 'tick 1.8s ease-in-out infinite' },
+      dot2: { animation: 'tick 1.8s ease-in-out .3s infinite' },
+      dot3: { animation: 'tick 1.8s ease-in-out .6s infinite' },
+    },
+  },
 };
 
 /* Accessories: SVG on the same 128 grid, drawn above the body and the head. */
@@ -364,6 +391,7 @@ export function standalone({ state = DEFAULT_STATE, theme = 'auto', viewBox = '0
 const SHADOW_STYLE = `
   :host { display: inline-block; width: 100%; aspect-ratio: 1; vertical-align: middle; }
   :host([hidden]) { display: none; }
+  :host([still]) svg, :host([still]) svg * { animation: none !important; transition: none !important; }
   ${paletteStyle(':host', (t) => (t === 'auto' ? ':host(:not([theme="light"]))' : `:host([theme="${t}"])`))}
   ${BASE_STYLE}
   ${stateStyle(true)}
@@ -372,15 +400,26 @@ const SHADOW_STYLE = `
 if (typeof customElements !== 'undefined' && !customElements.get('ticket-runner-robot')) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 
+  /* Parsed once for every robot on the page: the stylesheet adopted where the
+     browser can share one, and the drawing cloned rather than parsed again. */
+  let shared = null;
+  if ('adoptedStyleSheets' in Document.prototype) {
+    shared = new CSSStyleSheet();
+    shared.replaceSync(SHADOW_STYLE);
+  }
+  const template = document.createElement('template');
+  template.innerHTML = `${shared ? '' : `<style>${SHADOW_STYLE}</style>`}<svg viewBox="0 0 128 128" role="img" aria-hidden="true">${DRAWING}</svg>`;
+
   class TicketRunnerRobot extends HTMLElement {
-    static observedAttributes = ['state', 'size', 'accessories'];
+    static observedAttributes = ['state', 'size', 'accessories', 'still'];
 
     labelled = false;
 
     constructor() {
       super();
       const root = this.attachShadow({ mode: 'open' });
-      root.innerHTML = `<style>${SHADOW_STYLE}</style><svg viewBox="0 0 128 128" role="img" aria-hidden="true">${DRAWING}</svg>`;
+      if (shared) root.adoptedStyleSheets = [shared];
+      root.appendChild(template.content.cloneNode(true));
       this.svg = root.querySelector('svg');
       this.blinkTimer = 0;
     }
@@ -397,8 +436,9 @@ if (typeof customElements !== 'undefined' && !customElements.get('ticket-runner-
       clearTimeout(this.blinkTimer);
     }
 
-    attributeChangedCallback() {
+    attributeChangedCallback(name) {
       this.render();
+      if (name === 'still' && this.isConnected) this.scheduleBlink();
     }
 
     render() {
@@ -406,8 +446,9 @@ if (typeof customElements !== 'undefined' && !customElements.get('ticket-runner-
       this.svg.dataset.state = asked in STATES ? asked : DEFAULT_STATE;
       const size = parseFloat(this.getAttribute('size'));
       this.style.width = size > 0 ? `${size}px` : '';
-      const accessories = (this.getAttribute('accessories') || '').split(/\s+/).filter(Boolean);
-      this.svg.querySelector('[data-layer="accessories"]').innerHTML = accessoriesMarkup(accessories);
+      const accessories = accessoriesMarkup((this.getAttribute('accessories') || '').split(/\s+/).filter(Boolean));
+      const layer = this.svg.querySelector('[data-layer="accessories"]');
+      if (layer.innerHTML !== accessories) layer.innerHTML = accessories;
       if (!this.hasAttribute('role')) this.setAttribute('role', 'img');
       if (!this.hasAttribute('aria-label') || this.labelled) {
         this.labelled = true;
@@ -415,9 +456,12 @@ if (typeof customElements !== 'undefined' && !customElements.get('ticket-runner-
       }
     }
 
-    /* A blink every few seconds, never on the beat: a fixed rhythm reads as a machine. */
+    /* A blink every few seconds, never on the beat: a fixed rhythm reads as a machine.
+       A robot holding still has no timer at all — a board of them would be a
+       hundred timers for eyes nobody sees move. */
     scheduleBlink() {
       clearTimeout(this.blinkTimer);
+      if (this.hasAttribute('still')) return;
       this.blinkTimer = setTimeout(() => {
         if (this.isConnected && !reduced.matches && STATES[this.state].blink) {
           this.svg.classList.add('blinking');
