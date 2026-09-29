@@ -315,7 +315,12 @@ def rebase(worktree: Path, onto: str) -> str:
     result = git(["rebase", "--autostash", onto], worktree, environment=identity(worktree))
     if result.ok:
         return ""
+    # Read off the index rather than off what git printed: git speaks the
+    # machine's language, and a `CONFLIT` is as much a conflict as a `CONFLICT`.
+    unmerged = conflicted(worktree)
     git(["rebase", "--abort"], worktree)
+    if unmerged:
+        return f"CONFLICT in {', '.join(unmerged)}"
     lines = [line.strip() for line in (result.out + "\n" + result.err).splitlines() if line.strip()]
     conflict = next((line for line in lines if line.startswith("CONFLICT")), "")
     return conflict or (lines[0] if lines else f"git rebase {onto} failed")
@@ -568,6 +573,7 @@ _BEHIND = (
     "merge conflict",
     "base branch was modified",
     "head branch is out of date",
+    "not up to date",
 )
 
 
@@ -629,22 +635,259 @@ def replay_pushed(
     try:
         if failure := rebase(workdir, f"origin/{onto}"):
             return failure
-        pushed = git(
-            ["push", f"--force-with-lease={branch}:{was}", "origin", f"HEAD:refs/heads/{branch}"],
-            workdir,
-            timeout=300,
-            token=token_for(remote_url(repo), accounts),
-        )
-        if not pushed.ok:
-            lines = [
-                line.strip()
-                for line in (pushed.err + "\n" + pushed.out).splitlines()
-                if line.strip()
-            ]
-            return lines[-1] if lines else f"git push {branch} failed"
+        return push_leased(workdir, branch, was, accounts)
     finally:
         remove_worktree(repo, workdir)
-    return ""
+
+
+def is_conflict(failure: str) -> bool:
+    """Did that replay stop on a conflict, rather than on anything else?
+
+    What `rebase` answers when it could not: the `CONFLICT` line git printed
+    when there was one, the first line of whatever it said otherwise.
+    """
+    return failure.startswith("CONFLICT")
+
+
+def push_leased(
+    worktree: Path, branch: str, was: str, accounts: Accounts | None = None
+) -> str:
+    """Push HEAD onto `branch`, on a lease on the very commit it was replayed from.
+
+    `--force-with-lease=<branch>:<was>`, never `--force`: a branch somebody
+    pushed to since `was` is refused, and their commits stay where they are.
+    Says why it could not, or nothing — `pushed_over` tells that refusal apart.
+    """
+    pushed = git(
+        ["push", f"--force-with-lease={branch}:{was}", "origin", f"HEAD:refs/heads/{branch}"],
+        worktree,
+        timeout=300,
+        token=token_for(remote_url(worktree), accounts),
+    )
+    if pushed.ok:
+        return ""
+    lines = [
+        line.strip() for line in (pushed.err + "\n" + pushed.out).splitlines() if line.strip()
+    ]
+    return lines[-1] if lines else f"git push {branch} failed"
+
+
+def pushed_over(failure: str) -> bool:
+    """Was that push refused because somebody else pushed to the branch first?"""
+    said = failure.lower()
+    return "stale info" in said or "fetch first" in said or "non-fast-forward" in said
+
+
+def merge_blocker(url: str, accounts: Accounts | None = None) -> str:
+    """What GitHub already says stands between that pull request and a merge.
+
+    `CONFLICTING` when the branch and its base touch the same lines, `BEHIND`
+    when the base has moved and the repository wants branches up to date — the
+    two a replay answers, asked *before* the merge rather than read in its
+    refusal. Nothing for everything else, `UNKNOWN` included: GitHub works that
+    out lazily, and a merge asked on it is the old road, which already reads a
+    refusal for what it is.
+    """
+    if not shutil.which("gh"):
+        return ""
+    result = run(
+        ["gh", "pr", "view", url, "--json", "mergeable,mergeStateStatus",
+         "-q", ".mergeable + \" \" + .mergeStateStatus"],
+        timeout=60,
+        token=token_for(url, accounts),
+    )
+    if not result.ok:
+        return ""
+    said = result.out.split()
+    if "CONFLICTING" in said or "DIRTY" in said:
+        return "CONFLICTING"
+    return "BEHIND" if "BEHIND" in said else ""
+
+
+@dataclass
+class Replay:
+    """A pull request's branch, being replayed onto its base in a worktree of its own.
+
+    Left where git stopped: `conflicts` are the files it could not merge at its
+    first stop, and the rebase is still in progress in `workdir` — for a
+    session to carry to its end. `error` is a replay that could not even get
+    that far, and nothing else is then worth reading.
+    """
+
+    workdir: Path
+    was: str = ""
+    onto: str = ""
+    conflicts: list[str] | None = None
+    arrived: str = ""
+    diff: str = ""
+    error: str = ""
+
+
+# How much of a pull request's diff goes into the prompt of the session that
+# resolves it. The rest is one `git diff` away, and the session is told which.
+DIFF_LIMIT = 40_000
+
+
+def begin_replay(repo: Path, branch: str, onto: str, workdir: Path) -> Replay:
+    """Start replaying a pushed branch onto its base, and stop where git stops.
+
+    `replay_pushed`, without the abort: the same detached worktree on the
+    branch as origin holds it — the local branch is never moved — but a rebase
+    that hits a conflict is left in progress, because resolving it is the whole
+    point. What the resolution needs to know comes with it: which commits
+    landed on the base since the branch left it, and what the branch changes.
+    """
+    fetch(repo)
+    replay = Replay(workdir=workdir)
+    replay.was = git(["rev-parse", f"origin/{branch}"], repo).out
+    replay.onto = git(["rev-parse", f"origin/{onto}"], repo).out
+    if not replay.was or not replay.onto:
+        missing = branch if not replay.was else onto
+        replay.error = f"origin/{missing} is not here to replay"
+        return replay
+    fork = git(["merge-base", replay.was, replay.onto], repo).out
+    replay.arrived = git(["log", "--oneline", "--no-decorate", f"{fork}..{replay.onto}"], repo).out
+    diff = git(["diff", f"{fork}..{replay.was}"], repo).out
+    replay.diff = diff if len(diff) <= DIFF_LIMIT else diff[:DIFF_LIMIT] + "\n[… cut]"
+    git(["worktree", "prune"], repo)
+    workdir.parent.mkdir(parents=True, exist_ok=True)
+    if workdir.exists():
+        remove_worktree(repo, workdir)
+    added = git(["worktree", "add", "--detach", str(workdir), replay.was], repo)
+    if not added.ok:
+        replay.error = f"git worktree add: {added.err or added.out}"
+        return replay
+    result = git(["rebase", f"origin/{onto}"], workdir, environment=identity(workdir))
+    replay.conflicts = conflicted(workdir)
+    if not result.ok and not replay.conflicts:
+        git(["rebase", "--abort"], workdir)
+        lines = [line.strip() for line in (result.out + "\n" + result.err).splitlines() if line.strip()]
+        replay.error = lines[0] if lines else f"git rebase origin/{onto} failed"
+    return replay
+
+
+def conflicted(worktree: Path) -> list[str]:
+    """The files git stopped on, unmerged in the index."""
+    result = git(["diff", "--name-only", "--diff-filter=U"], worktree)
+    return [line.strip() for line in result.out.splitlines() if line.strip()] if result.ok else []
+
+
+def rebasing(worktree: Path) -> bool:
+    """Is a rebase still in progress there — stopped, and never carried to its end?"""
+    for name in ("rebase-merge", "rebase-apply"):
+        found = git(["rev-parse", "--git-path", name], worktree)
+        if found.ok and found.out and (Path(worktree) / found.out).exists():
+            return True
+    return False
+
+
+def contains(worktree: Path, ancestor: str) -> bool:
+    """Does HEAD carry that commit — is the branch on top of it?"""
+    return git(["merge-base", "--is-ancestor", ancestor, "HEAD"], worktree).ok
+
+
+def with_markers(worktree: Path, files: list[str]) -> list[str]:
+    """Those of the files that still carry a conflict marker.
+
+    Read off the files themselves: a marker committed by a resolution that
+    `git add`-ed a file without resolving it is exactly what git no longer sees.
+    """
+    marked = []
+    for name in files:
+        try:
+            lines = (Path(worktree) / name).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue  # deleted on purpose, which is a resolution like any other
+        if any(line.startswith(("<<<<<<< ", ">>>>>>> ")) or line == "<<<<<<<" for line in lines):
+            marked.append(name)
+    return marked
+
+
+def push_aside(worktree: Path, name: str, accounts: Accounts | None = None) -> str:
+    """Put HEAD on a branch of its own on origin, for somebody to look at.
+
+    What a resolution that stopped halfway leaves behind: never the pull
+    request's own branch. The name carries the commit, so pushing the same
+    thing twice is the same branch and nothing is ever forced. Says why it
+    could not, or nothing.
+    """
+    pushed = git(
+        ["push", "origin", f"HEAD:refs/heads/{name}"],
+        worktree,
+        timeout=300,
+        token=token_for(remote_url(worktree), accounts),
+    )
+    return "" if pushed.ok else (pushed.err or pushed.out or f"git push {name} failed")
+
+
+def comment_pull_request(url: str, body: str, accounts: Accounts | None = None) -> bool:
+    """Write that on the pull request. Whether it could, and never a failure."""
+    if not shutil.which("gh"):
+        return False
+    result = run(
+        ["gh", "pr", "comment", url, "--body", body[:60_000]],
+        timeout=60,
+        token=token_for(url, accounts),
+    )
+    return result.ok
+
+
+def pull_request_body(url: str, accounts: Accounts | None = None) -> str:
+    """The description a pull request was opened with, or nothing."""
+    if not shutil.which("gh"):
+        return ""
+    result = run(
+        ["gh", "pr", "view", url, "--json", "body", "-q", ".body"],
+        timeout=60,
+        token=token_for(url, accounts),
+    )
+    return result.out if result.ok else ""
+
+
+# How long a pull request's checks are given to appear after a push: GitHub
+# registers them a few seconds after the commit arrives, and asking at once
+# would read a repository with CI as one without.
+CHECKS_APPEAR_SECONDS = 60
+
+
+def wait_for_checks(
+    url: str, worktree: Path, minutes: int, accounts: Accounts | None = None
+) -> str:
+    """Wait for the pull request's checks: `passed`, `failed`, `pending` or `none`.
+
+    `none` without asking anybody when the repository has no workflow of its
+    own, which is most of the ones that have no CI — and when `minutes` is
+    zero, which says not to wait. `pending` is the time it was given running
+    out: the merge is asked all the same, and GitHub refuses it if a check it
+    requires is not green.
+    """
+    if minutes <= 0 or not shutil.which("gh"):
+        return "none"
+    if not (Path(worktree) / ".github" / "workflows").is_dir():
+        return "none"
+    token = token_for(url, accounts)
+    deadline = time.monotonic() + minutes * 60
+    appear_by = time.monotonic() + CHECKS_APPEAR_SECONDS
+    while True:
+        left = int(deadline - time.monotonic())
+        if left <= 0:
+            return "pending"
+        result = run(
+            ["gh", "pr", "checks", url, "--watch", "--interval", "20"],
+            timeout=left,
+            token=token,
+        )
+        said = f"{result.out}\n{result.err}".lower()
+        if result.ok:
+            return "passed"
+        if result.code == TIMED_OUT:
+            return "pending"
+        if "no checks reported" in said:
+            if time.monotonic() >= appear_by:
+                return "none"
+            time.sleep(10)
+            continue
+        return "failed"
 
 
 def pull_request_on(repo: Path, branch: str, accounts: Accounts | None = None) -> str:

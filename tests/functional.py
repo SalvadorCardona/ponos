@@ -455,6 +455,43 @@ if refused:
 
 here = Path.cwd()
 
+# A pull request whose rebase stopped on a conflict. The fake resolves it the
+# way the prompt asks — both sides kept — by dropping the markers and keeping
+# every line, then carries the rebase to its end. `FAKE_CLAUDE_RESOLVE=blocked`
+# is the other session: the one that reads the conflict as a decision.
+if "You are resolving that conflict" in prompt:
+    if os.environ.get("FAKE_CLAUDE_RESOLVE") == "blocked":
+        said = ("Les deux côtés réécrivent FAKE.md, de deux façons incompatibles.\\n"
+                "RESULT: blocked — FAKE.md : garder le texte du ticket ou celui de main ?")
+        emit({"type": "assistant", "message": {"content": [{"type": "text", "text": said}]}})
+        emit({"type": "result", "subtype": "success", "is_error": False, "result": said,
+              "session_id": session, "num_turns": 2, "total_cost_usd": 0.05})
+        raise SystemExit(0)
+    identity = ["-c", "user.name=Fake Claude", "-c", "user.email=fake@example.invalid",
+                "-c", "commit.gpgsign=false"]
+    resolved = []
+    while True:
+        unmerged = subprocess.run(["git", "diff", "--name-only", "--diff-filter=U"], cwd=here,
+                                  capture_output=True, text=True).stdout.split()
+        if not unmerged:
+            break
+        for name in unmerged:
+            lines = (here / name).read_text(encoding="utf-8").splitlines()
+            kept = [line for line in lines
+                    if not line.startswith(("<<<<<<<", "=======", ">>>>>>>"))]
+            (here / name).write_text("\\n".join(kept) + "\\n", encoding="utf-8")
+            subprocess.run(["git", "add", name], cwd=here, check=True)
+            resolved.append(name)
+        subprocess.run(["git", *identity, "rebase", "--continue"], cwd=here,
+                       env={**os.environ, "GIT_EDITOR": "true"}, capture_output=True)
+    said = ("\\n".join(f"- `{name}` : les deux versions gardées" for name in resolved)
+            + "\\nVérifications : aucune dans ce dépôt.\\n"
+            "RESULT: ok — conflit résolu en gardant les deux côtés")
+    emit({"type": "assistant", "message": {"content": [{"type": "text", "text": said}]}})
+    emit({"type": "result", "subtype": "success", "is_error": False, "result": said,
+          "session_id": session, "num_turns": 4, "total_cost_usd": 0.05})
+    raise SystemExit(0)
+
 # A second ticket landed on the base branch while this session was running.
 # `FAKE_CLAUDE_MOVES_BASE` names the clone it landed in: a commit on `main`,
 # pushed — which is what a merge on GitHub does under a session that started an
@@ -568,6 +605,11 @@ if args[:2] == ["pr", "merge"]:
     print("Merged pull request")
     raise SystemExit(0)
 
+if args[:2] == ["pr", "comment"]:
+    write({"command": "pr comment", "url": args[2] if len(args) > 2 else "",
+           "body": option("--body")})
+    raise SystemExit(0)
+
 if args[:2] == ["pr", "view"]:
     url = args[2] if len(args) > 2 and args[2].startswith("http") else ""
     opened = pull_request(url)
@@ -575,6 +617,27 @@ if args[:2] == ["pr", "view"]:
         if not opened:
             raise SystemExit(1)
         print(opened["branch"] + " " + opened["base"])
+        raise SystemExit(0)
+    if "body" in args:
+        if not opened:
+            raise SystemExit(1)
+        print(opened["body"])
+        raise SystemExit(0)
+    # What GitHub says of a branch before anybody asks for the merge: behind
+    # when its base is no longer underneath, conflicting when the two cannot
+    # even be merged — which `git merge-tree` answers without a worktree.
+    if "mergeable,mergeStateStatus" in args:
+        if not opened:
+            raise SystemExit(1)
+        remote = opened["remote"]
+        if git("merge-base", "--is-ancestor", opened["base"], opened["branch"],
+               cwd=remote).returncode == 0:
+            print("MERGEABLE CLEAN")
+        elif git("merge-tree", "--write-tree", opened["base"], opened["branch"],
+                 cwd=remote).returncode != 0:
+            print("CONFLICTING DIRTY")
+        else:
+            print("MERGEABLE BEHIND")
         raise SystemExit(0)
     # `--json state` asks about a pull request by its URL; `--json url` asks
     # whether this branch already has one, and here it never does.
@@ -745,13 +808,13 @@ class Bench:
             {"status": {"name": column}}
         )
 
-    def land(self, repository: Path, filename: str) -> None:
+    def land(self, repository: Path, filename: str, text: str = "un autre ticket\n") -> None:
         """Another ticket merged: one commit on `main`, pushed to the remote.
 
         What every pull request still open is suddenly behind on, and the whole
         of what a repository taking ten tickets a day does to them.
         """
-        (repository / filename).write_text("un autre ticket\n", encoding="utf-8")
+        (repository / filename).write_text(text, encoding="utf-8")
         _git(["add", filename], repository)
         _git(["commit", "-m", f"Un autre ticket — {filename}"], repository)
         _git(["push", "origin", "main"], repository)
@@ -776,6 +839,9 @@ class Bench:
 
     def pull_requests(self) -> list[dict]:
         return [one for one in _lines(self.logs["FAKE_GH_LOG"]) if one["command"] == "pr create"]
+
+    def pull_request_comments(self) -> list[dict]:
+        return [one for one in _lines(self.logs["FAKE_GH_LOG"]) if one["command"] == "pr comment"]
 
     def merges(self) -> list[dict]:
         return [one for one in _lines(self.logs["FAKE_GH_LOG"]) if one["command"] == "pr merge"]
@@ -803,6 +869,15 @@ class Bench:
             cwd=str(bare), capture_output=True, text=True, timeout=60,
         )
         return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    def content(self, repository: Path, branch: str, path: str) -> str:
+        """A file as the bare remote holds it on that branch."""
+        bare = self.root / "remotes" / f"{repository.name}.git"
+        result = subprocess.run(
+            ["git", "show", f"{branch}:{path}"],
+            cwd=str(bare), capture_output=True, text=True, timeout=60,
+        )
+        return result.stdout
 
     def files_on(self, repository: Path, branch: str) -> list[str]:
         bare = self.root / "remotes" / f"{repository.name}.git"
@@ -852,6 +927,7 @@ def bench(**overrides: object):
                 "PATH": f"{root / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
                 "FAKE_CLAUDE_FAIL": "",
                 "FAKE_CLAUDE_KIND": "",
+                "FAKE_CLAUDE_RESOLVE": "",
                 **{name: str(path) for name, path in logs.items()},
             }
             with _environ(environment):
@@ -1155,6 +1231,110 @@ def a_validated_merge_refused_for_being_behind_is_replayed_and_lands():
         assert not machine.worktrees(repository), machine.worktrees(repository)
         said = machine.board.said(ticket)
         assert "replayed onto" in said[-1], said[-1]
+
+
+@case
+def a_validated_merge_that_conflicts_is_resolved_and_lands_with_both_changes():
+    """Two tickets on the same file: the first is merged, the second still lands.
+
+    The case the runner used to give up on — “Pull Request has merge conflicts”
+    — and the one a board with several tickets per repository meets every day.
+    The branch is replayed onto `main`, git stops on the file both touched, a
+    session resolves it keeping both sides, and what reaches the remote is a
+    `main` carrying the two changes. Nobody was asked anything.
+    """
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+
+        first = machine.run()
+        branch = first[0]["branch"]
+        before = float(machine.board.value(ticket, "Cost") or 0)
+
+        # The other ticket, merged first, wrote the very file this one writes.
+        machine.land(repository, "FAKE.md", "ce que l'autre ticket a écrit\n")
+        machine.move(ticket, "Validated")
+
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        landed = machine.content(repository, "main", "FAKE.md")
+        assert "ce que l'autre ticket a écrit" in landed, landed
+        assert "the session was here" in landed, landed
+        assert "<<<<<<<" not in landed, landed
+
+        # The session was told what it needed: the ticket, and the file.
+        resolving = [one for one in machine.sessions() if "resolving that conflict" in one["prompt"]]
+        assert len(resolving) == 1, machine.sessions()
+        assert "Le titre est faux." in resolving[0]["prompt"]
+        assert "`FAKE.md`" in resolving[0]["prompt"]
+        assert "ce que l'autre ticket a écrit" in resolving[0]["prompt"] or "Un autre ticket" in resolving[0]["prompt"]
+
+        # Traced on both sides: the pull request, and the ticket.
+        commented = machine.pull_request_comments()
+        assert len(commented) == 1 and "FAKE.md" in commented[0]["body"], commented
+        said = machine.board.said(ticket)[-1]
+        assert "FAKE.md" in said and "les deux versions gardées" in said, said
+        # And paid for on the ticket that asked for it, on top of what it cost.
+        assert round(float(machine.board.value(ticket, "Cost")) - before, 3) == 0.05
+
+        assert branch in machine.branches(repository)
+        assert not machine.worktrees(repository), machine.worktrees(repository)
+        scratch = Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner" / "scratch"
+        assert not list(scratch.glob("resolve-*")), list(scratch.glob("resolve-*"))
+
+
+@case
+def a_conflict_that_is_a_decision_blocks_the_ticket_with_the_question():
+    """The session reads the conflict as two behaviours that cannot both hold.
+
+    Nothing is pushed on the pull request's branch and nothing is merged: the
+    ticket goes to blocked, and what it asks is the conflict — the file and the
+    question — rather than GitHub's refusal.
+    """
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+
+        first = machine.run()
+        branch = first[0]["branch"]
+        machine.land(repository, "FAKE.md", "ce que l'autre ticket a écrit\n")
+        pushed = machine.content(repository, branch, "FAKE.md")
+        machine.move(ticket, "Validated")
+
+        with _environ({"FAKE_CLAUDE_RESOLVE": "blocked"}):
+            results = machine.run()
+
+        assert results and results[0]["status"] == "blocked", results
+        assert machine.status(ticket) == "Blocked", machine.status(ticket)
+        said = machine.board.said(ticket)[-1]
+        assert "garder le texte du ticket ou celui de main" in said, said
+        assert "FAKE.md" in said, said
+        assert not machine.merges(), "a conflict nobody resolved was merged"
+        assert machine.content(repository, branch, "FAKE.md") == pushed, "the branch was rewritten"
+        assert machine.content(repository, "main", "FAKE.md") == "ce que l'autre ticket a écrit\n"
+        assert not machine.worktrees(repository), machine.worktrees(repository)
+
+
+@case
+def a_project_left_out_of_resolution_blocks_on_its_conflict_as_before():
+    """`resolve_conflicts_except` names it: no session, the refusal as it came."""
+    with bench(resolve_conflicts_except="Site") as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+
+        machine.run()
+        machine.land(repository, "FAKE.md", "ce que l'autre ticket a écrit\n")
+        machine.move(ticket, "Validated")
+        results = machine.run()
+
+        assert results and results[0]["status"] == "blocked", results
+        assert not machine.sessions(), machine.sessions()
+        assert not machine.merges()
 
 
 @case

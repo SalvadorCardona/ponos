@@ -180,6 +180,18 @@ class Runner:
     # three it is, and the runner will not pick for you at the last moment: a
     # board that squashes wants every ticket squashed.
     merge_method: str = "squash"
+    # A validated merge that conflicts: replayed all the same, the conflicts
+    # resolved by a session, checked, pushed with a lease and merged — see
+    # delivery.py. Off, or for a project named in `resolve_conflicts_except`
+    # (comma-separated), a conflict blocks the ticket as it always did.
+    resolve_conflicts: bool = True
+    resolve_conflicts_except: str = ""
+    # The model that resolves. Empty: the ticket's own, as its session had it.
+    resolve_model: str = ""
+    # How long a resolved pull request's CI is waited for before the merge is
+    # asked. Zero does not wait: GitHub still refuses a merge a required check
+    # has not passed.
+    checks_timeout_minutes: int = 20
     keep_worktree_on_failure: bool = True
     attach_sessions: bool = True
     session_host: str = ""
@@ -222,6 +234,13 @@ class Runner:
     # The least confidence a guess is acted on with. Below it, the ticket is
     # blocked with the question rather than run on a guess.
     classify_confidence: str = "medium"
+
+    def resolves_conflicts(self, project: str) -> bool:
+        """Is a conflict on that project's pull requests resolved by a session?"""
+        left_alone = {
+            name.strip().casefold() for name in self.resolve_conflicts_except.split(",")
+        }
+        return self.resolve_conflicts and project.strip().casefold() not in left_alone
 
 
 # What an installation may follow when it updates itself — see `Runner`.
@@ -819,6 +838,18 @@ def load(path: Path | None = None) -> Config:
             str(runner_raw.get("merge_method", "")).strip().lower()
             if str(runner_raw.get("merge_method", "")).strip().lower() in MERGE_METHODS
             else defaults.merge_method
+        ),
+        resolve_conflicts=bool(runner_raw.get("resolve_conflicts", defaults.resolve_conflicts)),
+        # A list in the file reads as well as the comma-separated line the
+        # console writes: both are a handful of project names.
+        resolve_conflicts_except=(
+            ", ".join(str(name).strip() for name in raw_except)
+            if isinstance(raw_except := runner_raw.get("resolve_conflicts_except", ""), list)
+            else str(raw_except).strip()
+        ),
+        resolve_model=str(runner_raw.get("resolve_model", defaults.resolve_model)).strip(),
+        checks_timeout_minutes=max(
+            0, int(runner_raw.get("checks_timeout_minutes", defaults.checks_timeout_minutes))
         ),
         keep_worktree_on_failure=bool(
             runner_raw.get("keep_worktree_on_failure", defaults.keep_worktree_on_failure)

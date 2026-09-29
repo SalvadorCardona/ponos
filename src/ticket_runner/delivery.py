@@ -16,6 +16,13 @@ taking ten tickets a day does to a pull request opened this morning. A
 publication is a Claude session, so publications run the way tickets run — side
 by side, never more than `max_concurrent` at once — and are claimed before they
 are done, because publishing twice is the one mistake this must not make.
+
+A merge whose rebase stops on a conflict crosses over to the second kind: the
+conflict is resolved by a session, so it takes a place like a publication and
+is claimed like one — see `_resolve`. Everything it does is a question the
+moment it is not sure: a conflict that is a decision, checks that stay red, a
+branch somebody else pushed to, a base that keeps moving. The branch it pushes
+is the pull request's own, on a lease; the base is never touched.
 A ticket typed as a publication comes here the same way, whatever its project
 holds: it was prepared in its page, and its page is what goes out.
 
@@ -38,6 +45,31 @@ from .base import Base
 from .config import state_dir
 from .projects import Project
 from .ticket import Job, Ticket, short_id
+
+
+# How many times one validated ticket's branch is replayed and pushed before
+# the runner stops chasing its base and asks: twice is a base that moved once
+# more while the first replay was being merged, three times is a repository
+# moving faster than a replay, and a loop nobody is watching.
+MOST_REBASES = 2
+
+# What a merge refusal would have said, for a pull request GitHub already calls
+# conflicting or behind before one is asked — see `git.merge_blocker`.
+BLOCKERS = {
+    "CONFLICTING": "Pull Request has merge conflicts",
+    "BEHIND": "the head branch is not up to date with the base branch",
+}
+
+
+def _report_of(answer: str) -> str:
+    """What a resolving session wrote above its RESULT line: its report."""
+    lines = answer.strip().splitlines()
+    for index in range(len(lines) - 1, -1, -1):
+        if lines[index].strip().lstrip("*# ").upper().startswith("RESULT:"):
+            lines = lines[:index]
+            break
+    report = "\n".join(lines).strip()
+    return report if len(report) <= 3000 else report[:3000].rsplit("\n", 1)[0] + "\n…"
 
 
 class Delivery(Base):
@@ -110,7 +142,8 @@ class Delivery(Base):
         still merge a pull request you validated while it ran. A publication is
         a Claude session, so it is only *named* here: the caller runs it, in the
         pool it already keeps, and `deliver` is the caller that runs them all at
-        once at the top of a pass.
+        once at the top of a pass. So is a merge whose conflicts need resolving,
+        which is a session too — both go out through `_carry_out`.
 
         `taken` is what this pass has already carried out. Notion may still be
         serving the status a publication in flight has just overwritten, and
@@ -162,7 +195,7 @@ class Delivery(Base):
                 results.append({"ticket": ticket.title, "id": ticket.id, "status": "dry-run"})
                 continue
             if url.startswith("http"):
-                done = self._merge(ticket, url)
+                done = self._merge(ticket, url, publishing)
                 if done:
                     results.append(done)
                 continue
@@ -242,8 +275,14 @@ class Delivery(Base):
                 held.append((ticket, moment))
         return sorted(held, key=lambda pair: pair[1])
 
-    def _merge(self, ticket: Ticket, url: str) -> dict | None:
-        """A validated pull request: merge it, and take the ticket to done."""
+    def _merge(
+        self, ticket: Ticket, url: str, resolving: list[tuple[Ticket, Project]]
+    ) -> dict | None:
+        """A validated pull request: merge it, and take the ticket to done.
+
+        `resolving` is where a pull request whose conflicts need a session is
+        put, for the caller to run it as it runs a publication — see `_carry_out`.
+        """
         state_of = git.pull_request_state(url, self.config.github)
         if not state_of:
             # The same rule as `close_merged`: a ticket is never moved on an
@@ -252,6 +291,7 @@ class Delivery(Base):
             return None
         said = self.voice
         if state_of == "CLOSED":
+            state.forget_rebases(ticket.id)
             return self._fail(
                 ticket,
                 said.say("pull-request-closed"),
@@ -259,38 +299,28 @@ class Delivery(Base):
                 blocked=True,
                 question=said.say("pull-request-closed-question", url=url),
             )
+        if state_of == "MERGED":
+            return self._merged(ticket, url, said.say("merged-before"))
         method = self.config.runner.merge_method
-        how = said.say("merged-before")
-        notes: list[str] = []
-        if state_of != "MERGED":
-            try:
-                git.merge_pull_request(url, method, self.config.github)
-            except git.GitError as error:
-                replayed = self._replay(ticket, url, error)
-                if not replayed:
-                    return self._fail(
-                        ticket,
-                        said.say("merge-refused"),
-                        f"{url}\n\n{error}",
-                        blocked=True,
-                        question=said.say(
-                            "merge-refused-question", error=voice_module.line(error)
-                        ),
-                    )
-                notes.append(replayed)
-                try:
-                    git.merge_pull_request(url, method, self.config.github)
-                except git.GitError as error:
-                    return self._fail(
-                        ticket,
-                        said.say("merge-refused"),
-                        f"{url}\n\n{replayed}\n\n{error}",
-                        blocked=True,
-                        question=said.say(
-                            "merge-refused-question", error=voice_module.line(error)
-                        ),
-                    )
-            how = said.say("merged-with", method=method)
+        # Asked first rather than read in a refusal: a pull request GitHub
+        # already calls conflicting is replayed before anything is merged, and
+        # one it calls mergeable goes the way every merge always went.
+        blocker = git.merge_blocker(url, self.config.github) if self.config.runner.rebase else ""
+        if blocker:
+            self.say(f"  · {ticket.title} — GitHub says {url} is {blocker.lower()}")
+            return self._catch_up(ticket, url, BLOCKERS[blocker], resolving)
+        try:
+            git.merge_pull_request(url, method, self.config.github)
+        except git.GitError as error:
+            if self.config.runner.rebase and git.is_behind(error):
+                return self._catch_up(ticket, url, error, resolving)
+            return self._refused(ticket, url, error)
+        return self._merged(ticket, url, said.say("merged-with", method=method))
+
+    def _merged(self, ticket: Ticket, url: str, *facts: str, notes: tuple = ()) -> dict:
+        """Done, and said so: the pull request is in."""
+        state.forget_rebases(ticket.id)
+        said = self.voice
         self.say(f"  ✓ {ticket.title} — pull request merged, moved to done")
         self._set(
             ticket,
@@ -298,11 +328,29 @@ class Delivery(Base):
         )
         self._comment(
             ticket,
-            said.report(said.verdict("merged", said.pull_request(url), how), url, *notes),
+            said.report(said.verdict("merged", said.pull_request(url), *facts), url, *notes),
         )
         return {"ticket": ticket.title, "id": ticket.id, "status": "done", "merged": url}
 
-    def _replay(self, ticket: Ticket, url: str, refusal: git.GitError) -> str:
+    def _refused(self, ticket: Ticket, url: str, refusal: object, *notes: str) -> dict:
+        """A merge GitHub would not make, and nothing more the runner can do about it."""
+        state.forget_rebases(ticket.id)
+        said = self.voice
+        return self._fail(
+            ticket,
+            said.say("merge-refused"),
+            said.paragraphs(url, *notes, refusal),
+            blocked=True,
+            question=said.say("merge-refused-question", error=voice_module.line(refusal)),
+        )
+
+    def _catch_up(
+        self,
+        ticket: Ticket,
+        url: str,
+        refusal: object,
+        resolving: list[tuple[Ticket, Project]],
+    ) -> dict | None:
         """Put the branch back on top of its base, when that is what was wrong.
 
         A pull request opened this morning is behind by noon on a repository
@@ -314,25 +362,318 @@ class Delivery(Base):
 
         Only that refusal. A check still red and a review still missing are
         refusals a rebase does not answer, and pushing the branch again would
-        only spend a CI run to be refused the same way. Says what was done, so
-        that the report carries it; empty means nothing was — and the caller
-        then reports the refusal as it came.
+        only spend a CI run to be refused the same way.
+
+        A replay that stops on a conflict is not the end of it any more: the
+        conflict is handed to a session — `_resolve` — at the next free place,
+        unless the project is one whose conflicts are left to you. And a base
+        that moves faster than the replays is not chased for ever: past
+        `MOST_REBASES`, the ticket asks.
         """
-        if not self.config.runner.rebase or not git.is_behind(refusal):
-            return ""
         branch, base = git.pull_request_branches(url, self.config.github)
         project = self._project_of(ticket)
         if not branch or not project.is_code:
-            return ""
+            return self._refused(ticket, url, refusal)
+        if state.rebases(ticket.id) >= MOST_REBASES:
+            return self._too_often(ticket, url, base)
         workdir = state_dir() / "scratch" / f"rebase-{short_id(ticket.id)}"
         self.say(f"  · {ticket.title} — merge refused, replaying {branch} onto {base}")
         failure = git.replay_pushed(
             project.path, branch, base, workdir, self.config.github
         )
+        if failure and git.is_conflict(failure) and self.config.runner.resolves_conflicts(
+            project.name
+        ):
+            if self.under_reserve():
+                # A resolution is a session, and waits for credit the way a
+                # publication does: left validated, not reconsidered.
+                self._claimed.add(ticket.id)
+                return None
+            self.say(f"    ! {failure} — resolving it at the next free place")
+            resolving.append((ticket, project))
+            return None
         if failure:
             self.say(f"    ! {branch} not replayed: {failure}")
+            return self._refused(ticket, url, refusal, failure)
+        count = state.rebased(ticket.id)
+        replayed = self.voice.say("merge-rebased", branch=branch, base=base)
+        method = self.config.runner.merge_method
+        try:
+            git.merge_pull_request(url, method, self.config.github)
+        except git.GitError as error:
+            if git.is_behind(error):
+                if count < MOST_REBASES:
+                    # The base moved again between the push and the merge: the
+                    # next pass replays it once more, on what it holds then.
+                    self.say(f"    · {base} moved again — left validated for the next pass")
+                    return None
+                return self._too_often(ticket, url, base)
+            return self._refused(ticket, url, error, replayed)
+        return self._merged(
+            ticket, url, self.voice.say("merged-with", method=method), notes=(replayed,)
+        )
+
+    def _too_often(self, ticket: Ticket, url: str, base: str) -> dict:
+        """A base that moves faster than the replays: asked, rather than chased."""
+        state.forget_rebases(ticket.id)
+        said = self.voice
+        return self._fail(
+            ticket,
+            said.say("rebased-too-often", base=base),
+            url,
+            blocked=True,
+            question=said.say("rebased-too-often-question", count=MOST_REBASES, base=base),
+        )
+
+    def _carry_out(self, ticket: Ticket, project: Project) -> dict | None:
+        """A validated ticket that needs a session: a publication, or a conflict.
+
+        The two things of the validated column that cost a place, told apart by
+        what the ticket carries: a pull request here can only be one whose merge
+        stopped on a conflict — every other one was settled by `_merge`.
+        """
+        url = str(store.read(ticket.page, self.config.notion.prop("pull_request")) or "")
+        if url.startswith("http"):
+            return self._resolve(ticket, project, url)
+        return self._publish(ticket, project)
+
+    def _resolve(self, ticket: Ticket, project: Project, url: str) -> dict | None:
+        """Resolve a validated pull request's conflicts, then merge it.
+
+        The replay `_catch_up` gave up on, taken to its end: the branch as
+        origin holds it, in a detached worktree of its own, rebased onto its
+        base — and where git stops, a session takes over, told what the ticket
+        wanted, what the pull request changes and what landed underneath it.
+        What it leaves is checked before anything leaves the machine: no rebase
+        half done, no marker left in a file, the base underneath. Then the push,
+        on a lease on the commit it was replayed from; the pull request's CI;
+        and the merge.
+
+        Claimed like a publication, and for the same reason: two runners must
+        not both resolve and push the same branch. Anything short of the merge
+        is a question on the ticket — what conflicts and what it asks, not only
+        GitHub's refusal — with whatever resolution was reached pushed to a
+        branch of its own for you to look at.
+        """
+        settings = self.config.notion
+        branch, base = git.pull_request_branches(url, self.config.github)
+        if not branch:
+            self.say(f"  · {ticket.title} — GitHub did not answer about {url}, left validated")
+            return None
+        short = short_id(ticket.id)
+        role = store.read(ticket.page, settings.prop("role")) or []
+        job = Job(
+            ticket,
+            project,
+            branch=branch,
+            base=base,
+            workdir=state_dir() / "scratch" / f"resolve-{short}",
+            session_id=session.new_id(),
+            log=state.log_file(short),
+            # The model the ticket was worked with, unless the configuration
+            # names one for resolving: the session reads the same code again.
+            model=self.config.runner.resolve_model
+            or str(store.read(ticket.page, settings.prop("model")) or ""),
+            agent=(
+                agents.resolve(self.client, role[0], settings.prop("model"))
+                if role
+                else agents.Agent()
+            ),
+            comments=self.discussion(ticket),
+        )
+        self.say(f"  ▸ {ticket.title}\n    validated · resolving the conflicts of {url}")
+        if self.dry_run:
+            return None
+        self._claimed.add(ticket.id)
+        state.claim(ticket.id, settings.state("validated"))
+        self._set(
+            ticket,
+            **{
+                settings.prop("status"): settings.state("running"),
+                settings.prop("agent"): self.agent_label,
+                settings.prop("waiting"): False,
+                settings.prop("session"): self._session_value(job.session_id, project.path),
+            },
+        )
+        try:
+            return self._resolved(job, url)
+        finally:
+            state.release(ticket.id)
+            if project.path:
+                git.remove_worktree(project.path, job.workdir)
+
+    def _resolved(self, job: Job, url: str) -> dict | None:
+        """`_resolve`, once the ticket is claimed: every road out of it."""
+        ticket, project = job.ticket, job.project
+        assert project.path is not None
+        said = self.voice
+        accounts = self.config.github
+        validated = self.config.notion.state("validated")
+        replay = git.begin_replay(project.path, job.branch, job.base, job.workdir)
+        if replay.error:
+            return self._refused(ticket, url, replay.error)
+        conflicts = replay.conflicts or []
+        facts = said.say(
+            "conflict-facts",
+            branch=job.branch,
+            base=job.base,
+            onto=replay.onto[:7],
+            files=", ".join(f"`{name}`" for name in conflicts) or said.say("conflict-none"),
+        )
+        outcome: session.Outcome | None = None
+        if conflicts:
+            job.body = self._conflict_brief(job, url, replay)
+            try:
+                outcome = self._run_session(job, prompt_module.RESOLVE)
+            except (OSError, FileNotFoundError) as error:
+                return self._fail(ticket, said.say("no-session"), str(error))
+            self._add_cost(ticket, outcome)
+            if self._out_of_credit(outcome):
+                return self._requeue(ticket, validated, outcome)
+            told = _report_of(outcome.answer)
+            if not outcome.ok:
+                question = outcome.summary or said.say("conflict-open", base=job.base)
+                return self._fail(
+                    ticket,
+                    said.say("conflict-open", base=job.base),
+                    outcome.summary or outcome.error,
+                    blocked=True,
+                    question=question,
+                    note=said.paragraphs(
+                        facts, told, self._aside(job, replay), self._filed(job, outcome)
+                    ),
+                )
+            if problem := self._unfinished(job, replay):
+                return self._fail(
+                    ticket,
+                    said.say("conflict-unfinished"),
+                    problem,
+                    blocked=True,
+                    question=said.say("conflict-unfinished-question", problem=problem),
+                    note=said.paragraphs(facts, told, self._aside(job, replay)),
+                )
+        else:
+            told = ""
+        failure = git.push_leased(job.workdir, job.branch, replay.was, accounts)
+        if failure:
+            aside = self._aside(job, replay)
+            if git.pushed_over(failure):
+                state.forget_rebases(ticket.id)
+                return self._fail(
+                    ticket,
+                    said.say("pushed-over", branch=job.branch),
+                    failure,
+                    blocked=True,
+                    question=said.say("pushed-over-question", branch=job.branch),
+                    note=said.paragraphs(facts, aside),
+                )
+            return self._fail(ticket, said.say("push-refused"), failure, note=aside)
+        count = state.rebased(ticket.id)
+        record = said.paragraphs(facts, told)
+        git.comment_pull_request(url, f"ticket-runner — {record}", accounts)
+        checks = git.wait_for_checks(
+            url, job.workdir, self.config.runner.checks_timeout_minutes, accounts
+        )
+        checked = said.say(f"checks-{checks}")
+        if checks == "failed":
+            state.forget_rebases(ticket.id)
+            return self._fail(
+                ticket,
+                said.say("checks-red"),
+                url,
+                blocked=True,
+                question=said.say("checks-red-question", url=url),
+                note=said.paragraphs(record, checked),
+            )
+        method = self.config.runner.merge_method
+        try:
+            git.merge_pull_request(url, method, accounts)
+        except git.GitError as error:
+            if git.is_behind(error) and count < MOST_REBASES:
+                # Resolved and pushed, and the base moved again meanwhile: back
+                # to the column it came from, for the next pass to replay what
+                # is — with a little luck — only a replay this time.
+                self.say(f"    · {job.base} moved again — left validated for the next pass")
+                self._set(ticket, **{self.config.notion.prop("status"): validated})
+                self._comment(ticket, said.report(record, checked, said.say("base-moved-again")))
+                return {"ticket": ticket.title, "id": ticket.id, "status": "validated"}
+            if git.is_behind(error):
+                return self._too_often(ticket, url, job.base)
+            return self._refused(ticket, url, error, record, checked)
+        spent = said.spent(outcome.seconds, outcome.cost_usd) if outcome else ()
+        done = self._merged(
+            ticket,
+            url,
+            said.say("merged-with", method=method),
+            said.say("conflicts-resolved") if conflicts else "",
+            *spent,
+            notes=(said.brief(outcome.summary) if outcome else "", record, checked),
+        )
+        if outcome:
+            done.update(
+                session=outcome.session_id,
+                seconds=round(outcome.seconds, 1),
+                cost_usd=outcome.cost_usd,
+            )
+        return done
+
+    def _conflict_brief(self, job: Job, url: str, replay: git.Replay) -> str:
+        """Everything the resolving session is told, under the ticket's own text."""
+        said = [
+            self._body(job.ticket).strip(),
+            f"# The pull request — {url}",
+            git.pull_request_body(url, self.config.github).strip() or "(no description)",
+            "# Where the rebase stopped",
+            f"`{job.branch}` (at `{replay.was[:7]}`) is being replayed onto "
+            f"`origin/{job.base}` (at `{replay.onto[:7]}`). Git stopped on:\n"
+            + "\n".join(f"- `{name}`" for name in replay.conflicts or []),
+            f"# What landed on `{job.base}` since the branch left it",
+            f"```\n{replay.arrived or '(nothing git could list)'}\n```",
+            "# What the pull request changes",
+            f"```diff\n{replay.diff}\n```\n"
+            f"The whole of it, and each commit: `git log -p origin/{job.base}..{replay.was}`.",
+        ]
+        return "\n\n".join(part for part in said if part)
+
+    def _unfinished(self, job: Job, replay: git.Replay) -> str:
+        """What a resolution that said it was done has not actually done, or nothing."""
+        said = self.voice
+        if git.rebasing(job.workdir):
+            return said.say("unfinished-rebase")
+        marked = git.with_markers(job.workdir, replay.conflicts or [])
+        if marked:
+            return said.say("unfinished-markers", files=", ".join(f"`{name}`" for name in marked))
+        if not git.contains(job.workdir, replay.onto):
+            return said.say("unfinished-base", base=job.base)
+        if git.is_dirty(job.workdir):
+            return said.say("unfinished-dirty")
+        return ""
+
+    def _aside(self, job: Job, replay: git.Replay) -> str:
+        """The resolution as far as it got, on a branch of its own — said, or nothing.
+
+        Only a rebase carried to its end: a worktree still in the middle of one
+        holds no branch worth reading, only an index somebody has to finish.
+        """
+        head = git.head(job.workdir)
+        if git.rebasing(job.workdir) or not head or head == replay.was:
             return ""
-        return self.voice.say("merge-rebased", branch=branch, base=base)
+        name = f"{job.branch}-rebased-{head[:7]}"
+        if git.push_aside(job.workdir, name, self.config.github):
+            return ""
+        return self.voice.say("conflict-aside", branch=name)
+
+    def _add_cost(self, ticket: Ticket, outcome: session.Outcome) -> None:
+        """A resolution's price, added to what the ticket had already cost."""
+        if not outcome.cost_usd or self.dry_run:
+            return
+        column = self.config.notion.prop("cost")
+        before = store.read(ticket.page, column)
+        spent = (before if isinstance(before, (int, float)) else 0.0) + outcome.cost_usd
+        try:
+            self.client.update(self.database, ticket.page.id, {column: round(spent, 3)})
+        except store.StoreError as error:
+            self.say(f"    ! the cost could not be written: {voice_module.line(error)}")
 
     def _publish_all(self, publishing: list[tuple[Ticket, Project]]) -> list[dict]:
         """Every validated publication of this pass, up to `max_concurrent` at once.
@@ -347,12 +688,12 @@ class Delivery(Base):
         if not publishing:
             return []
         if len(publishing) == 1:
-            done = self._guarded(publishing[0][0], self._publish, *publishing[0])
+            done = self._guarded(publishing[0][0], self._carry_out, *publishing[0])
             return [done] if done else []
         workers = min(len(publishing), max(1, self.config.runner.max_concurrent))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             results = list(
-                pool.map(lambda pair: self._guarded(pair[0], self._publish, *pair), publishing)
+                pool.map(lambda pair: self._guarded(pair[0], self._carry_out, *pair), publishing)
             )
         return [done for done in results if done]
 

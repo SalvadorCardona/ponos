@@ -322,6 +322,10 @@ for reading rather than for filling in.
 | `runner.push` | `true` | `false`: commits stay local |
 | `runner.open_pull_request` | `true` | `false`: the branch is pushed, without a PR |
 | `runner.rebase` | `true` | replay the branch onto its base before the pull request, and once more when a validated merge is refused for being behind |
+| `runner.resolve_conflicts` | `true` | when that replay stops on a conflict, a session resolves it, checks it, and the merge is asked again |
+| `runner.resolve_conflicts_except` | `""` | projects, by name and comma-separated, whose conflicts are always left to you |
+| `runner.resolve_model` | `""` | the model that resolves — empty: the ticket's own |
+| `runner.checks_timeout_minutes` | `20` | how long a resolved pull request's CI is waited for before the merge; `0` does not wait |
 | `runner.merge_method` | `"squash"` | how a **validated** pull request is merged — `squash`, `merge`, `rebase` |
 | `runner.keep_worktree_on_failure` | `true` | keep enough around to understand a failure |
 | `runner.notify` | `true` | one desktop notification per finished ticket, clicked to open its Notion page — `[notify]` carries it to your phone |
@@ -1173,13 +1177,49 @@ where somebody will read it — rather than discovered on GitHub a day later.
 **When a validated merge is refused.** A pull request opened this morning is behind by
 noon. GitHub refuses the merge, and that refusal is about the *branch*, not about the
 work: the branch is replayed onto its base, pushed with a lease on the very commit that
-was replayed, and the merge is asked once more. The ticket says so and goes to *Done*. A
-refusal a rebase does not answer — a check still red, a review still missing, a branch
-whose policy forbids the merge — is left as it came: the ticket goes to *Blocked* with
-GitHub's own wording, and nothing is pushed a second time.
+was replayed, and the merge is asked once more. The ticket says so and goes to *Done*. The
+runner does not even wait to be refused: it asks GitHub first (`gh pr view --json
+mergeable,mergeStateStatus`), and a pull request already called *conflicting* or *behind*
+is replayed before any merge is asked. A refusal a rebase does not answer — a check still
+red, a review still missing, a branch whose policy forbids the merge — is left as it came:
+the ticket goes to *Blocked* with GitHub's own wording, and nothing is pushed a second time.
 
-Set `rebase = false` and both go away: the branch is pushed as it was written, and a merge
-refused is a question, as before.
+**When the replay conflicts.** Two tickets touched the same lines, the first was merged,
+and the second no longer replays cleanly — “Pull Request has merge conflicts”. With
+`resolve_conflicts`, on by default, that is no longer yours to sort out:
+
+1. The branch, as GitHub holds it, is checked out in a disposable worktree of its own
+   and rebased onto `origin/<base>`. The rebase is left where git stopped.
+2. A session is started there — on the ticket's model, or `resolve_model` — and told the
+   ticket, the pull request's description and diff, the commits that landed on the base
+   since the branch left it, and the files git stopped on. It keeps **both** intentions,
+   and never drops another ticket's work to make this one pass; lockfiles and generated
+   files are regenerated rather than merged by hand, changelogs and changesets keep every
+   entry. It carries the rebase to its end and runs the project's checks — whatever its
+   CLAUDE.md, `package.json`, Makefile or CI define — fixing what the merge broke, three
+   attempts at most. It pushes nothing: it takes a place like a publication, and the
+   ticket shows *In progress* while it works.
+3. The runner checks what it left — no rebase half done, no conflict marker in a file,
+   the base underneath — then pushes with `--force-with-lease` on the very commit it
+   replayed. Never `--force`, and never the base branch.
+4. When the repository has a CI (`.github/workflows`), its checks are waited for, up to
+   `checks_timeout_minutes`; then the merge is asked again.
+5. The pull request gets a comment, and the ticket gets its report: the commit it was
+   rebased onto, the files in conflict, how each was resolved, what the checks said. The
+   session's cost is added to the ticket's *Cost*.
+
+It stops and asks instead — *Blocked*, as before, but with the conflict and the question
+rather than GitHub's refusal — when the session judges a conflict to be a decision (two
+behaviours that cannot both hold, code deleted on one side and changed on the other, a
+schema or a migration changed on both), when the checks still fail, when somebody else
+pushed to the branch in the meantime (the lease refuses to overwrite their commits, and
+the ticket says so), and when the base keeps moving: a ticket's branch is replayed twice
+at most before it asks. Whatever resolution was reached is pushed on a branch of its
+own, `<branch>-rebased-<commit>`, for you to look at. A project named in
+`resolve_conflicts_except` keeps the old answer: its conflicts block the ticket.
+
+Set `rebase = false` and all of it goes away: the branch is pushed as it was written, and
+a merge refused is a question, as before.
 
 ### Validated, and what it sets off
 
@@ -1206,9 +1246,11 @@ Done          ◀───────────  and only then
 ```
 
 **A pull request** is merged with `gh`, the way `merge_method` says — `squash` by default,
-`merge` or `rebase` if that is your repository's habit. One that GitHub refuses — a
-conflict, a check still red, a review still required — puts the ticket in *Blocked* with
-GitHub's own wording in a comment, because that wording is the answer. One already merged
+`merge` or `rebase` if that is your repository's habit. One that has fallen behind or
+conflicts with its base is replayed and, if need be, resolved first — see *Ten tickets on
+one repository* above. One that GitHub refuses for anything else — a check still red, a
+review still required — puts the ticket in *Blocked* with GitHub's own wording in a
+comment, because that wording is the answer. One already merged
 by hand between two passes just moves to *Done*. One closed without merging is a question,
 not a merge: *Blocked*, and the ticket says so.
 

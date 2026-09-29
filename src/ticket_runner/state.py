@@ -172,6 +172,56 @@ def _write_claims(held: dict[str, str]) -> None:
         pass
 
 
+def rebases_path() -> Path:
+    return state_dir() / "rebases.json"
+
+
+def rebases(ticket_id: str) -> int:
+    """How many times a validated ticket's branch has been replayed to be merged.
+
+    Counted because a base branch can move faster than a replay: a repository
+    that takes a merge every ten minutes would otherwise have the runner
+    replaying the same pull request all afternoon. Local, like the claims — it
+    is the machine doing the replaying that has to know when to stop.
+    """
+    return _rebases().get(ticket_id, 0)
+
+
+def rebased(ticket_id: str) -> int:
+    """One more replay for that ticket; how many that makes."""
+    with _claims_lock:
+        held = _rebases()
+        held[ticket_id] = held.get(ticket_id, 0) + 1
+        _write_rebases(held)
+        return held[ticket_id]
+
+
+def forget_rebases(ticket_id: str) -> None:
+    """The ticket has left the validated column: its count starts again from zero."""
+    with _claims_lock:
+        held = _rebases()
+        if held.pop(ticket_id, None) is not None:
+            _write_rebases(held)
+
+
+def _rebases() -> dict[str, int]:
+    try:
+        loaded = json.loads(rebases_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(key): int(value) for key, value in loaded.items() if str(value).isdigit()}
+
+
+def _write_rebases(held: dict[str, int]) -> None:
+    try:
+        state_dir().mkdir(parents=True, exist_ok=True)
+        disk.write_atomic(rebases_path(), json.dumps(held))
+    except OSError:
+        pass  # a count nobody could keep is a limit that does not hold, not a crash
+
+
 def record(entry: dict) -> None:
     entry = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **entry}
     with disk.open_private(history_path(), "a") as handle:

@@ -32,6 +32,13 @@ it, and its rule is the third of the family: **it publishes, it does not
 produce.** What goes out is what was read and accepted, unimproved — a session
 that rewrote it on the way would be publishing something nobody validated.
 
+A fifth one resolves the conflicts of a pull request that was validated and
+would no longer merge, and its rule is the one a person merging by hand forgets
+first: **both sides survive.** What landed on the base in the meantime is
+another ticket's validated work, and dropping it to make this one pass would be
+merging a regression nobody asked for — so a conflict that cannot keep both is
+a question, not a choice.
+
 Each of them carries a `{language}` line, and it is empty on purpose whenever
 nobody asked for one: every template already says which language to write in —
 the ticket's, the message's — and a runner nobody configured must keep saying
@@ -215,6 +222,61 @@ talking, not working — answer it, change nothing, stay in its language, keep i
 to a comment.
 {language}
 {message}
+"""
+
+
+RESOLVE = """\
+A pull request of the {project} project was validated — a human read it and \
+said yes — but it no longer merges: `{base}` has moved since its branch left \
+it, and the two now conflict. You are resolving that conflict, alone and with \
+nobody to talk to: no one can answer a question while the session runs.
+
+# Ticket — {title}
+
+{body}
+
+{comments}{context}{brief}{agent}# Context
+
+- You are in a disposable worktree of {repo}, in the middle of \
+`git rebase origin/{base}` of the branch `{branch}`: git stopped on the \
+conflicts listed above. `git status` shows where it stands.
+- Notion ticket: {url}
+
+# What is expected
+
+1. Resolve every conflict so that **both intentions survive**: the work of this \
+ticket, and what landed on `{base}` in the meantime. Never drop the work of \
+another ticket to make this one pass.
+2. Lockfiles and generated files are regenerated, not merged by hand: take the \
+version from `{base}`, then run what produces them again — `pnpm install`, \
+`npm install`, the generator, the build that writes them. Changelogs and \
+changesets keep every entry from both sides.
+3. Carry the rebase to its end: `git add` what you resolved, then \
+`GIT_EDITOR=true git rebase --continue`, as many times as git stops. Keep the \
+branch's commits and their messages, and add nothing the conflict does not need.
+4. Then run the project's checks — build, typecheck, lint, tests: whatever the \
+repository defines, in its CLAUDE.md or AGENTS.md, its package.json, its \
+Makefile, its CI workflow. If one fails because of the merge, fix it in a \
+commit of its own and run it again, three attempts at most. A check that already \
+fails on `origin/{base}` is not yours to fix: say so.
+5. **Do not push**, do not merge, and do not touch `{base}`: the runner does the \
+rest once you are done.
+6. Stop rather than choose when a conflict is a decision: two behaviours that \
+cannot both hold, code deleted on one side and changed on the other, a database \
+schema or migration changed on both sides. Stop too when the checks still fail \
+after your attempts. Leave the worktree as it is, and say what conflicts and \
+which question it raises.
+{language}
+Before the final line, write a short report in Markdown for the person who \
+validated the pull request: one line per file that conflicted, saying how it \
+was resolved, then the checks you ran and what they said. No heading.
+
+End with a final line, exactly one of these two. It is read on a phone, as a \
+notification, so it is one sentence of under 200 characters and it is cut where \
+it stops being one:
+
+RESULT: ok — <what you resolved, in one sentence>
+RESULT: blocked — <what conflicts, and the question it raises>
 """
 
 

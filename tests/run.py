@@ -3817,12 +3817,18 @@ def _board_runner(
 
 
 @contextmanager
-def _github(states: dict[str, str], merge=None):
-    """`gh`, replaced by what it would have said."""
+def _github(states: dict[str, str], merge=None, blockers: dict[str, str] | None = None):
+    """`gh`, replaced by what it would have said.
+
+    `blockers` is what GitHub says stands in a pull request's way before a merge
+    is asked — see `git.merge_blocker`. Nothing, unless a test says otherwise.
+    """
     from ticket_runner import git as git_module
 
     asked, original = git_module.pull_request_state, git_module.merge_pull_request
+    blocker = git_module.merge_blocker
     git_module.pull_request_state = lambda url, accounts=None: states.get(url, "")
+    git_module.merge_blocker = lambda url, accounts=None: (blockers or {}).get(url, "")
     if merge is not None:
         git_module.merge_pull_request = merge
     try:
@@ -3830,6 +3836,7 @@ def _github(states: dict[str, str], merge=None):
     finally:
         git_module.pull_request_state = asked
         git_module.merge_pull_request = original
+        git_module.merge_blocker = blocker
 
 
 def _closing(pages: list[notion.Page], states: dict[str, str], status: dict[str, str]):
@@ -7494,7 +7501,7 @@ def a_merge_refused_for_being_behind_is_replayed_and_asked_again():
         replayed.append((repo, branch, onto))
         return ""
 
-    with _github({"https://github.com/x/y/pull/1": "OPEN"}, merge=merge), _git_answering(
+    with _state_home(), _github({"https://github.com/x/y/pull/1": "OPEN"}, merge=merge), _git_answering(
         pull_request_branches=lambda url, accounts=None: ("ticket/le-header-9d2cb790", "main"),
         replay_pushed=replay,
     ):
@@ -7538,6 +7545,9 @@ def a_replay_that_conflicts_leaves_the_merge_refused():
     runner = _board_runner(
         [_reviewed("pconflict", "Validated", "https://github.com/x/y/pull/1")], {}
     )
+    # Resolution off: what is under test is the replay giving up, as it did
+    # before conflicts were handed to a session — and as it still does then.
+    runner.config.runner.resolve_conflicts = False
     runner._project_of = lambda ticket: projects.Project("Site", Path("/repo"))
     attempts: list[str] = []
 
@@ -7545,7 +7555,7 @@ def a_replay_that_conflicts_leaves_the_merge_refused():
         attempts.append(url)
         raise git_module.GitError("gh pr merge: Pull request is not mergeable")
 
-    with _github({"https://github.com/x/y/pull/1": "OPEN"}, merge=merge), _git_answering(
+    with _state_home(), _github({"https://github.com/x/y/pull/1": "OPEN"}, merge=merge), _git_answering(
         pull_request_branches=lambda url, accounts=None: ("ticket/le-header-9d2cb790", "main"),
         replay_pushed=lambda *args, **kwargs: "CONFLICT (content): src/app.py",
     ):
@@ -7553,6 +7563,137 @@ def a_replay_that_conflicts_leaves_the_merge_refused():
 
     assert len(attempts) == 1, "the merge is not asked again on a branch nothing moved"
     assert results[0]["status"] == "blocked", results
+
+
+@case
+def github_calling_a_pull_request_conflicting_is_heard_before_any_merge():
+    """Asked first, rather than read in a refusal.
+
+    A pull request GitHub already calls conflicting — or behind, on a
+    repository that wants branches up to date — is replayed before the merge is
+    asked at all: asking would only earn the refusal it has already announced.
+    """
+    from ticket_runner import git as git_module
+
+    url = "https://github.com/x/y/pull/1"
+    runner = _board_runner([_reviewed("pdirty", "Validated", url)], {})
+    runner._project_of = lambda ticket: projects.Project("Site", Path("/repo"))
+    attempts: list[str] = []
+    replayed: list[tuple] = []
+
+    def merge(url: str, method: str = "squash", accounts=None) -> str:
+        attempts.append(url)
+        return "merged"
+
+    with _state_home(), _github({url: "OPEN"}, merge=merge, blockers={url: "BEHIND"}), _git_answering(
+        pull_request_branches=lambda url, accounts=None: ("ticket/le-header-9d2cb790", "main"),
+        replay_pushed=lambda *args, **kwargs: replayed.append(args) or "",
+    ):
+        results = runner.deliver()
+
+    assert len(replayed) == 1 and len(attempts) == 1, (replayed, attempts)
+    assert results[0]["status"] == "done", results
+
+    for refusal in (
+        "gh pr merge: GraphQL: Pull Request has merge conflicts (mergePullRequest)",
+        "gh pr merge: the head branch is not up to date with the base branch",
+    ):
+        assert git_module.is_behind(refusal), refusal
+
+
+@case
+def a_replay_that_conflicts_is_handed_to_a_session_rather_than_to_you():
+    """The conflict takes a place, like a publication; a project left out asks.
+
+    Nothing is merged and nothing is blocked while the column is read: the
+    ticket is named for a session — `_carry_out` — and the pass runs it at the
+    next free place. A project named in `resolve_conflicts_except` keeps the
+    old answer: the ticket asks.
+    """
+    url = "https://github.com/x/y/pull/1"
+    for left_out, expected in (("", "session"), ("Autre, site ", "blocked")):
+        runner = _board_runner([_reviewed("pconflict", "Validated", url)], {})
+        runner.config.runner.resolve_conflicts_except = left_out
+        runner.under_reserve = lambda: 0.0
+        runner._project_of = lambda ticket: projects.Project("Site", Path("/repo"))
+
+        def merge(url: str, method: str = "squash", accounts=None) -> str:
+            raise AssertionError("a pull request GitHub calls conflicting is not merged as is")
+
+        with _state_home(), _github({url: "OPEN"}, merge=merge, blockers={url: "CONFLICTING"}), _git_answering(
+            pull_request_branches=lambda url, accounts=None: ("ticket/le-header-9d2cb790", "main"),
+            replay_pushed=lambda *args, **kwargs: "CONFLICT in src/app.py",
+        ):
+            settled, sessions = runner.delivering()
+
+        if expected == "session":
+            assert not settled, settled
+            assert [ticket.id for ticket, _ in sessions] == ["pconflict"], sessions
+        else:
+            assert not sessions, sessions
+            assert settled[0]["status"] == "blocked", settled
+            assert "src/app.py" in runner.client.comments_written[-1]
+
+
+@case
+def a_base_that_keeps_moving_is_replayed_twice_then_asked_about():
+    """Two replays, and then a question rather than a third.
+
+    A repository merging every ten minutes can move its base between the push
+    and the merge, every time. The runner replays, pushes, is refused again —
+    leaves the ticket validated for the next pass — and on the second refusal
+    stops chasing: the ticket asks, and says why.
+    """
+    from ticket_runner import delivery
+
+    url = "https://github.com/x/y/pull/1"
+    page = _reviewed("pmoving", "Validated", url)
+    replayed: list[tuple] = []
+
+    def merge(url: str, method: str = "squash", accounts=None) -> str:
+        from ticket_runner import git as git_module
+
+        raise git_module.GitError("gh pr merge: Pull Request is not mergeable")
+
+    with _state_home():
+        passes = []
+        for _ in range(3):
+            runner = _board_runner([page], {"blocked": "Blocked"})
+            runner._project_of = lambda ticket: projects.Project("Site", Path("/repo"))
+            with _github({url: "OPEN"}, merge=merge), _git_answering(
+                pull_request_branches=lambda url, accounts=None: ("ticket/x-9d2cb790", "main"),
+                replay_pushed=lambda *args, **kwargs: replayed.append(args) or "",
+            ):
+                passes.append(runner.deliver())
+            if passes[-1]:
+                break
+
+    assert len(replayed) == delivery.MOST_REBASES == 2, replayed
+    assert passes[0] == [], "the first refusal leaves it validated for the next pass"
+    assert passes[-1][0]["status"] == "blocked", passes
+    said = runner.client.comments_written[-1]
+    assert "2 times" in said and "`main`" in said, said
+
+
+@case
+def a_resolution_report_is_what_the_session_wrote_above_its_verdict():
+    from ticket_runner import delivery
+
+    answer = "- `a.py` : les deux gardés\nTests : verts.\n\n**RESULT: ok — résolu**"
+    assert delivery._report_of(answer) == "- `a.py` : les deux gardés\nTests : verts."
+    assert delivery._report_of("RESULT: ok — rien à dire") == ""
+
+
+@case
+def conflicts_are_resolved_everywhere_but_where_the_file_says_not():
+    config = _config('[runner]\nresolve_conflicts_except = ["Animalink", "Site vitrine"]\n')
+    assert config.runner.resolve_conflicts_except == "Animalink, Site vitrine"
+    assert not config.runner.resolves_conflicts("site vitrine")
+    assert config.runner.resolves_conflicts("Trader IA")
+    assert _config('[runner]\nresolve_conflicts_except = "Site"\n').runner.resolve_conflicts_except == "Site"
+    off = _config("[runner]\nresolve_conflicts = false\n").runner
+    assert not off.resolves_conflicts("Trader IA")
+    assert _config("[runner]\nchecks_timeout_minutes = -3\n").runner.checks_timeout_minutes == 0
 
 
 @case

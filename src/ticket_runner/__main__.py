@@ -675,6 +675,18 @@ def command_doctor(args: argparse.Namespace) -> int:
                 warn(f"{owner}/* — gh is not signed in as {account}: gh auth login")
                 problems += 1
 
+    settings = configuration.runner
+    if settings.rebase and settings.resolve_conflicts:
+        excepted = settings.resolve_conflicts_except.strip()
+        left = f", except on {excepted}" if excepted else ""
+        ok(
+            f"a validated merge that conflicts is resolved by "
+            f"{settings.resolve_model or 'the ticket’s own model'}{left}"
+        )
+    else:
+        why = "runner.rebase" if not settings.rebase else "runner.resolve_conflicts"
+        warn(f"{why} is off — a validated merge that conflicts blocks its ticket")
+
     title("Version")
     print(f"  {DIM}ticket-runner {__version__} — releases: CHANGELOG.md{RESET}")
     channel = configuration.runner.update_channel

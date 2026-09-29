@@ -320,6 +320,94 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "GitHub refused the merge: {error}",
         "fr": "GitHub a refusé la fusion : {error}",
     },
+    "rebased-too-often": {
+        "en": "`{base}` keeps moving faster than its pull request can be replayed onto it",
+        "fr": "`{base}` avance plus vite que sa pull request ne peut être rejouée dessus",
+    },
+    "rebased-too-often-question": {
+        "en": (
+            "Its branch was replayed onto `{base}` {count} times and still does not merge, "
+            "because `{base}` moves in between. Merge it by hand, or move it back to "
+            "validated for another try?"
+        ),
+        "fr": (
+            "Sa branche a été rejouée {count} fois sur `{base}` et ne fusionne toujours "
+            "pas, parce que `{base}` bouge entre-temps. La fusionner à la main, ou la "
+            "remettre en validé pour un nouvel essai ?"
+        ),
+    },
+    # -- a validated merge whose conflicts a session resolved ------------------
+    "conflict-facts": {
+        "en": "`{branch}` replayed onto `{base}` at `{onto}` — in conflict: {files}.",
+        "fr": "`{branch}` rejouée sur `{base}` à `{onto}` — en conflit : {files}.",
+    },
+    "conflict-none": {"en": "nothing, in the end", "fr": "rien, finalement"},
+    "conflicts-resolved": {"en": "conflicts resolved", "fr": "conflits résolus"},
+    "conflict-open": {
+        "en": "its pull request conflicts with `{base}`, and the conflict needs a decision",
+        "fr": "sa pull request est en conflit avec `{base}`, et le conflit demande une décision",
+    },
+    "conflict-unfinished": {
+        "en": "the conflicts were not fully resolved",
+        "fr": "les conflits n'ont pas été entièrement résolus",
+    },
+    "conflict-unfinished-question": {
+        "en": "The session said it had resolved the conflicts, but {problem}. Nothing was pushed.",
+        "fr": "La session dit avoir résolu les conflits, mais {problem}. Rien n'a été poussé.",
+    },
+    "unfinished-rebase": {
+        "en": "the rebase was left in progress",
+        "fr": "le rebase est resté en cours",
+    },
+    "unfinished-markers": {
+        "en": "conflict markers are still in {files}",
+        "fr": "des marqueurs de conflit restent dans {files}",
+    },
+    "unfinished-base": {
+        "en": "the branch is not on top of `{base}`",
+        "fr": "la branche n'est pas au-dessus de `{base}`",
+    },
+    "unfinished-dirty": {
+        "en": "changes were left uncommitted",
+        "fr": "des modifications n'ont pas été commitées",
+    },
+    "conflict-aside": {
+        "en": "The branch as far as it got is pushed on its own, as `{branch}`.",
+        "fr": "La branche, telle qu'elle en est, est poussée à part, sous `{branch}`.",
+    },
+    "pushed-over": {
+        "en": "somebody pushed to `{branch}` since the runner last did",
+        "fr": "quelqu'un a poussé sur `{branch}` depuis le dernier passage du runner",
+    },
+    "pushed-over-question": {
+        "en": (
+            "Commits were pushed to `{branch}` by someone else while its conflicts were "
+            "being resolved. They were not overwritten: which of the two should win?"
+        ),
+        "fr": (
+            "Quelqu'un a poussé des commits sur `{branch}` pendant la résolution de ses "
+            "conflits. Ils n'ont pas été écrasés : laquelle des deux doit l'emporter ?"
+        ),
+    },
+    "checks-red": {
+        "en": "its conflicts were resolved, but its checks fail",
+        "fr": "ses conflits ont été résolus, mais ses vérifications échouent",
+    },
+    "checks-red-question": {
+        "en": "The resolution is pushed, and the pull request's checks fail on it: {url}",
+        "fr": "La résolution est poussée, et les vérifications de la pull request échouent : {url}",
+    },
+    "checks-passed": {"en": "CI: green.", "fr": "CI : verte."},
+    "checks-failed": {"en": "CI: red.", "fr": "CI : rouge."},
+    "checks-pending": {
+        "en": "CI: still running when the merge was asked.",
+        "fr": "CI : encore en cours au moment de la fusion.",
+    },
+    "checks-none": {"en": "CI: none to wait for.", "fr": "CI : aucune à attendre."},
+    "base-moved-again": {
+        "en": "Pushed, but the base moved again in the meantime: replayed once more on the next pass.",
+        "fr": "Poussée, mais la base a encore bougé entre-temps : rejouée à nouveau au prochain passage.",
+    },
     "no-pull-request": {
         "en": "it was validated, but there is no pull request to merge",
         "fr": "il a été validé, mais il n'y a aucune pull request à fusionner",
