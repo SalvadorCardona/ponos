@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 -6 92 92" data-state="idle" data-theme="auto" role="img">
+<title>ticket-runner</title>
+<style>
+svg { --robot-body: #3b82f6; --robot-body-shade: #1d4ed8; --robot-screen: #0f172a; --robot-eye: #d5f95a; --robot-accent: #d5f95a; --robot-alert: #ef4444; --robot-ink: #0f172a; --robot-shadow: rgba(15, 23, 42, .16); }
+svg[data-theme="dark"] { --robot-body: #3b82f6; --robot-body-shade: #7cb0ff; --robot-screen: #0b0d12; --robot-eye: #d5f95a; --robot-accent: #d5f95a; --robot-alert: #f87171; --robot-ink: #94a3b8; --robot-shadow: rgba(124, 176, 255, .16); }
+@media (prefers-color-scheme: dark) { svg:not([data-theme="light"]) { --robot-body: #3b82f6; --robot-body-shade: #7cb0ff; --robot-screen: #0b0d12; --robot-eye: #d5f95a; --robot-accent: #d5f95a; --robot-alert: #f87171; --robot-ink: #94a3b8; --robot-shadow: rgba(124, 176, 255, .16); } }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+[data-layer] { transform-box: view-box; }
+[data-layer="rig"] { transform-origin: 64px 108px; }
+[data-layer="head"] { transform-origin: 64px 70px; }
+[data-layer="antenna"] { transform-origin: 64px 27px; }
+[data-layer="arm-left"] { transform-origin: 40px 83px; }
+[data-layer="arm-right"] { transform-origin: 88px 83px; }
+[data-layer="forearm-left"] { transform-origin: 31px 92px; }
+[data-layer="forearm-right"] { transform-origin: 97px 92px; }
+[data-layer="lid-left"] { transform-origin: 50px 35px; }
+[data-layer="lid-right"] { transform-origin: 78px 35px; }
+[data-layer="bulb"] { transform-origin: 64px 10px; }
+[data-layer="z1"] { transform-origin: 93px 23px; }
+[data-layer="z2"] { transform-origin: 102px 13px; }
+[data-layer="z3"] { transform-origin: 111px 4px; }
+.shadow { fill: var(--robot-shadow); }
+.ink { fill: var(--robot-ink); }
+.shell { fill: var(--robot-body); }
+.plate { fill: var(--robot-screen); }
+.chevron { fill: none; stroke: var(--robot-accent); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.limb { fill: none; stroke: var(--robot-body-shade); stroke-width: 6; stroke-linecap: round; }
+.hand, .bolt { fill: var(--robot-body-shade); }
+.stem { fill: none; stroke: var(--robot-ink); stroke-width: 3.5; stroke-linecap: round; }
+.bulb { fill: var(--robot-accent); }
+.screen, .lid { fill: var(--robot-screen); }
+.eye { fill: var(--robot-eye); }
+.glint { fill: var(--robot-screen); opacity: .55; }
+.eye-line { fill: none; stroke: var(--robot-eye); stroke-width: 4.5; stroke-linecap: round; }
+.eye-joy, .eye-closed { opacity: 0; }
+.lid { transform: scaleY(0); transition: transform .07s ease-in; }
+.z { fill: none; stroke: var(--robot-body-shade); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.spark { fill: none; stroke: var(--robot-alert); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.star { fill: var(--robot-accent); }
+.fx-zzz, .fx-sparks, .fx-stars { opacity: 0; }
+svg.blinking[data-state] [data-layer^="lid-"] { transform: scaleY(1); }
+svg[data-state="thinking"] [data-layer="eyes"] { transform: translate(3px, -2px); }
+svg[data-state="thinking"] [data-layer="head"] { transform: rotate(3deg); }
+svg[data-state="working"] [data-layer="lid-left"] { transform: scaleY(.3); }
+svg[data-state="working"] [data-layer="lid-right"] { transform: scaleY(.3); }
+svg[data-state="working"] [data-layer="arm-left"] { transform: rotate(40deg); }
+svg[data-state="working"] [data-layer="arm-right"] { transform: rotate(-40deg); }
+svg[data-state="working"] [data-layer="forearm-left"] { transform: rotate(-50deg); }
+svg[data-state="working"] [data-layer="forearm-right"] { transform: rotate(50deg); }
+svg[data-state="success"] [data-layer="eye-open-left"] { opacity: 0; }
+svg[data-state="success"] [data-layer="eye-open-right"] { opacity: 0; }
+svg[data-state="success"] [data-layer="eye-joy-left"] { opacity: 1; }
+svg[data-state="success"] [data-layer="eye-joy-right"] { opacity: 1; }
+svg[data-state="success"] [data-layer="arm-left"] { transform: rotate(95deg); }
+svg[data-state="success"] [data-layer="arm-right"] { transform: rotate(-95deg); }
+svg[data-state="success"] [data-layer="forearm-left"] { transform: rotate(40deg); }
+svg[data-state="success"] [data-layer="forearm-right"] { transform: rotate(-40deg); }
+svg[data-state="success"] [data-layer="fx-stars"] { opacity: 1; }
+svg[data-state="success"] .star { transform-box: fill-box; transform-origin: center; }
+svg[data-state="error"] [data-layer="rig"] { transform: translateY(2px); }
+svg[data-state="error"] [data-layer="head"] { transform: rotate(-4deg); }
+svg[data-state="error"] [data-layer="lid-left"] { transform: rotate(-16deg) scaleY(.48); }
+svg[data-state="error"] [data-layer="lid-right"] { transform: rotate(16deg) scaleY(.48); }
+svg[data-state="error"] [data-layer="eyes"] { transform: translateY(2px); }
+svg[data-state="error"] [data-layer="arm-left"] { transform: rotate(-12deg); }
+svg[data-state="error"] [data-layer="arm-right"] { transform: rotate(12deg); }
+svg[data-state="error"] [data-layer="bulb"] { fill: var(--robot-alert); }
+svg[data-state="error"] [data-layer="fx-sparks"] { opacity: 1; }
+svg[data-state="sleep"] [data-layer="rig"] { transform: translateY(1px); }
+svg[data-state="sleep"] [data-layer="head"] { transform: rotate(-6deg); }
+svg[data-state="sleep"] [data-layer="eye-open-left"] { opacity: 0; }
+svg[data-state="sleep"] [data-layer="eye-open-right"] { opacity: 0; }
+svg[data-state="sleep"] [data-layer="eye-closed-left"] { opacity: 1; }
+svg[data-state="sleep"] [data-layer="eye-closed-right"] { opacity: 1; }
+svg[data-state="sleep"] [data-layer="bulb"] { opacity: .3; }
+svg[data-state="sleep"] [data-layer="fx-zzz"] { opacity: 1; }</style>
+  <g data-layer="base">
+    <ellipse class="shadow" cx="64" cy="117" rx="30" ry="4.5"/>
+    <rect class="ink" x="47" y="104" width="34" height="10" rx="5"/>
+  </g>
+  <g data-layer="rig">
+    <g data-layer="body">
+      <rect class="ink" x="57" y="66" width="14" height="9" rx="3"/>
+      <rect class="shell" x="38" y="72" width="52" height="36" rx="13"/>
+      <rect class="plate" x="50" y="80" width="28" height="18" rx="6"/>
+      <path class="chevron" d="M60 84.5 L66 89 L60 93.5"/>
+    </g>
+    <g data-layer="head">
+      <g data-layer="antenna">
+        <path class="stem" d="M64 27 L64 13"/>
+        <circle data-layer="bulb" class="bulb" cx="64" cy="10" r="5.5"/>
+      </g>
+      <rect class="bolt" x="18" y="41" width="8" height="14" rx="4"/>
+      <rect class="bolt" x="102" y="41" width="8" height="14" rx="4"/>
+      <rect class="shell" x="24" y="26" width="80" height="44" rx="16"/>
+      <rect class="screen" x="32" y="33" width="64" height="30" rx="10"/>
+      <g data-layer="eyes">
+        <g data-layer="eye-left">
+          <g data-layer="eye-open-left" class="eye-open">
+            <rect class="eye" x="44" y="40" width="12" height="16" rx="6"/>
+            <circle class="glint" cx="47.5" cy="44" r="1.8"/>
+          </g>
+          <path data-layer="eye-joy-left" class="eye-line eye-joy" d="M44 51 Q50 41 56 51"/>
+          <path data-layer="eye-closed-left" class="eye-line eye-closed" d="M44 48 Q50 53 56 48"/>
+        </g>
+        <g data-layer="eye-right">
+          <g data-layer="eye-open-right" class="eye-open">
+            <rect class="eye" x="72" y="40" width="12" height="16" rx="6"/>
+            <circle class="glint" cx="75.5" cy="44" r="1.8"/>
+          </g>
+          <path data-layer="eye-joy-right" class="eye-line eye-joy" d="M72 51 Q78 41 84 51"/>
+          <path data-layer="eye-closed-right" class="eye-line eye-closed" d="M72 48 Q78 53 84 48"/>
+        </g>
+      </g>
+      <g data-layer="eyelids">
+        <rect data-layer="lid-left" class="lid" x="41" y="35" width="18" height="22"/>
+        <rect data-layer="lid-right" class="lid" x="69" y="35" width="18" height="22"/>
+      </g>
+    </g>
+    <g data-layer="arm-left">
+      <path class="limb" d="M40 83 L31 92"/>
+      <g data-layer="forearm-left">
+        <path class="limb" d="M31 92 L29 101"/>
+        <circle class="hand" cx="29" cy="102" r="4.5"/>
+      </g>
+    </g>
+    <g data-layer="arm-right">
+      <path class="limb" d="M88 83 L97 92"/>
+      <g data-layer="forearm-right">
+        <path class="limb" d="M97 92 L99 101"/>
+        <circle class="hand" cx="99" cy="102" r="4.5"/>
+      </g>
+    </g>
+    <g data-layer="accessories"></g>
+  </g>
+  <g data-layer="fx">
+    <g data-layer="fx-zzz" class="fx-zzz">
+      <path data-layer="z1" class="z" d="M90 20 h6 l-6 7 h6"/>
+      <path data-layer="z2" class="z" d="M100 10 h5 l-5 6 h5"/>
+      <path data-layer="z3" class="z" d="M109 2 h4 l-4 5 h4"/>
+    </g>
+    <g data-layer="fx-sparks" class="fx-sparks">
+      <path class="spark" d="M52 6 l-4 3 l3 1 l-4 3"/>
+      <path class="spark" d="M76 6 l4 3 l-3 1 l4 3"/>
+    </g>
+    <g data-layer="fx-stars" class="fx-stars">
+      <path class="star" d="M16 22 l1.8 4 l4 1.8 l-4 1.8 l-1.8 4 l-1.8 -4 l-4 -1.8 l4 -1.8 z"/>
+      <path class="star" d="M112 26 l1.4 3 l3 1.4 l-3 1.4 l-1.4 3 l-1.4 -3 l-3 -1.4 l3 -1.4 z"/>
+    </g>
+  </g>
+</svg>

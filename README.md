@@ -2156,6 +2156,123 @@ ssh tunnel above — never on `0.0.0.0` because it happened to be easier that ev
 
 ---
 
+## Mascot
+
+![The six states, light and dark, and the same SVG from 24 to 160 px](docs/mascot/states.png)
+
+The runner has a face: a small robot whose mood follows a ticket. It lives in one file,
+[`docs/mascot/ticket-runner-robot.js`](docs/mascot/ticket-runner-robot.js) — a Web
+Component in vanilla JavaScript, because the landing page is a single static file with no
+build step and has to load it from a `<script>` tag:
+
+```html
+<script type="module" src="mascot/ticket-runner-robot.js"></script>
+<ticket-runner-robot state="working" theme="dark" size="96"></ticket-runner-robot>
+```
+
+| Attribute | Values |
+|---|---|
+| `state` | `idle` (default), `thinking`, `working`, `success`, `error`, `sleep` — any key of `STATES` |
+| `theme` | `auto` (default, follows `prefers-color-scheme`), `light`, `dark` |
+| `size` | a width in pixels; without it the robot takes the width of its container |
+| `accessories` | space-separated keys of `ACCESSORIES`, e.g. `bowtie headset` |
+
+| State | On the board | What it does |
+|---|---|---|
+| `idle` | waiting for a ticket | breathes, antenna sways, blinks at random |
+| `thinking` | a ticket is in progress | eyes sweep, antenna blinks |
+| `working` | Claude Code is at it | arms pump, head nods, eyes narrowed |
+| `success` | the pull request is open | hops, happy eyes, waves, sparkles |
+| `error` | the ticket is blocked | sad eyes, antenna crackles red |
+| `sleep` | the queue is empty | eyes closed, head down, floating *Z*s |
+
+With `prefers-reduced-motion`, every animation stops and the robot holds the pose of its
+state — closed eyes and *Z*s for `sleep`, raised arms for `success` — so the state still
+reads.
+
+### Layers
+
+The drawing sits on a 128 × 128 grid, and every group carries a `data-layer`:
+
+```
+base                       the pedestal and its shadow — stays on the floor
+rig                        everything that moves with the robot
+├── body                   neck, torso, chest plate
+├── head
+│   ├── antenna ── bulb
+│   ├── eyes ── eye-left / eye-right
+│   │           └── eye-open-*, eye-joy-*, eye-closed-*
+│   └── eyelids ── lid-left / lid-right
+├── arm-left ── forearm-left
+├── arm-right ── forearm-right
+└── accessories            empty until ACCESSORIES fills it
+fx                         fx-zzz (z1 z2 z3), fx-sparks, fx-stars
+```
+
+Each layer that turns has its pivot in `PIVOTS`, in the grid's own units, so a state
+rotates an arm without knowing how big the robot is drawn.
+
+### Colours
+
+Colours are CSS variables, never literal fills in the drawing; `PALETTES` holds a
+`light` and a `dark` set. A page can override any of them on the element itself:
+
+| Variable | Used for | Light | Dark |
+|---|---|---|---|
+| `--robot-body` | head and torso | `#3b82f6` | `#3b82f6` |
+| `--robot-body-shade` | arms, ear bolts, *Z*s | `#1d4ed8` | `#7cb0ff` |
+| `--robot-screen` | face screen, chest plate, eyelids | `#0f172a` | `#0b0d12` |
+| `--robot-eye` | eyes | `#d5f95a` | `#d5f95a` |
+| `--robot-accent` | antenna bulb, chevron, stars | `#d5f95a` | `#d5f95a` |
+| `--robot-alert` | `error`: bulb and sparks | `#ef4444` | `#f87171` |
+| `--robot-ink` | antenna stem, neck, pedestal | `#0f172a` | `#94a3b8` |
+| `--robot-shadow` | the shadow on the floor | 16 % navy | 16 % blue |
+
+```css
+ticket-runner-robot.holiday { --robot-body: #16a34a; --robot-accent: #fde047; }
+```
+
+### Adding a state or an accessory
+
+A state is one entry in `STATES`, never a copy of the drawing: a label, what it means,
+and a map of layer → CSS declarations. The plain declarations are the pose;
+`animation` names a keyframe from `KEYFRAMES` (without its `robot-` prefix);
+`blink: true` lets the component close the eyelids at random moments.
+
+```js
+// in STATES
+surprised: {
+  label: 'Surprised',
+  means: 'a comment just arrived',
+  layers: {
+    eyes: { transform: 'scale(1.2)' },
+    antenna: { animation: 'boing .5s ease-out infinite' },
+  },
+},
+// in KEYFRAMES
+boing: '0%, 100% { transform: scaleY(1) } 40% { transform: scaleY(1.25) }',
+```
+
+An accessory is one entry in `ACCESSORIES`: SVG on the same grid, coloured with the same
+variables, drawn above the body and the head — `bowtie` and `headset` are there as
+examples. A new body part a state has to reach gets a `data-layer` in `DRAWING`, and a
+pivot in `PIVOTS` if it turns.
+
+### Regenerating the files
+
+The favicon, a standalone SVG, the Open Graph card and the sheet above are all written
+from the same module — none of them is drawn by hand:
+
+```bash
+node scripts/mascot.mjs   # robot.svg, favicon.svg, og.png, states.png in docs/mascot/
+```
+
+The PNGs are screenshots from headless Chrome (`$CHROME`, or `google-chrome` on the
+`PATH`), only for the places that will not take an SVG; on the page, the robot is always
+vector. Run it again after any change to the module, and commit what it writes.
+
+---
+
 ## Tests
 
 ```sh
