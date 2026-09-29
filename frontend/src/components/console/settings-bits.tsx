@@ -268,6 +268,10 @@ function input(field: SettingField): FormInputInterface {
 
   if (field.kind === "int") return { ...shared, controller: CountInputController }
 
+  // A path — a workspace, a prompt file — is read to its end or not at all:
+  // half a column would cut it where it says which file.
+  if (field.kind === "path") return { ...shared, className: "col-span-full min-w-0" }
+
   return shared
 }
 
@@ -369,9 +373,10 @@ function barFor(sectionKey: string): React.FC {
 export function sectionForm(section: SettingSection): FormInterface {
   return {
     label: { submit: "Save" },
-    // The fields flow into as many columns as the tab is wide, which is what
-    // keeps a section of twenty keys from being a page you scroll.
-    className: "grid items-start gap-x-4 [grid-template-columns:repeat(auto-fill,minmax(17rem,1fr))]",
+    // Two columns on a desktop, one on a phone: enough to keep a section of
+    // twenty keys from being a page you scroll, few enough that a label and
+    // the sentence under it still read as a line. A long value takes the row.
+    className: "grid grid-cols-1 items-start gap-x-6 lg:grid-cols-2",
     components: { formSubmitAction: barFor(section.key) },
     inputs: Object.fromEntries(section.fields.map((field) => [inputName(field.name), input(field)])),
   }
