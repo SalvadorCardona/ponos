@@ -4,7 +4,7 @@
  * docs/mascot/ticket-runner-robot.js:
  *
  *   docs/mascot/robot.svg     the whole robot, layers and variables kept
- *   docs/mascot/favicon.svg   the bust, following the browser's colour scheme
+ *   docs/mascot/favicon.svg   the face alone, following the browser's colour scheme
  *   docs/mascot/og.png        the Open Graph card, 1200 × 630
  *   docs/mascot/states.png    every state, light and dark, and the sizes
  *
@@ -30,7 +30,7 @@ const source = readFileSync(join(out, 'ticket-runner-robot.js'), 'utf8');
 const { STATES, standalone } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 writeFileSync(join(out, 'robot.svg'), standalone({ title: 'ticket-runner — the robot' }));
-writeFileSync(join(out, 'favicon.svg'), standalone({ viewBox: '18 -6 92 92' }));
+writeFileSync(join(out, 'favicon.svg'), standalone({ small: true }));
 
 const fonts = '<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">';
 
@@ -52,7 +52,8 @@ const og = `<!doctype html><meta charset="utf-8">${fonts}
 
 const cells = (theme) => Object.entries(STATES).map(([name, s]) => `
   <figure><div class="bot">${standalone({ state: name, theme })}</div><figcaption><b>${name}</b>${s.means}</figcaption></figure>`).join('');
-const sizes = [24, 32, 48, 96, 160].map((px) => `<div style="width:${px}px">${standalone({ theme: 'dark' })}</div>`).join('');
+const sizes = [24, 32, 48, 96, 160].map((px) => `<div class="box" style="width:${px}px">${standalone({ theme: 'dark' })}</div>`).join('');
+const faces = Object.keys(STATES).map((name) => `<div class="box" style="width:24px">${standalone({ state: name, theme: 'dark' })}</div>`).join('');
 
 const sheet = `<!doctype html><meta charset="utf-8">${fonts}
 <style>
@@ -65,12 +66,14 @@ const sheet = `<!doctype html><meta charset="utf-8">${fonts}
   .bot { width: min(150px, 100%); margin: 0 auto; }
   figcaption { font-size: 13px; opacity: .75; margin-top: 8px; }
   figcaption b { display: block; font: 600 15px 'JetBrains Mono', monospace; opacity: 1; margin-bottom: 2px; }
-  .sizes { display: flex; align-items: flex-end; gap: 36px; padding: 16px 28px 32px; }
-  .sizes span { font: 13px 'JetBrains Mono', monospace; opacity: .6; margin-left: auto; align-self: center; }
+  .sizes { display: flex; align-items: flex-end; gap: 28px; padding: 16px 28px 32px; }
+  .sizes span { font: 12px/1.5 'JetBrains Mono', monospace; opacity: .6; align-self: center; max-width: 150px; }
+  .sizes .faces { display: flex; gap: 14px; margin-left: auto; align-self: center; }
+  .box { container-type: inline-size; flex: none; }
 </style>
 <div class="row light">${cells('light')}</div>
 <div class="dark"><div class="row">${cells('dark')}</div>
-<div class="sizes">${sizes}<span>24 · 32 · 48 · 96 · 160 px — one SVG</span></div></div>`;
+<div class="sizes">${sizes}<span>24 · 32 · 48 · 96 · 160 px, one SVG</span><div class="faces">${faces}</div><span>every state at 24 px</span></div></div>`;
 
 const chrome = process.env.CHROME || 'google-chrome';
 const scratch = mkdtempSync(join(tmpdir(), 'mascot-'));

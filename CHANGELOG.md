@@ -451,6 +451,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The robot is cuter, and still reads at 24 pixels.** A big round head on a
+  small round body, stubby arms and legs, big eyes with lights in them, pink
+  cheeks and a mouth; softer colours, with a gloss and a soft shadow. Every
+  state has its face — a pout and a tear when a ticket is blocked, a snoring
+  mouth asleep, an open smile on a hop that squashes when it lands. Under 40
+  pixels — a card, a toast, the bar, the favicon — it is only its face, drawn
+  larger. `--robot-cheek` and `--robot-glint` join the colour variables; see
+  [Mascot](README.md#mascot).
 - **The console is drawn in react-resource-view's admin layout.** The menu, the
   bar and the page's heading are the package's own now, around the same pages:
   the board, a ticket, *Live*, the projects, the schedules, the context and the
