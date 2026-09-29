@@ -362,6 +362,28 @@ open_pull_request = true  # gh pr create — opening one merges nothing
 # ticket rather than discovered on GitHub.
 rebase = true
 
+# When that replay stops on a conflict — two tickets touched the same lines —
+# a session resolves it rather than you: it is told the ticket, the pull
+# request and what landed on the base, keeps both sides, regenerates lockfiles
+# and generated files rather than merging them, and runs the project's checks.
+# The result is pushed with --force-with-lease (never --force) and merged. A
+# conflict that is a decision, checks still red, commits somebody else pushed,
+# or a base that moved again after two replays block the ticket with the
+# question, and whatever was resolved is pushed on a branch of its own.
+# Needs `rebase = true`. Off, a conflict blocks the ticket as it always did.
+resolve_conflicts = true
+# Projects whose conflicts are always left to you, by their Notion name.
+#   resolve_conflicts_except = ["Animalink", "Site vitrine"]
+resolve_conflicts_except = ""
+# The model that resolves. Empty: the ticket's own, as its session had it.
+# Its cost is added to the ticket's Cost column either way.
+resolve_model = ""
+# How long a resolved pull request's CI is waited for before the merge is
+# asked. Only a repository with a .github/workflows directory is waited on;
+# 0 does not wait — GitHub still refuses a merge a required check has not
+# passed.
+checks_timeout_minutes = 20
+
 # How a *validated* pull request is merged — see `validated` above. Nothing
 # is ever merged without that gesture; this only says what the gesture does.
 #   squash | merge | rebase

@@ -286,6 +286,17 @@ SECTIONS: tuple[Section, ...] = (
             Field("runner", "merge_method", "choice", "Merge a validated ticket by",
                   "What `gh pr merge` is told when you move a ticket to Validated.",
                   choices=MERGE_METHODS),
+            Field("runner", "resolve_conflicts", "bool", "Resolve a validated merge's conflicts",
+                  "A replay that stops on a conflict is handed to a session: both sides kept, "
+                  "the project's checks run, pushed with a lease, then merged. A conflict that "
+                  "is a decision blocks the ticket with the question."),
+            Field("runner", "resolve_conflicts_except", "text", "Projects whose conflicts are left to you",
+                  "Their names, separated by commas: a conflict there blocks the ticket, as before."),
+            Field("runner", "resolve_model", "text", "Model that resolves",
+                  "Empty: the model the ticket was worked with."),
+            Field("runner", "checks_timeout_minutes", "int", "Wait for CI after a resolution (minutes)",
+                  "Zero does not wait: GitHub still refuses a merge that a required check has "
+                  "not passed."),
             Field("runner", "keep_worktree_on_failure", "bool", "Keep the worktree on failure",
                   "The state a failed session died in, for you to look at. "
                   "`ticket-runner clean --force` sweeps them."),

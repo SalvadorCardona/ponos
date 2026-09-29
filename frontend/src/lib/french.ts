@@ -578,6 +578,17 @@ export const FRENCH: Record<string, string> = {
   "Merge a validated ticket by": "Fusionner un ticket validé par",
   "What `gh pr merge` is told when you move a ticket to Validated.":
     "Ce qu'on dit à `gh pr merge` quand vous déplacez un ticket vers Validé.",
+  "Resolve a validated merge's conflicts": "Résoudre les conflits d'une fusion validée",
+  "A replay that stops on a conflict is handed to a session: both sides kept, the project's checks run, pushed with a lease, then merged. A conflict that is a decision blocks the ticket with the question.":
+    "Un rebase qui s'arrête sur un conflit est confié à une session : les deux côtés conservés, les vérifications du projet lancées, poussé avec un bail, puis fusionné. Un conflit qui relève d'une décision bloque le ticket avec la question.",
+  "Projects whose conflicts are left to you": "Projets dont les conflits vous reviennent",
+  "Their names, separated by commas: a conflict there blocks the ticket, as before.":
+    "Leurs noms, séparés par des virgules : un conflit y bloque le ticket, comme avant.",
+  "Model that resolves": "Modèle qui résout",
+  "Empty: the model the ticket was worked with.": "Vide : le modèle avec lequel le ticket a été traité.",
+  "Wait for CI after a resolution (minutes)": "Attendre la CI après une résolution (minutes)",
+  "Zero does not wait: GitHub still refuses a merge that a required check has not passed.":
+    "Zéro n'attend pas : GitHub refuse quand même une fusion qu'une vérification requise n'a pas validée.",
   "Keep the worktree on failure": "Garder le worktree en cas d'échec",
   "The state a failed session died in, for you to look at. `ticket-runner clean --force` sweeps them.":
     "L'état dans lequel une session échouée est morte, pour que vous puissiez le regarder. `ticket-runner clean --force` fait le ménage.",

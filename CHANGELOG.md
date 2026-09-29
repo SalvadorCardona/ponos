@@ -18,6 +18,21 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A validated pull request that conflicts is resolved, not left to you.**
+  “Pull Request has merge conflicts” used to block the ticket. Now the runner
+  asks GitHub first, replays the branch onto its base in a worktree of its own,
+  and hands the conflict to a session told to keep both sides — the ticket's
+  work and what was merged meanwhile — to regenerate lockfiles rather than merge
+  them, and to run the project's checks. The result is pushed with
+  `--force-with-lease`, the pull request's CI is waited for, and the merge is
+  asked again; the pull request and the ticket both say which files conflicted
+  and how each was resolved, and the session's cost is added to the ticket's.
+  A conflict that is a decision, checks that stay red, commits somebody else
+  pushed, or a base still moving after two replays block the ticket with the
+  question, and the resolution reached so far is pushed on a branch of its own.
+  `runner.resolve_conflicts`, `resolve_conflicts_except`, `resolve_model` and
+  `checks_timeout_minutes` configure it. See the README, “Ten tickets on one
+  repository”.
 - **A ticket has a type, and the runner works it out when you did not.** A new
   `Type` column — *Code*, *Writing*, *External action*, *Publication* — says
   which road a ticket takes. Left empty, a short session on a light model

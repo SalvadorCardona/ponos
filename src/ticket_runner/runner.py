@@ -219,7 +219,7 @@ class Runner(
                 # column, and this was taken off another one.
                 while publishing and not stalled and len(flight) < width:
                     ticket, project = publishing.pop(0)
-                    flight.add(pool.submit(self._guarded, ticket, self._publish, ticket, project))
+                    flight.add(pool.submit(self._guarded, ticket, self._carry_out, ticket, project))
                 while (
                     queued
                     and not stalled
@@ -286,7 +286,7 @@ class Runner(
                 if fresh:
                     self.say(
                         f"  ↺ {len(fresh)} ticket(s) validated since — "
-                        "publishing at the next free place."
+                        "carried out at the next free place."
                     )
                 if (done or empty) and (remaining is None or remaining > 0):
                     queued = self._again(started)
