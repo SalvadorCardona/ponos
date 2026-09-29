@@ -111,8 +111,10 @@ export const api = {
   project: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),
   talk: (id: string) => request<Talk>(`/api/tickets/${id}/talk`),
-  logs: () => request<{ logs: LogEntry[] }>("/api/logs"),
-  log: (name: string) => request<{ name: string; steps: Step[] }>(`/api/logs/${encodeURIComponent(name)}`),
+  logs: (ticket = "") =>
+    request<{ logs: LogEntry[] }>(ticket ? `/api/logs?ticket=${encodeURIComponent(ticket)}` : "/api/logs"),
+  log: (name: string) =>
+    request<{ name: string; count: number; steps: Step[] }>(`/api/logs/${encodeURIComponent(name)}`),
 
   createTicket: (ticket: {
     title: string

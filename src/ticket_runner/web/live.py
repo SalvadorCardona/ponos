@@ -196,7 +196,12 @@ class Tail:
                 break
             for step in steps(line):
                 self.hub.publish(
-                    "step", source=_ticket(key), log=key, label=step.label, detail=step.detail
+                    "step",
+                    source=_ticket(key),
+                    log=key,
+                    label=step.label,
+                    detail=step.detail,
+                    said=step.said,
                 )
                 published += 1
         return published

@@ -164,10 +164,11 @@ export interface RunnerState {
   busy: boolean
 }
 
-/** A line of a session: the tool it used, and what it used it on. */
+/** A line of a session: the tool it used, and what it used it on — or, `said`, what the agent wrote. */
 export interface Step {
   label: string
   detail: string
+  said?: boolean
 }
 
 export type Role = "you" | "workspace" | "error" | "command"

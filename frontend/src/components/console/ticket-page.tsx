@@ -4,6 +4,7 @@ import { Link, useCurrentViewResourceContext } from "react-resource-view"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConsole } from "@/hooks/use-console"
 import { useT } from "@/lib/i18n"
 import type { TicketDetail } from "@/lib/types"
@@ -11,9 +12,10 @@ import { cn } from "@/lib/utils"
 import { boardHref, lastTicketProblem } from "@/resources/tickets"
 
 import { EmptyState } from "./empty-state"
-import { Eyebrow, Fact, Facts } from "./frame"
+import { Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
 import { MOOD, Robot } from "./robot"
+import { Pulse, TicketLive } from "./session-log"
 import {
   LABEL,
   TONE,
@@ -37,6 +39,10 @@ import {
  * banner, the title big enough to be the page's title, and the metadata as a
  * ruled grid — because six facts in a row of pills is six pills, where six
  * facts in a grid is a thing you can read down.
+ *
+ * Under them, two tabs: the brief, and the session — live while the ticket is
+ * in progress, which is when somebody opens it to see what it is doing, so it
+ * is the tab a running ticket opens on.
  */
 
 export function TicketPage() {
@@ -145,9 +151,21 @@ export function TicketPage() {
               </Fact>
             </Facts>
 
-            <div className="mt-6">
-              <Eyebrow>{t("the brief")}</Eyebrow>
-              <div className="mt-2">
+            <Tabs
+              // Chosen once per ticket, not every time the column moves: a
+              // tab that switched itself under the reader would lose them.
+              key={ticket.id}
+              defaultValue={ticket.column === "running" ? "live" : "brief"}
+              className="mt-6"
+            >
+              <TabsList>
+                <TabsTrigger value="brief">{t("the brief")}</TabsTrigger>
+                <TabsTrigger value="live" className="gap-1.5">
+                  {ticket.column === "running" ? <Pulse /> : null}
+                  {t("live")}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="brief" className="mt-2">
                 {ticket.content ? (
                   <Markdown text={ticket.content} />
                 ) : (
@@ -155,8 +173,11 @@ export function TicketPage() {
                     {t("The page is empty: the title is the whole brief.")}
                   </p>
                 )}
-              </div>
-            </div>
+              </TabsContent>
+              <TabsContent value="live" className="mt-2">
+                <TicketLive ticket={ticket} />
+              </TabsContent>
+            </Tabs>
           </>
         ) : context.error ? (
           // Why, as the server said it, and the two ways on from here: a

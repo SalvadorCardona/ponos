@@ -5393,6 +5393,46 @@ def a_log_line_becomes_the_step_the_board_would_have_shown():
 
 
 @case
+def a_ticket_finds_its_own_session_and_tells_what_the_agent_said_from_what_it_did():
+    """The ticket page reads its journal by the ticket, not by a session id.
+
+    What the agent said and what it ran are drawn differently there — the one
+    read, the other folded — so each step says which it is, on the stream and
+    in the log read back alike.
+    """
+    said = json.dumps(
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": "Je lis le code."}]}}
+    )
+    ran = json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "ls"}}]},
+        }
+    )
+    with _state_home():
+        logs = state.logs_dir()
+        (logs / "20260830-120000-1a2b3c4d.jsonl").write_text(said + "\n" + ran + "\n", encoding="utf-8")
+        (logs / "20260830-130000-99999999.jsonl").write_text(ran + "\n", encoding="utf-8")
+        api = _bare_api(_TalkClient([]))
+        found = api.logs("1a2b3c4d")["logs"]
+        assert [entry["name"] for entry in found] == ["20260830-120000-1a2b3c4d.jsonl"], found
+        assert len(api.logs()["logs"]) == 2
+        read = api.log(found[0]["name"])
+        assert read["count"] == 2
+        assert [(step["label"], step["said"]) for step in read["steps"]] == [
+            ("Je lis le code.", True),
+            ("Bash", False),
+        ]
+
+        hub = web_live.Hub()
+        published = []
+        hub.publish = lambda kind, **payload: published.append((kind, payload))  # type: ignore[method-assign]
+        web_live.Tail(hub, logs).pass_once()
+        told = [payload for kind, payload in published if kind == "step" and payload["source"] == "1a2b3c4d"]
+        assert [payload["said"] for payload in told] == [True, False], told
+
+
+@case
 def a_session_log_is_tailed_forward_and_never_twice():
     hub = web_live.Hub()
     with tempfile.TemporaryDirectory() as directory:
@@ -8023,7 +8063,7 @@ def the_console_is_drawn_in_react_resource_view_s_admin_layout():
     """
     scope = (FRONTEND / "src/resources/scope.tsx").read_text(encoding="utf-8")
     assert "createAdminLayout" in scope, "the console draws its own frame again"
-    for resource in ("tickets", "live", "projects", "schedules", "context", "settings"):
+    for resource in ("tickets", "projects", "schedules", "context", "settings"):
         assert f"entry({resource.upper()}" in scope, f"the menu has no entry for {resource}"
     app = (FRONTEND / "src/App.tsx").read_text(encoding="utf-8")
     assert "ScopeProvider" in app, "the pages are no longer drawn in the scope's layout"
@@ -8102,6 +8142,31 @@ def a_schedule_is_a_resource_drawn_in_the_package_s_own_layouts():
     assert "?view=console/schedules/list" in (FRONTEND / "src/lib/router.tsx").read_text(
         encoding="utf-8"
     ), "the address the pane had stopped leading to the schedules"
+
+
+@case
+def a_session_is_followed_on_its_ticket_rather_than_on_a_page_of_sessions():
+    """The live page listed sessions by the id of their log, and nothing more.
+
+    `24f9704c` said nothing of the ticket it was: the session is read where the
+    ticket is — a tab of its page, a line on its card — and the page is gone.
+    Its address still leads somewhere: a link somebody kept lands on the board.
+    """
+    assert not (FRONTEND / "src/resources/live.tsx").exists(), "the live page is back"
+    assert not (FRONTEND / "src/components/console/live-pane.tsx").exists(), "the live pane is back"
+    scope = (FRONTEND / "src/resources/scope.tsx").read_text(encoding="utf-8")
+    assert "LIVE" not in scope, "the menu has an entry for the live page again"
+    router = (FRONTEND / "src/lib/router.tsx").read_text(encoding="utf-8")
+    assert 'live: "/?view=console/tickets/list"' in router, "/?page=live no longer reaches the board"
+    page = (FRONTEND / "src/components/console/ticket-page.tsx").read_text(encoding="utf-8")
+    assert "<TicketLive" in page, "a ticket's page no longer shows its session"
+    assert 'ticket.column === "running" ? "live"' in page, "a running ticket opens on its brief"
+    tickets = (FRONTEND / "src/resources/tickets.tsx").read_text(encoding="utf-8")
+    assert "<CardLive" in tickets, "a running card no longer says what it is doing"
+    assert "<RunnerStrip" in tickets, "the runner's figures are nowhere on the board"
+    log = (FRONTEND / "src/components/console/session-log.tsx").read_text(encoding="utf-8")
+    assert "<details" in log, "a tool call is no longer folded"
+    assert "/worktrees/" in log, "the worktree's path is written out in full again"
 
 
 @case

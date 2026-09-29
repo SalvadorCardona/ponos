@@ -1536,11 +1536,11 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 │ ticket-runner │        ● live  v0.9.2  ⟳  ☀  │  you                        │
 │               │ + New ticket   board · table │  Where is the SQLite ticket │
 │ ▸ Board    4  │  Ready     1   In progress 1 │                             │
-│   Live     1  │  ┌──────────┐  ┌──────────┐  │  workspace                  │
-│   Projects    │  │ Retirer  │  │ Migrer   │  │  Six minutes in, on Trader  │
-│   Schedules   │  │ le       │  │ vers     │  │  IA. It has rewritten       │
-│   Context     │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
-│   Settings    │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
+│   Projects    │  ┌──────────┐  ┌──────────┐  │  workspace                  │
+│   Schedules   │  │ Retirer  │  │ Migrer   │  │  Six minutes in, on Trader  │
+│   Context     │  │ le       │  │ vers     │  │  IA. It has rewritten       │
+│   Settings    │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
+│               │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
 │               │  └──────────┘  └──────────┘  │                             │
 │               │                              │  > status                   │
 │               │                 ───▶      (●)│  timer on · 30 min          │
@@ -1549,9 +1549,7 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 ```
 
 **The menu** down the left is where the pages live: a name each, and a count beside it
-where something is waiting there — how many tickets are on the board, how many sessions
-are writing right now — the sessions the server reads as running from their logs, so the
-count is right after a reload and drops when a session ends. On a phone the menu runs
+where something is waiting there — how many tickets are on the board. On a phone the menu runs
 along the bottom edge instead. The frame is react-resource-view's admin layout (see
 [The console's own code](#the-consoles-own-code)), and the end of its bar holds the things
 about the console itself: whether the event stream is up — a stream the server refuses
@@ -1559,7 +1557,9 @@ because the session expired sends the page back to the sign-in rather than sayin
 *reconnecting…* forever — the version this one runs — in amber, with what to type, on the
 day a newer one is waiting — and the two buttons that reread the board and change the
 light. Every page has an address — `/?view=console/tickets/list`,
-`/?view=console/live/list` — so a reload, a bookmark or a link pasted into a chat lands where you were.
+`/?view=console/tickets/read/<id>` — so a reload, a bookmark or a link pasted into a chat
+lands where you were. The page of sessions the console used to have is gone, and its old
+address leads to the board: a session is followed on its ticket.
 
 **The board** is the Notion board, read from Notion and written back to it, drawn as
 the columns the board has — *Ready*, *In progress*, *In review*, *Validated* where the
@@ -1568,7 +1568,10 @@ is a second database: **drag a card into a column and the ticket moves**, and th
 you write behind *New ticket* is a page in the same database, with its brief as real
 Notion blocks. What the console adds is the part Notion cannot do — the running session's
 steps, live, read straight from the session log on disk rather than from the `Progress`
-column. A card in review carries a **validate** button, where the board has that column:
+column. A card in progress has a pulsing dot, how many steps its session has taken, and
+what it is on in one line — what the agent last said, or else the last tool it ran. Over
+the columns, one strip carries the runner's figures: the sessions writing, the timer
+between two passes, the tickets handled and what they cost. A card in review carries a **validate** button, where the board has that column:
 confirm it and the next pass merges its pull request, or publishes what it holds; *run
 again* asks the same way, since it starts a session that is paid for. A move that Notion
 refuses puts the card back where it was, and a gesture that sends a card off the screen —
@@ -1581,7 +1584,13 @@ as rows, one column per property.
 **A card is a way in.** Click one and the ticket becomes a page: the brief you wrote, the
 report a run appended, the notes in between — the page under the card, as the runner
 reads it — with its links out (Notion, the pull request, the session) and the gestures it
-offers where it stands. The bubble in the bottom corner then opens *that ticket's* own
+offers where it stands. Under the facts, two tabs: the brief, and **live** — the one a
+ticket in progress opens on. It is the session's journal, growing as it is written and
+following its end until you scroll up to read something; what the agent says is drawn as
+prose, each tool call is one folded line — the tool and the start of its command, the
+worktree's path written `./` — that a click unfolds. Once the ticket has left *In
+progress*, the same tab reads its last session back from the log, read-only, for as long as
+the log is on disk. The bubble in the bottom corner then opens *that ticket's* own
 terminal rather than the workspace's: everything said on it, oldest first — the runner's
 reports, your answers, the answers you gave from Telegram — and a field to say the next
 thing. What you type is a

@@ -560,8 +560,16 @@ class Api:
     def history(self, limit: int = 30) -> dict:
         return {"entries": list(reversed(state.history(limit)))}
 
-    def logs(self) -> dict:
-        paths = sorted(state.logs_dir().glob("*.jsonl"), reverse=True)[:40]
+    def logs(self, ticket: str = "") -> dict:
+        """The newest session logs — of one ticket, when it is named.
+
+        Named by its short id, as the file is: a ticket opened on the console
+        finds its last session here, however many others ran since.
+        """
+        paths = sorted(state.logs_dir().glob("*.jsonl"), reverse=True)
+        if ticket:
+            paths = [path for path in paths if path.stem.rsplit("-", 1)[-1] == ticket]
+        paths = paths[:40]
         return {
             "logs": [
                 {
@@ -584,8 +592,10 @@ class Api:
         with target.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:
                 for step in live.steps(line):
-                    steps.append({"label": step.label, "detail": step.detail})
-        return {"name": target.name, "steps": steps[-1000:]}
+                    steps.append({"label": step.label, "detail": step.detail, "said": step.said})
+        # The count is of the whole session, the steps only of its end: a card
+        # says how far a run has come, and a thousand lines is enough to read.
+        return {"name": target.name, "count": len(steps), "steps": steps[-1000:]}
 
     def talk(self, page_id: str) -> dict:
         """What has been said on one ticket, oldest first.

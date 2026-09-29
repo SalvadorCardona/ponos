@@ -55,6 +55,8 @@ export type Entry =
 export interface Session {
   source: string
   steps: Step[]
+  /** How many steps the session has taken, the forgotten ones included. */
+  count: number
 }
 
 let counter = 0
@@ -137,6 +139,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = React.useState(false)
   const [running, setRunning] = React.useState<Running[]>([])
   const [steps, setSteps] = React.useState<Record<string, Step[]>>({})
+  // Counted apart from the steps kept: a card says how far a run has come,
+  // and the panel forgets all but its last two hundred.
+  const [counts, setCounts] = React.useState<Record<string, number>>({})
   const [ticket, setTicket] = React.useState<Ticket | null>(null)
   const [talk, setTalk] = React.useState<Message[]>([])
   const [mention, setMention] = React.useState("")
@@ -173,6 +178,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
             const seen = current[session.source] ?? []
             return seen.length >= read.length ? current : { ...current, [session.source]: read }
           })
+          setCounts((current) =>
+            (current[session.source] ?? 0) >= payload.count
+              ? current
+              : { ...current, [session.source]: payload.count }
+          )
         })
         .catch(() => {
           // A log that cannot be read leaves the session to fill from the
@@ -266,11 +276,12 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     sessions: (event: SessionsEvent) => catchUp(event.sessions ?? []),
 
     step: (event: StepEvent) => {
-      const line: Step = { label: event.label, detail: event.detail }
+      const line: Step = { label: event.label, detail: event.detail, said: event.said }
       setSteps((current) => ({
         ...current,
         [event.source]: [...(current[event.source] ?? []), line].slice(-KEPT),
       }))
+      setCounts((current) => ({ ...current, [event.source]: (current[event.source] ?? 0) + 1 }))
     },
 
     chat: (event: ChatEvent) => {
@@ -539,12 +550,13 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       sessions: running.map((session) => ({
         source: session.source,
         steps: steps[session.source] ?? [],
+        count: counts[session.source] ?? steps[session.source]?.length ?? 0,
       })),
       // Kept after the session ends: the open ticket's terminal shows how the
       // run it just finished went, until another ticket is opened.
       ticketSteps: openShort ? (steps[openShort] ?? []) : [],
     }),
-    [running, steps, openShort]
+    [running, steps, counts, openShort]
   )
 
   return (

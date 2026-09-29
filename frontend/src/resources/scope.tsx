@@ -6,7 +6,6 @@ import { t } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 
 import { CONTEXT, context, contextHref } from "./context"
-import { LIVE, live, liveHref } from "./live"
 import { PROJECTS, projects, projectsHref } from "./projects"
 import { SCHEDULES, schedules, schedulesHref } from "./schedules"
 import { SETTINGS, settings, settingsHref } from "./settings"
@@ -47,11 +46,10 @@ const entry = (
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "ticket-runner",
-  resources: [tickets, live, projects, schedules, context, settings],
+  resources: [tickets, projects, schedules, context, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [
     entry(TICKETS, tickets.icon, "Board", boardHref, "board"),
-    entry(LIVE, live.icon, "Live", liveHref, "live"),
     entry(PROJECTS, projects.icon, "Projects", projectsHref),
     // No count, here as under Projects: the only way to know is to ask the
     // board, and this menu is redrawn every time the board moves.

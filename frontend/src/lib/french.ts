@@ -104,7 +104,6 @@ export const FRENCH: Record<string, string> = {
 
   /* -- the menu ------------------------------------------------------------ */
   Board: "Tableau",
-  Live: "En direct",
   Schedules: "Récurrences",
   Settings: "Réglages",
   Refresh: "Relire",
@@ -275,12 +274,15 @@ export const FRENCH: Record<string, string> = {
   "Leave full screen": "Quitter le plein écran",
   "Resize the drawer": "Redimensionner le panneau",
 
-  /* -- live ------------------------------------------------------------------ */
-  "See the work happen.": "Voyez le travail se faire.",
-  "What the running tickets are doing, straight from their session logs — without asking the board.":
-    "Ce que font les tickets en cours, directement depuis leurs journaux de session — sans rien demander au tableau.",
+  /* -- a ticket's session, and the runner's figures ----------------------------- */
   "writing now": "en train d'écrire",
-  quiet: "calme",
+  "the last session, read-only": "la dernière session, en lecture seule",
+  "Follow the session": "Suivre la session",
+  "starting…": "démarrage…",
+  "The session has not written anything yet. Its first step appears here as it happens.":
+    "La session n'a encore rien écrit. Sa première étape apparaît ici dès qu'elle a lieu.",
+  "No journal is left for this ticket: its session log is gone, or it never ran.":
+    "Il ne reste aucun journal pour ce ticket : son journal de session a disparu, ou il n'a jamais tourné.",
   sessions: "sessions",
   "{{count}} ticket(s) in progress": "{{count}} ticket(s) en cours",
   "nothing in progress": "rien en cours",
@@ -295,8 +297,6 @@ export const FRENCH: Record<string, string> = {
     "Crédits épuisés jusqu'à {{at}}. La fenêtre de l'abonnement est consommée : les tickets restent où ils sont, et la première passe après ce moment les reprend.",
   "`claude` was not found on this machine: no session can start.":
     "`claude` est introuvable sur cette machine : aucune session ne peut démarrer.",
-  "Nothing is running. A session that starts writes here as it works.":
-    "Rien ne tourne. Une session qui démarre écrit ici au fil de son travail.",
 
   /* -- what comes back on its own -------------------------------------------- */
   /* `Cadence`, `Model` and `Priority` are already said above, where the
