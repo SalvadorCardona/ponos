@@ -271,6 +271,9 @@ export const FRENCH: Record<string, string> = {
   "new conversation": "nouvelle conversation",
   "start a new conversation": "démarrer une nouvelle conversation",
   "exit {{code}}": "sortie {{code}}",
+  "Full screen": "Plein écran",
+  "Leave full screen": "Quitter le plein écran",
+  "Resize the drawer": "Redimensionner le panneau",
 
   /* -- live ------------------------------------------------------------------ */
   "See the work happen.": "Voyez le travail se faire.",

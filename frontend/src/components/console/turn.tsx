@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message"
 import { useT } from "@/lib/i18n"
@@ -35,8 +37,12 @@ const SURFACE: Record<Role, "tinted" | "outline" | "destructive"> = {
  *
  * Who said it and when are one line, set in the mono face: they are a stamp on
  * the message, not a sentence in it.
+ *
+ * Memoised, because a turn once said does not change: the board redraws the
+ * console every few seconds, and a transcript of forty turns used to be drawn
+ * again with it, every one of them, to say the same thing.
  */
-export function Turn({
+export const Turn = React.memo(function Turn({
   role,
   text,
   who,
@@ -68,11 +74,13 @@ export function Turn({
           align={mine ? "end" : "start"}
           className="max-w-[92%]"
         >
-          <BubbleContent>
+          {/* Prose stops at a reading width, however wide the drawer is
+              pulled; code runs to the edge of the bubble and scrolls. */}
+          <BubbleContent className="[&_:is(p,h3,h4,h5,blockquote,div.flex)]:max-w-[80ch]">
             <Markdown text={text} />
           </BubbleContent>
         </Bubble>
       </MessageContent>
     </Message>
   )
-}
+})
