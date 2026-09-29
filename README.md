@@ -2346,17 +2346,23 @@ build step and has to load it from a `<script>` tag:
 
 | State | On the board | What it does |
 |---|---|---|
-| `idle` | waiting for a ticket | breathes, antenna sways, blinks at random |
-| `thinking` | a ticket is in progress | eyes sweep, antenna blinks |
-| `working` | Claude Code is at it | arms pump, head nods, eyes narrowed |
-| `success` | the pull request is open | hops, happy eyes, waves, sparkles |
-| `error` | the ticket is blocked | sad eyes, antenna crackles red |
-| `sleep` | the queue is empty | eyes closed, head down, floating *Z*s |
-| `waiting` | a person has the next move — a review, the credits | looks up over its shoulder at three dots that tick |
+| `idle` | waiting for a ticket | a small smile, breathes, head bobs, antenna sways, blinks at random |
+| `thinking` | a ticket is in progress | hand on the cheek, eyes sweep up, a wavy mouth, the bulb pulses |
+| `working` | Claude Code is at it | eyes narrowed, arms type, head nods, the cursor on its chest blinks |
+| `success` | the pull request is open | hops with a squash on landing, happy eyes, open smile, waves, stars and a heart |
+| `error` | the ticket is blocked | sad eyes, a pout, a tear, the antenna droops and glows red |
+| `sleep` | the queue is empty | eyes closed, head down, a small snoring mouth, floating *Z*s |
+| `waiting` | a person has the next move — a review, the credits | looks up over its shoulder at three dots that tick, taps its foot |
 
 With `prefers-reduced-motion`, every animation stops and the robot holds the pose of its
-state — closed eyes and *Z*s for `sleep`, raised arms for `success` — so the state still
-reads.
+state — closed eyes and *Z*s for `sleep`, raised arms for `success`, the tear for `error` —
+so the state still reads.
+
+Under 40 pixels wide — a card, a toast, the bar, the favicon — arms, legs and a chest are a
+smudge, so the robot is only its face, zoomed to fill the same box: the state still reads
+from the eyes, the mouth and the bulb. It is a container query on the element (and a media
+query in the standalone SVG, or `standalone({ small: true })` to force it), so nothing has to
+ask for it.
 
 ### In the console
 
@@ -2376,19 +2382,26 @@ screen readers, the words beside it carrying the state.
 The drawing sits on a 128 × 128 grid, and every group carries a `data-layer`:
 
 ```
-base                       the pedestal and its shadow — stays on the floor
-rig                        everything that moves with the robot
-├── body                   neck, torso, chest plate
-├── head
-│   ├── antenna ── bulb
-│   ├── eyes ── eye-left / eye-right
-│   │           └── eye-open-*, eye-joy-*, eye-closed-*
-│   └── eyelids ── lid-left / lid-right
-├── arm-left ── forearm-left
-├── arm-right ── forearm-right
-└── accessories            empty until ACCESSORIES fills it
-fx                         fx-zzz (z1 z2 z3), fx-sparks, fx-stars
+frame                          everything — what the small face zooms
+├── base                       the shadow — stays on the floor
+├── rig                        everything that moves with the robot
+│   ├── body                   leg-left, leg-right, torso, chest plate, cursor
+│   ├── head
+│   │   ├── antenna ── bulb
+│   │   ├── eyes ── eye-left / eye-right
+│   │   │           └── eye-open-*, eye-joy-*, eye-closed-*
+│   │   ├── eyelids ── lid-left / lid-right
+│   │   ├── cheeks
+│   │   ├── mouth ── mouth-smile, mouth-open, mouth-frown, mouth-o, mouth-flat
+│   │   └── tear
+│   ├── arm-left ── forearm-left
+│   ├── arm-right ── forearm-right
+│   └── accessories            empty until ACCESSORIES fills it
+└── fx                         fx-zzz (z1 z2 z3), fx-dots (dot1 dot2 dot3), fx-stars
 ```
+
+The volume — the darker bottom, the gloss on the head, the glow of the screen — comes from
+gradients of white and navy laid over the shapes, so the colours stay in the variables below.
 
 Each layer that turns has its pivot in `PIVOTS`, in the grid's own units, so a state
 rotates an arm without knowing how big the robot is drawn.
@@ -2400,17 +2413,19 @@ Colours are CSS variables, never literal fills in the drawing; `PALETTES` holds 
 
 | Variable | Used for | Light | Dark |
 |---|---|---|---|
-| `--robot-body` | head and torso | `#3b82f6` | `#3b82f6` |
-| `--robot-body-shade` | arms, ear bolts, *Z*s | `#1d4ed8` | `#7cb0ff` |
-| `--robot-screen` | face screen, chest plate, eyelids | `#0f172a` | `#0b0d12` |
-| `--robot-eye` | eyes | `#d5f95a` | `#d5f95a` |
-| `--robot-accent` | antenna bulb, chevron, stars | `#d5f95a` | `#d5f95a` |
-| `--robot-alert` | `error`: bulb and sparks | `#ef4444` | `#f87171` |
-| `--robot-ink` | antenna stem, neck, pedestal | `#0f172a` | `#94a3b8` |
+| `--robot-body` | head and torso | `#78a0ff` | `#82a8ff` |
+| `--robot-body-shade` | ears, arms, legs, *Z*s, dots | `#5079e6` | `#5c84ee` |
+| `--robot-screen` | face screen, chest plate, eyelids | `#1c2547` | `#141b36` |
+| `--robot-eye` | eyes, mouth, tear | `#b4f1ff` | `#b4f1ff` |
+| `--robot-accent` | antenna bulb, chest prompt, stars | `#ffcf5c` | `#ffd36b` |
+| `--robot-cheek` | cheeks, tongue, heart | `#ff8fb0` | `#ff8fb0` |
+| `--robot-glint` | the lights in the eyes and on the head | `#ffffff` | `#ffffff` |
+| `--robot-alert` | `error`: the bulb | `#ff6b86` | `#ff7d93` |
+| `--robot-ink` | antenna stem | `#46599a` | `#a9bdf2` |
 | `--robot-shadow` | the shadow on the floor | 16 % navy | 16 % blue |
 
 ```css
-ticket-runner-robot.holiday { --robot-body: #16a34a; --robot-accent: #fde047; }
+ticket-runner-robot.holiday { --robot-body: #4ade80; --robot-accent: #fde047; }
 ```
 
 ### Adding a state or an accessory
