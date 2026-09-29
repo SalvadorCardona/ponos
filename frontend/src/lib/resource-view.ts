@@ -6,19 +6,22 @@ import {
   generateLinkByResource,
   setCurrentScope,
   useCurrentViewResourceContext,
+  useLocation,
+  useNavigate,
   type ApiDialectInterface,
 } from "react-resource-view"
+import { tanstackAdapter } from "react-resource-view/tanstack"
 
 // The dictionary has to be in place before a resource is declared: the words
 // the views are built with go through it. See `i18n.ts`, which applies it on
 // import.
 import "./i18n"
-import { go, navigation } from "./router"
 
 /* Wiring react-resource-view into the console, once, before a resource is
  * declared — `createViewResource` reads the dialect as it builds.
  *
- * The package knows neither this router nor this API; both arrive here. The
+ * The package knows neither this router nor this API; both arrive here — the
+ * router through the adapter the package ships for TanStack Router. The
  * API side is small: every resource brings its own reads and writes (the
  * board comes off the stream, a ticket off `/api/tickets/<id>`), so the
  * dialect's only real job is to say what a ticket's identity is — the bare
@@ -63,7 +66,7 @@ export function configureConsoleViews() {
   setCurrentScope(SCOPE)
 
   configurePorts({
-    navigation,
+    navigation: tanstackAdapter,
     // The one page the Python server serves is `/`; the rest is the query
     // string, so a deep link survives a reload.
     routing: { mode: "query", param: "view", basePath: "/" },
@@ -111,6 +114,13 @@ export function useLayoutInTheAddress(resourceId: string): void {
   const { view, viewVariant, resource, resourceAction } = useCurrentViewResourceContext()
   const first = view?.viewVariants?.[0]?.id
   const listing = resourceAction === ActionList.list
+  // The address as the router has it, not as `window.location` has it: a
+  // navigation through TanStack lands a moment after it is asked for, and an
+  // address read in between would ask for the same layout again, forever.
+  const carried = new URLSearchParams(useLocation().searchStr).get("variant")
+  const navigate = useNavigate()
+  const latest = React.useRef(navigate)
+  latest.current = navigate
   React.useEffect(() => {
     // A `top` declared on the resource's view is drawn over its record too, and
     // there the variant is whatever the declaration lists first: left to run, a
@@ -120,15 +130,14 @@ export function useLayoutInTheAddress(resourceId: string): void {
     // a list — a record, the sidebar — have an address of their own to read and
     // would otherwise send everybody back to the first layout.
     layouts.set(resourceId, viewVariant === first ? "" : viewVariant)
-    const carried = new URLSearchParams(window.location.search).get("variant")
     if (carried === viewVariant || (!carried && viewVariant === first)) return
-    go(
-      generateLinkByResource({
+    void latest.current({
+      to: generateLinkByResource({
         resource,
         resourceAction: ActionList.list,
         viewVariantId: viewVariant,
       }),
-      true
-    )
-  }, [listing, resourceId, viewVariant, first, resource])
+      replace: true,
+    })
+  }, [listing, resourceId, viewVariant, first, resource, carried])
 }

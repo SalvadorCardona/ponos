@@ -84,7 +84,7 @@ export function LivePane() {
   const running = board.tickets.filter((item) => item.column === "running").length
 
   return (
-    <div className="p-3.5 sm:p-5">
+    <div>
       <PageHead
         title={t("See the work happen.")}
         blurb={t(

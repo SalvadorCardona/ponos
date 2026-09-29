@@ -361,7 +361,7 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
   )
 
   return (
-    <div className="relative">
+    <div className="relative" data-wide="">
       <div
         ref={strip}
         onScroll={measure}
@@ -534,7 +534,10 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       // A row of the table opens the ticket, as a card does. Without it the
       // table is a list you cannot get out of.
       behavior: { rowActions: [ActionList.read] },
-      components: { noResult: NoTicket },
+      // `top` said again: the package merges a view over the resource's one
+      // key by key, so a `components` here replaces the whole of it — and
+      // without `BoardTop` the list never rereads the board the stream moves.
+      components: { top: BoardTop, noResult: NoTicket },
     },
     [ActionList.create]: {
       name: "New ticket",

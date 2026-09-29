@@ -1,6 +1,11 @@
 import * as React from "react"
-import type { NavigationPortInterface, ViewResourceContextParams } from "react-resource-view"
-import { parseLink } from "react-resource-view"
+import {
+  createRootRoute,
+  createRouter,
+  useLocation,
+  type AnyRoute,
+} from "@tanstack/react-router"
+import { parseLink, type ViewResourceContextParams } from "react-resource-view"
 
 /* The console's addresses.
  *
@@ -10,110 +15,76 @@ import { parseLink } from "react-resource-view"
  * to read it. So the board is `/?view=console/tickets/list`, a ticket is
  * `/?view=console/tickets/read/<id>`, one section of the settings is
  * `/?view=console/settings/read/config/notify` — the shape react-resource-view
- * writes in its `query` routing mode — and the panes that are not resources
- * are `/?page=live`, `/?page=context`.
+ * writes in its `query` routing mode.
  *
- * The four primitives below are what that package asks of a router. Written
- * here rather than taken from TanStack: a console with a handful of pages has
- * no use for a route tree, and the History API is the whole of what is needed.
+ * TanStack Router holds the history, and `react-resource-view/tanstack` is how
+ * the views reach it. One route, the root: the package resolves the address
+ * into a resource itself, and a route tree would say the same thing twice.
  */
 
-const CHANGED = "ticket-runner:navigate"
+/* The query string, handed back exactly as it was written.
+ *
+ * TanStack reparses the search into an object and writes it back out before
+ * anybody reads `searchStr`. Its default writer would turn
+ * `view=console/tickets/list` into `view=console%2Ftickets%2Flist` — and
+ * react-resource-view says which menu entry is lit by comparing the address to
+ * the links it built, character for character. So the string the object was
+ * read from is kept beside it and is what goes back out — and an object the
+ * router built itself is written the way the package writes, slashes left as
+ * slashes. */
+const written = new WeakMap<object, string>()
 
-const current = () => window.location.pathname + window.location.search
-
-function subscribe(listener: () => void) {
-  window.addEventListener("popstate", listener)
-  window.addEventListener(CHANGED, listener)
-  return () => {
-    window.removeEventListener("popstate", listener)
-    window.removeEventListener(CHANGED, listener)
-  }
+function parseSearch(searchStr: string): Record<string, string> {
+  const search = Object.fromEntries(new URLSearchParams(searchStr))
+  written.set(search, !searchStr || searchStr.startsWith("?") ? searchStr : `?${searchStr}`)
+  return search
 }
 
-/** The address bar, read reactively. */
-export function useHref(): string {
-  return React.useSyncExternalStore(subscribe, current)
+function stringifySearch(search: Record<string, unknown>): string {
+  const kept = written.get(search)
+  if (kept !== undefined) return kept
+  const query = Object.entries(search)
+    .filter(([, value]) => value !== undefined && value !== "")
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value)).replace(/%2F/gi, "/")}`)
+    .join("&")
+  return query ? `?${query}` : ""
 }
 
-/** Go somewhere, without reloading the page. */
-export function go(to: string, replace = false) {
-  if (current() === to) return
-  if (replace) window.history.replaceState(null, "", to)
-  else window.history.pushState(null, "", to)
-  window.dispatchEvent(new Event(CHANGED))
-}
-
-const plainClick = (event: React.MouseEvent<HTMLAnchorElement>) =>
-  !event.defaultPrevented &&
-  event.button === 0 &&
-  !event.metaKey &&
-  !event.ctrlKey &&
-  !event.shiftKey &&
-  !event.altKey
-
-/** What react-resource-view navigates and links with. */
-export const navigation: NavigationPortInterface = {
-  useNavigate: () => (options) => go(options.to, options.replace),
-  useLocation: () => {
-    const href = useHref()
-    const url = new URL(href, window.location.origin)
-    return { pathname: url.pathname, searchStr: url.search }
-  },
-  Link: ({ to, onClick, children, ...rest }) => (
-    <a
-      href={to}
-      onClick={(event) => {
-        onClick?.(event)
-        if (!plainClick(event) || rest.target === "_blank") return
-        event.preventDefault()
-        go(to)
-      }}
-      {...rest}
-    >
-      {children}
-    </a>
-  ),
-  Navigate: ({ to, replace }) => {
-    React.useEffect(() => go(to, replace ?? true), [to, replace])
-    return null
-  },
+/** The router, around whatever draws the page. */
+export function consoleRouter(Shell: () => React.ReactNode) {
+  const root: AnyRoute = createRootRoute({ component: Shell })
+  return createRouter({ routeTree: root, parseSearch, stringifySearch })
 }
 
 /* -- what an address means ------------------------------------------------ */
 
-export type Page = "live" | "context"
-
-export type Route =
-  | { kind: "page"; page: Page }
-  | { kind: "resource"; params: ViewResourceContextParams }
-
-const PAGES: Page[] = ["live", "context"]
-
 /* A pane that has since become a resource, and the address it is now at.
  *
  * `/?page=projects` and `/?page=schedules` were pages of their own before those
- * two were lists you open a record from; a link somebody bookmarked or pasted
- * into a chat has to keep landing on them rather than on the board. Written out
- * rather than generated: this module is what the resources address themselves
- * through, and importing one from here would be a circle.
+ * two were lists you open a record from, and `/?page=live` and `/?page=context`
+ * were until the console moved onto the package's admin layout; a link
+ * somebody bookmarked or pasted into a chat has to keep landing on them rather
+ * than on the board. Written out rather than generated: this module is what
+ * the resources address themselves through, and importing one from here would
+ * be a circle.
  */
 const MOVED: Record<string, string> = {
   projects: "/?view=console/projects/list",
   schedules: "/?view=console/schedules/list",
+  live: "/?view=console/live/list",
+  context: "/?view=console/context/list",
 }
 
-export const pageHref = (page: Page) => `/?page=${page}`
-
-export function routeOf(href: string): Route {
-  const url = new URL(href, window.location.origin)
-  const page = url.searchParams.get("page") ?? ""
-  if (MOVED[page]) return { kind: "resource", params: parseLink(MOVED[page]) }
-  if (PAGES.includes(page as Page)) return { kind: "page", page: page as Page }
-  return { kind: "resource", params: parseLink(url.pathname + url.search) }
+/** Where an old address now leads, if it is one. */
+export function movedFrom(searchStr: string): string | undefined {
+  return MOVED[new URLSearchParams(searchStr).get("page") ?? ""]
 }
 
-export function useRoute(): Route {
-  const href = useHref()
-  return React.useMemo(() => routeOf(href), [href])
+/** The address bar, as the resource it names. */
+export function useRoute(): { params: ViewResourceContextParams; moved?: string } {
+  const { pathname, searchStr } = useLocation()
+  return React.useMemo(
+    () => ({ params: parseLink(pathname + searchStr), moved: movedFrom(searchStr) }),
+    [pathname, searchStr]
+  )
 }

@@ -1405,18 +1405,17 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 
 ```
 ┌───────────────┬──────────────────────────────┬─────────────────────────────┐
-│ ticket-runner │ + New ticket   board · table │  you                        │
-│               │                              │  Where is the SQLite ticket │
-│               │  Ready     1   In progress 1 │                             │
-│ ▸ Board    4  │  ┌──────────┐  ┌──────────┐  │  workspace                  │
-│   1 ready     │  │ Retirer  │  │ Migrer   │  │  Six minutes in, on Trader  │
-│   Live     1  │  │ le       │  │ vers     │  │  IA. It has rewritten       │
-│   Schedules   │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
+│ ticket-runner │        ● live  v0.9.2  ⟳  ☀  │  you                        │
+│               │ + New ticket   board · table │  Where is the SQLite ticket │
+│ ▸ Board    4  │  Ready     1   In progress 1 │                             │
+│   Live     1  │  ┌──────────┐  ┌──────────┐  │  workspace                  │
+│   Projects    │  │ Retirer  │  │ Migrer   │  │  Six minutes in, on Trader  │
+│   Schedules   │  │ le       │  │ vers     │  │  IA. It has rewritten       │
+│   Context     │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
 │   Settings    │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
 │               │  └──────────┘  └──────────┘  │                             │
 │               │                              │  > status                   │
-│ ● live        │                 ───▶      (●)│  timer on · 30 min          │
-│ v0.9.2        │                              │                             │
+│               │                 ───▶      (●)│  timer on · 30 min          │
 └───────────────┴──────────────────────────────┴─────────────────────────────┘
      the menu           the board, live            the drawer the bubble opens
 ```
@@ -1424,14 +1423,15 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 **The menu** down the left is where the pages live: a name each, and a count beside it
 where something is waiting there — how many tickets are on the board, how many sessions
 are writing right now — the sessions the server reads as running from their logs, so the
-count is right after a reload and drops when a session ends. `⌘B` — `Ctrl-B` — folds it to a rail of
-icons, each keeping its name in a tooltip; on a phone it is a drawer, and choosing
-something closes it. The fold is remembered in a cookie, so it opens the way you left it.
-At its foot sit the two things about the console itself: whether the event stream is up —
-a stream the server refuses because the session expired sends the page back to the sign-in
-rather than saying *reconnecting…* forever — and the version this one runs — in amber, with what to type, on the day a newer one is
-waiting. Every page has an address — `/?view=console/tickets/list`, `/?page=live` — so a
-reload, a bookmark or a link pasted into a chat lands where you were.
+count is right after a reload and drops when a session ends. On a phone the menu runs
+along the bottom edge instead. The frame is react-resource-view's admin layout (see
+[The console's own code](#the-consoles-own-code)), and the end of its bar holds the things
+about the console itself: whether the event stream is up — a stream the server refuses
+because the session expired sends the page back to the sign-in rather than saying
+*reconnecting…* forever — the version this one runs — in amber, with what to type, on the
+day a newer one is waiting — and the two buttons that reread the board and change the
+light. Every page has an address — `/?view=console/tickets/list`,
+`/?view=console/live/list` — so a reload, a bookmark or a link pasted into a chat lands where you were.
 
 **The board** is the Notion board, read from Notion and written back to it, drawn as
 the columns the board has — *Ready*, *In progress*, *In review*, *Validated* where the
@@ -1588,8 +1588,9 @@ wrote is in the language [`runner.language`](#4-the-rest-of-the-file) asked for.
 
 ### The console's own code
 
-The page is a **React** application — TypeScript, [Vite](https://vite.dev) and
-[shadcn/ui](https://ui.shadcn.com) on Tailwind — and it lives in `frontend/`. What ships in
+The page is a **React** application — TypeScript, [Vite](https://vite.dev),
+[shadcn/ui](https://ui.shadcn.com) on Tailwind v4, and react-resource-view's admin layout
+over TanStack Router — and it lives in `frontend/`. What ships in
 the package is the *build*: `src/ticket_runner/web/static/` holds `index.html` and the
 files under `assets/` — `console.js` and `console.css`, and the chunks loaded only when a
 page asks for them (the Markdown editor is the largest) — and those are committed. Names
@@ -1634,20 +1635,34 @@ style-aware URL and quietly break `add`; leaving the key present but empty is wh
 the MCP server announce the registry — without it, `get_project_registries` answers that
 none is configured and `list_items_in_registries` refuses to look.
 
-**Where the board comes from.** The board, the ticket page and the *New ticket* form are
-one declaration for
-[react-resource-view](https://github.com/SalvadorCardona/react-resource-view) —
-`frontend/src/resources/tickets.tsx` — which renders the column layout, the table, the
-header the list opens on, the panel a new ticket is written in and the addresses from it,
-with the forms drawn by
-[react-data-form](https://github.com/SalvadorCardona/react-data-form). The package knows
-neither this router nor this API: it asks for four navigation primitives and a *dialect*,
-and both are written in `frontend/src/lib/` — the primitives over the History API, in the
-package's `query` routing mode, because the one page the Python server serves is `/`; the
-dialect in twenty lines, because every read and write of the resource is its own (the rows
-come off the stream, a ticket off `/api/tickets/<id>`, a drop is `POST …/status`). The
-two transcripts — the workspace's and a ticket's — are shadcn's `message` and
-`message-scroller`.
+**The frame is react-resource-view's.** Every page of the console is a resource of one
+[react-resource-view](https://github.com/SalvadorCardona/react-resource-view) *scope* —
+`frontend/src/resources/scope.tsx` — and the frame around them is the package's
+`AdminLayout`: the sidebar built from the scope's menu, the bar over the page, the page's
+heading, and a navigation bar along the bottom edge on a phone. The console adds its mark,
+the end of the bar (the stream's dot, the version, *Refresh*, the light) and an entry
+component that puts a count beside a name; the discussion stays outside the frame, in the
+drawer the bubble opens.
+
+The resources are `frontend/src/resources/*.tsx`. The board, the ticket page and the
+*New ticket* form are one declaration — `tickets.tsx` — which the package renders as the
+column layout, the table, the header the list opens on, the panel a new ticket is written
+in and the addresses from it, with the forms drawn by
+[react-data-form](https://github.com/SalvadorCardona/react-data-form). The projects, the
+schedules and the settings are declared the same way. *Live* and *Context* are resources
+for their address and their place in the menu only: a log that grows while you read it and
+the one text every ticket is told are not lists of records, so their list is a view of
+their own.
+
+The package knows neither this router nor this API. The router is
+[TanStack Router](https://tanstack.com/router), reached through the adapter the package
+ships (`react-resource-view/tanstack`), in the package's `query` routing mode — the one
+page the Python server serves is `/`, so the board is `/?view=console/tickets/list` and a
+ticket `/?view=console/tickets/read/<id>`. The *dialect* is twenty lines in
+`frontend/src/lib/resource-view.ts`, because every read and write of a resource is its own
+(the rows come off the stream, a ticket off `/api/tickets/<id>`, a drop is
+`POST …/status`). The two transcripts — the workspace's and a ticket's — are shadcn's
+`message` and `message-scroller`.
 
 **Adding a sentence.** The console is written in English and the sentence *is* the key:
 `t("Nothing is running.")` through
@@ -1670,7 +1685,7 @@ Two rules the console keeps, and they predate React:
   somebody else when you opened it. A test asserts it against the shipped files.
 
 The page opens dark, because it sits beside a terminal and the thing it shows most of the
-time is a log. The switch at the foot of the menu changes that, and the choice is one line in the
+time is a log. The switch at the end of the bar changes that, and the choice is one line in the
 browser's `localStorage` — read before the first paint, so the page never flashes white on
 the way to dark.
 

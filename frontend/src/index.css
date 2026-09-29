@@ -295,6 +295,24 @@
       scrollbar-color: var(--border) transparent;
     }
   }
+
+  /* The board, and only the board, at the width of the screen.
+
+     The admin layout draws every page in a column 72rem wide, which is right
+     for a form and a record and wrong for seven columns of cards: on a wide
+     screen the board scrolled sideways beside empty margins. The package has
+     no per-view option for it yet, so the page that holds the board says so
+     with `data-wide`, and the column around it lets go. Everything else keeps
+     the package's width. */
+  [data-slot="sidebar-inset"] > div:has([data-wide]) {
+    max-width: none;
+  }
+  /* And the page no wider than the screen beside the menu: a flex item grows to
+     its content unless told otherwise, and seven columns would take the bar
+     over the page along with them, past the right edge. */
+  [data-slot="sidebar-inset"]:has([data-wide]) {
+    min-width: 0;
+  }
 }
 
 /* The Markdown editor, in the console's palette and at the size of a form.
