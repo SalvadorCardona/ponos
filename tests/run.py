@@ -50,6 +50,7 @@ from ticket_runner.web import api as web_api  # noqa: E402
 from ticket_runner.web import console as web_console  # noqa: E402
 from ticket_runner.web import settings as web_settings  # noqa: E402
 from ticket_runner.web import live as web_live  # noqa: E402
+from ticket_runner.web import statistics as web_statistics  # noqa: E402
 from ticket_runner.ticket import short_id, slugify  # noqa: E402
 from ticket_runner.projects import _normalise  # noqa: E402
 
@@ -5761,6 +5762,114 @@ class _TalkClient:
 
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None:
         self.written.append((page_id, text, discussion_id))
+
+
+# -- statistics --------------------------------------------------------------
+
+
+def _card(key: str, column: str, created: str, edited: str = "", project: str = "") -> dict:
+    return {"id": key, "column": column, "created": created, "edited": edited, "project": project}
+
+
+@case
+def a_closing_is_dated_by_the_runner_before_the_last_edit():
+    """The history says the minute the runner closed a ticket; an edit since does not move it.
+
+    And a session that opened a pull request reports "done" without closing
+    anything: that line is no closing.
+    """
+    from datetime import date
+
+    history = [
+        {"at": "2026-09-02T10:00:00+00:00", "id": "a", "status": "done", "pull_request": "u"},
+        {"at": "2026-09-05T10:00:00+00:00", "id": "a", "status": "done", "merged": "u"},
+        {"at": "2026-09-06T10:00:00+00:00", "id": "b", "status": "done", "kind": "document"},
+        {"at": "2026-09-07T10:00:00+00:00", "id": "c", "status": "done", "pull_request": "u"},
+    ]
+    tickets = [
+        _card("a", "done", "2026-09-01T09:00:00.000Z", edited="2026-09-20T09:00:00.000Z"),
+        _card("b", "done", "2026-09-01T09:00:00.000Z", edited="2026-09-06T10:01:00.000Z"),
+        # Merged by hand, closed by `close_merged`: no history line, its edit says when.
+        _card("c", "done", "2026-09-01T09:00:00.000Z", edited="2026-09-08T09:00:00.000Z"),
+    ]
+    figures = web_statistics.figures(
+        tickets, history, date(2026, 9, 1), date(2026, 9, 10), timezone.utc
+    )
+    closed = {item["day"]: item["closed"] for item in figures["days"] if item["closed"]}
+    assert closed == {"2026-09-05": 1, "2026-09-06": 1, "2026-09-08": 1}, closed
+    assert figures["dated"] == {"history": 2, "edited": 1}
+
+
+@case
+def the_open_curve_starts_from_the_board_as_it_stood_and_ends_on_it():
+    """What is open on the last day is what the board shows as not done.
+
+    A ticket from before the period counts from the first point, not from its
+    creation; one created and closed the same day is never open overnight;
+    blocked and failed are still open.
+    """
+    from datetime import date
+
+    tickets = [
+        _card("old", "blocked", "2026-07-01T09:00:00.000Z", project="Opoil"),
+        _card("gone", "done", "2026-07-01T09:00:00.000Z", edited="2026-09-03T09:00:00.000Z"),
+        _card("quick", "done", "2026-09-02T09:00:00.000Z", edited="2026-09-02T18:00:00.000Z"),
+        _card("new", "ready", "2026-09-04T09:00:00.000Z", project="Opoil"),
+        _card("failed", "failed", "2026-09-04T12:00:00.000Z", project="ticket-runner"),
+    ]
+    history = [
+        {"at": "2026-09-02T12:00:00+00:00", "id": "quick", "status": "done", "cost_usd": 1.5},
+        {"at": "2026-09-04T12:00:00+00:00", "id": "new", "status": "blocked", "cost_usd": 0.25},
+        {"at": "2026-08-01T12:00:00+00:00", "id": "old", "status": "blocked", "cost_usd": 9},
+    ]
+    figures = web_statistics.figures(
+        tickets, history, date(2026, 9, 1), date(2026, 9, 5), timezone.utc
+    )
+    opened = [item["open"] for item in figures["days"]]
+    assert opened == [2, 2, 1, 3, 3], opened
+    assert figures["totals"] == {"open": 3, "closed": 2, "created": 3, "cost": 1.75}, figures["totals"]
+    assert [item["cost"] for item in figures["days"]] == [0, 1.5, 1.5, 1.75, 1.75]
+    assert {item["name"]: item["count"] for item in figures["projects"]} == {
+        "": 1,
+        "Opoil": 1,
+        "ticket-runner": 1,
+    }
+    assert {item["key"]: item["count"] for item in figures["statuses"]} == {
+        "done": 1,
+        "ready": 1,
+        "failed": 1,
+    }
+
+
+@case
+def a_day_is_this_machines_day():
+    """23:30 in Paris is that evening, not the next UTC morning's."""
+    from datetime import date
+
+    paris = timezone(timedelta(hours=2))
+    assert web_statistics.day_of("2026-09-02T22:30:00.000Z", paris) == date(2026, 9, 3)
+    assert web_statistics.day_of("2026-09-02T22:30:00.000Z", timezone.utc) == date(2026, 9, 2)
+    assert web_statistics.day_of("2026-09-02", paris) == date(2026, 9, 2)
+    assert web_statistics.day_of("", paris) is None
+    assert web_statistics.day_of("hier", paris) is None
+
+
+@case
+def a_period_is_thirty_days_unless_it_says_otherwise():
+    from datetime import date
+
+    today = date(2026, 9, 29)
+    assert web_statistics.period("", "", today) == (date(2026, 8, 31), today)
+    assert web_statistics.period("2026-09-01", "2026-09-07", today) == (
+        date(2026, 9, 1),
+        date(2026, 9, 7),
+    )
+    for start, end in (("2026-09-07", "2026-09-01"), ("2020-01-01", "2026-01-01"), ("hier", "")):
+        try:
+            web_statistics.period(start, end, today)
+        except ValueError:
+            continue
+        raise AssertionError(f"{start}..{end} should have been refused")
 
 
 def _bare_api(client, me: str = "runner-id") -> web_api.Api:

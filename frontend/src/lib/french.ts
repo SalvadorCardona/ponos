@@ -433,6 +433,43 @@ export const FRENCH: Record<string, string> = {
   "Every ticket from here on is told this.": "Chaque ticket à partir de maintenant le reçoit.",
   "The context was not saved": "Le contexte n'a pas été enregistré",
 
+  /* -- the statistics ------------------------------------------------------- */
+  Statistics: "Statistiques",
+  "What came in, what went out.": "Ce qui est entré, ce qui est sorti.",
+  "Tickets created, closed and still open, day after day. Open means any column but done — blocked and failed included.":
+    "Les tickets créés, fermés et encore ouverts, jour après jour. Ouvert veut dire toute colonne sauf terminé — bloqués et échoués compris.",
+  "7 days": "7 jours",
+  "1 month": "1 mois",
+  "3 months": "3 mois",
+  Custom: "Personnalisée",
+  From: "Du",
+  To: "Au",
+  "Counting the tickets…": "Je compte les tickets…",
+  Open: "Ouverts",
+  Closed: "Fermés",
+  Created: "Créés",
+  Spent: "Dépensé",
+  "on the evening of the last day": "au soir du dernier jour",
+  "moved to done in the period": "passés en terminé sur la période",
+  "added to the board in the period": "ajoutés au tableau sur la période",
+  "by the runner's sessions in the period": "par les sessions du runner sur la période",
+  "No ticket on the board over this period.": "Aucun ticket sur le tableau pendant cette période.",
+  "Per day": "Par jour",
+  "Created and closed": "Créés et fermés",
+  "Tickets created and closed per day": "Tickets créés et fermés par jour",
+  "Every evening": "Chaque soir",
+  "Open tickets": "Tickets ouverts",
+  "Tickets still open, evening after evening": "Tickets encore ouverts, soir après soir",
+  "Running total": "Cumul",
+  "Spent since the start of the period": "Dépensé depuis le début de la période",
+  "Created in the period": "Créés sur la période",
+  "By status": "Par statut",
+  "By project": "Par projet",
+  "No project": "Sans projet",
+  "No ticket created in the period.": "Aucun ticket créé sur la période.",
+  "A closing is dated by the runner's history when the runner closed the ticket ({{history}}), by the page's last edit in Notion otherwise ({{edited}}).":
+    "Une fermeture est datée par l'historique du runner quand c'est lui qui a fermé le ticket ({{history}}), sinon par la dernière modification de la page dans Notion ({{edited}}).",
+
   /* -- the settings page, in its own words ----------------------------------- */
   "Configure the runner.": "Configurez le runner.",
   "A field left blank says nothing, and the runner’s own default answers — shown greyed beside it. Your tokens stay on the machine: they are never sent to this page.":

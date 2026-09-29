@@ -36,6 +36,8 @@ export interface Ticket {
   duration: number | null
   scheduled: string
   created: string
+  /** Notion's `last_edited_time`: when a done ticket closed, where the runner's history does not say. */
+  edited: string
 }
 
 /** A ticket, with the page under it: the brief, the report, the notes between. */
@@ -286,3 +288,26 @@ export interface Saved {
 
 /** What a settings field may become on the way back to the file. */
 export type SettingValue = string | number | boolean | string[] | null
+
+/** One day of the statistics page. `open` is what was still open that evening, `cost` what was spent since the period began. */
+export interface StatisticsDay {
+  day: string
+  created: number
+  closed: number
+  open: number
+  cost: number
+}
+
+/** The statistics of one period — `web/statistics.py`. */
+export interface Statistics {
+  from: string
+  to: string
+  totals: { open: number; closed: number; created: number; cost: number }
+  days: StatisticsDay[]
+  /** The tickets created in the period, by the column they are in now. */
+  statuses: { key: ColumnKey; count: number }[]
+  /** The same tickets, by project; "" for a ticket with none. */
+  projects: { name: string; count: number }[]
+  /** How many closings the runner's history dated, and how many Notion's last edit had to. */
+  dated: { history: number; edited: number }
+}

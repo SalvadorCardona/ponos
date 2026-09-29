@@ -643,6 +643,7 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       duration: null,
       scheduled: "",
       created: new Date().toISOString(),
+      edited: new Date().toISOString(),
     }
     addTicket(card)
     return { data: item(card) }
