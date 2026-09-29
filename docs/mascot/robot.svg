@@ -37,7 +37,8 @@ svg { display: block; width: 100%; height: auto; overflow: visible; }
 .z { fill: none; stroke: var(--robot-body-shade); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .spark { fill: none; stroke: var(--robot-alert); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .star { fill: var(--robot-accent); }
-.fx-zzz, .fx-sparks, .fx-stars { opacity: 0; }
+.dot { fill: var(--robot-body-shade); }
+.fx-zzz, .fx-sparks, .fx-stars, .fx-dots { opacity: 0; }
 svg.blinking[data-state] [data-layer^="lid-"] { transform: scaleY(1); }
 svg[data-state="thinking"] [data-layer="eyes"] { transform: translate(3px, -2px); }
 svg[data-state="thinking"] [data-layer="head"] { transform: rotate(3deg); }
@@ -73,7 +74,10 @@ svg[data-state="sleep"] [data-layer="eye-open-right"] { opacity: 0; }
 svg[data-state="sleep"] [data-layer="eye-closed-left"] { opacity: 1; }
 svg[data-state="sleep"] [data-layer="eye-closed-right"] { opacity: 1; }
 svg[data-state="sleep"] [data-layer="bulb"] { opacity: .3; }
-svg[data-state="sleep"] [data-layer="fx-zzz"] { opacity: 1; }</style>
+svg[data-state="sleep"] [data-layer="fx-zzz"] { opacity: 1; }
+svg[data-state="waiting"] [data-layer="head"] { transform: rotate(-5deg); }
+svg[data-state="waiting"] [data-layer="eyes"] { transform: translate(4px, -3px); }
+svg[data-state="waiting"] [data-layer="fx-dots"] { opacity: 1; }</style>
   <g data-layer="base">
     <ellipse class="shadow" cx="64" cy="117" rx="30" ry="4.5"/>
     <rect class="ink" x="47" y="104" width="34" height="10" rx="5"/>
@@ -138,6 +142,11 @@ svg[data-state="sleep"] [data-layer="fx-zzz"] { opacity: 1; }</style>
       <path data-layer="z1" class="z" d="M90 20 h6 l-6 7 h6"/>
       <path data-layer="z2" class="z" d="M100 10 h5 l-5 6 h5"/>
       <path data-layer="z3" class="z" d="M109 2 h4 l-4 5 h4"/>
+    </g>
+    <g data-layer="fx-dots" class="fx-dots">
+      <circle data-layer="dot1" class="dot" cx="96" cy="18" r="2.8"/>
+      <circle data-layer="dot2" class="dot" cx="104.5" cy="18" r="2.8"/>
+      <circle data-layer="dot3" class="dot" cx="113" cy="18" r="2.8"/>
     </g>
     <g data-layer="fx-sparks" class="fx-sparks">
       <path class="spark" d="M52 6 l-4 3 l3 1 l-4 3"/>

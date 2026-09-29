@@ -323,7 +323,7 @@ function ProjectsFoot() {
 function NoProject() {
   return (
     <EmptyState
-      icon={FolderGit2}
+      robot="sleep"
       action={
         <Link to={settingsHref("projects")} className={buttonVariants({ variant: "outline", size: "sm" })}>
           {t("Map a project to a folder")}

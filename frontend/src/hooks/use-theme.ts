@@ -33,3 +33,34 @@ export function useTheme() {
 
   return { theme, setTheme, toggle }
 }
+
+/* The theme the page is in right now, for what has to follow it rather than
+ * change it — the robots, of which a board draws a hundred.
+ *
+ * `useTheme` holds its own copy, which is right for the one switch that sets
+ * it and wrong for anything else: a copy per robot would not hear the switch.
+ * This reads the class on <html> the switch writes, through one observer for
+ * the whole page. */
+const watchers = new Set<() => void>()
+let observer: MutationObserver | null = null
+
+function watch(listener: () => void) {
+  watchers.add(listener)
+  if (!observer) {
+    observer = new MutationObserver(() => watchers.forEach((watcher) => watcher()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+  }
+  return () => {
+    watchers.delete(listener)
+    if (!watchers.size) {
+      observer?.disconnect()
+      observer = null
+    }
+  }
+}
+
+const shown = (): Theme => (document.documentElement.classList.contains("dark") ? "dark" : "light")
+
+export function useShownTheme(): Theme {
+  return React.useSyncExternalStore(watch, shown)
+}

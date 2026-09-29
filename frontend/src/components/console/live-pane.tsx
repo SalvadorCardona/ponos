@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 import { EmptyState } from "./empty-state"
 import { Eyebrow, PageHead, Panel } from "./frame"
+import { Robot } from "./robot"
 import { Steps } from "./steps"
 import { Rich } from "./text"
 
@@ -169,7 +170,14 @@ export function LivePane() {
             <Panel
               key={session.source}
               eyebrow={t("session")}
-              title={<span className="font-mono text-sm">{session.source}</span>}
+              title={
+                // A session on this page is one that is running: the robot at
+                // work beside it, which is the whole of what it is doing.
+                <span className="inline-flex items-center gap-2">
+                  <Robot state="working" size={28} className="-my-1" />
+                  <span className="font-mono text-sm">{session.source}</span>
+                </span>
+              }
               action={
                 <span className="text-muted-foreground font-mono text-[0.7rem]">
                   {t("{{count}} step(s)", { count: String(session.steps.length) })}
@@ -181,7 +189,7 @@ export function LivePane() {
           ))}
         </div>
       ) : (
-        <EmptyState icon={Activity}>
+        <EmptyState robot="sleep">
           {t("Nothing is running. A session that starts writes here as it works.")}
         </EmptyState>
       )}

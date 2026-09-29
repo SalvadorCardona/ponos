@@ -30,6 +30,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   `ticket-runner init` adds the column; a board without it runs as before. See
   [The type of a ticket](README.md#the-type-of-a-ticket).
 
+- **The console wears the robot too, and it shows what the runner is doing.**
+  The mascot of the landing page is now the console's mark and favicon, and a
+  face at the right of the bar that changes with the runner as it happens:
+  asleep on an empty queue, thinking while a ticket is claimed, busy while a
+  session types, jumping when a ticket comes back, upset when one is blocked or
+  the connection drops. Every card of the board wears one in the mood of its
+  column — only the ones in progress move, so a board of a hundred stays calm —
+  and so do the session panels, the empty lists, the loading and error pages
+  and the toasts. A seventh state, `waiting`, says a person has the next move.
+  One file for both: the console bundles the landing page's own component.
+
 - **ticket-runner has a face.** A small robot, on the landing page and in its
   favicon, whose mood follows a ticket: thinking when one is claimed, busy while
   Claude Code types, jumping when the pull request is open, sad when it is
