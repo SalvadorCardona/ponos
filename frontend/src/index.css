@@ -313,6 +313,16 @@
   [data-slot="sidebar-inset"]:has([data-wide]) {
     min-width: 0;
   }
+
+  /* A dialog no taller than the screen. The package caps what scrolls inside
+     it at 90vh and puts a title and padding around that, so a long brief on a
+     phone pushed the dialog's corners past both edges. Capped as a whole, the
+     title keeps its row and the form takes what is left, scrolling in it. Only
+     the dialogs drawn that way, a title then a form: the rows are theirs. */
+  [data-slot="dialog-content"]:has(> [data-slot="dialog-header"]) {
+    max-height: calc(100dvh - 2rem);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
 }
 
 /* The Markdown editor, in the console's palette and at the size of a form.
