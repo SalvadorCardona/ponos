@@ -120,6 +120,10 @@ const TitleInputController: InputControllerComponentInterface = ({ formInput, on
         placeholder={t(formInput.placeholder ?? "")}
         required
         autoComplete="off"
+        // The dialog opens before the form inside it is drawn, so the only
+        // thing it can hand the cursor to is its cross. A new ticket starts
+        // with its title: the field takes the cursor as it appears.
+        autoFocus
         aria-invalid={invalid || undefined}
         aria-errormessage={invalid ? `${id}-problem` : undefined}
       />
@@ -572,9 +576,10 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     [ActionList.create]: {
       name: "New ticket",
       form: createForm,
-      // Over the board rather than instead of it, and against the edge rather
-      // than in the middle of it: a brief is written at full height.
-      behavior: { openIn: "drawer" },
+      // Over the board rather than instead of it, and in the middle of it: four
+      // fields are a question asked, not a page to settle into. The dialog is
+      // already as wide as a brief wants and scrolls inside when one runs long.
+      behavior: { openIn: "popup" },
     },
     [ActionList.read]: { name: "Ticket", viewComponent: TicketPage },
   },
