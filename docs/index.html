@@ -7,15 +7,17 @@
 <meta name="description" content="Write a ticket in Notion, move it to Ready, and a few minutes later a pull request is waiting — or the page itself is written. One Claude Code session per ticket, on your machine, in the background — with recurring tickets, a web console, and answers from Telegram or Slack.">
 <meta name="theme-color" content="#0b0d12">
 <link rel="canonical" href="https://cardona.digital/ticket-runner/">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="mascot/favicon.svg">
 <meta property="og:type" content="website">
 <meta property="og:title" content="ticket-runner — your Notion tickets, played by Claude Code">
 <meta property="og:description" content="Move a ticket to Ready. A few minutes later, a pull request — or the page itself, written. One session per ticket, on your machine.">
 <meta property="og:url" content="https://cardona.digital/ticket-runner/">
-<meta property="og:image" content="https://cardona.digital/ticket-runner/architecture.png">
+<meta property="og:image" content="https://cardona.digital/ticket-runner/mascot/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="ticket-runner — your Notion tickets, played by Claude Code">
-<meta name="twitter:image" content="https://cardona.digital/ticket-runner/architecture.png">
+<meta name="twitter:image" content="https://cardona.digital/ticket-runner/mascot/og.png">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -568,6 +570,41 @@
   .split > div > h3:first-child{margin-top:34px}
   .pill{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:2px;color:var(--accent-2);background:var(--accent-wash);border:1px solid var(--accent-line)}
 
+  /* ---------- the robot ---------- */
+  ticket-runner-robot{display:inline-block;aspect-ratio:1;vertical-align:middle}
+  .hero-bot{display:block;width:112px;margin:0 auto 18px}
+  .bot-demo{
+    margin-top:38px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:stretch;
+  }
+  @media (max-width:800px){.bot-demo{grid-template-columns:1fr}}
+  .bot-stage{
+    position:relative;display:grid;place-items:center;min-height:340px;border-radius:18px;
+    border:1px solid var(--line);background:radial-gradient(360px 260px at 50% 40%,rgba(59,130,246,.16),transparent 72%),var(--panel);
+    transition:background .3s,border-color .3s;
+  }
+  .bot-stage.light{background:radial-gradient(360px 260px at 50% 40%,rgba(59,130,246,.12),transparent 72%),#f4f2ee;border-color:#e2ded6}
+  .bot-stage ticket-runner-robot{width:min(260px,70%)}
+  .bot-theme{position:absolute;top:12px;right:12px;display:flex;gap:4px;padding:3px;border-radius:10px;background:rgba(11,13,18,.55);border:1px solid var(--line)}
+  .bot-theme button{border:0;background:none;color:var(--muted);font:500 12.5px/1 var(--sans);padding:7px 10px;border-radius:7px;cursor:pointer}
+  .bot-theme button[aria-pressed="true"]{background:var(--accent-wash);color:var(--accent-2)}
+  .bot-side{display:flex;flex-direction:column;gap:14px}
+  .bot-side h3{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .react{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));gap:9px}
+  .react button{
+    text-align:left;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;color:var(--text);font:600 14.5px/1.3 var(--sans);transition:border-color .18s,background .18s;
+  }
+  .react button span{display:block;color:var(--muted);font-weight:400;font-size:13px;margin-top:3px}
+  .react button:hover{border-color:var(--accent-line)}
+  .react button[aria-pressed="true"]{border-color:var(--accent-line);background:var(--accent-wash)}
+  .react button[aria-pressed="true"] span{color:var(--accent-2)}
+  .bot-sizes{
+    display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px 12px;
+  }
+  .bot-sizes figure{margin:0;text-align:center}
+  .bot-sizes figcaption{font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:6px}
+
   @media (max-width:640px){
     .hero{padding-top:56px}
     .install{font-size:12px;padding-left:13px}
@@ -575,6 +612,7 @@
     .board{padding:14px;gap:10px}
   }
 </style>
+<script type="module" src="mascot/ticket-runner-robot.js"></script>
 <script src="https://umami.cardona.digital/nx.js" defer data-website-id="121083aa-1f81-4636-82b1-11bebfb1b0e7" data-domains="cardona.digital"></script>
 </head>
 <body>
@@ -608,6 +646,7 @@
 <a id="top"></a>
 
 <div class="wrap hero">
+  <ticket-runner-robot class="hero-bot" id="hero-bot" theme="dark" state="idle"></ticket-runner-robot>
   <span class="eyebrow"><b>Notion → Claude Code → PR</b> · on your machine</span>
   <h1>ticket&#8209;runner<span class="dot">.</span></h1>
   <p class="lede">
@@ -1593,10 +1632,56 @@ port = <span class="n">8787</span></pre>
   </div>
 </section>
 
+<section id="robot">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-num">16 — The robot</span>
+      <h2>It shows on its face what your board is doing.</h2>
+      <p>
+        The runner has a face: a small robot whose mood follows a ticket — thinking when one is
+        claimed, busy while Claude Code types, jumping when the pull request is open, sad when it is
+        blocked, asleep when the queue is empty. One SVG, drawn in layers, from a favicon to a poster.
+      </p>
+    </div>
+
+    <div class="bot-demo">
+      <div class="bot-stage" id="bot-stage">
+        <div class="bot-theme" role="group" aria-label="Background">
+          <button type="button" data-theme="dark" aria-pressed="true">Dark</button>
+          <button type="button" data-theme="light" aria-pressed="false">Light</button>
+        </div>
+        <ticket-runner-robot id="demo-bot" theme="dark" state="idle"></ticket-runner-robot>
+      </div>
+      <div class="bot-side">
+        <h3>Make it react</h3>
+        <div class="react" id="react" role="group" aria-label="The robot’s state">
+          <button type="button" data-state="idle" aria-pressed="true">Idle<span>waiting for a ticket</span></button>
+          <button type="button" data-state="thinking" aria-pressed="false">Thinking<span>a ticket is in progress</span></button>
+          <button type="button" data-state="working" aria-pressed="false">Working<span>Claude Code is at it</span></button>
+          <button type="button" data-state="success" aria-pressed="false">Success<span>the pull request is open</span></button>
+          <button type="button" data-state="error" aria-pressed="false">Error<span>the ticket is blocked</span></button>
+          <button type="button" data-state="sleep" aria-pressed="false">Sleep<span>the queue is empty</span></button>
+        </div>
+        <div class="bot-sizes" aria-label="The same SVG at five sizes">
+          <figure><ticket-runner-robot class="size-bot" theme="dark" size="24"></ticket-runner-robot><figcaption>24</figcaption></figure>
+          <figure><ticket-runner-robot class="size-bot" theme="dark" size="32"></ticket-runner-robot><figcaption>32</figcaption></figure>
+          <figure><ticket-runner-robot class="size-bot" theme="dark" size="48"></ticket-runner-robot><figcaption>48</figcaption></figure>
+          <figure><ticket-runner-robot class="size-bot" theme="dark" size="72"></ticket-runner-robot><figcaption>72</figcaption></figure>
+          <figure><ticket-runner-robot class="size-bot" theme="dark" size="112"></ticket-runner-robot><figcaption>112 px</figcaption></figure>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note">
+      Colours are CSS variables, every reaction is one entry in a table — see
+      <a href="https://github.com/SalvadorCardona/ticket-runner#mascot">Mascot</a> in the README to give it a new one.
+    </p>
+  </div>
+</section>
+
 <section id="author">
   <div class="wrap">
     <div class="sec-head">
-      <span class="sec-num">16 — The author</span>
+      <span class="sec-num">17 — The author</span>
       <h2>Handmade, by a developer — and by the runner itself.</h2>
       <p>Most of this repository’s pull requests were opened by ticket-runner, from tickets on its own board. The releases are cut the same way.</p>
     </div>
@@ -1710,27 +1795,35 @@ port = <span class="n">8787</span></pre>
   function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
   function type(html, ms) { at(ms, function () { setLive(html + '<span class="caret"></span>'); }); }
 
+  var heroBot = document.getElementById('hero-bot');
+  function mood(state) { heroBot.setAttribute('state', state); }
+
   function cycle() {
     timers.forEach(clearTimeout); timers = [];
+    mood('idle');
     move('ready');
     setMeta('Site vitrine · <b>High</b>');
     setLive('');
 
-    at(2200, function () { move('running'); setMeta('Site vitrine · <b>claimed by laptop</b>'); });
+    at(2200, function () { move('running'); mood('thinking'); setMeta('Site vitrine · <b>claimed by laptop</b>'); });
+    at(4300, function () { mood('working'); });
     type('<span class="k">Read</span> src/app/header.html', 2900);
     type('<span class="k">Edit</span> src/app/header.html', 4300);
     type('<span class="k">Edit</span> src/app/header.css', 5500);
     type('<span class="k">Bash</span> npm test -- --watch=false', 6700);
     at(8400, function () { setLive('<span class="ok">✓</span> 27 steps · 6 minutes · 2 commits'); });
 
-    at(9600, function () { move('review'); setMeta('Site vitrine · <span class="pr" style="color:var(--warn)">PR #12</span>'); setLive('<span class="pr">github.com/…/pull/12</span> — yours to read'); });
-    at(13400, function () { move('validated'); setMeta('Site vitrine · <b>you said yes</b>'); setLive('<span class="k">gh</span> pr merge --squash<span class="caret"></span>'); });
-    at(15600, function () { move('done'); setMeta('Site vitrine · <b>PR #12</b>'); setLive('<span class="ok">✓ merged</span> · out in the world'); });
+    at(9600, function () { mood('success'); move('review'); setMeta('Site vitrine · <span class="pr" style="color:var(--warn)">PR #12</span>'); setLive('<span class="pr">github.com/…/pull/12</span> — yours to read'); });
+    at(11800, function () { mood('idle'); });
+    at(13400, function () { mood('working'); move('validated'); setMeta('Site vitrine · <b>you said yes</b>'); setLive('<span class="k">gh</span> pr merge --squash<span class="caret"></span>'); });
+    at(15600, function () { mood('success'); move('done'); setMeta('Site vitrine · <b>PR #12</b>'); setLive('<span class="ok">✓ merged</span> · out in the world'); });
 
+    at(17800, function () { mood('sleep'); });
     at(19200, cycle);
   }
 
   if (reduce) {
+    mood('success');
     move('review');
     setMeta('Site vitrine · <span style="color:var(--warn)">PR #12</span>');
     setLive('<span class="pr">github.com/…/pull/12</span> — yours to read');
@@ -1741,6 +1834,31 @@ port = <span class="n">8787</span></pre>
       else cycle();
     });
   }
+
+  /* --- the robot: make it react --- */
+  var demoBot = document.getElementById('demo-bot');
+  var stage = document.getElementById('bot-stage');
+  function press(group, attr, value) {
+    Array.prototype.forEach.call(group.querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute(attr) === value));
+    });
+  }
+  var react = document.getElementById('react');
+  react.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-state]');
+    if (!b) return;
+    demoBot.setAttribute('state', b.getAttribute('data-state'));
+    press(react, 'data-state', b.getAttribute('data-state'));
+  });
+  var themes = stage.querySelector('.bot-theme');
+  themes.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-theme]');
+    if (!b) return;
+    var theme = b.getAttribute('data-theme');
+    demoBot.setAttribute('theme', theme);
+    stage.classList.toggle('light', theme === 'light');
+    press(themes, 'data-theme', theme);
+  });
 })();
 </script>
 </body>

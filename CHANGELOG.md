@@ -18,6 +18,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **ticket-runner has a face.** A small robot, on the landing page and in its
+  favicon, whose mood follows a ticket: thinking when one is claimed, busy while
+  Claude Code types, jumping when the pull request is open, sad when it is
+  blocked, asleep when the queue is empty — and a bar to make it react. One SVG
+  in layers, coloured by CSS variables, light and dark, still under
+  `prefers-reduced-motion`; a new state is one entry in a table. See
+  [Mascot](README.md#mascot).
+
 - **The console sets itself up on the first connection, and nobody has to find a
   token again.** A token protects an installation that is already set up; a
   fresh one has nothing to protect yet, and being sent to look for a secret on
