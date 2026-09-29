@@ -39,8 +39,12 @@ function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
+      // Not shadcn's `data-autoscrolling:scrollbar-none`: `scrollbar-width:
+      // none` takes the gutter away with the bar, so every scroll to the end
+      // widened the text, which rewrapped, which resized the content, which
+      // scrolled to the end again — five times a second, with nobody typing.
       className={cn(
-        "size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-none data-pending-scroll:invisible",
+        "size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-pending-scroll:invisible",
         className
       )}
       {...props}

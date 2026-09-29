@@ -53,10 +53,10 @@ export function TicketTalk() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Room at the right for the drawer's own close, which floats over this
-          corner: a heading that ran under it would be a heading with a cross
-          in the middle of it. */}
-      <div className="border-b py-2.5 pr-12 pl-3.5">
+      {/* Room at the right for the drawer's own close and its full-screen
+          switch, which float over this corner: a heading that ran under them
+          would be a heading with a cross in the middle of it. */}
+      <div className="border-b py-2.5 pr-12 pl-3.5 sm:pr-20">
         <Eyebrow>{t("the ticket")}</Eyebrow>
         <h3 className="mt-1 text-base leading-tight font-semibold tracking-[-0.01em]">
           {ticket ? (

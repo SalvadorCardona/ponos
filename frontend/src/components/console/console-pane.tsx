@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { useConsole } from "@/hooks/use-console"
+import { useConsole, type Entry } from "@/hooks/use-console"
 import { useT } from "@/lib/i18n"
 
 import { Eyebrow } from "./frame"
@@ -43,10 +43,10 @@ export function ConsolePane() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Room at the right for the drawer's own close, which floats over this
-          corner: a heading that ran under it would be a heading with a cross
-          in the middle of it. */}
-      <div className="border-b py-2.5 pr-12 pl-3.5">
+      {/* Room at the right for the drawer's own close and its full-screen
+          switch, which float over this corner: a heading that ran under them
+          would be a heading with a cross in the middle of it. */}
+      <div className="border-b py-2.5 pr-12 pl-3.5 sm:pr-20">
         <Eyebrow>{t("the workspace")}</Eyebrow>
         <h3 className="mt-1 text-base leading-tight font-semibold tracking-[-0.01em]">
           {t("Talking to your machine")}
@@ -63,45 +63,9 @@ export function ConsolePane() {
       </div>
 
       <Transcript>
-        {transcript.map((entry) => {
-          const id = String(entry.id)
-          if (entry.kind === "turn")
-            return (
-              <Line key={id} id={id} anchor={entry.role === "you"}>
-                <Turn role={entry.role} text={entry.text} />
-              </Line>
-            )
-          if (entry.kind === "steps")
-            return (
-              <Line key={id} id={id}>
-                <Steps steps={entry.steps} done={entry.done} />
-              </Line>
-            )
-          if (entry.kind === "note")
-            return (
-              <Line key={id} id={id}>
-                <p className="text-muted-foreground text-xs">{entry.text}</p>
-              </Line>
-            )
-          return (
-            <Line key={id} id={id} anchor>
-              <div className="bg-card rounded-lg border px-3 py-2">
-                <div className="text-muted-foreground mb-1 font-mono text-[0.7rem]">
-                  ticket-runner {entry.argv.join(" ")}
-                </div>
-                <pre className="scroll-thin max-h-96 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap">
-                  {entry.lines.map((line, index) => (
-                    <React.Fragment key={index}>
-                      <Flow text={line} />
-                      {"\n"}
-                    </React.Fragment>
-                  ))}
-                  {entry.code ? `\n[${t("exit {{code}}", { code: String(entry.code) })}]` : ""}
-                </pre>
-              </div>
-            </Line>
-          )
-        })}
+        {transcript.map((entry) => (
+          <Said key={entry.id} entry={entry} />
+        ))}
       </Transcript>
 
       <div className="flex flex-col gap-2 border-t p-3">
@@ -141,3 +105,50 @@ export function ConsolePane() {
     </div>
   )
 }
+
+/* One entry of the transcript, drawn again only when it changes.
+ *
+ * An entry is never edited in place: the stream replaces the one that grew — the
+ * steps of the turn in progress, the lines of a running command — and hands the
+ * others back as they were. So comparing the object is enough to know that the
+ * thirty turns above the one being written have nothing new to say. */
+const Said = React.memo(function Said({ entry }: { entry: Entry }) {
+  const t = useT()
+  const id = String(entry.id)
+  if (entry.kind === "turn")
+    return (
+      <Line id={id} anchor={entry.role === "you"}>
+        <Turn role={entry.role} text={entry.text} />
+      </Line>
+    )
+  if (entry.kind === "steps")
+    return (
+      <Line id={id}>
+        <Steps steps={entry.steps} done={entry.done} />
+      </Line>
+    )
+  if (entry.kind === "note")
+    return (
+      <Line id={id}>
+        <p className="text-muted-foreground text-xs">{entry.text}</p>
+      </Line>
+    )
+  return (
+    <Line id={id} anchor>
+      <div className="bg-card rounded-lg border px-3 py-2">
+        <div className="text-muted-foreground mb-1 font-mono text-[0.7rem]">
+          ticket-runner {entry.argv.join(" ")}
+        </div>
+        <pre className="scroll-thin max-h-96 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap">
+          {entry.lines.map((line, index) => (
+            <React.Fragment key={index}>
+              <Flow text={line} />
+              {"\n"}
+            </React.Fragment>
+          ))}
+          {entry.code ? `\n[${t("exit {{code}}", { code: String(entry.code) })}]` : ""}
+        </pre>
+      </div>
+    </Line>
+  )
+})
