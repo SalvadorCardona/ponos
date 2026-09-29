@@ -1539,8 +1539,8 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 │   Projects    │  ┌──────────┐  ┌──────────┐  │  workspace                  │
 │   Schedules   │  │ Retirer  │  │ Migrer   │  │  Six minutes in, on Trader  │
 │   Context     │  │ le       │  │ vers     │  │  IA. It has rewritten       │
-│   Settings    │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
-│               │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
+│   Statistics  │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
+│   Settings    │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
 │               │  └──────────┘  └──────────┘  │                             │
 │               │                              │  > status                   │
 │               │                 ───▶      (●)│  timer on · 30 min          │
@@ -1674,6 +1674,20 @@ A row nobody can read says what is wrong with it instead of a date it does not h
 place that switch would otherwise be invisible. The page asks the board when you open it
 rather than living on the event stream — a schedule moves four times a day at the very
 most, and a tab left open on the board has no business polling that database.
+
+**Statistics** is what the runner got through over a period — the last month when you open
+it, or seven days, three months, or two dates of your own. Four cards: the tickets **open**
+on the evening of the last day (every column but *Done*, *Blocked* and *Failed* included —
+so a period that ends today says what the board says), those **closed** and those
+**created** in the period, and what the sessions **spent**. Under them, one point per day:
+created and closed side by side, the open stock evening after evening, the spend as a
+running total — and the tickets created in the period, by the column they are in now and by
+project. Notion dates when a page was created, never when its status changed, so a closing
+is dated by the runner's history (`history.jsonl`) when the runner made it — a pull request
+merged from *Validated*, a document written or published — and by the page's last edit
+otherwise: a ticket you dragged to *Done*, or one closed because you merged its pull request
+yourself. The foot of the page says how many closings each one dated. The spend is the
+history's too: the `Cost` column says what a ticket cost, not on which day.
 
 **Settings** is `config.toml` drawn as a page — the same file, the same keys, and every one
 of them, from the Notion token down to what your board calls its *Blocked* column. On a

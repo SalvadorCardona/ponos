@@ -18,6 +18,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A statistics page in the console.** *Statistics* in the menu opens on the
+  last month — or seven days, three months, two dates of your own — with the
+  tickets open on the last evening, closed and created over the period, and
+  what the sessions spent; under them, a point per day for what came in, what
+  went out, the open stock and the running spend, and the period's new tickets
+  by status and by project. A closing is dated by the runner's history when the
+  runner made it, and by the page's last edit in Notion otherwise; the page
+  says how many of each.
+
 - **A validated pull request that conflicts is resolved, not left to you.**
   “Pull Request has merge conflicts” used to block the ticket. Now the runner
   asks GitHub first, replays the branch onto its base in a worktree of its own,

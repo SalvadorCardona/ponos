@@ -9,6 +9,7 @@ import { CONTEXT, context, contextHref } from "./context"
 import { PROJECTS, projects, projectsHref } from "./projects"
 import { SCHEDULES, schedules, schedulesHref } from "./schedules"
 import { SETTINGS, settings, settingsHref } from "./settings"
+import { STATISTICS, statistics, statisticsHref } from "./statistics"
 import { TICKETS, boardHref, tickets } from "./tickets"
 
 /* The console, as one scope of react-resource-view.
@@ -46,7 +47,7 @@ const entry = (
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "ticket-runner",
-  resources: [tickets, projects, schedules, context, settings],
+  resources: [tickets, projects, schedules, context, statistics, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [
     entry(TICKETS, tickets.icon, "Board", boardHref, "board"),
@@ -55,6 +56,7 @@ export const consoleScope: ScopeInterface = {
     // board, and this menu is redrawn every time the board moves.
     entry(SCHEDULES, schedules.icon, "Schedules", schedulesHref),
     entry(CONTEXT, context.icon, "Context", contextHref),
+    entry(STATISTICS, statistics.icon, "Statistics", statisticsHref),
     entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
   ],
   // An address that names nothing is the board.

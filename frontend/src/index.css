@@ -85,6 +85,12 @@
   --tr-red: #c8332a;
   --tr-violet: #7c3aed;
   --tr-pink: #db2777;
+
+  /* The two series a chart draws, and only charts: slots 1 and 2 of a
+     palette checked for colour blindness in both themes, rather than the
+     tags' blue and amber, which were picked to be told from text. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
 }
 
 .dark {
@@ -126,6 +132,9 @@
   --tr-red: #f2685f;
   --tr-violet: #9b7bff;
   --tr-pink: #f26bae;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
 }
 
 @theme inline {
@@ -169,6 +178,8 @@
   --color-tr-red: var(--tr-red);
   --color-tr-violet: var(--tr-violet);
   --color-tr-pink: var(--tr-pink);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
 
   --color-field: var(--field);
 

@@ -332,6 +332,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.schedule(match.group(1)))
             if route == "/api/history":
                 return self._json(self.api.history())
+            if route == "/api/statistics":
+                try:
+                    figures = self.api.statistics(
+                        (query.get("from") or [""])[0], (query.get("to") or [""])[0]
+                    )
+                except ValueError as error:
+                    # A period that makes no sense, said as the page's mistake.
+                    return self._fail(400, str(error))
+                return self._json(figures)
             if route == "/api/chat":
                 return self._json({"messages": self.api.chat.history(), **self.api.chat.state()})
             if route == "/api/settings":

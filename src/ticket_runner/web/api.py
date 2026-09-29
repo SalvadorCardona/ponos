@@ -26,7 +26,7 @@ from ..config import Config
 from ..runner import Runner
 from ..schedules import scheduled_for
 from ..ticket import short_id
-from . import console, live
+from . import console, live, statistics
 from . import settings as settings_module
 
 # The project index is read from one database query, not one page fetch per
@@ -174,6 +174,7 @@ class Api:
             "duration": store.read(page, settings.prop("duration")),
             "scheduled": moment.isoformat(timespec="minutes") if moment else "",
             "created": page.raw.get("created_time", ""),
+            "edited": page.raw.get("last_edited_time", ""),
         }
 
     def ticket(self, page_id: str) -> dict:
@@ -556,6 +557,15 @@ class Api:
             "commands": sorted(self.commands.allowed),
             "busy": self.commands.busy,
         }
+
+    def statistics(self, start: str = "", end: str = "") -> dict:
+        """The statistics page: the board, dated with the runner's history.
+
+        See `statistics` for which of the two says when a ticket closed.
+        """
+        first, last = statistics.period(start, end, datetime.now().date())
+        tickets = self.board()["tickets"]
+        return statistics.figures(tickets, state.history(1_000_000), first, last)
 
     def history(self, limit: int = 30) -> dict:
         return {"entries": list(reversed(state.history(limit)))}
