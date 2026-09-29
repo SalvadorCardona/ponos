@@ -16,6 +16,8 @@ taking ten tickets a day does to a pull request opened this morning. A
 publication is a Claude session, so publications run the way tickets run — side
 by side, never more than `max_concurrent` at once — and are claimed before they
 are done, because publishing twice is the one mistake this must not make.
+A ticket typed as a publication comes here the same way, whatever its project
+holds: it was prepared in its page, and its page is what goes out.
 
 And the column is read more than once. `deliver` settles it at the top of a
 pass; `delivering` is the same reading, offered to a pass that is already
@@ -29,7 +31,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-from . import agents, git, session, state, store
+from . import agents, git, kinds, session, state, store
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
@@ -171,7 +173,10 @@ class Delivery(Base):
                 # not being reconsidered, only postponed.
                 self._claimed.add(ticket.id)
                 continue
-            project = self._project_of(ticket)
+            # The type decides, as it did on the way in: a publication on a
+            # project with a repository was prepared in the page, not in a pull
+            # request, and that page is what is published.
+            project = kinds.worked_in(self._project_of(ticket), self.kind(ticket))
             if project.is_code:
                 # A ticket on a repository carries a pull request or it carries
                 # nothing: there is no text on the page to publish, and starting
@@ -197,17 +202,28 @@ class Delivery(Base):
         None at all where the board has no such column: the gesture is opt-in,
         and a board that never offers it is never even queried.
         """
+        if not self.validated_column():
+            return []
         settings = self.config.notion
         validated = settings.state("validated")
-        if validated in (settings.state("review"), settings.state("done")):
-            return []
         status_property = settings.prop("status")
-        if validated not in self.client.options(self.database, status_property):
-            return []
         kind = self.client.schema(self.database).get(status_property, "status")
         return self.client.query(
             self.database, {"property": status_property, kind: {"equals": validated}}
         )
+
+    def validated_column(self) -> bool:
+        """Does this board offer the validated column at all?
+
+        Asked by `validated` before it queries, and by a publication before it
+        says “move it to validated”: on a board without the column that would be
+        an instruction nobody can follow.
+        """
+        settings = self.config.notion
+        validated = settings.state("validated")
+        if validated in (settings.state("review"), settings.state("done")):
+            return False
+        return validated in self.client.options(self.database, settings.prop("status"))
 
     def scheduled(self) -> list[tuple[Ticket, datetime]]:
         """Validated tickets whose moment has not come, soonest first.

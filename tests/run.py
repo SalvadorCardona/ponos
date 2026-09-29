@@ -34,7 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ticket_runner import config as C  # noqa: E402
-from ticket_runner import agents, channels, conversation, credits, markdown, naming, notion  # noqa: E402
+from ticket_runner import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
 from ticket_runner import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
 from ticket_runner import schedules, session, state, store, sync, systemd  # noqa: E402
 from ticket_runner import files  # noqa: E402
@@ -4748,6 +4748,194 @@ def a_title_notion_refuses_leaves_the_ticket_to_run_under_the_default_label():
     assert job.branch == "ticket/untitled-ticket-75f74ff5"
 
 
+# -- the type of a ticket ----------------------------------------------------
+
+
+@case
+def a_classification_is_read_out_of_whatever_the_session_wrapped_it_in():
+    said = 'Voici :\n```json\n{"type": "Publication", "reason": "Un  post.", ' \
+        '"confidence": "HIGH", "alternative": "writing"}\n```'
+    guess = kinds.parse(said)
+    assert (guess.kind, guess.confidence, guess.alternative) == ("publication", "high", "writing")
+    assert guess.reason == "Un post."
+    assert kinds.parse("je ne sais pas") == kinds.Guess(), "no object is no type"
+    unknown = kinds.parse('{"type": "deploy", "confidence": "sure"}')
+    assert unknown.kind == "" and unknown.confidence == "low", "outside the four is nothing"
+    same = kinds.parse('{"type": "code", "confidence": "high", "alternative": "code"}')
+    assert same.alternative == "", "hesitating with itself is not hesitating"
+
+
+@case
+def a_doubt_is_never_settled_by_running_the_ticket():
+    """Too unsure, or unsure between a harmless type and one that acts on the
+    world: either way it is a question — and in doubt, the careful type."""
+    sure = kinds.Guess("writing", "", "high", "")
+    assert kinds.doubt(sure) == ""
+    assert kinds.doubt(kinds.Guess()) == "unknown"
+    assert kinds.doubt(kinds.Guess("code", "", "low", "")) == "unsure"
+    assert kinds.doubt(kinds.Guess("code", "", "medium", ""), "high") == "unsure"
+    assert kinds.doubt(kinds.Guess("code", "", "low", ""), "low") == ""
+    assert kinds.doubt(kinds.Guess("writing", "", "high", "publication")) == "hesitant"
+    assert kinds.doubt(kinds.Guess("external", "", "high", "code")) == "hesitant"
+    assert kinds.doubt(kinds.Guess("code", "", "high", "writing")) == "", (
+        "hesitating between two harmless types is not a reason to stop"
+    )
+    assert kinds.prudent("writing", "publication") == "publication"
+    assert kinds.prudent("code", "external") == "external"
+    assert kinds.prudent("code", "writing") == "code"
+
+
+@case
+def the_classification_is_told_whether_there_is_a_repository():
+    asked = kinds.prompt("Le DNS", "Ajoute un CNAME.", project="Site", repository=False,
+                         comments=["the ticket's author: c'est chez Hostinger"])
+    assert "no code repository: it cannot be a code ticket" in asked
+    assert "Ajoute un CNAME." in asked and "c'est chez Hostinger" in asked
+    assert "belongs to no project" in kinds.prompt("x", "", project="", repository=False)
+    assert "has a code repository" in kinds.prompt("x", "", project="Site", repository=True)
+
+
+@case
+def a_board_spells_the_types_in_either_language():
+    """A board built by hand in French reads as typed, not as four unknown words."""
+    settings = C.Notion()
+    assert settings.kind_of("Rédaction") == "writing"
+    assert settings.kind_of(" action externe ") == "external"
+    assert settings.kind_of("Code") == "code" and settings.kind_of("Writing") == "writing"
+    assert settings.kind_of("Urgent") == "" and settings.kind_of("") == ""
+    named = C.Notion(types={"writing": "Texte"})
+    assert named.kind_of("Texte") == "writing"
+    assert named.kind_of("Rédaction") == "", "a name the file chose is the only one read"
+
+
+@case
+def a_type_somebody_chose_takes_a_repository_ticket_off_its_repository():
+    project = projects.Project(name="Site", path=Path("/repo"))
+    assert kinds.worked_in(project, "code") is project
+    assert kinds.worked_in(project, "") is project
+    for kind in ("writing", "external", "publication"):
+        assert not kinds.worked_in(project, kind).is_code, kind
+        assert kinds.worked_in(project, kind).name == "Site"
+    assert "prepare it, do not publish it" in prompt.kind("publication")
+    assert "Stop at the first doubt" in prompt.kind("external")
+    assert prompt.kind("writing") == "" and prompt.kind("code") == ""
+    assert "/repo: read it" in prompt.kind("writing", Path("/repo"))
+
+
+@case
+def a_prompt_file_older_than_the_types_still_says_do_not_publish():
+    """A template of your own has no `{kind}`: the rule is added at its end."""
+    built = prompt.build(
+        "Old template — {title}\n{body}", project="", title="Post", body="Un post.",
+        repo="/tmp/x", branch="", base="", url="u", kind=prompt.kind("publication"),
+    )
+    assert built.startswith("Old template — Post")
+    assert built.rstrip().endswith(prompt.PREPARE.rstrip())
+    document = prompt.build(
+        prompt.DOCUMENT, project="", title="Post", body="Un post.", repo="/tmp/x",
+        branch="", base="", url="u", kind=prompt.kind("publication"),
+    )
+    assert document.index("do not publish it") < document.index("# What is expected")
+    plain = prompt.build(
+        prompt.DOCUMENT, project="", title="Post", body="Un post.", repo="/tmp/x",
+        branch="", base="", url="u",
+    )
+    assert "- Notion ticket: u\n\n# What is expected" in plain, "no type, no change"
+
+
+class _TypedClient(_NamelessClient):
+    """The same ticket, on a board that has a Type column — in French."""
+
+    def __init__(self, body: str):
+        super().__init__(body)
+        self.said: list[str] = []
+
+    def schema(self, database_id: str) -> dict[str, str]:
+        return {**super().schema(database_id), "Type": "select"}
+
+    def options(self, database_id: str, name: str) -> list[str]:
+        return ["Code", "Rédaction", "Action externe", "Publication"] if name == "Type" else []
+
+    def comment(self, page_id: str, text: str, discussion_id: str = "") -> None:
+        self.said.append(text)
+
+
+def _typed(kind: str = "", body: str = "Poste l'annonce de la v2 sur LinkedIn."):
+    runner, ticket = _nameless("Annoncer la v2", body)
+    runner.client = _TypedClient(body)
+    if kind:
+        ticket.page.properties["Type"] = {"type": "select", "select": {"name": kind}}
+    return runner, ticket
+
+
+@case
+def a_ticket_with_no_type_is_classified_before_it_runs():
+    """Written on the page in the board's own spelling, and explained in a comment."""
+    runner, ticket = _typed()
+    answer = '{"type": "writing", "reason": "Il demande un texte.", "confidence": "high", ' \
+        '"alternative": ""}'
+    with _state_home(), _naming_session(answer) as asked:
+        job = runner.prepare(ticket)
+
+    assert len(asked) == 1 and "say what kind of ticket it is" in asked[0]
+    assert runner.client.written[0] == {"Type": "Rédaction"}, runner.client.written
+    assert runner.client.said[0].startswith("🏷️") and "Il demande un texte." in runner.client.said[0]
+    assert job is not None and job.kind == "writing"
+    assert not job.project.is_code and job.reference == Path("/repo"), (
+        "a text is not worked in the repository, only allowed to read it"
+    )
+
+
+@case
+def a_type_somebody_chose_is_never_classified_again():
+    runner, ticket = _typed("Code")
+    with _state_home(), _naming_session('{"type": "publication", "confidence": "high"}') as asked:
+        job = runner.prepare(ticket)
+
+    assert asked == [], "a chosen type costs no session"
+    assert all("Type" not in values for values in runner.client.written)
+    assert job is not None and job.kind == "code" and job.project.is_code
+
+
+@case
+def a_classification_that_is_not_sure_blocks_the_ticket_with_the_question():
+    """Nothing claimed, no type written — the column is left for you to fill."""
+    runner, ticket = _typed()
+    answer = '{"type": "writing", "reason": "Rédiger, ou publier ?", "confidence": "high", ' \
+        '"alternative": "publication"}'
+    with _state_home(), _naming_session(answer):
+        job = runner.prepare(ticket)
+
+    assert job is None
+    assert runner.client.written == [{"Status": "Blocked"}], runner.client.written
+    question = runner.client.said[-1]
+    assert "Rédaction or Publication?" in question and "Rédiger, ou publier ?" in question
+    assert "I would take Publication" in question, "in doubt, the careful one"
+
+    runner, ticket = _typed()
+    with _state_home(), _naming_session('{"type": "code", "confidence": "low"}'):
+        assert runner.prepare(ticket) is None
+    assert runner.client.written == [{"Status": "Blocked"}]
+
+    runner, ticket = _typed()
+    with _state_home(), _naming_session("", missing=True):
+        assert runner.prepare(ticket) is None, "no answer at all is the deepest doubt"
+
+
+@case
+def a_board_without_the_column_or_the_setting_runs_tickets_as_before():
+    runner, ticket = _nameless("Retirer le shader", "Il coûte 12 % de CPU pour rien.")
+    with _state_home(), _naming_session('{"type": "writing", "confidence": "high"}') as asked:
+        job = runner.prepare(ticket)
+    assert asked == [] and job.kind == "" and job.project.is_code
+
+    runner, ticket = _typed()
+    runner.config.runner.classify = False
+    with _state_home(), _naming_session('{"type": "writing", "confidence": "high"}') as asked:
+        job = runner.prepare(ticket)
+    assert asked == [] and job.kind == "" and job.project.is_code
+
+
 @case
 def a_title_is_one_line_however_the_session_wrapped_it():
     assert (
@@ -6129,10 +6317,10 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
                 continue
             expected.add(f"{table}.{name}")
     for name in vars(C.Notion()):
-        if name in ("pages", "properties", "status"):
+        if name in ("pages", "properties", "status", "types"):
             continue
         expected.add(f"notion.{name}")
-    for table in ("pages", "properties", "status"):
+    for table in ("pages", "properties", "status", "types"):
         expected |= {f"notion.{table}.{key}" for key in C.defaults(table)}
     expected |= {"notify.telegram.token", "notify.telegram.chat"}
     expected |= {"notify.slack.token", "notify.slack.channel"}
@@ -8063,7 +8251,11 @@ def the_whole_runner_runs_against_files_with_no_notion_at_all():
         def refuse(*_args, **_kwargs):
             raise AssertionError("markdown mode must never construct a Notion client")
 
-        page_id = board.create_row("tickets", "Écrire l'annonce", {"Status": "Ready"})
+        # Typed by hand: a ticket with no type would first be classified, and
+        # that is a question of its own — see the cases on kinds.py.
+        page_id = board.create_row(
+            "tickets", "Écrire l'annonce", {"Status": "Ready", "Type": "Writing"}
+        )
         board.append_markdown(page_id, "Rédige une annonce courte.")
         board.set_context("Je suis Salvador Cardona.")
 

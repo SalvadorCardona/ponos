@@ -45,6 +45,9 @@ _STATUS_COLOURS = {
     "blocked": "orange",
 }
 
+# The four types, from the most harmless road to the most guarded one.
+_TYPE_COLOURS = {"code": "blue", "writing": "gray", "external": "orange", "publication": "red"}
+
 _PRIORITY_COLOURS = {"Urgent": "red", "High": "orange", "Normal": "default", "Low": "gray"}
 
 # What `claude --model` accepts. A select rather than free text: the whole point
@@ -180,6 +183,13 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
         # where an option on a real `status` cannot. So the whole wait lands on
         # an old board by running `init` again, rather than by being typed in.
         settings.prop("waiting"): {"checkbox": {}},
+        # The road a ticket takes. Optional, and empty until somebody — or the
+        # runner, before the ticket runs — says which: see kinds.py.
+        settings.prop("type"): _select(
+            [settings.kind(key) for key in _TYPE_COLOURS], {
+                settings.kind(key): colour for key, colour in _TYPE_COLOURS.items()
+            }
+        ),
     }
     # Single-property relations: the ticket points at its project, and the
     # projects database is not given a back-reference it would never read.

@@ -61,9 +61,41 @@ class Notion:
     pages: dict[str, str] = field(default_factory=dict)
     properties: dict[str, str] = field(default_factory=dict)
     status: dict[str, str] = field(default_factory=dict)
+    # How the board spells the four types of ticket — see kinds.py. Not merged
+    # with the defaults, for the same reason as `pages`: `kind_names()` needs to
+    # know which ones the file names, to try the other spellings only when it
+    # names none.
+    types: dict[str, str] = field(default_factory=dict)
 
     def prop(self, key: str) -> str:
         return self.properties.get(key, _DEFAULT_PROPERTIES[key])
+
+    def kind(self, key: str) -> str:
+        """The option a type of ticket is written as on the board."""
+        return self.types.get(key, _DEFAULT_TYPES[key])
+
+    def kind_names(self, key: str) -> tuple[str, ...]:
+        """Every spelling that option may carry: the configured one, then the others.
+
+        The same rule as `page_aliases`: a name written in the file is the name
+        meant, and nothing else is tried past it. A file that says nothing gets
+        the English default and the French one — a board built by hand in French
+        says “Rédaction”, and reading it as no type at all would have the runner
+        classify, again and again, a ticket somebody already typed.
+        """
+        if key in self.types:
+            return (self.types[key],)
+        return (_DEFAULT_TYPES[key], *_TYPE_ALIASES.get(key, ()))
+
+    def kind_of(self, value: str) -> str:
+        """The type a board option means, or "" for one that is none of the four."""
+        wanted = str(value or "").strip().casefold()
+        if not wanted:
+            return ""
+        for key in _DEFAULT_TYPES:
+            if wanted in (name.strip().casefold() for name in self.kind_names(key)):
+                return key
+        return ""
 
     def page(self, key: str) -> str:
         """The title of the workspace row holding that database or page."""
@@ -182,6 +214,14 @@ class Runner:
     prompt_file: str = ""
     document_prompt_file: str = ""
     delivery_prompt_file: str = ""
+    # Telling a ticket's type when nobody wrote it: a short session, on the
+    # lightest model, before anything runs — see kinds.py. Off, a ticket with no
+    # Type is run the way the runner always ran it, by what its project holds.
+    classify: bool = True
+    classify_model: str = "haiku"
+    # The least confidence a guess is acted on with. Below it, the ticket is
+    # blocked with the question rather than run on a guess.
+    classify_confidence: str = "medium"
 
 
 # What an installation may follow when it updates itself — see `Runner`.
@@ -192,6 +232,12 @@ UPDATE_CHANNELS = ("release", "main")
 # a typo here would only be discovered by GitHub refusing the one merge you were
 # watching.
 MERGE_METHODS = ("squash", "merge", "rebase")
+
+
+# How sure a classification says it is, from the least to the most. Three words
+# rather than a number: a model asked for a probability invents a precision it
+# does not have, and a threshold of 0.72 would be read as one.
+CONFIDENCES = ("low", "medium", "high")
 
 
 # The most of the subscription a reserve may hold back. Half is already an
@@ -394,6 +440,10 @@ _DEFAULT_PROPERTIES = {
     # would have said it left the board, and would have had to be typed into
     # Notion by hand on top of that, since the API cannot widen a `status`.
     "waiting": "Waiting for credit",  # checkbox: ticked while the credit is out
+    # What kind of work the ticket is — Code, Writing, External action or
+    # Publication — which decides the road it takes. Optional, and empty is an
+    # answer too: the runner works it out before running the ticket.
+    "type": "Type",
     # Relation to the Agents database. It carries the same word as the database
     # it points at, because it is the same thing.
     "role": "Agent",
@@ -429,6 +479,23 @@ _LEGACY_PAGES = {
     "agents": ("Master Agents",),
     "context": ("Soul",),
     "schedules": ("Master Scheduler", "Master Scheluder"),
+}
+
+# The four types of ticket, told apart by the road they take rather than by what
+# they are about — see kinds.py. The keys are what the code says; the values are
+# the options of the board's Type column.
+_DEFAULT_TYPES = {
+    "code": "Code",
+    "writing": "Writing",
+    "external": "External action",
+    "publication": "Publication",
+}
+
+# The other spellings an option is recognised by, as long as the file names
+# none: the words a French board was written with.
+_TYPE_ALIASES = {
+    "writing": ("Rédaction", "Redaction"),
+    "external": ("Action externe",),
 }
 
 # Highest first. Anything else — including an empty cell — sorts as normal.
@@ -656,9 +723,9 @@ def read_raw(path: Path) -> dict:
 
 
 def defaults(table: str) -> dict[str, str]:
-    """The names the runner falls back on, for one of the three naming tables.
+    """The names the runner falls back on, for one of the four naming tables.
 
-    `properties`, `status`, `pages` — the three places where a board that spells
+    `properties`, `status`, `pages`, `types` — the four places where a board that spells
     a column its own way says so. Public because the console draws a field per
     key, and a key it did not know about would be a setting nobody can reach.
     """
@@ -667,6 +734,7 @@ def defaults(table: str) -> dict[str, str]:
             "properties": _DEFAULT_PROPERTIES,
             "status": _DEFAULT_STATUS,
             "pages": _DEFAULT_PAGES,
+            "types": _DEFAULT_TYPES,
         }[table]
     )
 
@@ -704,6 +772,7 @@ def load(path: Path | None = None) -> Config:
         # Not merged with the defaults: `state()` needs to know which keys the
         # file actually sets, to let "blocked" fall back on "failed".
         status=dict(notion_raw.get("status", {})),
+        types=dict(notion_raw.get("types", {})),
     )
 
     runner_raw = raw.get("runner", {})
@@ -806,6 +875,17 @@ def load(path: Path | None = None) -> Config:
         delivery_prompt_file=str(
             runner_raw.get("delivery_prompt_file", defaults.delivery_prompt_file)
         ).strip(),
+        classify=bool(runner_raw.get("classify", defaults.classify)),
+        # Empty is the CLI's own model, which is a choice too: a runner routed
+        # through OpenRouter has no `haiku` to be given.
+        classify_model=str(runner_raw.get("classify_model", defaults.classify_model)).strip(),
+        # Filtered rather than trusted, like the channel: a typo must not turn
+        # into a threshold nothing reaches, which would block every ticket.
+        classify_confidence=(
+            str(runner_raw.get("classify_confidence", "")).strip().lower()
+            if str(runner_raw.get("classify_confidence", "")).strip().lower() in CONFIDENCES
+            else defaults.classify_confidence
+        ),
     )
 
     projects = {

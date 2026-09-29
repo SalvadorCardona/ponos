@@ -16,7 +16,10 @@ the way out — kept only when a run failed and the configuration asked for it.
 **A ticket with no repository** works in an empty scratch directory and comes
 back as `ANSWER.md`, appended to the Notion page it came from. Same session,
 same prompt machinery, same reports; what differs is where the deliverable
-lands, and that is the whole of the difference.
+lands, and that is the whole of the difference. Three of the four types of
+ticket take this road whatever their project holds — see kinds.py — and one of
+them stops halfway: a publication comes back as what it *would* publish, and
+waits in review for the gesture that publishes it.
 
 Both share the rule that a session ending badly is not the same thing as a
 session that asked a question: one goes to failed with its trace, the other to
@@ -63,6 +66,7 @@ class Execution(Base):
             agent_brief=job.agent.brief,
             comments=job.comments,
             language=self.voice.instruction(),
+            kind="" if job.project.is_code else prompt_module.kind(job.kind, job.reference or ""),
             # A branch picked up from an earlier attempt: the session is told,
             # because a worktree that opens on somebody's half-done work and
             # reads as empty is how the same thing gets written twice.
@@ -444,10 +448,17 @@ class Execution(Base):
             )
 
         shutil.rmtree(job.workdir, ignore_errors=True)
+        # A publication is only prepared: it waits in review for you to read it,
+        # and `Delivery._publish` puts it out once you have moved it to
+        # validated. On a board whose review is its done there is no such
+        # gesture, and it ends there as any text does — prepared, not published.
+        prepared = job.kind == "publication"
         self._set(
             ticket,
             **{
-                self.config.notion.prop("status"): self.config.notion.state("done"),
+                self.config.notion.prop("status"): self.config.notion.state(
+                    "review" if prepared else "done"
+                ),
                 self.config.notion.prop("agent"): self.agent_label,
                 self.config.notion.prop("session"): self._session_value(
                     outcome.session_id, job.session_home
@@ -457,19 +468,28 @@ class Execution(Base):
         )
         facts = (
             said.say("in-the-page"),
-            said.count(blocks, "block"),
+            said.say("nothing-published") if prepared else said.count(blocks, "block"),
             *said.spent(outcome.seconds, outcome.cost_usd),
         )
+        verdict = "prepared" if prepared else "read"
         brief = said.brief(outcome.summary)
-        self._comment(ticket, said.report(said.verdict("read", *facts), brief))
-        self.say(f"    ✓ {ticket.title} — {blocks} block(s) written to the ticket")
-        self._tell("done", ticket, "read", said.report(said.facts(*facts), brief))
+        following = (
+            said.say("prepared-next", validated=self.config.notion.state("validated"))
+            if prepared and self.validated_column()
+            else ""
+        )
+        self._comment(ticket, said.report(said.verdict(verdict, *facts), brief, following))
+        self.say(
+            f"    ✓ {ticket.title} — {blocks} block(s) written to the ticket"
+            + (", nothing published: in review" if prepared else "")
+        )
+        self._tell("done", ticket, verdict, said.report(said.facts(*facts), brief, following))
         return {
             "ticket": ticket.title,
             "id": ticket.id,
             "status": "done",
             "project": job.project.name,
-            "kind": "document",
+            "kind": "publication" if prepared else "document",
             "blocks": blocks,
             "session": outcome.session_id,
             "seconds": round(outcome.seconds, 1),

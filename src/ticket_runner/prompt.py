@@ -19,6 +19,14 @@ quietly edited a repository would be the least expected thing this tool could
 do, so the frame says so, and the runner runs it in a permission mode that
 cannot write.
 
+Two of the four types of ticket — see kinds.py — add a section of their own to
+the second template, and each carries one rule on top of the others. **An
+external action stops at its first doubt**, and its answer is the log of what it
+did; **a publication is prepared, not published**, because the gesture that
+publishes it is yours. Both are added to a prompt file of your own as well, at
+its end when it has no `{kind}` to put them in: a template written before the
+types existed must not become the road by which a post goes out unread.
+
 A fourth one publishes what a ticket already holds, once a human has validated
 it, and its rule is the third of the family: **it publishes, it does not
 produce.** What goes out is what was read and accepted, unimproved — a session
@@ -88,7 +96,7 @@ your answer will be written back into the Notion ticket itself.
 
 - Working directory: {repo} — empty and disposable, it is yours to use.
 - Notion ticket: {url}
-
+{kind}
 # What is expected
 
 1. Do the work properly before writing: read what the ticket points at, and \
@@ -225,6 +233,64 @@ Then finish the ticket and end on the RESULT line the first message asked for.
 {language}"""
 
 
+# What an external action is told, on top of the document frame.
+EXTERNAL = """\
+# This ticket is an external action
+
+It is carried out outside any repository — in the browser, with Claude in \
+Chrome; in a DNS zone; in the settings of a third-party service. Three rules \
+come on top of the others:
+
+- **Stop at the first doubt.** An account you are not sure is the right one, a \
+value the ticket does not give, a screen that does not look like what the ticket \
+describes: write no `ANSWER.md`, and end on `RESULT: blocked` with the \
+question. An action taken on a guess is one somebody has to undo by hand.
+- Do what the ticket asks and nothing else — above all nothing irreversible it \
+does not name.
+- `ANSWER.md` is the log of what you did: every action, in order — where (the \
+site, the account, the page), what you changed, with the value before and after \
+when there is one, and what came back. End it with what you checked afterwards \
+to be sure it took.
+"""
+
+# What a publication is told on its first pass. The second is DELIVERY, once a
+# human has validated what this one prepared.
+PREPARE = """\
+# This ticket is a publication — prepare it, do not publish it
+
+What it asks for goes out in public and cannot be taken back: a post, a \
+deployment, a message sent. So it happens in two steps, and you are the first. \
+A human reads what you prepare; only once they have validated it does a second \
+session publish it, word for word.
+
+- **Publish nothing.** No post, no send, no deployment, no scheduled \
+publication — and no draft saved on the target service either.
+- `ANSWER.md` holds everything the second session needs and nothing it would \
+have to decide: the exact text, ready to go out; the visuals — described, or \
+linked where they already are, since this working directory is deleted with \
+you; the target — the account, the channel, the recipients; and the moment, if \
+the ticket gives one.
+- If the target is not clear from the ticket, say so in `ANSWER.md` rather than \
+choosing one: that is the first thing the reader will check.
+"""
+
+
+def kind(kind: str, repository: object = "") -> str:
+    """The section a type of ticket adds to the document frame, or nothing.
+
+    `repository` is the project's, when it has one the ticket is not worked in:
+    a text about a codebase still wants to read that codebase — it just does not
+    get to change it.
+    """
+    section = {"external": EXTERNAL, "publication": PREPARE}.get(kind, "")
+    if repository:
+        section = (
+            f"- The project's repository is at {repository}: read it if the ticket "
+            "needs it, and change nothing in it.\n" + ("\n" + section if section else "")
+        )
+    return section
+
+
 def build(
     template: str,
     *,
@@ -242,11 +308,12 @@ def build(
     comments: list[str] | None = None,
     resumed: str = "",
     language: str = "",
+    kind: str = "",
 ) -> str:
     scope, frame, heading, role, discussion = _frames(
         project, context, brief, agent_name, agent_brief, comments
     )
-    return template.format(
+    text = template.format(
         project=project or "no project",
         scope=scope,
         context=frame,
@@ -261,7 +328,12 @@ def build(
         base=base,
         url=url,
         resumed=resumed,
+        kind=f"\n{kind}" if kind else "",
     )
+    if kind and "{kind}" not in template:
+        # A prompt file of your own, older than the types: see the docstring.
+        text = f"{text.rstrip()}\n\n{kind}"
+    return text
 
 
 def conversation(
