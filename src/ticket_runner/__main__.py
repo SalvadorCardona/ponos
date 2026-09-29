@@ -857,6 +857,7 @@ def command_doctor(args: argparse.Namespace) -> int:
         ("due", "date", "hold the ticket until that date, then run — or publish — it"),
         ("waiting", "checkbox", "ticked while the credit is out; it comes back on its own"),
         ("role", "relation", "which agent handles the ticket; its page is the role"),
+        ("type", "select", "Code, Writing, External action or Publication — empty, it is classified"),
     )
     for key, preferred, why in optional:
         name = configuration.notion.prop(key)
@@ -889,6 +890,29 @@ def command_doctor(args: argparse.Namespace) -> int:
                 bad(f"{key:<9} → “{wanted}” is not offered by the database")
                 problems += 1
         print(f"  {DIM}available: {', '.join(options)}{RESET}")
+
+    type_column = configuration.notion.prop("type")
+    if type_column in schema:
+        title("Types")
+        offered = client.options(database, type_column)
+        for key in ("code", "writing", "external", "publication"):
+            names = configuration.notion.kind_names(key)
+            found = next((name for name in names if name in offered), "")
+            if found:
+                ok(f"{key:<11} → “{found}”")
+            else:
+                # Not a problem: Notion adds a select option the first time a
+                # value is written into it. Said so it is not a surprise.
+                warn(f"{key:<11} → “{names[0]}” not offered yet — added the first time it is written")
+        runner_settings = configuration.runner
+        if runner_settings.classify:
+            model = runner_settings.classify_model or "the CLI's default model"
+            ok(
+                f"an empty {type_column} is classified by {model}, acted on from "
+                f"{runner_settings.classify_confidence} confidence"
+            )
+        else:
+            warn(f"runner.classify is off — a ticket with no {type_column} runs by its project")
 
     title("Schedules database")
     problems += _doctor_schedules(client, configuration, space)

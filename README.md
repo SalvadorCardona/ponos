@@ -53,9 +53,11 @@ Validated     ──────▶     merges that pull request — or publishe
 Done          ◀───────────  once it is in
 ```
 
-Which of the two you get is decided by the project, not by a setting: a project that names
-a repository produces code, a project that names none — or a ticket with no project at all
-— produces a document.
+Which of the two you get is decided by the ticket's **Type** when it has one — *Code*,
+*Writing*, *External action*, *Publication* — and otherwise by the project: a project that
+names a repository produces code, a project that names none — or a ticket with no project
+at all — produces a document. A ticket that reaches *Ready* with no type is classified
+first, and a doubt stops it before anything runs. See [The type of a ticket](#the-type-of-a-ticket).
 
 ---
 
@@ -85,7 +87,7 @@ itself and nothing else. The rest is one chapter per module:
 | `runner.py` | the pass: what a run is made of, and how places are kept filled |
 | `base.py` | the state of a run, and what every chapter has under its hand |
 | `board.py` | reading the board, and the tidyings a pass does first |
-| `preparation.py` | locating the project, naming the nameless, claiming the ticket |
+| `preparation.py` | locating the project, naming the nameless, telling its type, claiming the ticket |
 | `execution.py` | the session, and the two ways a ticket comes back from one |
 | `delivery.py` | the validated column: merging, or publishing what the ticket holds |
 | `recurrence.py` | what a due schedule becomes — an ordinary ticket |
@@ -95,7 +97,7 @@ itself and nothing else. The rest is one chapter per module:
 
 Around them sit the modules a run leans on rather than consists of: `store.py` and the
 two boards behind it (`notion.py`, `files.py`, `sync.py`), `git.py`, `session.py`,
-`voice.py`, `progress.py`, `conversation.py`, `schedules.py`, `credits.py`, `channels/`
+`voice.py`, `kinds.py` (the four types of ticket, and what counts as a doubt), `progress.py`, `conversation.py`, `schedules.py`, `credits.py`, `channels/`
 and `web/`.
 
 ### Regenerating it
@@ -331,6 +333,9 @@ for reading rather than for filling in.
 | `runner.prompt_file` | `""` | your own prompt template, for repository tickets |
 | `runner.document_prompt_file` | `""` | the same, for tickets with no repository |
 | `runner.delivery_prompt_file` | `""` | the same, for publishing a validated ticket |
+| `runner.classify` | `true` | work out the type of a ticket that reaches *Ready* with none — `false` runs it by its project, as before. See [The type of a ticket](#the-type-of-a-ticket) |
+| `runner.classify_model` | `"haiku"` | the model that classifies: it reads one page and answers one line. Empty is the CLI's own |
+| `runner.classify_confidence` | `"medium"` | `low`, `medium` or `high` — the least confidence a guess is acted on with; below it, the ticket is blocked with the question |
 | `storage.mode` | `"notion"` | which board answers — `notion`, `markdown`, or `both` kept in step. See *Without Notion: the board as Markdown files* below |
 | `storage.path` | `~/.local/state/ticket-runner/board` | the directory the Markdown board lives in |
 | `storage.conflict` | `"newest"` | in `both`, who wins when the same page moved on each side |
@@ -340,6 +345,7 @@ for reading rather than for filling in.
 | `[notion.pages]` | | which row of the workspace is the tickets database, the projects database, the agents database, the context page |
 | `[notion.properties]` | | if your columns have other names |
 | `[notion.status]` | | if your statuses have other names |
+| `[notion.types]` | | how the options of the Type column are spelled — `code`, `writing`, `external`, `publication`. Unset, the French *Rédaction* and *Action externe* are read too |
 | `[projects]` | | `"Notion name" = "/path"` for repositories that cannot be guessed |
 | `[github]` | | `"owner" = "gh account"`, when this machine answers to more than one GitHub — see *Several GitHub accounts* below |
 | `[web]` | | the console's host, port, and how it is opened — a token, or an email and a password. See *The web console* |
@@ -577,6 +583,7 @@ ticket-runner sync --journal   # what past reconciliations did
 | `Progress` | text | *optional* — **what the session is doing right now**, rewritten every ten seconds |
 | `Scheduled` | date | *optional* — **hold the ticket until that moment**, then run it — or, on a validated ticket, publish it |
 | `Waiting for credit` | checkbox | *optional* — ticked by the runner while the subscription's window is spent under the ticket. It does not move: it is still ready, and the tick is the note saying why nobody has got to it yet |
+| `Type` | select | *optional* — `Code`, `Writing`, `External action`, `Publication`: **the road the ticket takes**. Empty, the runner works it out before running it — see [The type of a ticket](#the-type-of-a-ticket) |
 
 `Waiting for credit` is an attribute rather than an eighth column, and on purpose: nothing
 happened to a ticket nothing was started for, so nothing on the board should say it moved.
@@ -627,6 +634,83 @@ exactly the one you gave it and costs nothing extra; a ticket with neither a tit
 body is not invented for — it comes back with the question. And if the naming fails, for
 want of a session or of a Notion that accepts the write, the ticket runs all the same,
 under the label it had.
+
+### The type of a ticket
+
+A ticket used to be one of two things, and its project decided which: a repository meant a
+pull request, no repository meant a text in the page. Tickets have since started asking
+for things that are neither — *enter these DNS records at Hostinger*, *post this on
+LinkedIn*, *deploy that* — and those do not take the same road, nor go wrong the same way.
+A pull request is read before it is merged; a post, once it is out, is out.
+
+So a ticket has a `Type`, and its four values are told apart by **how the work is carried
+out**, not by what it is about:
+
+| Type | The road | What comes back |
+| --- | --- | --- |
+| **Code** | a worktree, a branch, commits, a pull request — what every ticket on a repository always was | *In review* with its pull request |
+| **Writing** | no repository: a scratch directory and `ANSWER.md`. On a project that has one, the session may *read* it, never change it | *Done*, the answer in the page |
+| **External action** | no repository, the browser allowed (Claude in Chrome), a DNS zone, a service's settings. **It stops at its first doubt** — a wrong account, a value the ticket does not give — rather than acting on a guess | *Done*, with the **log of every action** in the page: where, what changed, before and after, what was checked |
+| **Publication** | public and irreversible: a post, a deployment, a message sent. **In two steps** — see below | *In review*, nothing published; then *Done* once you validated it |
+
+**Empty is a request.** A ticket that reaches *Ready* with no type is classified before
+anything else happens to it: a short session on a light model (`runner.classify_model`,
+`haiku` by default) reads its title, its content, what was said in its comments, and
+whether its project has a repository — a project without one cannot be *Code*. It answers
+in JSON: a type, one sentence saying why, a confidence (`low`, `medium`, `high`) and the
+type it hesitated with. The runner writes the type into the column and the sentence into a
+comment, then runs the ticket exactly as if you had picked that type yourself:
+
+> **🏷️ Classified — Publication · high confidence**
+> The ticket asks for a post on LinkedIn, which goes out in public.
+> Wrong? Change the Type column — a type somebody chose is never overwritten.
+
+It runs in the pass's own thread, like the session that names a nameless ticket: it starts
+nothing beside the sessions in flight and holds none of their places for longer than it
+takes to answer one question.
+
+**A doubt is never settled by running the ticket.** Three answers stop it, and it goes to
+*Blocked* with the question, the reason under it, and nothing executed:
+
+- the classification said nothing usable — no session, no JSON, a type that is none of the
+  four;
+- it is less sure than `runner.classify_confidence` asks (`medium` by default, so `low`
+  stops it);
+- it hesitated between two types and one of them is *External action* or *Publication* —
+  a text run as a text that was a publication is a post nobody read before it went out.
+
+The comment asks *Writing or Publication?* and says which is the more careful of the two —
+in doubt, always the one further along *Writing → Code → External action → Publication*.
+**The Type column is left empty** rather than filled with that guess: a type the runner
+wrote would read, on the next pass, as a type you had chosen. Pick it, answer in the
+comment, and the ticket runs on the next pass — an answer that names the type is read by
+the next classification too.
+
+**A type somebody chose is never touched.** Not overwritten, not re-classified, not asked
+about. An option that is none of the four — a column you use for something else — is left
+alone as well, and the ticket runs by its project as it always did. A board without the
+column at all, or `runner.classify = false`, is the runner exactly as it was; `ticket-runner
+init` adds the column to an existing board, and `ticket-runner doctor` says which of the
+four options it offers. A board spelled in French — *Rédaction*, *Action externe* — is read
+as such without a word of configuration; `[notion.types]` renames them otherwise.
+
+**A publication goes out only once you have said yes.** It is the two-step road, built on
+the columns the board already has:
+
+```
+Ready        ──▶  classified Publication (or typed so by you)
+In progress  ──▶  a session prepares it — the text, the visuals, the target, the moment —
+                  and publishes nothing: no post, no send, no draft on the service
+In review    ◀──  the content is in the page. You read it.
+Validated    ──▶  you moved it: a second session publishes it, word for word
+Done         ◀──  with where it went
+```
+
+The second step is the one [Validated](#validated-and-what-it-sets-off) has always done for
+a ticket with no pull request, and a publication takes it **whatever its project holds** —
+a post about a repository's release is still prepared in its page and never in a branch. A
+board without a *Validated* column has no such gesture: the prepared content lands in
+*Review* (or *Done*) and publishing it is yours.
 
 ### Following the work
 
@@ -1137,9 +1221,11 @@ CLI, an API key in its environment) and, where it has none for the job, it says 
 stops rather than improvising — the ticket lands in *Blocked* with what is missing. Then
 *Done*, with a comment saying where the thing went.
 
-That second road is for tickets that have no repository. A ticket **on a repository** with
-no pull request has nothing to merge and nothing on its page to publish, so it is not
-guessed at either: it goes to *Blocked* asking where its pull request went.
+That second road is for tickets that have no repository — and for every ticket whose
+`Type` took it off one, a *Publication* first of all: [prepared in review, published once
+validated](#the-type-of-a-ticket). A ticket **on a repository** with no pull request and no
+such type has nothing to merge and nothing on its page to publish, so it is not guessed at
+either: it goes to *Blocked* asking where its pull request went.
 
 So the board reads end to end: *Ready* is you asking for the work, *Validated* is you
 accepting it, and *Done* means it is actually out in the world rather than merely
@@ -2308,7 +2394,10 @@ worktree → session → branch → pull request, and the status written back on
 Four scenarios — a code ticket that comes back as a pull request, a writing ticket
 answered in its own page without a single git command, a session that fails without
 leaving an orphan worktree, and a board with two projects where the ticket has to run in
-the repository its `Project` relation names. Nothing is mocked: a **Notion of its own**
+the repository its `Project` relation names. Two more follow a ticket with no `Type`: one
+classified *Publication*, prepared into *In review* without a worktree and published only
+on the pass after it was moved to *Validated*; one the classification hesitated over,
+blocked with the question while a ticket typed by hand runs beside it. Nothing is mocked: a **Notion of its own**
 answers on a loopback port and keeps a state the assertions read back, a repository and a
 bare remote stand in for GitHub, and a `claude` and a `gh` at the head of `PATH` do what
 the real ones do minus the thinking and the network. Nothing leaves the machine, nothing

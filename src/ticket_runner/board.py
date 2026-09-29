@@ -151,6 +151,50 @@ class Board(Base):
         except store.StoreError:
             return ""
 
+    def type_column(self) -> str:
+        """The column a ticket's type is read from, or "" on a board without one.
+
+        Asked of the schema, like `waiting_flag`: a board built before the types
+        existed has no such column, and its tickets run the way they always ran
+        — by what their project holds — rather than being classified into a
+        column nobody can see. `init` adds it.
+        """
+        name = self.config.notion.prop("type")
+        try:
+            return name if name in self.client.schema(self.database) else ""
+        except store.StoreError:
+            return ""
+
+    def kind(self, ticket: Ticket) -> str:
+        """The type written on the ticket, as one of `kinds.KINDS`, or "".
+
+        "" for an empty cell and for an option that is none of the four alike:
+        the first is classified before the ticket runs, and the second is run
+        the way it always was — see `Preparation._kind`.
+        """
+        return self.config.notion.kind_of(
+            str(store.read(ticket.page, self.config.notion.prop("type")) or "")
+        )
+
+    def kind_name(self, key: str) -> str:
+        """How the board spells that type, for the runner to write it.
+
+        The spelling the board already offers when the file names none, so that
+        a board built in French is written “Rédaction” rather than given a second
+        option that means the same thing.
+        """
+        settings = self.config.notion
+        names = settings.kind_names(key)
+        if len(names) > 1:
+            try:
+                offered = self.client.options(self.database, settings.prop("type"))
+            except store.StoreError:
+                offered = []
+            for name in names:
+                if name in offered:
+                    return name
+        return names[0]
+
     def parked(self, tickets: list[Ticket]) -> set[str]:
         """Which of these the credit stopped, rather than never started.
 

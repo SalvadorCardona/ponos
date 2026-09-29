@@ -18,6 +18,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A ticket has a type, and the runner works it out when you did not.** A new
+  `Type` column — *Code*, *Writing*, *External action*, *Publication* — says
+  which road a ticket takes. Left empty, a short session on a light model
+  classifies the ticket before it runs, writes the type into the column and the
+  reason into a comment; a type you chose is never overwritten. When the guess
+  is unsure, or hesitates with *External action* or *Publication*, nothing runs:
+  the ticket is blocked with the question. An external action works without a
+  repository, stops at its first doubt and logs what it did; a publication is
+  prepared into *In review* and published only once you move it to *Validated*.
+  `ticket-runner init` adds the column; a board without it runs as before. See
+  [The type of a ticket](README.md#the-type-of-a-ticket).
+
 - **ticket-runner has a face.** A small robot, on the landing page and in its
   favicon, whose mood follows a ticket: thinking when one is claimed, busy while
   Claude Code types, jumping when the pull request is open, sad when it is

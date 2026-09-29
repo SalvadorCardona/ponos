@@ -769,4 +769,31 @@ export const FRENCH: Record<string, string> = {
     "pour qui le travail est fait, lu dans chaque prompt",
   "what repeats — absent means nothing does":
     "ce qui se répète — absente, rien ne se répète",
+
+  type: "type",
+  "Code, Writing, External action or Publication — empty, it is worked out":
+    "Code, Rédaction, Action externe ou Publication — vide, il est déduit",
+  "The types of ticket": "Les types de ticket",
+  "The road a ticket takes, told by how the work is done rather than by what it is about. A ticket whose Type is empty is classified before it runs, by a short session on a light model: the type goes into the column, the reason into a comment. A type you chose is never overwritten, and a doubt blocks the ticket with the question rather than running it.":
+    "Le chemin que prend un ticket, défini par la façon dont le travail se fait plutôt que par son sujet. Un ticket dont le Type est vide est classé avant de s'exécuter, par une courte session sur un modèle léger : le type va dans la colonne, la raison dans un commentaire. Un type que vous avez choisi n'est jamais écrasé, et un doute bloque le ticket avec la question plutôt que de l'exécuter.",
+  "Work out an empty type": "Déduire un type vide",
+  "Off: a ticket with no type runs by what its project holds, as before.":
+    "Désactivé : un ticket sans type s'exécute selon ce que contient son projet, comme avant.",
+  "Model that classifies": "Modèle qui classe",
+  "The lightest will do: it reads one page and answers one line. Empty: whatever Claude Code is set to.":
+    "Le plus léger suffit : il lit une page et répond une ligne. Vide : celui que Claude Code utilise.",
+  "Act on a guess from": "Agir sur une déduction à partir de",
+  "Below this confidence the ticket is blocked with the question. A guess that hesitated with Publication or External action is blocked whatever this says.":
+    "Sous cette confiance, le ticket est bloqué avec la question. Une déduction qui a hésité avec Publication ou Action externe est bloquée quoi qu'indique ce réglage.",
+  code: "code",
+  "a repository, a branch, a pull request": "un dépôt, une branche, une pull request",
+  writing: "rédaction",
+  "no repository — the answer is written into the page":
+    "pas de dépôt — la réponse est écrite dans la page",
+  external: "action externe",
+  "done in the browser or a service's settings; stops at the first doubt":
+    "faite dans le navigateur ou les réglages d'un service ; s'arrête au moindre doute",
+  publication: "publication",
+  "prepared, sent to review, published once validated":
+    "préparée, passée en revue, publiée une fois validée",
 }

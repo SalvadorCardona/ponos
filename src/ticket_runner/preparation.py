@@ -13,14 +13,16 @@ the next tick of the timer would happily pick up as well.
 A ticket that cannot be used is failed here rather than carried further: no
 project anybody can find, a body Notion will not hand over, a page with neither
 title nor content. Each of them returns `None`, and the pass goes on to the
-next ticket.
+next ticket. So does one whose type nobody wrote and the runner could not tell
+for sure: it is blocked with the question before anything is claimed — see
+kinds.py for why a doubt is never settled by running the ticket.
 """
 
 from __future__ import annotations
 
 import shutil
 
-from . import agents, git, naming, session, state, store
+from . import agents, git, kinds, naming, session, state, store
 from . import voice as voice_module
 from .base import Base
 from .config import state_dir
@@ -75,6 +77,16 @@ class Preparation(Base):
             # common case costs nothing — and a dry run writes nowhere.
             self._name(ticket, body, short)
 
+        # After the name, which the classification reads, and before the branch
+        # is drawn, which the type decides whether there is one at all.
+        kind = self._kind(ticket, body, project)
+        if kind is None:
+            return None
+        reference = None
+        worked = kinds.worked_in(project, kind)
+        if worked is not project:
+            reference, project = project.path, worked
+
         stem = f"{slugify(project.name, 24)}-{short}"
         if project.is_code:
             base = self.config.runner.base_branch or git.default_branch(project.path)
@@ -114,11 +126,16 @@ class Preparation(Base):
             model=str(store.read(ticket.page, self.config.notion.prop("model")) or ""),
             agent=agent,
             comments=self.discussion(ticket),
+            kind=kind,
+            reference=reference,
         )
         where = f"{project.path} · {branch}" if project.is_code else "document → the ticket's page"
         said = f" · {len(job.comments)} comment(s)" if job.comments else ""
         role = f" · as {agent.name}" if agent else ""
-        self.say(f"  → {ticket.title}\n    {project.name or 'no project'} · {where}{role}{said}")
+        typed = f" · {kind}" if kind else ""
+        self.say(
+            f"  → {ticket.title}\n    {project.name or 'no project'} · {where}{typed}{role}{said}"
+        )
         # `cloned` says the repository was not here until a minute ago — worth a
         # line, since the ticket is running on a folder nobody made by hand.
         # `note` says it was found by a way of last resort: the ticket runs, and
@@ -200,3 +217,121 @@ class Preparation(Base):
             return
         ticket.page.title = title
         self.say(f"  · named “{title}” — the ticket had none of its own")
+
+    def _kind(self, ticket: Ticket, body: str, project: Project) -> str | None:
+        """The type this ticket runs as — "" for the old road, None to stop here.
+
+        A type somebody wrote is taken as written, always: the classification
+        only ever fills an empty cell, so correcting it is one click that no
+        later pass undoes. An option that is none of the four is not rewritten
+        either — it is somebody's own column — and the ticket runs by what its
+        project holds, as every ticket did before there were types.
+        """
+        column = self.type_column()
+        if not column:
+            return ""
+        written = str(store.read(ticket.page, column) or "").strip()
+        if written:
+            kind = self.config.notion.kind_of(written)
+            if not kind:
+                self.say(f"    · type “{written}” is none of the four — run by what its project holds")
+            return kind
+        if not self.config.runner.classify:
+            return ""
+        if self.dry_run:
+            self.say("    (dry run) no type — it would be classified before it runs")
+            return ""
+        return self._classify(ticket, body, project)
+
+    def _classify(self, ticket: Ticket, body: str, project: Project) -> str | None:
+        """Work out a ticket's type, write it on the page, and say why.
+
+        The type goes into the column and the reason into a comment, so that the
+        decision is where the ticket is read and can be corrected there. A guess
+        the runner will not act on — see `kinds.doubt` — blocks the ticket with
+        the question instead, and leaves the column empty for you to fill: a
+        type written by the runner would read, on the next pass, as a type you
+        had chosen.
+        """
+        short = short_id(ticket.id)
+        workdir = state_dir() / "scratch" / f"kind-{short}"
+        answer = ""
+        try:
+            workdir.mkdir(parents=True, exist_ok=True)
+            outcome = session.run(
+                kinds.prompt(
+                    ticket.title,
+                    body,
+                    project=project.name,
+                    repository=project.is_code,
+                    comments=self.discussion(ticket),
+                ),
+                cwd=workdir,
+                log=state.log_file(f"{short}-kind"),
+                model=self.config.runner.classify_model,
+                # It reads one page and answers one object: the mode a
+                # conversation runs in is more than it needs.
+                permission_mode=self.config.runner.reply_permission_mode,
+                timeout_minutes=kinds.TIMEOUT_MINUTES,
+                environment=self.environment,
+            )
+            if self._out_of_credit(outcome):
+                # Not a doubt about the ticket: there was nothing to ask with.
+                # It stays in ready, untouched, for the pass that has credit.
+                self._hold_credits(outcome)
+                self.say("    · out of credit before it could be classified — left in ready")
+                return None
+            answer = outcome.answer if outcome.ok else ""
+        except (OSError, ValueError) as error:
+            self.say(f"  ! the ticket could not be classified: {voice_module.line(error)}")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+        guess = kinds.parse(answer)
+        column = self.config.notion.prop("type")
+        said = self.voice
+        why = kinds.doubt(guess, self.config.runner.classify_confidence)
+        if why:
+            between = [kind for kind in (guess.kind, guess.alternative) if kind]
+            if len(between) == 2:
+                question = said.say(
+                    "kind-question-between",
+                    first=self.kind_name(between[0]),
+                    second=self.kind_name(between[1]),
+                    property=column,
+                    prudent=self.kind_name(kinds.prudent(*between)),
+                )
+            else:
+                question = said.say(
+                    "kind-question",
+                    choices=", ".join(self.kind_name(kind) for kind in kinds.KINDS),
+                    property=column,
+                )
+            reason = said.say(f"kind-{why}")
+            self._fail(
+                ticket,
+                reason,
+                said.paragraphs(said.sentence(reason), guess.reason),
+                blocked=True,
+                question=question,
+            )
+            return None
+
+        name = self.kind_name(guess.kind)
+        try:
+            self.client.update(self.database, ticket.page.id, {column: name})
+        except store.StoreError as error:
+            # Run as classified all the same: the comment below still says which
+            # type it was run as, and why.
+            self.say(f"  ! the type could not be written: {voice_module.line(error)}")
+        self.say(f"    · classified as {guess.kind} ({guess.confidence}) — {guess.reason}")
+        level = said.say(f"confidence-{guess.confidence}")
+        self._comment(
+            ticket,
+            said.report(
+                said.verdict("classified", name, said.say("confidence", level=level)),
+                said.brief(guess.reason),
+                said.say("classified-fix", property=column),
+            ),
+        )
+        return guess.kind

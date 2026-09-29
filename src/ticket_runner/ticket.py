@@ -55,6 +55,11 @@ class Job:
     comments: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     resumed: bool = False
+    # Which of the four types the ticket was run as — see kinds.py — and the
+    # repository it is not worked in but may read, when the type took it off
+    # one. Both empty for a ticket run the way every ticket used to be.
+    kind: str = ""
+    reference: Path | None = None
     # Whether `session_id` names a conversation Claude Code already has, to be
     # carried on rather than opened. Only ever true for a ticket that came back
     # ticked as waiting for credit — see `prepare`.

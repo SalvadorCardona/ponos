@@ -31,7 +31,7 @@ from pathlib import Path
 
 from .. import config as config_module
 from .. import voice
-from ..config import EVENTS, MERGE_METHODS, UPDATE_CHANNELS, Config
+from ..config import CONFIDENCES, EVENTS, MERGE_METHODS, UPDATE_CHANNELS, Config
 from ..store import CONFLICTS, MODES
 
 # What Claude Code accepts, and what each of them means for a runner nobody is
@@ -77,7 +77,7 @@ class Section:
 
 
 def _naming(table: str, blurbs: dict[str, str]) -> tuple[Field, ...]:
-    """A field per key of one of the three naming tables.
+    """A field per key of one of the four naming tables.
 
     Generated from the defaults rather than listed again: a property the runner
     learns to read is a field the console offers the same day.
@@ -503,6 +503,7 @@ SECTIONS: tuple[Section, ...] = (
                 "due": "a date here holds the ticket until that moment",
                 "waiting": "ticked while the credit is out — it comes back on its own",
                 "role": "relation to the agents database",
+                "type": "Code, Writing, External action or Publication — empty, it is worked out",
                 "cadence": "schedules: Hourly, Daily, Weekly or Monthly",
                 "at": "schedules: the hour, written 09:00",
                 "day": "schedules: Monday, or 1 to 31",
@@ -511,6 +512,39 @@ SECTIONS: tuple[Section, ...] = (
                 "last_run": "schedules: written back — the last one",
                 "last_ticket": "schedules: written back — what the last occurrence made",
             },
+        ),
+    ),
+    Section(
+        key="types",
+        title="The types of ticket",
+        blurb=(
+            "The road a ticket takes, told by how the work is done rather than by what it "
+            "is about. A ticket whose Type is empty is classified before it runs, by a short "
+            "session on a light model: the type goes into the column, the reason into a "
+            "comment. A type you chose is never overwritten, and a doubt blocks the ticket "
+            "with the question rather than running it."
+        ),
+        fields=(
+            Field("runner", "classify", "bool", "Work out an empty type",
+                  "Off: a ticket with no type runs by what its project holds, as before."),
+            Field("runner", "classify_model", "text", "Model that classifies",
+                  "The lightest will do: it reads one page and answers one line. Empty: "
+                  "whatever Claude Code is set to."),
+            Field("runner", "classify_confidence", "choice", "Act on a guess from",
+                  "Below this confidence the ticket is blocked with the question. A guess "
+                  "that hesitated with Publication or External action is blocked whatever "
+                  "this says.",
+                  choices=CONFIDENCES),
+            *_naming(
+                "types",
+                {
+                    "code": "a repository, a branch, a pull request",
+                    "writing": "no repository — the answer is written into the page",
+                    "external": "done in the browser or a service's settings; stops at the "
+                    "first doubt",
+                    "publication": "prepared, sent to review, published once validated",
+                },
+            ),
         ),
     ),
     Section(
@@ -560,6 +594,8 @@ def _fallback(config: Config, entry: Field) -> object:
         return config_module.defaults("properties")[entry.key]
     if entry.table == "notion.pages":
         return config_module.defaults("pages")[entry.key]
+    if entry.table == "notion.types":
+        return config_module.defaults("types")[entry.key]
     holder = {
         "notion": config.notion,
         "runner": config.runner,

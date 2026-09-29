@@ -438,6 +438,15 @@ def emit(event):
 
 emit({"type": "system", "subtype": "init", "session_id": session})
 
+# The short session that classifies a ticket with no type answers one JSON
+# object and leaves nothing behind — `FAKE_CLAUDE_KIND` is that object.
+if "say what kind of ticket it is" in prompt:
+    said = os.environ.get("FAKE_CLAUDE_KIND", "")
+    emit({"type": "assistant", "message": {"content": [{"type": "text", "text": said}]}})
+    emit({"type": "result", "subtype": "success", "is_error": False, "result": said,
+          "session_id": session, "num_turns": 1, "total_cost_usd": 0.001})
+    raise SystemExit(0)
+
 refused = os.environ.get("FAKE_CLAUDE_FAIL", "")
 if refused:
     emit({"type": "result", "subtype": "error_during_execution", "is_error": True,
@@ -715,6 +724,21 @@ class Bench:
             properties["Project"] = _stored({"relation": [{"id": project}]})
         return self.board.page(properties, database=self.database, body=body)
 
+    def typed(self) -> None:
+        """The board given its Type column, as `init` gives it to an older one."""
+        # A copy: the schema every scenario starts from is shared, and must stay
+        # the board of the scenarios that never heard of a type.
+        database = self.board.databases[self.database]
+        database["properties"] = {
+            **database["properties"],
+            "Type": {
+                "type": "select",
+                "select": {"options": [{"name": name} for name in (
+                    "Code", "Rédaction", "Action externe", "Publication"
+                )]},
+            },
+        }
+
     def move(self, ticket: str, column: str) -> None:
         """A ticket dragged from one column to the next, as you would in Notion."""
         self.board.pages[ticket]["properties"]["Status"] = _stored(
@@ -827,6 +851,7 @@ def bench(**overrides: object):
                 "XDG_STATE_HOME": str(root / "state"),
                 "PATH": f"{root / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
                 "FAKE_CLAUDE_FAIL": "",
+                "FAKE_CLAUDE_KIND": "",
                 **{name: str(path) for name, path in logs.items()},
             }
             with _environ(environment):
@@ -934,6 +959,98 @@ def a_writing_ticket_is_answered_in_its_page_and_touches_no_repository():
         state = Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner"
         assert not (state / "worktrees").exists(), "a document ticket made a worktree"
         assert not list((state / "scratch").glob("*")), "its scratch directory was left behind"
+
+
+@case
+def a_ticket_with_no_type_is_classified_then_published_only_once_validated():
+    """Ready with no type → classified → prepared → review → validated → done.
+
+    On a project that *has* a repository, which is the case that matters: a
+    publication there is still prepared in its page and never in a branch, and
+    nothing leaves the machine between the two passes — only the one that comes
+    after you moved it to Validated publishes it.
+    """
+    with bench() as machine:
+        machine.typed()
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Annoncer la version 2", "Un post LinkedIn pour la v2.", project)
+        os.environ["FAKE_CLAUDE_KIND"] = json.dumps({
+            "type": "publication",
+            "reason": "Le ticket demande un post public.",
+            "confidence": "high",
+            "alternative": "",
+        })
+
+        results = machine.run()
+
+        assert [result["status"] for result in results] == ["done"], results
+        assert results[0]["kind"] == "publication", results
+        # Spelled the way the board already spells it, and said in a comment.
+        assert machine.board.value(ticket, "Type") == "Publication"
+        said = machine.board.said(ticket)
+        assert said[0].startswith("🏷️") and "Le ticket demande un post public." in said[0], said
+        assert machine.status(ticket) == "In review", "a publication is prepared, then read"
+        sessions = machine.sessions()
+        assert len(sessions) == 2, sessions
+        assert "say what kind of ticket it is" in sessions[0]["prompt"]
+        assert "prepare it, do not publish it" in sessions[1]["prompt"]
+        assert str(repository) in sessions[1]["prompt"], "the repository is still there to read"
+        assert not machine.git_calls() or all(
+            "worktree" not in call["args"] for call in machine.git_calls()
+        ), "a publication was given a worktree"
+        assert not machine.pull_requests()
+        assert "La réponse." in machine.board.body(ticket)
+
+        # Nothing happens to a ticket in review, however many passes go by.
+        assert machine.run() == [] and machine.status(ticket) == "In review"
+
+        machine.move(ticket, "Validated")
+        results = machine.run()
+
+        assert [result.get("kind") for result in results] == ["delivery"], results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        published = machine.sessions()
+        assert len(published) == 1 and "You are publishing, not producing" in published[0]["prompt"]
+        assert machine.board.value(ticket, "Type") == "Publication", "the type is left alone"
+
+
+@case
+def a_ticket_the_runner_hesitates_over_is_blocked_and_nothing_runs():
+    """A doubt with a publication is a question, not a session — and a type
+    somebody chose is never classified again, let alone overwritten."""
+    with bench() as machine:
+        machine.typed()
+        project = machine.project("Lettre d'information", None)
+        unsure = machine.ticket("La newsletter", "La newsletter d'octobre.", project)
+        chosen = machine.ticket("L'édito", "Deux paragraphes.", project)
+        machine.board.pages[chosen]["properties"]["Type"] = _stored(
+            {"select": {"name": "Rédaction"}}
+        )
+        os.environ["FAKE_CLAUDE_KIND"] = json.dumps({
+            "type": "writing",
+            "reason": "Rédiger, ou peut-être envoyer, la newsletter.",
+            "confidence": "medium",
+            "alternative": "publication",
+        })
+
+        results = machine.run()
+
+        # Stopped before it was claimed, like a ticket with no project: the
+        # board says so, and the pass has only the other one to report.
+        assert [(result["id"], result["status"]) for result in results] == [
+            (chosen, "done")
+        ], results
+        assert machine.status(unsure) == "Blocked"
+        assert machine.board.value(unsure, "Type") is None, "a doubt writes no type"
+        question = machine.board.said(unsure)[-1]
+        assert "Rédaction" in question and "Publication" in question, question
+        assert machine.board.value(chosen, "Type") == "Rédaction"
+        prompts = [one["prompt"] for one in machine.sessions()]
+        assert sum("say what kind of ticket it is" in one for one in prompts) == 1, (
+            "only the ticket with no type is classified"
+        )
+        assert len(prompts) == 2, "the blocked ticket ran nothing but its classification"
 
 
 @case

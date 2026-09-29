@@ -67,6 +67,8 @@ MARKS = {
     "read": "✅",
     "merged": "✅",
     "published": "✅",
+    "prepared": "✅",
+    "classified": "🏷️",
     "blocked": "🙋",
     "failed": "⚠️",
     "waiting": "⏸️",
@@ -137,6 +139,8 @@ _SAID: dict[str, dict[str, str]] = {
     "verdict-read": {"en": "To read", "fr": "À lire"},
     "verdict-merged": {"en": "Merged", "fr": "Fusionnée"},
     "verdict-published": {"en": "Published", "fr": "Publié"},
+    "verdict-prepared": {"en": "To validate", "fr": "À valider"},
+    "verdict-classified": {"en": "Classified", "fr": "Classé"},
     "verdict-blocked": {"en": "Stuck", "fr": "Bloqué"},
     "verdict-failed": {"en": "Failed", "fr": "Échec"},
     "verdict-waiting": {"en": "Waiting", "fr": "En attente"},
@@ -147,6 +151,11 @@ _SAID: dict[str, dict[str, str]] = {
     "pull-request": {"en": "PR #{number}", "fr": "PR #{number}"},
     "on-branch": {"en": "branch `{branch}`", "fr": "branche `{branch}`"},
     "in-the-page": {"en": "answer in the page", "fr": "réponse dans la page"},
+    "nothing-published": {"en": "nothing published", "fr": "rien de publié"},
+    "confidence": {"en": "{level} confidence", "fr": "confiance {level}"},
+    "confidence-low": {"en": "low", "fr": "faible"},
+    "confidence-medium": {"en": "medium", "fr": "moyenne"},
+    "confidence-high": {"en": "high", "fr": "élevée"},
     "merged-with": {"en": "{method} merge", "fr": "fusion en {method}"},
     "merged-before": {"en": "already merged", "fr": "déjà fusionnée"},
     "credits-out": {
@@ -176,7 +185,43 @@ _SAID: dict[str, dict[str, str]] = {
         "en": ", or from `claude` in `{home}`",
         "fr": ", ou depuis `claude` dans `{home}`",
     },
+    "classified-fix": {
+        "en": "Wrong? Change the {property} column — a type somebody chose is never "
+        "overwritten.",
+        "fr": "C'est faux ? Change la colonne {property} — un type choisi à la main "
+        "n'est jamais écrasé.",
+    },
+    "prepared-next": {
+        "en": "Move it to {validated} and it goes out as it stands; until then, nothing "
+        "has left this machine.",
+        "fr": "Passe-le en {validated} et il part tel quel ; d'ici là, rien n'a quitté "
+        "cette machine.",
+    },
     # -- a ticket that did not ------------------------------------------------
+    "kind-unknown": {
+        "en": "I could not tell what kind of ticket this is",
+        "fr": "je n'ai pas su dire de quel type est ce ticket",
+    },
+    "kind-unsure": {
+        "en": "I am not sure what kind of ticket this is",
+        "fr": "je ne suis pas sûr du type de ce ticket",
+    },
+    "kind-hesitant": {
+        "en": "I hesitate between two types, and one of them acts on the world",
+        "fr": "j'hésite entre deux types, et l'un d'eux agit sur le monde",
+    },
+    "kind-question": {
+        "en": "Which type is it — {choices}? Choose it in the {property} column; nothing "
+        "runs until then.",
+        "fr": "De quel type est-il — {choices} ? Choisis-le dans la colonne {property} ; "
+        "rien ne s'exécute d'ici là.",
+    },
+    "kind-question-between": {
+        "en": "{first} or {second}? Choose it in the {property} column; nothing runs until "
+        "then. In doubt, I would take {prudent}.",
+        "fr": "{first} ou {second} ? Choisis-le dans la colonne {property} ; rien ne "
+        "s'exécute d'ici là. Dans le doute, je retiendrais {prudent}.",
+    },
     "no-project": {
         "en": "I could not find its project on this machine",
         "fr": "je n'ai pas trouvé son projet sur cette machine",

@@ -150,6 +150,12 @@ due = "Scheduled"
 # Optional: a board without the column waits exactly as it did before, silently.
 waiting = "Waiting for credit"
 
+# select: the road a ticket takes — Code, Writing, External action or
+# Publication, see [notion.types] below. Optional, and empty is a request: the
+# runner works it out before running the ticket (runner.classify). A board
+# without the column runs every ticket by what its project holds, as before.
+type = "Type"
+
 # The columns of the *schedules* database — what comes back on its own. A row
 # there is the recipe for a ticket and the cadence it is born at; the body of
 # the page is the brief, copied into each ticket so it reads on its own. What
@@ -232,6 +238,27 @@ validated = "Validated"
 done = "Done"
 failed = "Failed"
 blocked = "Blocked"
+
+# The four types a ticket can be, as the options of its Type column spell them.
+# Told apart by the road the work takes, not by what it is about:
+#   code         a repository, a branch, a pull request — what every ticket on a
+#                project with a repository used to be
+#   writing      no repository: the answer is written into the ticket's page. On
+#                a project that has one, the session may read it, never change it
+#   external     done outside — in the browser with Claude in Chrome, in a DNS
+#                zone, in a service's settings. No repository; the session stops
+#                at its first doubt, and its answer is the log of what it did
+#   publication  public and irreversible — a post, a deployment, a message sent.
+#                Prepared first and moved to review, *nothing published*; it goes
+#                out only once you move it to validated, then lands in done
+# Left unset, a board spelled in French is read as well: “Rédaction” and
+# “Action externe” mean writing and external. Name one here and that name is
+# the only one read for it.
+[notion.types]
+code = "Code"
+writing = "Writing"
+external = "External action"
+publication = "Publication"
 
 # One column for two states is a fine board too — name `failed` and leave
 # `blocked` out, and questions land wherever failures do; name `done` and leave
@@ -448,6 +475,22 @@ dry_run = false
 prompt_file = ""
 document_prompt_file = ""
 delivery_prompt_file = ""
+
+# A ticket whose Type is empty is classified before it runs: a short session on
+# a light model reads its title, its content and whether its project has a
+# repository, and answers a type, one sentence of reason, a confidence and the
+# type it hesitated with. It runs in the pass's own thread — nothing starts
+# beside it and it holds no place of max_concurrent. The type goes into the
+# column and the reason into a comment, so it can be corrected where it is read;
+# a type somebody chose is never overwritten, nor asked about again.
+#
+# A doubt is never settled by running the ticket. Under `classify_confidence`,
+# or hesitating between two types when one of them is external or publication,
+# the ticket is blocked with the question and its Type left empty for you to
+# choose. Off, an empty Type runs by what the project holds, as before.
+classify = true
+classify_model = "haiku"         # empty: the CLI's own — routed through OpenRouter, name a slug
+classify_confidence = "medium"   # low, medium or high: the least a guess is acted on with
 
 # ---------------------------------------------------------------------------
 # Every other model
