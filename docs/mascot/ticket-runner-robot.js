@@ -40,8 +40,12 @@
  * Most of those robots are drawn at 18 to 32 pixels — a card, a toast, the
  * bar — where arms, legs and a chest are a smudge. Under SMALL pixels wide the
  * robot is only its face, drawn larger in the same box: the state still reads
- * from the eyes, the mouth and the bulb. It is a CSS query, not an attribute,
+ * from the eyes, the mouth and the flame. It is a CSS query, not an attribute,
  * so nobody has to remember to ask for it.
+ *
+ * The Greek touch — a flame on the head, a tunic, a sash and a brooch — is
+ * kept as spare as the rest: flat colours, no folds, no fret. It stays a
+ * robot first; the dress only says whose name he carries.
  */
 
 export const PALETTES = {
@@ -51,7 +55,13 @@ export const PALETTES = {
     '--robot-screen': '#1c2547',
     '--robot-eye': '#b4f1ff',
     '--robot-accent': '#ffcf5c',
-    '--robot-cheek': '#ff8fb0',
+    '--robot-flame': '#f59a3c',
+    '--robot-flame-core': '#fbd35a',
+    '--robot-gold': '#f2c65a',
+    '--robot-gold-deep': '#b8861f',
+    '--robot-tunic': '#f3ecdc',
+    '--robot-sash': '#c4553a',
+    '--robot-pink': '#ff8fb0',
     '--robot-glint': '#ffffff',
     '--robot-alert': '#ff6b86',
     '--robot-ink': '#46599a',
@@ -63,7 +73,13 @@ export const PALETTES = {
     '--robot-screen': '#141b36',
     '--robot-eye': '#b4f1ff',
     '--robot-accent': '#ffd36b',
-    '--robot-cheek': '#ff8fb0',
+    '--robot-flame': '#f59a3c',
+    '--robot-flame-core': '#fbd35a',
+    '--robot-gold': '#f2c65a',
+    '--robot-gold-deep': '#b8861f',
+    '--robot-tunic': '#f3ecdc',
+    '--robot-sash': '#c4553a',
+    '--robot-pink': '#ff8fb0',
     '--robot-glint': '#ffffff',
     '--robot-alert': '#ff7d93',
     '--robot-ink': '#a9bdf2',
@@ -76,13 +92,15 @@ const SMALL = 40;
 
 /*
  * The drawing, on a 128 × 128 grid. Every group carries a `data-layer`: the
- * main layers (base, body, head, eyes, eyelids, mouth, antenna, arm-left,
+ * main layers (base, body, head, eyes, eyelids, mouth, flame, arm-left,
  * arm-right, accessories, fx) and the parts a state may need to reach inside
  * them. `rig` is everything that moves with the robot — the shadow stays on
  * the floor when it jumps; `frame` holds it all, and is what the small face
  * zooms. The gradients only lighten or darken what is under them, so they
  * carry no colour of their own: the palette stays in the variables, and two
- * robots inline on one page may share an id without a thing changing.
+ * robots inline on one page may share an id without a thing changing. The
+ * dress is cut by the torso's own outline, and lives in `body`: whatever the
+ * torso does — a hop, a sigh, a jiggle — it does with it.
  */
 const DRAWING = `
   <defs>
@@ -98,6 +116,7 @@ const DRAWING = `
       <stop offset="0" stop-color="#fff" stop-opacity=".1"/>
       <stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </radialGradient>
+    <clipPath id="trr-torso"><rect x="42" y="78" width="44" height="30" rx="15"/></clipPath>
   </defs>
   <g data-layer="frame">
   <g data-layer="base">
@@ -115,18 +134,24 @@ const DRAWING = `
         <ellipse class="foot" cx="75" cy="114.5" rx="8" ry="4.5"/>
       </g>
       <rect class="shell" x="42" y="78" width="44" height="30" rx="15"/>
+      <g data-layer="dress" clip-path="url(#trr-torso)">
+        <path class="tunic" d="M42 92 Q64 89 86 92 V108 H42 Z"/>
+        <path class="sash" d="M42 86 L54 81.5 L86 100 L86 108 Z"/>
+      </g>
       <rect x="42" y="78" width="44" height="30" rx="15" fill="url(#trr-shade)"/>
-      <rect class="plate" x="55" y="89" width="18" height="12" rx="6"/>
-      <path class="chevron" d="M59.5 92.5 l2.6 2.3 l-2.6 2.3"/>
-      <path data-layer="cursor" class="cursor" d="M65 97.3 h3.6"/>
+      <g data-layer="brooch">
+        <circle class="brooch" cx="51" cy="89" r="3.4"/>
+        <circle class="brooch-pin" cx="51" cy="89" r="1.5"/>
+        <circle class="glint" cx="50" cy="88" r=".8"/>
+      </g>
     </g>
     <g data-layer="head">
-      <g data-layer="antenna">
-        <path class="stem" d="M64 24 Q62.5 18 64 13"/>
-        <g data-layer="bulb">
-          <circle class="bulb" cx="64" cy="8.5" r="6"/>
-          <circle class="glint" cx="61.8" cy="6.4" r="1.9"/>
+      <g data-layer="flame">
+        <g data-layer="fire">
+          <path class="fire" d="M64 4.6 C68.8 10.6 70.6 15.4 67.6 20.2 C66.4 22 61.6 22 60.4 20.2 C57.4 15.4 59.2 10.6 64 4.6 Z"/>
+          <path class="fire-core" d="M64 10.6 C66.4 14.2 67 17.2 65.2 19.6 C64.6 20.2 63.4 20.2 62.8 19.6 C61 17.2 61.6 14.2 64 10.6 Z"/>
         </g>
+        <rect class="socket" x="59.2" y="19.6" width="9.6" height="3.6" rx="1.2"/>
       </g>
       <circle class="ear" cx="19.5" cy="56" r="7.5"/>
       <circle class="ear" cx="108.5" cy="56" r="7.5"/>
@@ -160,10 +185,6 @@ const DRAWING = `
         <rect data-layer="lid-right" class="lid" x="68" y="42" width="20" height="22"/>
       </g>
       <rect x="30" y="33" width="68" height="44" rx="20" fill="url(#trr-glow)"/>
-      <g data-layer="cheeks">
-        <ellipse class="cheek" cx="38.5" cy="65" rx="5" ry="3.2"/>
-        <ellipse class="cheek" cx="89.5" cy="65" rx="5" ry="3.2"/>
-      </g>
       <g data-layer="mouth">
         <path data-layer="mouth-smile" class="mouth-line" d="M59.5 66 Q64 70.5 68.5 66"/>
         <g data-layer="mouth-open" class="mouth-alt">
@@ -221,8 +242,8 @@ const PIVOTS = {
   base: '64px 119px',
   rig: '64px 119px',
   head: '64px 86px',
-  antenna: '64px 24px',
-  bulb: '64px 14px',
+  flame: '64px 22px',
+  fire: '64px 21px',
   'arm-left': '45px 89px',
   'arm-right': '83px 89px',
   'forearm-left': '38.5px 96px',
@@ -245,10 +266,12 @@ const BASE_STYLE = `
   .ear, .hand, .foot, .limb-fill { fill: var(--robot-body-shade); }
   .limb { fill: none; stroke: var(--robot-body-shade); stroke-width: 8; stroke-linecap: round; }
   .sheen { fill: none; stroke: var(--robot-glint); stroke-width: 3.6; stroke-linecap: round; opacity: .55; }
-  .plate { fill: var(--robot-screen); }
-  .chevron, .cursor { fill: none; stroke: var(--robot-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .stem { fill: none; stroke: var(--robot-ink); stroke-width: 3.2; stroke-linecap: round; }
-  .bulb { fill: var(--robot-accent); }
+  .tunic { fill: var(--robot-tunic); }
+  .sash { fill: var(--robot-sash); }
+  .brooch, .socket { fill: var(--robot-gold); }
+  .brooch-pin { fill: var(--robot-gold-deep); }
+  .fire { fill: var(--robot-flame); stroke: var(--robot-flame); stroke-width: 0; stroke-linejoin: round; }
+  .fire-core { fill: var(--robot-flame-core); }
   .screen, .lid { fill: var(--robot-screen); }
   .eye, .mouth-fill { fill: var(--robot-eye); }
   .glint { fill: var(--robot-glint); }
@@ -256,13 +279,12 @@ const BASE_STYLE = `
   .eye-line, .mouth-line { fill: none; stroke: var(--robot-eye); stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
   .mouth-line { stroke-width: 2.6; }
   .eye-joy, .eye-closed, .mouth-alt { opacity: 0; }
-  .cheek, .tongue { fill: var(--robot-cheek); }
-  .cheek { opacity: .8; }
+  .tongue { fill: var(--robot-pink); }
   .tear { fill: var(--robot-eye); opacity: 0; }
   .lid { transform: scaleY(0); transition: transform .07s ease-in; }
   .z { fill: none; stroke: var(--robot-body-shade); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .star { fill: var(--robot-accent); }
-  .heart { fill: var(--robot-cheek); }
+  .heart { fill: var(--robot-pink); }
   .dot { fill: var(--robot-body-shade); }
   .fx-zzz, .fx-stars, .fx-dots { opacity: 0; }
   svg.blinking[data-state] [data-layer^="lid-"] { transform: scaleY(1); }
@@ -270,17 +292,19 @@ const BASE_STYLE = `
 
 /*
  * The face alone, zoomed to fill the box, and the strokes thickened so that
- * they still are a pixel wide at 24. `at` is where it applies: a class, a
+ * they still are a pixel wide at 24. The flame is one orange shape there: its
+ * yellow heart and its gold socket are a smudge at a favicon's size, and it
+ * is drawn fatter, by an outline of its own colour, so it is still a flame at 16. `at` is where it applies: a class, a
  * container query, a media query — the rules are the same.
  */
 const SMALL_RULES = `
   [data-layer="frame"] { transform: translateY(20px) scale(1.4); }
   [data-layer="base"], [data-layer="body"], [data-layer="arm-left"], [data-layer="arm-right"],
-  [data-layer="accessories"], [data-layer="fx"], .ear, .sheen, .glint-small, .tear { display: none; }
-  .stem { stroke-width: 5; }
+  [data-layer="accessories"], [data-layer="fx"], .ear, .sheen, .glint-small, .tear,
+  .fire-core, .socket { display: none; }
+  .fire { stroke-width: 4.5; }
   .eye-line { stroke-width: 6; }
   .mouth-line { stroke-width: 4; }
-  .cheek { opacity: 1; }
 `;
 
 function smallStyle(at) {
@@ -302,11 +326,13 @@ export const KEYFRAMES = {
   scan: '0%, 100% { transform: translate(-3px, -3px) } 40%, 55% { transform: translate(4px, -4px) }',
   ponder: '0%, 100% { transform: rotate(4deg) } 50% { transform: rotate(7deg) translateY(-.6px) }',
   beacon: '0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .45; transform: scale(.82) }',
+  waver: '0%, 100% { transform: scale(1, 1) skewX(0) } 33% { transform: scale(.96, 1.05) skewX(-4deg) } 66% { transform: scale(1.03, .97) skewX(3deg) }',
+  blaze: '0%, 100% { transform: scale(1.15, 1.3) skewX(0) } 25% { transform: scale(1.05, 1.42) skewX(-6deg) } 50% { transform: scale(1.2, 1.22) skewX(2deg) } 75% { transform: scale(1.08, 1.38) skewX(5deg) }',
+  smoulder: '0%, 100% { opacity: .5 } 50% { opacity: .85 }',
   'type-left': '0%, 100% { transform: rotate(40deg) } 50% { transform: rotate(62deg) }',
   'type-right': '0%, 100% { transform: rotate(-62deg) } 50% { transform: rotate(-40deg) }',
   nod: '0%, 100% { transform: rotate(0) } 50% { transform: rotate(2deg) translateY(1px) }',
   jiggle: '0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.015, .985) }',
-  blip: '0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 }',
   hop: '0%, 60%, 100% { transform: translateY(0) scale(1, 1) } 8% { transform: translateY(0) scale(1.1, .88) } 26% { transform: translateY(-16px) scale(.94, 1.07) } 44% { transform: translateY(0) scale(1.08, .92) } 52% { transform: translateY(0) scale(.98, 1.02) }',
   'hop-shadow': '0%, 60%, 100% { transform: scale(1) } 8% { transform: scale(1.08) } 26% { transform: scale(.72) } 44% { transform: scale(1.06) }',
   'wave-left': '0%, 100% { transform: rotate(15deg) } 50% { transform: rotate(55deg) }',
@@ -339,7 +365,8 @@ export const STATES = {
     layers: {
       rig: { animation: 'breathe 3.2s ease-in-out infinite' },
       head: { animation: 'bob 6.4s ease-in-out infinite' },
-      antenna: { animation: 'sway 3.2s ease-in-out infinite' },
+      flame: { animation: 'sway 3.2s ease-in-out infinite' },
+      fire: { animation: 'waver 1.6s ease-in-out infinite' },
     },
   },
   thinking: {
@@ -353,7 +380,7 @@ export const STATES = {
       'mouth-flat': { opacity: '1' },
       'arm-right': { transform: 'rotate(-128deg)' },
       'forearm-right': { transform: 'rotate(-40deg)' },
-      bulb: { animation: 'beacon 1s ease-in-out infinite' },
+      fire: { animation: 'beacon 1s ease-in-out infinite' },
     },
   },
   working: {
@@ -371,7 +398,7 @@ export const STATES = {
       'forearm-left': { transform: 'rotate(-50deg)' },
       'forearm-right': { transform: 'rotate(50deg)' },
       head: { animation: 'nod .64s ease-in-out infinite' },
-      cursor: { animation: 'blip .8s steps(1) infinite' },
+      fire: { transform: 'scale(1.15, 1.3)', animation: 'blaze .48s ease-in-out infinite' },
     },
   },
   success: {
@@ -390,7 +417,7 @@ export const STATES = {
       'arm-right': { transform: 'rotate(-100deg)' },
       'forearm-left': { transform: 'rotate(30deg)', animation: 'wave-left .5s ease-in-out infinite' },
       'forearm-right': { transform: 'rotate(-30deg)', animation: 'wave-right .5s ease-in-out infinite' },
-      bulb: { animation: 'bounce 1.4s ease-out infinite' },
+      fire: { animation: 'bounce 1.4s ease-out infinite' },
       'fx-stars': { opacity: '1' },
       '.star': { animation: 'twinkle 1.4s ease-in-out infinite', 'transform-box': 'fill-box', 'transform-origin': 'center' },
       '.heart': { animation: 'twinkle 1.4s ease-in-out .35s infinite', 'transform-box': 'fill-box', 'transform-origin': 'center' },
@@ -409,9 +436,9 @@ export const STATES = {
       'mouth-frown': { opacity: '1' },
       'arm-left': { transform: 'rotate(-14deg)' },
       'arm-right': { transform: 'rotate(14deg)' },
-      antenna: { transform: 'rotate(-22deg)', animation: 'wilt 3.6s ease-in-out infinite' },
-      '.bulb': { fill: 'var(--robot-alert)' },
-      bulb: { animation: 'glow 1.8s ease-in-out infinite' },
+      flame: { transform: 'rotate(-22deg)', animation: 'wilt 3.6s ease-in-out infinite' },
+      '.fire': { fill: 'var(--robot-alert)', stroke: 'var(--robot-alert)' },
+      fire: { animation: 'glow 1.8s ease-in-out infinite' },
       tear: { opacity: '1', animation: 'tear 2.4s ease-in 0.6s infinite' },
     },
   },
@@ -421,7 +448,7 @@ export const STATES = {
     layers: {
       rig: { transform: 'translateY(1px)' },
       head: { transform: 'rotate(-7deg)', animation: 'snooze 4s ease-in-out infinite' },
-      antenna: { transform: 'rotate(-12deg)' },
+      flame: { transform: 'rotate(-12deg)' },
       'eye-open-left': { opacity: '0' },
       'eye-open-right': { opacity: '0' },
       'eye-closed-left': { opacity: '1' },
@@ -429,7 +456,8 @@ export const STATES = {
       'mouth-smile': { opacity: '0' },
       'mouth-o': { opacity: '1' },
       mouth: { animation: 'snore 4s ease-in-out infinite' },
-      bulb: { opacity: '.35' },
+      fire: { transform: 'scale(.45)', opacity: '.5', animation: 'smoulder 4s ease-in-out infinite' },
+      '.fire-core': { opacity: '0' },
       'fx-zzz': { opacity: '1' },
       z1: { animation: 'drift 3s ease-in-out infinite' },
       z2: { animation: 'drift 3s ease-in-out 1s infinite' },

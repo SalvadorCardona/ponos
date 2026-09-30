@@ -364,6 +364,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   Notion or a Markdown board is the text that was typed. It is fetched the first
   time such a field opens, not with the console.
 
+### Changed
+
+- **Ponos dresses Greek.** The antenna and its bulb are a small orange flame
+  set on his head, the `>_` on his chest and the pink cheeks are gone, and he
+  wears an ivory tunic with a terracotta sash and a gold brooch — on the site,
+  its header, the console, the README, the favicon and the Open Graph card. The
+  flame does what the bulb did: it wavers at rest, pulses while he thinks,
+  burns high and flickers while he works, bounces when a ticket comes back,
+  droops red when one is blocked, and is down to an ember when he sleeps. Under
+  40 pixels it is one fatter orange shape, so it still reads in a browser tab.
+
 ### Fixed
 
 - **Every page of the console scrolls again.** Since the console moved to the
