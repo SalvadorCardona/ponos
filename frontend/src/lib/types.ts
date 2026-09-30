@@ -136,6 +136,19 @@ export interface ChatState {
   session_id: string
   turns: number
   resume_command: string
+  /** What a message may carry: the extensions the server keeps, and how heavy. */
+  attachments?: { max_mb: number; accepted: string[]; ffmpeg: boolean }
+  /** Whether the microphone can be offered, and why not when it cannot. */
+  dictation?: { ready: boolean; why: string; send: boolean }
+}
+
+/** A file kept by the server for a message: what the transcript draws it from. */
+export interface Attached {
+  id: string
+  name: string
+  kind: "image" | "video" | "document"
+  type: string
+  size: number
 }
 
 export interface RunnerState {
@@ -179,6 +192,7 @@ export interface Message {
   role: Role
   text: string
   at?: string
+  attachments?: Attached[]
 }
 
 export interface Talk {
@@ -215,7 +229,7 @@ export interface StepEvent extends Step {
 
 export type ChatEvent =
   | { stage: "reset" }
-  | { stage: "sent"; text: string; session_id: string }
+  | { stage: "sent"; text: string; attachments?: Attached[]; session_id: string }
   | ({ stage: "step" } & Step)
   | {
       stage: "answer" | "failed"

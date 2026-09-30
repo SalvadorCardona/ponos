@@ -1,4 +1,5 @@
 import type {
+  Attached,
   Board,
   LogEntry,
   ChatState,
@@ -100,6 +101,28 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
   return payload as T
 }
 
+/* A body that is not JSON — a file, a recording — sent as it is, under its own
+ * type. One file a request: the server streams it to disk rather than parsing
+ * a multipart form the standard library no longer reads. */
+async function send<T>(path: string, body: Blob): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": body.type || "application/octet-stream", ...GUARD },
+    body,
+    credentials: "same-origin",
+  })
+  if (response.status === 401) backToTheDoor()
+  const payload = await response.json().catch(() => ({}) as Record<string, unknown>)
+  if (!response.ok) {
+    const said = (payload as { error?: string }).error
+    throw new ApiError(said || String(response.status), response.status)
+  }
+  return payload as T
+}
+
+/** Where a file of the conversation is served back from, for its thumbnail. */
+export const attachmentUrl = (id: string) => `/api/chat/attachments/${id}`
+
 export const api = {
   state: () => request<RunnerState>("/api/state"),
   board: () => request<Board>("/api/board"),
@@ -130,7 +153,16 @@ export const api = {
   tell: (id: string, text: string) =>
     request<unknown>(`/api/tickets/${id}/talk`, { text }),
   command: (line: string) => request<unknown>("/api/command", { line }),
-  send: (text: string) => request<unknown>("/api/chat", { text }),
+  send: (text: string, attachments: string[] = []) =>
+    request<unknown>("/api/chat", { text, attachments }),
+  attach: (file: File, name: string) =>
+    send<Attached>(`/api/chat/attachments?name=${encodeURIComponent(name)}`, file),
+  detach: (id: string) => request<unknown>(`/api/chat/attachments/${id}/remove`, {}),
+  transcribe: (audio: Blob, language: string) =>
+    send<{ text: string; language: string }>(
+      `/api/chat/transcribe?lang=${encodeURIComponent(language)}`,
+      audio
+    ),
   resetChat: () => request<unknown>("/api/chat/reset", {}),
   saveSettings: (payload: {
     settings: Record<string, SettingValue>

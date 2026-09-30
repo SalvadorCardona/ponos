@@ -41,12 +41,12 @@ from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse
 
 from .. import config as config_module
-from .. import store, voice
+from .. import openrouter, store, voice
 from ..config import Config, state_dir
-from . import setup
+from . import attachments, setup
 from .api import Api
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -59,6 +59,10 @@ GUARD_HEADER = "X-Ticket-Runner"
 # Bodies are small — a ticket, a message, a command. Anything larger is a
 # mistake, and reading it would be the mistake becoming ours.
 MAX_BODY = 256 * 1024
+# A file refused for its size is still read — and dropped — before the refusal
+# is sent: close on a client still writing and it sees a broken pipe, not the
+# 413 that says why. Past this much, it gets the broken pipe.
+MAX_DRAIN = 256 * 1024 * 1024
 
 LOOPBACK = ("127.0.0.1", "::1", "localhost", "[::1]")
 
@@ -343,6 +347,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(figures)
             if route == "/api/chat":
                 return self._json({"messages": self.api.chat.history(), **self.api.chat.state()})
+            if match := re.fullmatch(r"/api/chat/attachments/([0-9a-f]{12})", route):
+                return self._attachment(match.group(1))
             if route == "/api/settings":
                 return self._json(self.api.settings())
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})", route):
@@ -389,6 +395,13 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             return self._fail(403, "this request did not come from the console")
 
+        # The two writes whose body is not JSON, and not small: a file, and a
+        # recording. Read here, before `_body` would refuse them for their size.
+        if route == "/api/chat/attachments":
+            return self._upload(parse_qs(parsed.query))
+        if route == "/api/chat/transcribe":
+            return self._transcribe(parse_qs(parsed.query))
+
         payload = self._body()
         if signing_in:
             return self._sign_in(payload)
@@ -413,7 +426,14 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/command":
                 return self._json(self.api.commands.start(str(payload.get("line", ""))))
             if route == "/api/chat":
-                return self._json(self.api.chat.send(str(payload.get("text", ""))))
+                attached = payload.get("attachments") or []
+                if not isinstance(attached, list):
+                    raise ValueError("attachments is a list of ids")
+                return self._json(
+                    self.api.chat.send(str(payload.get("text", "")), [str(item) for item in attached])
+                )
+            if match := re.fullmatch(r"/api/chat/attachments/([0-9a-f]{12})/remove", route):
+                return self._json(self.api.chat.detach(match.group(1)))
             if route == "/api/chat/reset":
                 return self._json(self.api.chat.reset())
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
@@ -436,6 +456,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._fail(400, str(error).splitlines()[0])
         except ValueError as error:
             return self._fail(400, str(error))
+        except LookupError as error:
+            return self._fail(404, str(error))
         except RuntimeError as error:
             return self._fail(409, str(error))
         except FileNotFoundError as error:
@@ -446,6 +468,92 @@ class Handler(BaseHTTPRequestHandler):
             return self._fail(500, str(error).splitlines()[0])
 
         return self._fail(404, f"no such route: {route}")
+
+    # -- what a message carries -----------------------------------------------
+
+    def _length(self) -> int:
+        try:
+            return int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return 0
+
+    def _drain(self, length: int) -> None:
+        """Read and drop an announced body the request will not be granted."""
+        if length > MAX_DRAIN:
+            return
+        left = length
+        while left > 0:
+            chunk = self.rfile.read(min(1 << 16, left))
+            if not chunk:
+                return
+            left -= len(chunk)
+
+    def _upload(self, query: dict) -> None:
+        """One file for the message being written, as the raw body of the request.
+
+        Raw rather than multipart: one file per request is what the page sends,
+        and the standard library no longer parses multipart (`cgi` is gone). The
+        name comes in the query, the bytes are streamed to disk — never held.
+        """
+        name = (query.get("name") or [""])[0]
+        length = self._length()
+        chat = self.api.chat
+        try:
+            said = chat.attach(name, self.rfile, length)
+        except attachments.TooLarge as error:
+            self._drain(length)
+            self.close_connection = True
+            return self._fail(413, str(error))
+        except ValueError as error:
+            # Refused before its body was read, or halfway: nothing after it on
+            # this connection can be trusted to start where it should.
+            self.close_connection = True
+            return self._fail(400, str(error))
+        except OSError as error:
+            self.close_connection = True
+            return self._fail(500, f"the file could not be kept: {error}")
+        return self._json(said)
+
+    def _transcribe(self, query: dict) -> None:
+        length = self._length()
+        chat = self.api.chat
+        if length > chat.config.web.attachment_max_mb * 1024 * 1024:
+            self._drain(length)
+            self.close_connection = True
+            return self._fail(413, "the recording is longer than a message can be")
+        audio = self.rfile.read(length) if length > 0 else b""
+        try:
+            said = chat.transcribe(
+                audio,
+                self.headers.get("Content-Type") or "",
+                (query.get("lang") or [""])[0],
+            )
+        except openrouter.Unavailable as error:
+            return self._fail(503, str(error))
+        except openrouter.TranscriptionError as error:
+            return self._fail(502, str(error))
+        except ValueError as error:
+            return self._fail(400, str(error))
+        return self._json(said)
+
+    def _attachment(self, identifier: str) -> None:
+        """A file of the conversation, served back for its thumbnail.
+
+        Under the type of its extension, never the one it was uploaded with, and
+        with a sandbox: even an accepted kind is not a page this origin runs.
+        Read whole, like the static files: `web.attachment_max_mb` bounds it.
+        """
+        try:
+            attachment = self.api.chat.attachment(identifier)
+            body = attachment.path.read_bytes()
+        except (LookupError, OSError) as error:
+            return self._fail(404, str(error))
+        extra = {"Content-Disposition": f"inline; filename*=UTF-8''{quote(attachment.name)}"}
+        # Every kind but the PDF, which Chrome refuses to open in a sandbox at
+        # all — and whose viewer is a sandbox of its own.
+        if attachment.type != "application/pdf":
+            extra["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self'; media-src 'self'"
+        self._send(200, body, attachment.type, extra)
 
     # -- the three kinds of response ------------------------------------------
 

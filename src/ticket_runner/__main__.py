@@ -764,6 +764,21 @@ def command_doctor(args: argparse.Namespace) -> int:
                 "round, is not a way in"
             )
         print(f"  {DIM}web.email and web.password — the two — to sign in instead{RESET}")
+    # What a message typed there can carry, and the two things that need
+    # something this machine may not have: a video needs ffmpeg to be looked at,
+    # and dictation needs somebody to transcribe it.
+    ok(
+        f"attachments up to {configuration.web.attachment_max_mb} MB a file, "
+        f"kept {configuration.web.attachment_days} day(s)"
+    )
+    if shutil.which("ffmpeg"):
+        ok("ffmpeg — a video sent to the workspace is looked at through its frames")
+    else:
+        warn("ffmpeg missing — a video sent to the workspace cannot be looked at")
+    if configuration.openrouter.key:
+        ok(f"dictation — transcribed by {configuration.openrouter.transcription_model}")
+    else:
+        print(f"  {DIM}dictation off — it is transcribed by OpenRouter: openrouter.key{RESET}")
 
     title("Repositories")
     root = configuration.runner.workspace_root

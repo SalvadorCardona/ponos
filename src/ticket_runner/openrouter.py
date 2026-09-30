@@ -26,11 +26,48 @@ and `runner.wait_for_credits` has nothing left to hold (credits.py says why).
 
 An empty key is the whole of the old behaviour: nothing here is added to
 anything, and a session starts exactly as it used to.
+
+**And one thing the runner does with it itself: listening.** Claude Code reads
+text, images and PDFs, and not a word of audio — so a message dictated in the
+console is turned into text here, before it ever reaches a session, and handed
+back to the page to be read over. Without a key there is no one to transcribe
+it, and `Unavailable` says so in a sentence rather than as a failed request.
 """
 
 from __future__ import annotations
 
+import base64
+import json
+import urllib.error
+import urllib.request
+
 from .config import OPENROUTER_URL, OpenRouter
+
+# What the browser records in, as the transcription endpoint names it. Chrome
+# and Firefox write WebM/Opus, Safari MP4; anything else is sent as it came and
+# left to the provider to recognise.
+FORMATS = {
+    "audio/webm": "webm",
+    "video/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
+}
+
+# A dictated sentence is seconds of audio; a minute is already a long one.
+TRANSCRIPTION_TIMEOUT = 90
+
+
+class Unavailable(RuntimeError):
+    """Nothing to transcribe with — said as the reason, not as an error code."""
+
+
+class TranscriptionError(RuntimeError):
+    """OpenRouter was asked and did not answer with text."""
 
 
 def environment(settings: OpenRouter) -> dict[str, str]:
@@ -46,3 +83,67 @@ def environment(settings: OpenRouter) -> dict[str, str]:
         variables["ANTHROPIC_BASE_URL"] = base
         variables["ANTHROPIC_AUTH_TOKEN"] = settings.key
     return variables
+
+
+def audio_format(content_type: str) -> str:
+    """The format a recording is announced as, from the type it was sent with."""
+    kind = (content_type or "").split(";", 1)[0].strip().lower()
+    return FORMATS.get(kind, kind.rsplit("/", 1)[-1] or "webm")
+
+
+def transcribe(settings: OpenRouter, audio: bytes, content_type: str, language: str = "") -> str:
+    """The words in a recording, as text — or `Unavailable` when there is no key.
+
+    `language` is an ISO-639-1 code, or nothing at all: Whisper guesses well,
+    and better than a guess of ours that was wrong.
+    """
+    if not settings.key:
+        raise Unavailable(
+            "no OpenRouter key — dictation is transcribed by OpenRouter: "
+            "set openrouter.key in the settings"
+        )
+    if not audio:
+        raise ValueError("the recording is empty")
+    body: dict = {
+        "model": settings.transcription_model,
+        "input_audio": {
+            "data": base64.b64encode(audio).decode("ascii"),
+            "format": audio_format(content_type),
+        },
+    }
+    if language:
+        body["language"] = language
+    base = settings.base_url.rstrip("/") or OPENROUTER_URL
+    request = urllib.request.Request(
+        f"{base}/audio/transcriptions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {settings.key}",
+            "Content-Type": "application/json",
+            "X-Title": "ticket-runner",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TRANSCRIPTION_TIMEOUT) as response:
+            answer = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise TranscriptionError(f"OpenRouter refused the recording: {_said(error)}") from error
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise TranscriptionError(f"OpenRouter could not be reached: {error}") from error
+    except ValueError as error:
+        raise TranscriptionError("OpenRouter answered something that is not JSON") from error
+    text = answer.get("text") if isinstance(answer, dict) else None
+    if not isinstance(text, str):
+        raise TranscriptionError("OpenRouter answered without a transcription")
+    return text.strip()
+
+
+def _said(error: urllib.error.HTTPError) -> str:
+    """The sentence an HTTP error came with, rather than only its number."""
+    try:
+        payload = json.loads(error.read().decode("utf-8"))
+        message = payload.get("error", {}).get("message") if isinstance(payload, dict) else ""
+    except (ValueError, OSError, AttributeError):
+        message = ""
+    return f"{error.code} {message}".strip() if message else f"{error.code} {error.reason}"

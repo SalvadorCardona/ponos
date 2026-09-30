@@ -5,6 +5,7 @@ import { api, why } from "@/lib/api"
 import { currentBoard, moveTicket, publishBoard } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
 import type {
+  Attached,
   Board,
   ChatEvent,
   ColumnKey,
@@ -47,7 +48,7 @@ import { useStream, type Connection } from "./use-stream"
 const KEPT = 200
 
 export type Entry =
-  | { id: number; kind: "turn"; role: Role; text: string }
+  | { id: number; kind: "turn"; role: Role; text: string; attachments?: Attached[] }
   | { id: number; kind: "steps"; steps: Step[]; done: boolean }
   | { id: number; kind: "command"; argv: string[]; lines: string[]; code: number | null }
   | { id: number; kind: "note"; text: string }
@@ -81,7 +82,7 @@ interface ConsoleValue {
   closeTicket: () => void
   rereadTalk: () => void
   tell: (text: string) => Promise<void>
-  submit: (text: string) => Promise<boolean>
+  submit: (text: string, attachments?: Attached[]) => Promise<boolean>
   resetChat: () => Promise<void>
   move: (ticket: Ticket, column: ColumnKey) => Promise<void>
   createTicket: (ticket: {
@@ -293,7 +294,13 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       if (event.stage === "sent") {
         setTranscript((entries) => [
           ...entries,
-          { id: nextId(), kind: "turn", role: "you", text: event.text },
+          {
+            id: nextId(),
+            kind: "turn",
+            role: "you",
+            text: event.text,
+            attachments: event.attachments,
+          },
           { id: nextId(), kind: "steps", steps: [], done: false },
         ])
         setBusy(true)
@@ -386,13 +393,16 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   /** Says whether the line was taken, so the field is emptied only then. */
   const submit = React.useCallback(
-    async (text: string) => {
+    async (text: string, attachments: Attached[] = []) => {
       const line = text.trim()
-      if (!line) return false
+      if (!line && !attachments.length) return false
       try {
-        if (line.trimStart().startsWith(">"))
-          await api.command(line.replace(/^\s*>/, ""))
-        else await api.send(line)
+        if (line.startsWith(">")) await api.command(line.replace(/^\s*>/, ""))
+        else
+          await api.send(
+            line,
+            attachments.map((attachment) => attachment.id)
+          )
         return true
       } catch (error) {
         say("error", why(error))
@@ -479,6 +489,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
                 kind: "turn" as const,
                 role: message.role,
                 text: message.text,
+                attachments: message.attachments,
               }))
             : [{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }]
         )

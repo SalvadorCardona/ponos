@@ -1,10 +1,14 @@
 import * as React from "react"
+import { CopyIcon, PaperclipIcon, SquarePenIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useConsole, type Entry } from "@/hooks/use-console"
-import { useT } from "@/lib/i18n"
+import { api } from "@/lib/api"
+import { currentLanguage, useT } from "@/lib/i18n"
 
+import { Composer, type ComposerHandle } from "./composer"
 import { Eyebrow } from "./frame"
 import { Flow, Rich } from "./text"
 import { Steps } from "./steps"
@@ -13,53 +17,110 @@ import { Turn } from "./turn"
 
 /* A sentence talks to your workspace; a line that starts with `>` runs a
  * ticket-runner command. Both land in the same transcript, because both are
- * things you did to the same machine. */
-const isCommand = (text: string) => text.trimStart().startsWith(">")
+ * things you did to the same machine — and a sentence can carry what you would
+ * otherwise have had to describe: a screenshot, a PDF, a clip, your voice.
+ *
+ * The files can arrive three ways, and the drawer takes all three: the + of the
+ * bar, a paste, and a drop anywhere on the drawer — which is why the drop zone
+ * is here and not in the bar, a strip too thin to aim a file at. */
+
+const upload = (file: File, name: string) => api.attach(file, name)
+const discard = (id: string) => void api.detach(id).catch(() => {})
+// The page's own language: what the person talking is reading, and so the
+// likeliest one they are speaking. The server prefers `runner.language`.
+const transcribe = async (audio: Blob) => (await api.transcribe(audio, currentLanguage())).text
+
+const carriesFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files")
 
 export function ConsolePane() {
   const { transcript, busy, submit, resetChat, runner } = useConsole()
   const t = useT()
-  const [text, setText] = React.useState("")
+  const composer = React.useRef<ComposerHandle>(null)
+  const [dragging, setDragging] = React.useState(false)
+  const chat = runner?.chat
 
-  const [sending, setSending] = React.useState(false)
-
-  // The field is emptied once the server has taken the line, not before: a
-  // message refused — the console restarting, a command it will not run — used
-  // to be gone from the field and nowhere else.
-  const send = async () => {
-    if (!text.trim() || busy || sending) return
-    const line = text
-    setSending(true)
-    try {
-      if (await submit(line)) setText((current) => (current === line ? "" : current))
-    } finally {
-      setSending(false)
-    }
+  const copyResume = () => {
+    if (!chat?.resume_command) return
+    void navigator.clipboard
+      ?.writeText(chat.resume_command)
+      .then(() => toast.success(t("Copied"), { description: chat.resume_command }))
+      .catch(() => {})
   }
 
-  const hint = isCommand(text)
-    ? `${t("a ticket-runner command")} · ${(runner?.commands ?? []).join(" · ")}`
-    : t("a sentence talks to your workspace · > runs a ticket-runner command")
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onDragEnter={(event) => {
+        if (!carriesFiles(event)) return
+        event.preventDefault()
+        setDragging(true)
+      }}
+      onDragOver={(event) => {
+        if (!carriesFiles(event)) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = "copy"
+      }}
+      onDragLeave={(event) => {
+        // Leaving for a child is not leaving the drawer.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        setDragging(false)
+      }}
+      onDrop={(event) => {
+        if (!carriesFiles(event)) return
+        event.preventDefault()
+        setDragging(false)
+        composer.current?.add(Array.from(event.dataTransfer.files))
+      }}
+    >
       {/* Room at the right for the drawer's own close and its full-screen
           switch, which float over this corner: a heading that ran under them
           would be a heading with a cross in the middle of it. */}
-      <div className="border-b py-2.5 pr-12 pl-3.5 sm:pr-20">
-        <Eyebrow>{t("the workspace")}</Eyebrow>
-        <h3 className="mt-1 text-base leading-tight font-semibold tracking-[-0.01em]">
-          {t("Talking to your machine")}
-        </h3>
-        <p className="text-muted-foreground mt-1 text-xs">
-          {/* One sentence, one key: split around the `>` it was two halves
-              that a translation could not reorder. */}
-          <Rich
-            text={t(
-              "A sentence reaches your repositories and the board; a line that starts with `>` reaches the CLI."
-            )}
-          />
-        </p>
+      <div className="flex items-start gap-2 border-b py-2.5 pr-12 pl-3.5 sm:pr-20">
+        <div className="min-w-0 flex-1">
+          <Eyebrow>{t("the workspace")}</Eyebrow>
+          <h3 className="mt-1 text-base leading-tight font-semibold tracking-[-0.01em]">
+            {t("Talking to your machine")}
+          </h3>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {/* One sentence, one key: split around the `>` it was two halves
+                that a translation could not reorder. */}
+            <Rich
+              text={t(
+                "A sentence reaches your repositories and the board; a line that starts with `>` reaches the CLI."
+              )}
+            />
+          </p>
+          {/* Which session this is, said quietly: it is what `claude --resume`
+              needs, and nothing a conversation needs to be looking at. */}
+          {chat?.session_id ? (
+            <button
+              type="button"
+              onClick={copyResume}
+              title={t("Copy the command that resumes this conversation in a terminal")}
+              className="text-muted-foreground/80 hover:text-foreground mt-1 flex max-w-full items-center gap-1 font-mono text-[0.68rem]"
+            >
+              <span className="truncate">
+                {`${t("{{count}} turn(s)", { count: String(chat.turns) })} · ${chat.resume_command}`}
+              </span>
+              <CopyIcon className="size-3 shrink-0" />
+            </button>
+          ) : null}
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="-mt-0.5 opacity-70 hover:opacity-100"
+              aria-label={t("start a new conversation")}
+              disabled={busy}
+              onClick={resetChat}
+            >
+              <SquarePenIcon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t("new conversation")}</TooltipContent>
+        </Tooltip>
       </div>
 
       <Transcript>
@@ -68,40 +129,36 @@ export function ConsolePane() {
         ))}
       </Transcript>
 
-      <div className="flex flex-col gap-2 border-t p-3">
-        <p className="text-muted-foreground text-xs">{hint}</p>
-        <Textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault()
-              void send()
-            }
-          }}
-          rows={1}
-          spellCheck={false}
-          autoComplete="off"
-          className={
-            "max-h-50 min-h-9 " + (isCommand(text) ? "font-mono text-tr-amber" : "")
-          }
+      <div className="px-3 pt-1 pb-3">
+        <Composer
+          ref={composer}
+          busy={busy}
+          onSend={submit}
           placeholder={t("Ask the workspace, or type >status")}
+          commands={runner?.commands ?? []}
+          upload={upload}
+          discard={discard}
+          limitMb={chat?.attachments?.max_mb ?? 25}
+          transcribe={transcribe}
+          dictation={
+            chat?.dictation ?? { ready: false, why: t("Dictation is not available"), send: false }
+          }
         />
-        <div className="flex items-center gap-2">
-          <Button onClick={() => void send()} disabled={busy || sending || !text.trim()}>
-            {busy ? t("working…") : t("Send")}
-          </Button>
-          <Button variant="outline" onClick={resetChat} title={t("start a new conversation")}>
-            {t("new conversation")}
-          </Button>
-          <span className="flex-1" />
-          <span className="text-muted-foreground truncate font-mono text-xs">
-            {runner?.chat.session_id
-              ? `${t("{{count}} turn(s)", { count: String(runner.chat.turns) })} · ${runner.chat.resume_command}`
-              : t("no conversation yet")}
-          </span>
-        </div>
       </div>
+
+      {dragging ? (
+        <div className="bg-background/80 pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-2xl border-2 border-dashed border-primary backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <PaperclipIcon className="text-primary size-8" />
+            <p className="text-sm font-semibold">{t("Drop to attach to your message")}</p>
+            <p className="text-muted-foreground text-xs">
+              {t("Photos, videos and documents, up to {{limit}} MB each", {
+                limit: String(chat?.attachments?.max_mb ?? 25),
+              })}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -118,7 +175,7 @@ const Said = React.memo(function Said({ entry }: { entry: Entry }) {
   if (entry.kind === "turn")
     return (
       <Line id={id} anchor={entry.role === "you"}>
-        <Turn role={entry.role} text={entry.text} />
+        <Turn role={entry.role} text={entry.text} attachments={entry.attachments} />
       </Line>
     )
   if (entry.kind === "steps")

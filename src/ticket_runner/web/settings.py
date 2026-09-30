@@ -259,6 +259,10 @@ SECTIONS: tuple[Section, ...] = (
                 "subscription's — there is no window left to wait for.",
             ),
             Field(
+                "openrouter", "transcription_model", "text", "Transcribe dictation with",
+                "The model a message dictated in the console is turned into text by.",
+            ),
+            Field(
                 "openrouter", "base_url", "text", "Endpoint",
                 "Where that key is spent. Only worth touching for a gateway of your own "
                 "that speaks the same API.",
@@ -427,6 +431,14 @@ SECTIONS: tuple[Section, ...] = (
                   "Only while a browser is connected.", minimum=5),
             Field("web", "chat_timeout_minutes", "int", "A chat turn may take (minutes)",
                   minimum=1),
+            Field("web", "attachment_max_mb", "int", "A file sent to the workspace may weigh (MB)",
+                  "Per file. Past it, the console refuses the file and says why.", minimum=1),
+            Field("web", "attachment_days", "int", "Keep the conversation's files (days)",
+                  "They also go with “new conversation”. Copies of what you dropped, not "
+                  "the originals.", minimum=1),
+            Field("web", "send_after_transcription", "bool", "Send a dictated message as soon as it is transcribed",
+                  "Off: the transcription waits in the field, to be read over and corrected "
+                  "before it goes. Dictation needs the OpenRouter key."),
         ),
     ),
     Section(

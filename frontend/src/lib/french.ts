@@ -130,7 +130,6 @@ export const FRENCH: Record<string, string> = {
   // The menu is a name and a count; the sentences that used to sit under each
   // name are gone, and the words they were made of with them.
   "{{count}} turn(s)": "{{count}} tour(s)",
-  "no conversation yet": "aucune conversation",
   // At the foot of the menu, where the stream's own dot is: the version, and
   // the one day it matters, that a newer one is waiting. The row of pills it
   // used to be said this beside four other things nobody was reading.
@@ -272,20 +271,53 @@ export const FRENCH: Record<string, string> = {
   "Talking to your machine": "Parler à votre machine",
   "A sentence reaches your repositories and the board; a line that starts with `>` reaches the CLI.":
     "Une phrase atteint vos dépôts et le tableau ; une ligne qui commence par `>` atteint le CLI.",
-  "a ticket-runner command": "une commande ticket-runner",
-  "a sentence talks to your workspace · > runs a ticket-runner command":
-    "une phrase parle à votre espace de travail · > lance une commande ticket-runner",
   "Ask the workspace, or type >status": "Demandez à l'espace de travail, ou tapez >status",
   "Ask me anything about your workspace — I can read your repositories, look at the board and create tickets. Type > followed by a command (>status, >list, >doctor) to use the CLI directly.":
     "Demandez-moi ce que vous voulez sur votre espace de travail — je peux lire vos dépôts, regarder le tableau et créer des tickets. Tapez > suivi d'une commande (>status, >list, >doctor) pour passer directement par le CLI.",
   Send: "Envoyer",
-  "working…": "en cours…",
   "new conversation": "nouvelle conversation",
   "start a new conversation": "démarrer une nouvelle conversation",
   "exit {{code}}": "sortie {{code}}",
   "Full screen": "Plein écran",
   "Leave full screen": "Quitter le plein écran",
   "Resize the drawer": "Redimensionner le panneau",
+  "Copy the command that resumes this conversation in a terminal":
+    "Copier la commande qui reprend cette conversation dans un terminal",
+  Copied: "Copié",
+  "Drop to attach to your message": "Déposez pour joindre à votre message",
+  "Photos, videos and documents, up to {{limit}} MB each":
+    "Photos, vidéos et documents, jusqu'à {{limit}} Mo chacun",
+
+  /* -- the message bar ------------------------------------------------------- */
+  "Attach a file": "Joindre un fichier",
+  "Attach a photo, a video or a document — or drop it, or paste it":
+    "Joindre une photo, une vidéo ou un document — ou le déposer, ou le coller",
+  "Remove {{name}}": "Retirer {{name}}",
+  "Open {{name}}": "Ouvrir {{name}}",
+  "A file sent to the workspace": "Un fichier envoyé à l'espace de travail",
+  "“{{name}}” is over {{limit}} MB": "« {{name}} » dépasse {{limit}} Mo",
+  "“{{name}}” is not a file the workspace can take":
+    "« {{name}} » n'est pas un fichier que l'espace de travail accepte",
+  "The limit is web.attachment_max_mb, in the settings.":
+    "La limite est web.attachment_max_mb, dans les paramètres.",
+  "Images (png, jpg, webp, gif), videos (mp4, webm, mov) and documents (pdf, txt, md, csv, json, docx, xlsx).":
+    "Images (png, jpg, webp, gif), vidéos (mp4, webm, mov) et documents (pdf, txt, md, csv, json, docx, xlsx).",
+  "“{{name}}” could not be attached": "« {{name}} » n'a pas pu être joint",
+  Commands: "Commandes",
+  Dictate: "Dicter",
+  Recording: "Enregistrement",
+  "Transcribing…": "Transcription…",
+  Stop: "Arrêter",
+  "The workspace is answering": "L'espace de travail répond",
+  "Dictation is not available": "La dictée n'est pas disponible",
+  "Dictation is transcribed by OpenRouter: add an OpenRouter key in the settings":
+    "La dictée est transcrite par OpenRouter : ajoutez une clé OpenRouter dans les paramètres",
+  "This browser gives the page no microphone": "Ce navigateur ne donne aucun micro à la page",
+  "The microphone is blocked for this page — allow it in the browser's site settings":
+    "Le micro est bloqué pour cette page — autorisez-le dans les paramètres du site du navigateur",
+  "The microphone could not be opened": "Le micro n'a pas pu être ouvert",
+  "Nothing was heard": "Rien n'a été entendu",
+  "The recording could not be transcribed": "L'enregistrement n'a pas pu être transcrit",
 
   /* -- a ticket's session, and the runner's figures ----------------------------- */
   "writing now": "en train d'écrire",
@@ -610,6 +642,9 @@ export const FRENCH: Record<string, string> = {
   "Run the sessions on it": "Faire tourner les sessions dessus",
   "Claude Code then talks to OpenRouter rather than to Anthropic, and every model named — a ticket's Model column, an agent's, the one above — becomes an OpenRouter slug: `openai/gpt-5`, `anthropic/claude-sonnet-4.5`. Two things go with it: the CLI is no longer signed in as you, so Claude in Chrome does not load, and the bill is OpenRouter's rather than your subscription's — there is no window left to wait for.":
     "Claude Code parle alors à OpenRouter plutôt qu'à Anthropic, et chaque modèle nommé — la colonne Model d'un ticket, celle d'un agent, celui ci-dessus — devient un identifiant OpenRouter : `openai/gpt-5`, `anthropic/claude-sonnet-4.5`. Deux choses vont avec : le CLI n'est plus connecté en votre nom, donc Claude in Chrome ne se charge pas, et la facture est celle d'OpenRouter plutôt que celle de votre abonnement — il n'y a plus de fenêtre à attendre.",
+  "Transcribe dictation with": "Transcrire la dictée avec",
+  "The model a message dictated in the console is turned into text by.":
+    "Le modèle qui transforme en texte un message dicté dans la console.",
   Endpoint: "Point d'accès",
   "Where that key is spent. Only worth touching for a gateway of your own that speaks the same API.":
     "Là où cette clé est dépensée. Ne vaut la peine d'être changé que pour une passerelle à vous qui parle la même API.",
@@ -733,6 +768,17 @@ export const FRENCH: Record<string, string> = {
   "Reread the board every (seconds)": "Relire le tableau toutes les (secondes)",
   "Only while a browser is connected.": "Seulement tant qu'un navigateur est connecté.",
   "A chat turn may take (minutes)": "Un tour de conversation peut prendre (minutes)",
+  "A file sent to the workspace may weigh (MB)":
+    "Un fichier envoyé à l'espace de travail peut peser (Mo)",
+  "Per file. Past it, the console refuses the file and says why.":
+    "Par fichier. Au-delà, la console refuse le fichier et dit pourquoi.",
+  "Keep the conversation's files (days)": "Garder les fichiers de la conversation (jours)",
+  "They also go with “new conversation”. Copies of what you dropped, not the originals.":
+    "Ils partent aussi avec « nouvelle conversation ». Des copies de ce que vous avez déposé, pas les originaux.",
+  "Send a dictated message as soon as it is transcribed":
+    "Envoyer un message dicté dès qu'il est transcrit",
+  "Off: the transcription waits in the field, to be read over and corrected before it goes. Dictation needs the OpenRouter key.":
+    "Désactivé : la transcription attend dans le champ, pour être relue et corrigée avant de partir. La dictée demande la clé OpenRouter.",
 
   "Staying up to date": "Rester à jour",
   "A run asks the remote whether the installed code is still the newest.":
