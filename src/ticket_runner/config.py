@@ -176,6 +176,18 @@ class Runner:
     # under every one of them: without this, the first merge makes the nine
     # others conflict. See execution.py and delivery.py.
     rebase: bool = True
+    # Skip the review, one type of ticket at a time: what moving a ticket to
+    # validated would set off is done as soon as its session has succeeded —
+    # the pull request merged, the publication sent — and the ticket goes to
+    # done. Off, all four, which is the board as it always was: nothing leaves
+    # this machine for good without somebody having read it. A session that
+    # did not succeed is never validated, whatever these say. Writing and
+    # external action already end in done, with nothing waiting to be
+    # validated — see delivery.py.
+    force_validated_code: bool = False
+    force_validated_writing: bool = False
+    force_validated_external: bool = False
+    force_validated_publication: bool = False
     # How a validated pull request is merged. `gh` has to be told which of the
     # three it is, and the runner will not pick for you at the last moment: a
     # board that squashes wants every ticket squashed.
@@ -234,6 +246,10 @@ class Runner:
     # The least confidence a guess is acted on with. Below it, the ticket is
     # blocked with the question rather than run on a guess.
     classify_confidence: str = "medium"
+
+    def forces_validation(self, kind: str) -> bool:
+        """Is a ticket of that type validated without waiting for anybody?"""
+        return bool(getattr(self, f"force_validated_{kind}", False)) if kind else False
 
     def resolves_conflicts(self, project: str) -> bool:
         """Is a conflict on that project's pull requests resolved by a session?"""
@@ -846,6 +862,18 @@ def load(path: Path | None = None) -> Config:
             runner_raw.get("open_pull_request", defaults.open_pull_request)
         ),
         rebase=bool(runner_raw.get("rebase", defaults.rebase)),
+        force_validated_code=bool(
+            runner_raw.get("force_validated_code", defaults.force_validated_code)
+        ),
+        force_validated_writing=bool(
+            runner_raw.get("force_validated_writing", defaults.force_validated_writing)
+        ),
+        force_validated_external=bool(
+            runner_raw.get("force_validated_external", defaults.force_validated_external)
+        ),
+        force_validated_publication=bool(
+            runner_raw.get("force_validated_publication", defaults.force_validated_publication)
+        ),
         merge_method=(
             str(runner_raw.get("merge_method", "")).strip().lower()
             if str(runner_raw.get("merge_method", "")).strip().lower() in MERGE_METHODS

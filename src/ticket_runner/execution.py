@@ -323,20 +323,35 @@ class Execution(Base):
                     self.say(f"    ! pull request not opened: {error}")
                     job.notes.append(said.say("no-pull-request-opened", error=error))
 
+        # Force validated: the merge that moving the ticket to validated would
+        # have asked for, asked now — before the worktree goes, since the CI it
+        # waits for is read from it. Only this far down: every road out of a
+        # session that did not succeed has already been taken above.
+        forced = refused = ""
+        if pull_request and self.config.runner.forces_validation("code"):
+            forced = said.say("forced-validation", kind=self.kind_name("code"))
+            self.say(f"    · {forced}")
+            refused = self._force_merge(job, pull_request)
+        merged = bool(forced and not refused)
+
         git.remove_worktree(project.path, job.workdir)
 
         # With a pull request the ticket is not finished, it is waiting for you:
         # it goes to "in review", and `close_merged` takes it to done once you
         # have merged. Without one there is nothing to wait for — and on a board
-        # with no review column, `review` is `done` and nothing changes.
+        # with no review column, `review` is `done` and nothing changes. A merge
+        # forced and refused waits there too, with the refusal on its card.
         values: dict[str, object] = {
             self.config.notion.prop("status"): self.config.notion.state(
-                "review" if pull_request else "done"
+                "review" if pull_request and not merged else "done"
             ),
             self.config.notion.prop("agent"): self.agent_label,
         }
         if pull_request:
             values[self.config.notion.prop("pull_request")] = pull_request
+        if refused:
+            refusal = said.say("forced-merge-refused", error=refused)
+            values[self.config.notion.prop("progress")] = said.brief(refusal)
         values[self.config.notion.prop("session")] = self._session_value(
             outcome.session_id, job.session_home or project.path
         )
@@ -350,22 +365,33 @@ class Execution(Base):
             said.count(commits, "commit"),
             *said.spent(outcome.seconds, outcome.cost_usd),
         )
+        if merged:
+            facts = (*facts[:1], said.say("merged-with", method=self.config.runner.merge_method),
+                     *facts[1:])
+        verdict = "merged" if merged else "review"
         brief = said.brief(outcome.summary)
+        # Said on the ticket whichever way it went: a pull request nobody read
+        # was merged, or would have been, and that is not the board's usual day.
+        forced_lines = (forced, said.brief(refusal) if refused else "")
         self._comment(
             ticket,
             said.report(
-                said.verdict("review", *facts),
+                said.verdict(verdict, *facts),
                 brief,
                 pull_request,
+                *forced_lines,
                 *(said.brief(note) for note in job.notes),
             ),
         )
-        self.say(f"    ✓ {ticket.title} — {pull_request or job.branch}")
+        self.say(
+            f"    ✓ {ticket.title} — {pull_request or job.branch}"
+            + (" merged, moved to done" if merged else "")
+        )
         self._tell(
             "done",
             ticket,
-            "review",
-            said.report(said.facts(*facts), brief, pull_request),
+            verdict,
+            said.report(said.facts(*facts), brief, pull_request, *forced_lines),
         )
         return {
             "ticket": ticket.title,
@@ -374,6 +400,8 @@ class Execution(Base):
             "project": project.name,
             "branch": job.branch,
             "pull_request": pull_request,
+            **({"merged": pull_request} if merged else {}),
+            **({"forced": "code", "refused": refused} if forced else {}),
             "session": outcome.session_id,
             "commits": commits,
             "seconds": round(outcome.seconds, 1),
@@ -453,35 +481,52 @@ class Execution(Base):
         # validated. On a board whose review is its done there is no such
         # gesture, and it ends there as any text does — prepared, not published.
         prepared = job.kind == "publication"
-        self._set(
-            ticket,
-            **{
-                self.config.notion.prop("status"): self.config.notion.state(
-                    "review" if prepared else "done"
-                ),
-                self.config.notion.prop("agent"): self.agent_label,
-                self.config.notion.prop("session"): self._session_value(
-                    outcome.session_id, job.session_home
-                ),
-                **self._measures(outcome),
-            },
-        )
+        # Force validated: nothing waits for you, and the publishing session is
+        # started as soon as this one is done — `Delivery._publish`, exactly as
+        # moving the ticket to validated would have started it. Under the
+        # credit reserve it is not started here: the ticket goes to validated,
+        # for the pass that has credit again to publish it, as it would one you
+        # had moved there yourself. A board with no such column has nowhere to
+        # hold it, and the ticket waits in review as it always did.
+        forced = prepared and self.config.runner.forces_validation("publication")
+        postponed = forced and bool(self.under_reserve())
+        if postponed and not self.validated_column():
+            forced = postponed = False
+        values: dict[str, object] = {
+            self.config.notion.prop("agent"): self.agent_label,
+            self.config.notion.prop("session"): self._session_value(
+                outcome.session_id, job.session_home
+            ),
+            **self._measures(outcome),
+        }
+        if not forced or postponed:
+            column = "validated" if postponed else "review" if prepared else "done"
+            values[self.config.notion.prop("status")] = self.config.notion.state(column)
+        self._set(ticket, **values)
+        if forced:
+            following = said.say("forced-validation", kind=self.kind_name("publication"))
+            self.say(f"    · {following}")
+            if not postponed:
+                # One report for the two sessions, the publication's: a ticket
+                # saying “to validate” a second before it says “published”
+                # would be telling you to do what is already being done.
+                return self._publish(ticket, job.project, forced=following)
+            following = said.paragraphs(following, said.say("forced-postponed"))
+        elif prepared and self.validated_column():
+            following = said.say("prepared-next", validated=self.config.notion.state("validated"))
+        else:
+            following = ""
         facts = (
             said.say("in-the-page"),
             said.say("nothing-published") if prepared else said.count(blocks, "block"),
             *said.spent(outcome.seconds, outcome.cost_usd),
         )
-        verdict = "prepared" if prepared else "read"
+        verdict = "waiting" if forced else "prepared" if prepared else "read"
         brief = said.brief(outcome.summary)
-        following = (
-            said.say("prepared-next", validated=self.config.notion.state("validated"))
-            if prepared and self.validated_column()
-            else ""
-        )
         self._comment(ticket, said.report(said.verdict(verdict, *facts), brief, following))
         self.say(
             f"    ✓ {ticket.title} — {blocks} block(s) written to the ticket"
-            + (", nothing published: in review" if prepared else "")
+            + (", nothing published: in review" if prepared and not forced else "")
         )
         self._tell("done", ticket, verdict, said.report(said.facts(*facts), brief, following))
         return {

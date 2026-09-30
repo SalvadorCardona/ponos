@@ -754,11 +754,26 @@ export const FRENCH: Record<string, string> = {
   "Model that resolves": "Modèle qui résout",
   "Empty: the model the ticket was worked with.": "Vide : le modèle avec lequel le ticket a été traité.",
   "Wait for CI after a resolution (minutes)": "Attendre la CI après une résolution (minutes)",
-  "Zero does not wait: GitHub still refuses a merge that a required check has not passed.":
-    "Zéro n'attend pas : GitHub refuse quand même une fusion qu'une vérification requise n'a pas validée.",
+  "Zero does not wait: GitHub still refuses a merge that a required check has not passed. A merge forced by Force validated waits the same way.":
+    "Zéro n'attend pas : GitHub refuse quand même une fusion qu'une vérification requise n'a pas validée. Une fusion forcée par Force validated attend de la même façon.",
   "Keep the worktree on failure": "Garder le worktree en cas d'échec",
   "The state a failed session died in, for you to look at. `ticket-runner clean --force` sweeps them.":
     "L'état dans lequel une session échouée est morte, pour que vous puissiez le regarder. `ticket-runner clean --force` fait le ménage.",
+
+  "Force validated": "Force validated",
+  "Skip the review, one type of ticket at a time. Once its session has succeeded, the runner does at once what moving it to Validated would have set off, then moves it to Done — and its report says the validation was forced. A ticket that failed, was blocked or ran out of credit is never validated, and one already in review stays there. All off: every ticket waits for you, as before.":
+    "Se passer de la relecture, un type de ticket à la fois. Dès que sa session a réussi, le runner fait tout de suite ce qu'aurait déclenché le passage en Validé, puis le passe en Terminé — et son compte rendu dit que la validation a été forcée. Un ticket en échec, bloqué ou à court de crédits n'est jamais validé, et celui qui est déjà en relecture y reste. Tout décoché : chaque ticket vous attend, comme avant.",
+  "The pull request is opened, its CI waited for, then merged the way a validated one is. A merge GitHub refuses leaves the ticket in review, with the reason on its card.":
+    "La pull request est ouverte, sa CI attendue, puis elle est fusionnée comme une pull request validée. Une fusion que GitHub refuse laisse le ticket en relecture, avec la raison sur sa carte.",
+  Writing: "Rédaction",
+  "A text already ends in Done, with nothing to validate: this changes nothing today.":
+    "Un texte finit déjà en Terminé, sans rien à valider : cela ne change rien aujourd'hui.",
+  "External action": "Action externe",
+  "An external action already ends in Done, with nothing to validate: this changes nothing today.":
+    "Une action externe finit déjà en Terminé, sans rien à valider : cela ne change rien aujourd'hui.",
+  Publication: "Publication",
+  "What was prepared is published straight away, without waiting in review.":
+    "Ce qui a été préparé est publié aussitôt, sans attendre en relecture.",
 
   "What comes back on its own": "Ce qui revient tout seul",
   "The Schedules database, read in the same pass that reads the board. A row there describes a ticket and how often it is born; everything after that is an ordinary ticket. Catching up creates one occurrence, never the twelve a machine that was off has missed.":

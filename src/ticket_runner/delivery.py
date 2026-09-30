@@ -9,6 +9,13 @@ waiting. Which leaves the decision exactly where it was — nothing is merged or
 published because a session felt sure of itself, only because you moved a
 ticket one column to the right.
 
+Unless you said so once and for all. `force_validated_<type>` is that gesture
+made in advance, for every ticket of one type: the session succeeds, and what
+this column would set off is set off straight away — `_force_merge` for a pull
+request, `_publish` for a publication — without the ticket passing through it.
+Only on a success, never on a ticket already in review, and said in the report.
+Writing and external action have nothing to set off: they end in done already.
+
 The two are not carried out the same way, and the asymmetry is the module.
 A merge is two `gh` calls and is done in the pass's own thread — three and a
 rebase when GitHub refuses it for being behind, which is what a repository
@@ -325,12 +332,44 @@ class Delivery(Base):
         self._set(
             ticket,
             **{self.config.notion.prop("status"): self.config.notion.state("done")},
+            **self._refusal_cleared(ticket),
         )
         self._comment(
             ticket,
             said.report(said.verdict("merged", said.pull_request(url), *facts), url, *notes),
         )
         return {"ticket": ticket.title, "id": ticket.id, "status": "done", "merged": url}
+
+    def _force_merge(self, job: Job, url: str) -> str:
+        """Merge a pull request just opened, for a type whose validation is forced.
+
+        What `_merge` does for a ticket you validated, minus what a pull request
+        opened a minute ago does not need: its branch was replayed onto its base
+        on the way out, so there is nothing to catch up with. What it does need
+        is its CI — nobody has looked at it, so nobody has seen it go green — and
+        it is waited for, `checks_timeout_minutes` at the most, from the worktree
+        it was pushed from. Then the merge, with `merge_method`, as always.
+
+        Returns why it was not merged, or "" once it is. A refusal is not a
+        failure of the ticket: the work is done and the pull request is open, so
+        it waits in review, where you would have found it without the option.
+        """
+        accounts = self.config.github
+        checks = git.wait_for_checks(
+            url, job.workdir, self.config.runner.checks_timeout_minutes, accounts
+        )
+        if checks == "failed":
+            refusal = self.voice.say("forced-checks-red")
+        else:
+            try:
+                git.merge_pull_request(url, self.config.runner.merge_method, accounts)
+            except git.GitError as error:
+                refusal = voice_module.line(error)
+            else:
+                state.forget_rebases(job.ticket.id)
+                return ""
+        self.say(f"    ! {url} not merged: {refusal}")
+        return refusal
 
     def _refused(self, ticket: Ticket, url: str, refusal: object, *notes: str) -> dict:
         """A merge GitHub would not make, and nothing more the runner can do about it."""
@@ -697,7 +736,7 @@ class Delivery(Base):
             )
         return [done for done in results if done]
 
-    def _publish(self, ticket: Ticket, project: Project) -> dict | None:
+    def _publish(self, ticket: Ticket, project: Project, forced: str = "") -> dict | None:
         """A validated ticket with no pull request: publish what it holds.
 
         The Instagram post drafted last week, the email written into the page,
@@ -712,6 +751,10 @@ class Delivery(Base):
         was claimed from is written down first — see `state.claim` — so that a
         run dying mid-publication comes back as a question rather than as a
         second post.
+
+        `forced` is the line saying nobody moved it: a ticket whose type has its
+        validation forced comes here straight from the session that prepared it
+        — see `Execution._execute_document` — and its report says so.
         """
         short = short_id(ticket.id)
         # The role, if the ticket names one: the account to post to and the
@@ -781,7 +824,10 @@ class Delivery(Base):
                 outcome.summary or outcome.error,
                 blocked=outcome.blocked,
                 question=outcome.summary,
-                note=self._filed(job, outcome, said.say("workdir-kept", path=job.workdir)),
+                note=said.paragraphs(
+                    forced,
+                    self._filed(job, outcome, said.say("workdir-kept", path=job.workdir)),
+                ),
             )
 
         shutil.rmtree(job.workdir, ignore_errors=True)
@@ -798,9 +844,9 @@ class Delivery(Base):
         )
         facts = said.spent(outcome.seconds, outcome.cost_usd)
         brief = said.brief(outcome.summary)
-        self._comment(ticket, said.report(said.verdict("published", *facts), brief))
+        self._comment(ticket, said.report(said.verdict("published", *facts), brief, forced))
         self.say(f"    ✓ {ticket.title} — published")
-        self._tell("done", ticket, "published", said.report(said.facts(*facts), brief))
+        self._tell("done", ticket, "published", said.report(said.facts(*facts), brief, forced))
         return {
             "ticket": ticket.title,
             "id": ticket.id,

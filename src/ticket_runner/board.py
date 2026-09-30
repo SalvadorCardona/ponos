@@ -471,7 +471,11 @@ class Board(Base):
             ticket = Ticket(page)
             said = self.voice
             self.say(f"  ✓ {ticket.title} — pull request merged, moved to done")
-            self._set(ticket, **{status_property: self.config.notion.state("done")})
+            self._set(
+                ticket,
+                **{status_property: self.config.notion.state("done")},
+                **self._refusal_cleared(ticket),
+            )
             self._comment(
                 ticket, said.report(said.verdict("merged", said.pull_request(url)), url)
             )

@@ -389,6 +389,24 @@ checks_timeout_minutes = 20
 #   squash | merge | rebase
 merge_method = "squash"
 
+# Force validated: skip the review for one type of ticket. Once its session
+# has succeeded, the runner does at once what moving it to `validated` would
+# have set off, and the ticket goes to done — its report says the validation
+# was forced, and by which of these. Code: the pull request is opened, its CI
+# waited for (`checks_timeout_minutes`), then merged with `merge_method`; a
+# merge GitHub refuses — a conflict, red checks, missing rights — leaves the
+# ticket in review with the reason in its report and on its card. Publication:
+# what was prepared is published straight away, by the publishing session.
+# Writing and external action already end in done, with nothing left to
+# validate: their switch is there for symmetry, and changes nothing today.
+# A ticket that failed, was blocked or ran out of credit is never validated,
+# and a ticket already in review when you tick one of these stays there.
+# All off: every ticket waits for you, as it always has.
+force_validated_code = false
+force_validated_writing = false
+force_validated_external = false
+force_validated_publication = false
+
 # A failure leaves its worktree in place for the post-mortem.
 #   ticket-runner clean --force  to tidy up
 keep_worktree_on_failure = true

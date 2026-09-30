@@ -158,6 +158,10 @@ _SAID: dict[str, dict[str, str]] = {
     "confidence-high": {"en": "high", "fr": "élevée"},
     "merged-with": {"en": "{method} merge", "fr": "fusion en {method}"},
     "merged-before": {"en": "already merged", "fr": "déjà fusionnée"},
+    "forced-validation": {
+        "en": "Validated automatically (Force validated: {kind})",
+        "fr": "Validation automatique (Force validated : {kind})",
+    },
     "credits-out": {
         "en": "out of credit, back in “{status}” until {when}",
         "fr": "crédits épuisés, retour dans « {status} » jusqu'à {when}",
@@ -315,6 +319,18 @@ _SAID: dict[str, dict[str, str]] = {
             "La fusion a été refusée parce que la branche était en retard : `{branch}` a "
             "été rejouée sur `{base}` puis repoussée."
         ),
+    },
+    "forced-postponed": {
+        "en": "The credit reserve is reached: it goes out on the first pass that has credit again.",
+        "fr": "La réserve de crédits est atteinte : il part au premier passage qui en a de nouveau.",
+    },
+    "forced-merge-refused": {
+        "en": "Not merged, left in review: {error}",
+        "fr": "Pas fusionnée, laissée en relecture : {error}",
+    },
+    "forced-checks-red": {
+        "en": "its checks fail",
+        "fr": "ses vérifications échouent",
     },
     "merge-refused-question": {
         "en": "GitHub refused the merge: {error}",
