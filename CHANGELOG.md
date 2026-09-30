@@ -18,6 +18,24 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The console's message bar takes photos, videos, documents and your voice.**
+  *Talking to your machine* is now one rounded bar with the files above the
+  words, a **+** to attach, a microphone, and a round arrow to send. A
+  screenshot is pasted, a file dropped anywhere on the drawer or picked with the
+  **+** — images, videos (mp4, webm, mov) and documents (pdf, txt, md, csv,
+  json, docx, xlsx), up to `web.attachment_max_mb` (25 MB) each — and the
+  workspace reads them from where they are kept, under the runner's state: an
+  image or a PDF as it is, a video through frames `ffmpeg` takes along it (and,
+  without `ffmpeg`, it says it could not see the clip). The microphone records
+  (Alt+Shift+M), has the recording transcribed by OpenRouter in the runner's
+  language, and puts the text in the bar to be read over before it goes —
+  `web.send_after_transcription` sends it straight away. Without an OpenRouter
+  key it is greyed out and says so. Your files show as thumbnails above your
+  message and open in full with a click; *new conversation*, now a pen at the
+  top of the drawer, deletes them, and `web.attachment_days` (7) removes what a
+  conversation nobody closed left behind. `>` still runs a command, now with
+  the verbs offered as you type.
+
 - **A statistics page in the console.** *Statistics* in the menu opens on the
   last month — or seven days, three months, two dates of your own — with the
   tickets open on the last evening, closed and created over the period, and

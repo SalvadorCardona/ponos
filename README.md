@@ -373,9 +373,13 @@ for reading rather than for filling in.
 | `[projects]` | | `"Notion name" = "/path"` for repositories that cannot be guessed |
 | `[github]` | | `"owner" = "gh account"`, when this machine answers to more than one GitHub — see *Several GitHub accounts* below |
 | `[web]` | | the console's host, port, and how it is opened — a token, or an email and a password. See *The web console* |
+| `web.attachment_max_mb` | `25` | how heavy a file sent to the workspace may be |
+| `web.attachment_days` | `7` | how long a conversation's files are kept when nobody starts a new one |
+| `web.send_after_transcription` | `false` | send a dictated message as soon as it is transcribed, rather than leave it to be read over |
 | `openrouter.key` | `""` | one key in front of every other provider — see *Every other model* below |
 | `openrouter.route_sessions` | `false` | run the sessions themselves on it |
 | `openrouter.base_url` | `https://openrouter.ai/api/v1` | only for a gateway of your own |
+| `openrouter.transcription_model` | `openai/whisper-1` | what the console's microphone is transcribed with |
 
 `max_concurrent` is a number of **places**, not a batch size. A pass keeps that many
 sessions running for as long as the ready column has anything in it: a session that ends
@@ -449,6 +453,11 @@ of.
 Both switches are fields of the console's **Settings** tab, under *Every other model*; the
 key is a secret like any other, so it goes out to the page as “set, ending in …abcd” and
 comes back only when you type a new one.
+
+The key has one use inside the runner itself: **the console's microphone**. Claude Code
+reads no audio, so a message dictated in the console is transcribed by
+`openrouter.transcription_model` (`openai/whisper-1` by default) before it is a message at
+all. Without a key, the microphone is greyed out and says why.
 
 ### Several GitHub accounts
 
@@ -1643,8 +1652,8 @@ the console has — and it opens the same way an answer relayed from Telegram do
 next run reads it as yours rather than as its own voice.
 
 **The console** is behind the bubble in the bottom corner — one press opens it as a drawer
-over the page, another closes it, and no page is given up for it. It is one field and two
-gestures, and they are not made to look alike.
+over the page, another closes it, and no page is given up for it. It is one message bar and
+two gestures, and they are not made to look alike.
 
 - A line starting with `>` is a **`ticket-runner` subcommand** — `>status`, `>list`,
   `>doctor`, `>logs 1a2b3c4d`. The CLI is already the considered surface of this
@@ -1665,7 +1674,47 @@ gestures, and they are not made to look alike.
 
 That conversation is a real session, like every ticket's: `claude --resume <id>` in a
 terminal opens the very same one, and it survives the browser, the server and the machine.
-*New conversation* starts a fresh one; the old one stays resumable by its identifier.
+The line under the drawer's title says how many turns it has had and copies that command
+when clicked. *New conversation* — the pen at the top of the drawer — starts a fresh one;
+the old one stays resumable by its identifier.
+
+**The message bar** is one rounded block with everything it can carry inside it: the files
+above the words, a **+** on its lower left, and on its right the microphone and a round
+arrow that sends — greyed while there is nothing to send, turning into a spinner while the
+workspace answers. The field grows with what you write, up to about eight lines. Typing
+`>` switches it to the command gesture: the text goes monospace, a small *command* label
+appears, and a menu above the bar offers the verbs above as you type (arrows, then Tab or
+Enter). Drawn full screen, the bar keeps a reading width of 48rem, centred.
+
+A message can carry **photos** (png, jpg, webp, gif), **videos** (mp4, webm, mov) and
+**documents** (pdf, txt, md, csv, json, docx, xlsx), added three ways: the **+**, a drop
+anywhere on the drawer — a zone lights up while a file is over it — or a paste, which is
+how a screenshot arrives (it is named `screenshot-<time>.png`). Each file is uploaded as
+soon as it is added, shows as a thumbnail (the first frame, for a video) or as a chip with
+its name and size, and leaves by its cross. A file over `web.attachment_max_mb` (25 MB by
+default) or of another kind is refused with a sentence saying which and why. In the
+conversation, what you sent sits above your words; a picture or a clip opens in full with
+a click, a document in a tab.
+
+Claude Code takes no file in a request — it reads them from the disk — so the files are
+kept under the runner's state (`~/.local/state/ticket-runner/web/attachments/`, never in a
+repository), and the message the session receives names each by its absolute path with a
+word on how to read it: an image or a PDF with its Read tool, a spreadsheet or a Word file
+with what the machine has. A **video** cannot be watched as such: when `ffmpeg` is
+installed, eight frames are taken along it and those are what the session looks at; when
+it is not, the session is told it cannot see the clip, and says so rather than guess.
+*New conversation* deletes the conversation's files; whatever a conversation nobody closed
+left behind goes after `web.attachment_days` (7). `ticket-runner doctor` says whether
+`ffmpeg` is there.
+
+**Dictation.** The microphone records (Alt+Shift+M from the keyboard, Escape to throw the
+recording away) with a clock and a small wave, then *Stop* or *Cancel*. The recording goes
+to the server, which has it transcribed by OpenRouter (`openrouter.transcription_model`,
+`openai/whisper-1` by default) in `runner.language` — or, when that is empty, in the
+language the console is shown in — and the text lands in the bar, to be read over and
+corrected before you send it. `web.send_after_transcription = true` sends it as soon as it
+is back. Without an OpenRouter key, or with a microphone the browser blocks, the button is
+greyed out and its tooltip says which.
 
 An address written anywhere the console shows text — an answer, the output of a command, a
 step of a session, a comment on a ticket — is a link you can click. A pull request the
@@ -1795,6 +1844,7 @@ npm run build      # writes ../src/ticket_runner/web/static — commit what it w
 npm run dev        # hot reload, proxying /api to a console you started yourself
 npm run lint       # tsc, in the strict configuration the build uses
 npm run test:e2e   # the built console in your Chrome, on a board of files of its own
+npm test           # node --test on the message bar's decisions — nothing to install
 ```
 
 `npm run test:e2e` is Playwright, driving the Chrome already installed rather than a
@@ -1811,6 +1861,11 @@ no build step, so it links `docs/tokens.css` — a copy that `npm run build` wri
 `frontend/src/tokens.css`, build, and commit both; `docs/index.html` names no colour of its
 own, and recopies the shapes of the console's shadcn button, badge, card and tabs as plain
 classes.
+
+`npm test` runs `src/lib/*.test.ts` with Node's own test runner, which reads TypeScript as it
+is (Node 22.18 or later): what it covers is what the message bar decides without a page —
+which file it takes, what a pasted capture is called, when the arrow is off, what `>st`
+completes to — kept in `src/lib/composer.ts`, which imports nothing for that reason.
 
 `npm run dev` proxies `/api` to `http://127.0.0.1:8787` — set `TICKET_RUNNER_ORIGIN` for
 another address. Open the real console once first (`ticket-runner serve`, then its URL with

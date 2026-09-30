@@ -19,6 +19,8 @@
 # du runner GitHub (`npm run test:e2e`), servie par le vrai `ticket-runner
 # serve` sur un board de fichiers : ce qu'un navigateur fait d'une page — la
 # faire défiler, par exemple — aucune des deux suites ne le voit.
+# Node 24, parce que `npm test` fait lire à `node --test` les tests de
+# la barre de message écrits en TypeScript, sans rien installer pour ça.
 
 name: CI
 
@@ -67,7 +69,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.frontend == 'true'
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -79,6 +81,11 @@ jobs:
       - name: Lint
         if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
+        working-directory: frontend
+
+      - name: Tests
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm test
         working-directory: frontend
 
       - name: Build

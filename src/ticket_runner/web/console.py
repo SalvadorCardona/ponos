@@ -17,12 +17,19 @@ They are not the same gesture and they are not made to look the same.
 The conversation survives the browser, the server and the machine: it is a real
 Claude Code session, resumed by its identifier, and `claude --resume <id>` in a
 terminal opens the very same one.
+
+A message is more than its words: what it carries — a screenshot, a PDF, a clip
+— is kept in a folder of the conversation, and named in the prompt by path (see
+`attachments`). And what is said aloud is turned into words before it is a
+message at all: dictation is transcribed, handed back, read over, and only then
+sent, like anything typed.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import secrets
 import shlex
 import signal
 import subprocess
@@ -34,8 +41,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from .. import disk, openrouter, progress, session
+from .. import disk, openrouter, progress, session, voice
 from ..config import Config, state_dir
+from . import attachments as files
 
 # The verbs the console runs, written down one by one rather than read off the
 # parser. Deriving them was the convenient answer and the wrong one: every verb
@@ -87,14 +95,24 @@ def web_dir() -> Path:
     return path
 
 
+def attachments_dir() -> Path:
+    return web_dir() / "attachments"
+
+
 @dataclass
 class Message:
     role: str
     text: str
     at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    # What came with it, as the page draws it: name, kind, size, and the id the
+    # file is served back under for as long as the conversation keeps it.
+    attachments: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
-        return {"role": self.role, "text": self.text, "at": self.at}
+        said = {"role": self.role, "text": self.text, "at": self.at}
+        if self.attachments:
+            said["attachments"] = self.attachments
+        return said
 
 
 class Chat:
@@ -115,7 +133,11 @@ class Chat:
         self.session_id = ""
         self.turns = 0
         self.messages: list[Message] = []
+        # The folder this conversation's files are kept in: named when the
+        # first one arrives, and emptied with the conversation.
+        self.folder_name = ""
         self._load()
+        files.prune(attachments_dir(), self.config.web.attachment_days)
 
     # -- persistence ---------------------------------------------------------
 
@@ -126,16 +148,23 @@ class Chat:
             return
         self.session_id = str(raw.get("session_id") or "")
         self.turns = int(raw.get("turns") or 0)
+        self.folder_name = str(raw.get("files") or "")
         self.messages = [
-            Message(str(item.get("role", "")), str(item.get("text", "")), str(item.get("at", "")))
+            Message(
+                str(item.get("role", "")),
+                str(item.get("text", "")),
+                str(item.get("at", "")),
+                [entry for entry in item.get("attachments") or [] if isinstance(entry, dict)],
+            )
             for item in raw.get("messages", [])
-            if item.get("role") and item.get("text")
+            if item.get("role") and (item.get("text") or item.get("attachments"))
         ]
 
     def _save(self) -> None:
         payload = {
             "session_id": self.session_id,
             "turns": self.turns,
+            "files": self.folder_name,
             # The transcript on disk is the console's scrollback, not the
             # session's memory: Claude Code keeps that itself. A hundred turns
             # is more than anybody scrolls back through.
@@ -158,6 +187,18 @@ class Chat:
             "turns": self.turns,
             "busy": self._busy,
             "resume_command": f"claude --resume {self.session_id}" if self.session_id else "",
+            "attachments": {
+                "max_mb": self.config.web.attachment_max_mb,
+                "accepted": sorted(files.ACCEPTED),
+                "ffmpeg": bool(files.ffmpeg()),
+            },
+            "dictation": {
+                "ready": bool(self.config.openrouter.key),
+                "why": "" if self.config.openrouter.key else (
+                    "Dictation is transcribed by OpenRouter: add an OpenRouter key in the settings"
+                ),
+                "send": self.config.web.send_after_transcription,
+            },
         }
 
     def history(self) -> list[dict]:
@@ -171,18 +212,59 @@ class Chat:
             self.session_id = ""
             self.turns = 0
             self.messages = []
+            # The files go with the conversation they were dropped in: the
+            # session that could read them is not the one that starts now.
+            self.folder().clear()
+            self.folder_name = ""
             self._save()
         self.publish("chat", stage="reset")
         return self.state()
 
+    # -- what a message carries ----------------------------------------------
+
+    def folder(self) -> files.Folder:
+        return files.Folder(attachments_dir(), self.folder_name or "none")
+
+    def attach(self, name: str, source, length: int) -> dict:
+        """Keep one file for the message being written; say what it became."""
+        files.prune(attachments_dir(), self.config.web.attachment_days)
+        with self._lock:
+            if not self.folder_name:
+                self.folder_name = secrets.token_hex(8)
+                self._save()
+        limit = self.config.web.attachment_max_mb * 1024 * 1024
+        return self.folder().save(name, source, length, limit).as_dict()
+
+    def detach(self, identifier: str) -> dict:
+        self.folder().remove(identifier)
+        return {"removed": identifier}
+
+    def attachment(self, identifier: str) -> files.Attachment:
+        return self.folder().find(identifier)
+
+    def transcribe(self, audio: bytes, content_type: str, interface: str = "") -> dict:
+        """What was said, as text, in the language the runner speaks.
+
+        `runner.language` when it names one; otherwise the page's own language,
+        which is what the person talking is reading; otherwise Whisper's guess.
+        """
+        asked = self.config.runner.language.strip()
+        language = voice.understood(asked) if asked else voice.understood(interface) if interface else ""
+        text = openrouter.transcribe(self.config.openrouter, audio, content_type, language)
+        return {"text": text, "language": language}
+
     # -- one turn ------------------------------------------------------------
 
-    def send(self, text: str) -> dict:
+    def send(self, text: str, attached: list[str] | None = None) -> dict:
         text = text.strip()
-        if not text:
+        # Every id resolved before anything moves: a message whose file is gone
+        # is refused whole, rather than sent without what it was about.
+        carried = [self.attachment(str(identifier)) for identifier in attached or []]
+        if not text and not carried:
             raise ValueError("nothing to send")
         if not session.available():
             raise FileNotFoundError("claude not found in PATH")
+        said = [attachment.as_dict() for attachment in carried]
         with self._lock:
             if self._busy:
                 raise RuntimeError("the workspace is still answering the previous message")
@@ -190,19 +272,22 @@ class Chat:
             first = not self.session_id
             if first:
                 self.session_id = session.new_id()
-            self.messages.append(Message("you", text))
+            self.messages.append(Message("you", text, attachments=said))
             self._save()
-        self.publish("chat", stage="sent", text=text, session_id=self.session_id)
+        self.publish("chat", stage="sent", text=text, attachments=said, session_id=self.session_id)
         thread = threading.Thread(
-            target=self._turn, args=(text, first), name="tr-chat", daemon=True
+            target=self._turn, args=(text, first, carried), name="tr-chat", daemon=True
         )
         thread.start()
         return self.state()
 
-    def _turn(self, text: str, first: bool) -> None:
+    def _turn(self, text: str, first: bool, carried: list[files.Attachment] | None = None) -> None:
         started = time.monotonic()
         log = web_dir() / f"chat-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
-        prompt = f"{self.brief()}\n\n{text}" if first else text
+        # Drawn here and not in `send`: taking frames from a video is seconds of
+        # ffmpeg, and the page is waiting for `send` to say the message left.
+        message = "\n\n".join(part for part in (text, files.brief(carried or [])) if part)
+        prompt = f"{self.brief()}\n\n{message}" if first else message
         try:
             outcome = session.run(
                 prompt,

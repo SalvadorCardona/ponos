@@ -327,6 +327,16 @@ class Web:
     # A chat turn is a Claude session like any other, and wants the same kind of
     # ceiling. Shorter than a ticket's: somebody is sitting in front of it.
     chat_timeout_minutes: int = 20
+    # What a message to the workspace may carry. A file is refused past this
+    # size rather than read and then regretted: a phone video is a gigabyte,
+    # and the session would read none of it anyway.
+    attachment_max_mb: int = 25
+    # How long a conversation's files are kept when nobody starts a new one.
+    # They are copies of what you dropped on the page, not the originals.
+    attachment_days: int = 7
+    # Whether a dictated message goes as soon as it is transcribed, rather than
+    # waiting in the field to be read over. Off: a transcription is a draft.
+    send_after_transcription: bool = False
 
 
 # Where an OpenRouter key is spent, unless the file names somewhere else. It is
@@ -350,6 +360,8 @@ class OpenRouter:
     # changes which company answers the agent, what a model name means, and who
     # bills you. See openrouter.py for what goes with it.
     route_sessions: bool = False
+    # What a dictated message is transcribed with, as an OpenRouter slug.
+    transcription_model: str = "openai/whisper-1"
 
 
 def board_dir() -> Path:
@@ -956,6 +968,15 @@ def load(path: Path | None = None) -> Config:
         chat_timeout_minutes=max(
             1, int(web_raw.get("chat_timeout_minutes", web_defaults.chat_timeout_minutes))
         ),
+        attachment_max_mb=max(
+            1, int(web_raw.get("attachment_max_mb", web_defaults.attachment_max_mb))
+        ),
+        attachment_days=max(
+            1, int(web_raw.get("attachment_days", web_defaults.attachment_days))
+        ),
+        send_after_transcription=bool(
+            web_raw.get("send_after_transcription", web_defaults.send_after_transcription)
+        ),
     )
 
     router_raw = raw.get("openrouter", {})
@@ -967,6 +988,8 @@ def load(path: Path | None = None) -> Config:
         base_url=str(router_raw.get("base_url", "")).strip().rstrip("/")
         or router_defaults.base_url,
         route_sessions=bool(router_raw.get("route_sessions", router_defaults.route_sessions)),
+        transcription_model=str(router_raw.get("transcription_model", "")).strip()
+        or router_defaults.transcription_model,
     )
 
     storage_raw = raw.get("storage", {})

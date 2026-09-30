@@ -542,6 +542,12 @@ key = ""
 # wait_for_credits has nothing left to wait for.
 route_sessions = false
 
+# The console's microphone. Claude Code reads no audio, so a dictated message is
+# turned into text here first — by this model, on this key — and put back in
+# the field to be read over before it is sent. Without a key, the microphone
+# is greyed out and says why.
+transcription_model = "openai/whisper-1"
+
 # Where that key is spent. The default is OpenRouter itself; the line is here
 # for a gateway of your own that speaks the same API.
 # base_url = "https://openrouter.ai/api/v1"
@@ -664,6 +670,20 @@ poll_seconds = 15
 # A chat turn is a Claude session and wants the same kind of ceiling as a ticket.
 # Shorter, because somebody is sitting in front of it.
 chat_timeout_minutes = 20
+
+# What a message to the workspace may carry: images (png, jpg, webp, gif),
+# videos (mp4, webm, mov) and documents (pdf, txt, md, csv, json, docx, xlsx).
+# They are kept under the runner's state — never in a repository — in a folder
+# of the conversation, which "new conversation" empties; whatever a
+# conversation nobody closed left behind goes after attachment_days. A video is
+# looked at through a few frames, which takes ffmpeg: without it, the session
+# is told it cannot see the clip, and says so.
+attachment_max_mb = 25
+attachment_days = 7
+
+# A dictated message waits in the field, transcribed, to be read over. true
+# sends it as soon as the transcription is back. Dictation needs [openrouter].
+send_after_transcription = false
 
 # Projects whose repository cannot be guessed: exact Notion name = local path.
 # Without an entry here, the runner matches the project's Repository property

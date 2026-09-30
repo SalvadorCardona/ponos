@@ -47,6 +47,7 @@ from ticket_runner.__main__ import _names, banner, subcommands, welcome  # noqa:
 from ticket_runner.__main__ import main as cli_main  # noqa: E402
 from ticket_runner.__main__ import build_parser  # noqa: E402
 from ticket_runner.web import api as web_api  # noqa: E402
+from ticket_runner.web import attachments as web_attachments  # noqa: E402
 from ticket_runner.web import console as web_console  # noqa: E402
 from ticket_runner.web import settings as web_settings  # noqa: E402
 from ticket_runner.web import live as web_live  # noqa: E402
@@ -5348,6 +5349,296 @@ def following_a_log_is_dropped_rather_than_left_to_hang():
     commands = web_console.Commands(lambda *a, **k: None, subcommands())
     assert commands.parse("logs -f") == ["logs"]
     assert commands.parse("logs abc123 --follow") == ["logs", "abc123"]
+
+
+# -- what a message to the workspace carries ----------------------------------
+
+
+@contextmanager
+def _chat(body: str = ""):
+    """A Chat whose Claude session is a function, in a throwaway state directory."""
+    with _state_home():
+        prompts: list[str] = []
+        events: list[tuple[str, dict]] = []
+        original_run, original_available = session.run, session.available
+
+        def run(prompt, **_):
+            prompts.append(prompt)
+            return session.Outcome(True, False, "sid", "", Path("/dev/null"), answer="seen")
+
+        session.run = run
+        session.available = lambda: "/usr/bin/claude"
+        try:
+            chat = web_console.Chat(_config(body), lambda kind, **said: events.append((kind, said)))
+            chat.prompts = prompts  # type: ignore[attr-defined]
+            chat.events = events  # type: ignore[attr-defined]
+            yield chat
+        finally:
+            session.run, session.available = original_run, original_available
+
+
+def _said_to(chat) -> str:
+    """The prompt of the last turn, once its thread has answered."""
+    for _ in range(200):
+        if not chat.busy:
+            break
+        time.sleep(0.01)
+    return chat.prompts[-1]
+
+
+@case
+def a_message_of_words_alone_reaches_the_session_as_it_was_typed():
+    with _chat() as chat:
+        chat.send("what is on the board?")
+        prompt = _said_to(chat)
+        assert prompt.endswith("what is on the board?")
+        assert "Attached to this message" not in prompt
+        assert chat.history()[0] == {**chat.history()[0], "role": "you", "text": "what is on the board?"}
+        assert "attachments" not in chat.history()[0], "no files, no empty list"
+
+
+@case
+def an_image_travels_as_a_path_the_session_reads():
+    """Claude Code takes no file in a request: it reads one from the disk."""
+    with _chat() as chat:
+        png = b"\x89PNG\r\n\x1a\n" + b"x" * 100
+        said = chat.attach("capture d'écran.png", io.BytesIO(png), len(png))
+        assert said["kind"] == "image" and said["type"] == "image/png" and said["size"] == len(png)
+        kept = chat.attachment(said["id"]).path
+        assert kept.read_bytes() == png
+        assert kept.is_relative_to(web_console.attachments_dir()), "under the state, never a repository"
+        chat.send("what is wrong on this screen?", [said["id"]])
+        prompt = _said_to(chat)
+        assert str(kept) in prompt, "the absolute path is what the session is given"
+        assert "Read tool" in prompt
+        assert chat.history()[0]["attachments"][0]["id"] == said["id"]
+        sent = [said for kind, said in chat.events if said.get("stage") == "sent"][0]
+        assert sent["attachments"][0]["name"] == said["name"], "the other tab draws it too"
+
+
+@case
+def a_document_goes_with_or_without_words():
+    with _chat() as chat:
+        pdf = b"%PDF-1.7\n" + b"0" * 50
+        said = chat.attach("spec.pdf", io.BytesIO(pdf), len(pdf))
+        sheet = chat.attach("../../etc/budget.xlsx", io.BytesIO(b"PK" * 10), 20)
+        assert sheet["name"] == "budget.xlsx", "only the last component of a name is kept"
+        chat.send("", [said["id"], sheet["id"]])
+        prompt = _said_to(chat)
+        assert "spec.pdf" in prompt and "A PDF" in prompt
+        assert "budget.xlsx" in prompt and "Office file" in prompt
+
+
+@case
+def a_video_is_looked_at_through_frames_or_said_to_be_unseen():
+    with _chat() as chat:
+        said = chat.attach("clip.mp4", io.BytesIO(b"\x00" * 64), 64)
+        video = chat.attachment(said["id"])
+        original = web_attachments.ffmpeg
+        web_attachments.ffmpeg = lambda: ""
+        try:
+            unseen = web_attachments.brief([video])
+        finally:
+            web_attachments.ffmpeg = original
+        assert "ffmpeg is not installed" in unseen and "rather than guess" in unseen
+
+
+@case
+def a_file_past_the_limit_or_of_the_wrong_kind_is_refused_with_a_reason():
+    with _chat("[web]\nattachment_max_mb = 1\n") as chat:
+        heavy = 2 * 1024 * 1024
+        try:
+            chat.attach("film.mov", io.BytesIO(b""), heavy)
+        except web_attachments.TooLarge as error:
+            assert "web.attachment_max_mb" in str(error) and "2 MB" in str(error)
+        else:
+            raise AssertionError("a file past the limit was kept")
+        for name in ("page.html", "logo.svg", "script"):
+            try:
+                chat.attach(name, io.BytesIO(b"<x>"), 3)
+            except ValueError as error:
+                assert "not a kind of file" in str(error)
+            else:
+                raise AssertionError(f"{name} was kept")
+        try:
+            chat.send("look", ["0123456789ab"])
+        except LookupError:
+            pass
+        else:
+            raise AssertionError("a message whose file is gone was sent without it")
+        assert not chat.history(), "refused whole"
+
+
+@case
+def a_new_conversation_takes_its_files_with_it():
+    with _chat() as chat:
+        said = chat.attach("a.png", io.BytesIO(b"png"), 3)
+        folder = chat.folder().path
+        assert folder.is_dir()
+        chat.reset()
+        assert not folder.exists(), "the files went with the conversation"
+        try:
+            chat.attachment(said["id"])
+        except LookupError:
+            pass
+        else:
+            raise AssertionError("a file outlived its conversation")
+        again = chat.attach("b.png", io.BytesIO(b"png"), 3)
+        assert chat.folder().path != folder, "a new conversation, a new folder"
+        assert chat.attachment(again["id"]).name == "b.png"
+
+
+@case
+def files_nobody_closed_the_conversation_on_go_after_their_days():
+    with _state_home():
+        root = web_console.attachments_dir()
+        folder = web_attachments.Folder(root, "old")
+        kept = folder.save("x.png", io.BytesIO(b"png"), 3, 100)
+        fresh = folder.save("y.png", io.BytesIO(b"png"), 3, 100)
+        old = time.time() - 9 * 86400
+        os.utime(kept.path, (old, old))
+        assert web_attachments.prune(root, 7) == 1
+        assert not kept.path.exists() and fresh.path.exists()
+        os.utime(fresh.path, (old, old))
+        web_attachments.prune(root, 7)
+        assert not folder.path.exists(), "an emptied folder goes too"
+
+
+@case
+def dictation_without_a_key_says_what_is_missing():
+    with _chat() as chat:
+        state = chat.state()["dictation"]
+        assert state["ready"] is False and "OpenRouter key" in state["why"]
+        try:
+            chat.transcribe(b"audio", "audio/webm")
+        except openrouter.Unavailable as error:
+            assert "openrouter.key" in str(error)
+        else:
+            raise AssertionError("a transcription was attempted with no key")
+
+
+@case
+def dictation_is_sent_to_openrouter_in_the_language_asked_for():
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    received: list[dict] = []
+
+    class Whisper(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_POST(self):  # noqa: N802
+            received.append({
+                "path": self.path,
+                "auth": self.headers.get("Authorization"),
+                "body": json.loads(self.rfile.read(int(self.headers["Content-Length"]))),
+            })
+            answer = json.dumps({"text": " Bonjour la machine. "}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(answer)))
+            self.end_headers()
+            self.wfile.write(answer)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Whisper)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}/api/v1"
+        with _chat(f'[openrouter]\nkey = "sk-or-test"\nbase_url = "{base}"\n') as chat:
+            assert chat.state()["dictation"]["ready"] is True
+            said = chat.transcribe(b"\x1aE\xdf\xa3", "audio/webm;codecs=opus", "fr-FR")
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert said == {"text": "Bonjour la machine.", "language": "fr"}
+    request = received[0]
+    assert request["path"] == "/api/v1/audio/transcriptions"
+    assert request["auth"] == "Bearer sk-or-test"
+    assert request["body"]["model"] == "openai/whisper-1"
+    assert request["body"]["input_audio"]["format"] == "webm"
+    assert request["body"]["language"] == "fr"
+    assert openrouter.audio_format("audio/mp4") == "m4a"
+
+
+@case
+def the_console_takes_a_file_as_a_raw_body_and_serves_it_back_sandboxed():
+    """Over HTTP, with the guard header and the size limit the page cannot skip."""
+    import urllib.error
+    import urllib.request
+
+    from ticket_runner.web import server as web_server
+
+    with _chat("[web]\nattachment_max_mb = 1\n") as chat:
+        api = _bare_api(_TalkClient([]))
+        api.chat = chat
+        console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+        threading.Thread(target=console.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{console.server_address[1]}"
+
+        def post(path: str, body: bytes, guard: bool = True, kind: str = "image/png"):
+            headers = {"Authorization": "Bearer tok", "Content-Type": kind}
+            if guard:
+                headers["X-Ticket-Runner"] = "1"
+            request = urllib.request.Request(base + path, data=body, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    return response.status, json.loads(response.read()), response.headers
+            except urllib.error.HTTPError as error:
+                return error.code, json.loads(error.read() or b"{}"), error.headers
+
+        try:
+            code, _, _ = post("/api/chat/attachments?name=a.png", b"png", guard=False)
+            assert code == 403, "a page elsewhere cannot drop a file here"
+            code, said, _ = post("/api/chat/attachments?name=a.png", b"\x89PNG")
+            assert code == 200 and said["kind"] == "image", said
+            code, refused, _ = post("/api/chat/attachments?name=big.png", b"x" * (1024 * 1024 + 1))
+            assert code == 413 and "attachment_max_mb" in refused["error"], refused
+            code, refused, _ = post("/api/chat/transcribe?lang=fr", b"audio", kind="audio/webm")
+            assert code == 503 and "OpenRouter key" in refused["error"], refused
+
+            request = urllib.request.Request(
+                f"{base}/api/chat/attachments/{said['id']}", headers={"Authorization": "Bearer tok"}
+            )
+            with urllib.request.urlopen(request, timeout=5) as response:
+                assert response.read() == b"\x89PNG"
+                assert response.headers["Content-Type"] == "image/png"
+                assert "sandbox" in response.headers["Content-Security-Policy"]
+            code, _, _ = post(f"/api/chat/attachments/{said['id']}/remove", b"{}", kind="application/json")
+            assert code == 200
+            try:
+                urllib.request.urlopen(request, timeout=5)
+            except urllib.error.HTTPError as error:
+                assert error.code == 404
+            else:
+                raise AssertionError("a removed file is still served")
+        finally:
+            console.shutdown()
+            console.server_close()
+
+
+@case
+def the_message_bar_is_one_block_with_its_gestures_inside():
+    """The bar is a component a ticket's thread can take, and the old form is gone.
+
+    Read from the React source: what is checked is a decision about the page,
+    which the bundle has minified away.
+    """
+    bar = (FRONTEND / "src/components/console/composer.tsx").read_text(encoding="utf-8")
+    pane = (FRONTEND / "src/components/console/console-pane.tsx").read_text(encoding="utf-8")
+    assert "export function Composer" in bar
+    for gesture in ("PlusIcon", "MicIcon", "ArrowUpIcon", "onPaste", "rounded-full", "max-w-3xl"):
+        assert gesture in bar, f"the bar lost {gesture}"
+    assert "<Composer" in pane and "onDrop" in pane, "the drawer takes a dropped file"
+    assert "<Textarea" not in pane, "the bare field is back"
+    assert 't("Send")' not in pane, "a text button for sending is back under the field"
+    assert "a sentence talks to your workspace ·" not in pane, "the permanent help line is back"
+    tests = (FRONTEND / "src/lib/composer.test.ts").read_text(encoding="utf-8")
+    for held in ("removed by its cross", "pasted screenshot", "starts with > is a command", "arrow is off"):
+        assert held in tests, f"nothing holds the bar to “{held}” any more"
+    accepted = set(re.findall(r"^  (\w+): \"(?:image|video|document)\"", (
+        FRONTEND / "src/lib/composer.ts"
+    ).read_text(encoding="utf-8"), re.M))
+    assert accepted == set(web_attachments.ACCEPTED), "the page and the server accept different files"
 
 
 @case

@@ -3,9 +3,10 @@ import * as React from "react"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message"
 import { useT } from "@/lib/i18n"
-import type { Role } from "@/lib/types"
+import type { Attached, Role } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
+import { AttachedGallery } from "./attachments"
 import { Markdown } from "./markdown"
 
 const WHO: Record<Role, string> = {
@@ -38,6 +39,9 @@ const SURFACE: Record<Role, "tinted" | "outline" | "destructive"> = {
  * Who said it and when are one line, set in the mono face: they are a stamp on
  * the message, not a sentence in it.
  *
+ * What came with it — a screenshot, a clip, a PDF — sits above the words, the
+ * way it was written: the file first, then what is to be said about it.
+ *
  * Memoised, because a turn once said does not change: the board redraws the
  * console every few seconds, and a transcript of forty turns used to be drawn
  * again with it, every one of them, to say the same thing.
@@ -45,12 +49,14 @@ const SURFACE: Record<Role, "tinted" | "outline" | "destructive"> = {
 export const Turn = React.memo(function Turn({
   role,
   text,
+  attachments,
   who,
   when,
   className,
 }: {
   role: Role
   text: string
+  attachments?: Attached[]
   who?: string
   when?: string
   className?: string
@@ -69,17 +75,22 @@ export const Turn = React.memo(function Turn({
           {who ?? t(WHO[role] ?? role)}
           {when ? <span className="font-normal normal-case">{` · ${when}`}</span> : null}
         </MessageHeader>
-        <Bubble
-          variant={SURFACE[role] ?? "outline"}
-          align={mine ? "end" : "start"}
-          className="max-w-[92%]"
-        >
-          {/* Prose stops at a reading width, however wide the drawer is
-              pulled; code runs to the edge of the bubble and scrolls. */}
-          <BubbleContent className="[&_:is(p,h3,h4,h5,blockquote,div.flex)]:max-w-[80ch]">
-            <Markdown text={text} />
-          </BubbleContent>
-        </Bubble>
+        {attachments?.length ? (
+          <AttachedGallery items={attachments} align={mine ? "end" : "start"} />
+        ) : null}
+        {text ? (
+          <Bubble
+            variant={SURFACE[role] ?? "outline"}
+            align={mine ? "end" : "start"}
+            className="max-w-[92%]"
+          >
+            {/* Prose stops at a reading width, however wide the drawer is
+                pulled; code runs to the edge of the bubble and scrolls. */}
+            <BubbleContent className="[&_:is(p,h3,h4,h5,blockquote,div.flex)]:max-w-[80ch]">
+              <Markdown text={text} />
+            </BubbleContent>
+          </Bubble>
+        ) : null}
       </MessageContent>
     </Message>
   )
