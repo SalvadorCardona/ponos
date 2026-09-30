@@ -374,6 +374,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   burns high and flickers while he works, bounces when a ticket comes back,
   droops red when one is blocked, and is down to an ember when he sleeps. Under
   40 pixels it is one fatter orange shape, so it still reads in a browser tab.
+- **A click on a project opens its form.** In the console's list of projects —
+  a card, or a name in the table — the form comes up at once in a drawer over
+  the list, instead of the project's page and then its *Edit* button. Escape,
+  the cross or a click beside it close it; *Save* closes it and the list says
+  the new name without a reload; on a phone it takes the whole screen. The
+  project's page stays, one link away at the top of the drawer and behind the
+  button under each card: it is where the pictures are changed and the brief
+  is read as it reads.
 
 - **The console's top bar no longer has a Ponos at its right end.** It says the
   stream, the version and the sync with Notion, then the two buttons — nothing
