@@ -23,12 +23,13 @@ import { Robot } from "./robot"
 
 /** The mark and the name, in the sidebar's corner — and in the bar, on a phone. */
 export function Mark() {
+  const mood = useRunnerMood()
   return (
     <div className="flex h-8 items-center gap-2">
-      {/* The robot, at rest: the console's mark is the runner's face. The
-          one that changes with the runner is in the bar — two faces in two
-          moods, a hand's width apart, would contradict each other. */}
-      <Robot state="idle" still size={24} className="shrink-0" />
+      {/* The console's mark is the runner's face, and it wears the runner's
+          mood: the very one the bar's robot wears, read once for both, so the
+          two faces a hand's width apart always say the same thing. */}
+      <Robot state={mood.state} size={24} className="shrink-0" />
       <span className="truncate text-sm font-semibold">ticket-runner</span>
     </div>
   )
@@ -92,10 +93,11 @@ export function MenuEntry({ menuItem }: { menuItem: MenuItemInterface }) {
 
 /* -- the end of the bar --------------------------------------------------- */
 
-/* The words are the state; the robot only wears it. It answers the only
- * question somebody looks up to ask, "is it doing anything?" — one face, not
- * five pills. Narrower than a tablet, the words are kept for a screen reader
- * and the face alone is drawn. */
+/* The robot answers the only question somebody looks up to ask, "is it doing
+ * anything?" — one face, not five pills. The sentence it stands for is not
+ * drawn beside it, at any width: it crowded the bar. It is kept where it is
+ * asked for — under the pointer, and read out to a screen reader each time
+ * the mood changes. */
 function RunnerMood() {
   const mood = useRunnerMood()
   const t = useT()
@@ -105,7 +107,9 @@ function RunnerMood() {
       className="text-muted-foreground flex shrink-0 items-center gap-2 px-2 font-mono text-[0.7rem]"
       title={said}
     >
-      <span className="max-w-48 truncate max-sm:sr-only">{said}</span>
+      <span className="sr-only" aria-live="polite">
+        {said}
+      </span>
       <Robot state={mood.state} size={28} className="-my-1" />
     </div>
   )

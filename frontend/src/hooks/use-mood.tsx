@@ -15,6 +15,10 @@ import { useConsole, useStatus } from "@/hooks/use-console"
  * enough to be seen by somebody who looks up, short enough not to mourn a
  * ticket forever. The first board a page reads is remembered, not reacted to:
  * a ticket blocked yesterday is not news.
+ *
+ * Read once, for the whole console, and handed down: two faces show it — the
+ * bar's and the menu's — and each reading its own would remember a different
+ * first board, so one could be sad while the other slept.
  */
 
 /** How long a ticket that came back keeps the robot jumping. */
@@ -32,7 +36,7 @@ export interface Mood {
   params?: Record<string, string>
 }
 
-export function useRunnerMood(): Mood {
+function useReadMood(): Mood {
   const { board, runner } = useConsole()
   const { connection, running } = useStatus()
   const seen = React.useRef<Map<string, { column: string; pr: string }> | null>(null)
@@ -88,4 +92,17 @@ export function useRunnerMood(): Mood {
   if (ready)
     return { state: "idle", said: "{{count}} ticket(s) ready", params: { count: String(ready) } }
   return { state: "sleep", said: "nothing to do" }
+}
+
+const MoodContext = React.createContext<Mood | null>(null)
+
+export function useRunnerMood(): Mood {
+  const mood = React.useContext(MoodContext)
+  if (!mood) throw new Error("useRunnerMood outside its provider")
+  return mood
+}
+
+export function RunnerMoodProvider({ children }: { children: React.ReactNode }) {
+  const mood = useReadMood()
+  return <MoodContext.Provider value={mood}>{children}</MoodContext.Provider>
 }
