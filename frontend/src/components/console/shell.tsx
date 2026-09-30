@@ -33,7 +33,7 @@ export function Mark() {
       <span className="flex shrink-0" title="Ponos">
         <Robot state={mood.state} size={24} />
       </span>
-      <span className="truncate text-sm font-semibold">ticket-runner</span>
+      <span className="truncate text-sm font-semibold">Ponos</span>
     </div>
   )
 }

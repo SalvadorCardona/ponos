@@ -46,7 +46,7 @@ const entry = (
 
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
-  label: "ticket-runner",
+  label: "Ponos",
   resources: [tickets, projects, schedules, context, statistics, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [

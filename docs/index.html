@@ -3,27 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ticket-runner — Write the ticket. It comes back done.</title>
-<meta name="description" content="Write the ticket. It comes back done. Ponos, the ticket-runner robot, does the work on your machine while you do something else — a pull request, a text, an action — asks on Telegram or Slack when it needs you, and merges or publishes only once you say yes.">
+<title>Ponos — Write the ticket. It comes back done.</title>
+<meta name="description" content="Write the ticket. It comes back done. Ponos does the work on your machine while you do something else — a pull request, a text, an action — asks on Telegram or Slack when it needs you, and merges or publishes only once you say yes.">
 <link rel="canonical" href="https://cardona.digital/ticket-runner/">
 <link rel="icon" type="image/svg+xml" href="mascot/favicon.svg">
 <meta property="og:type" content="website">
-<meta property="og:title" content="ticket-runner — Write the ticket. It comes back done.">
+<meta property="og:title" content="Ponos — Write the ticket. It comes back done.">
 <meta property="og:description" content="Ponos does the work on your machine — a pull request, a text, an action. You read it, answer in a word, even from your phone, and he delivers.">
 <meta property="og:url" content="https://cardona.digital/ticket-runner/">
 <meta property="og:image" content="https://cardona.digital/ticket-runner/mascot/og.png">
-<meta property="og:image:alt" content="Ponos, the ticket-runner robot, jumping beside the words: Write the ticket. It comes back done.">
+<meta property="og:image:alt" content="Ponos, the robot, jumping beside its name and the words: Write the ticket. It comes back done.">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:video" content="https://cardona.digital/ticket-runner/media/ponos-promo.mp4">
+<meta property="og:video:secure_url" content="https://cardona.digital/ticket-runner/media/ponos-promo.mp4">
+<meta property="og:video:type" content="video/mp4">
+<meta property="og:video:width" content="1920">
+<meta property="og:video:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="ticket-runner — Write the ticket. It comes back done.">
+<meta name="twitter:title" content="Ponos — Write the ticket. It comes back done.">
 <meta name="twitter:image" content="https://cardona.digital/ticket-runner/mascot/og.png">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "ticket-runner",
-  "description": "Write the ticket. It comes back done. Ponos, the ticket-runner robot, does the work on your machine — a pull request, a text, an action — and merges or publishes only once you say yes.",
+  "name": "Ponos",
+  "alternateName": "ticket-runner",
+  "description": "Write the ticket. It comes back done. Ponos does the work on your machine — a pull request, a text, an action — and merges or publishes only once you say yes.",
   "url": "https://cardona.digital/ticket-runner/",
   "codeRepository": "https://github.com/SalvadorCardona/ticket-runner",
   "applicationCategory": "DeveloperApplication",
@@ -210,6 +216,12 @@
   .stage figcaption span { color: var(--muted-foreground); font-size: .875rem; }
   .mood { font: .75rem/1 var(--mono); color: var(--muted-foreground); display: inline-flex; align-items: center; gap: .5rem; }
   .mood .dot { background: var(--tr-green); }
+  .film { margin-block: 3.5rem 0; }
+  .film video {
+    display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: 0 24px 60px -30px rgb(0 0 0 / .45);
+  }
+  .film figcaption { color: var(--muted-foreground); font-size: .875rem; margin-top: .875rem; }
 
   /* -- 2. the loop -- */
   .step .num { font: 600 .8125rem/1 var(--mono); color: var(--primary); }
@@ -312,9 +324,9 @@
 
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="#top" aria-label="ticket-runner, home">
+    <a class="brand" href="#top" aria-label="Ponos, home">
       <ticket-runner-robot state="idle" still aria-hidden="true"></ticket-runner-robot>
-      ticket-runner
+      Ponos
     </a>
     <nav class="nav-links" aria-label="Sections">
       <a class="btn btn-ghost btn-sm section-link" href="#loop">How it works</a>
@@ -338,7 +350,7 @@
 <section class="hero" id="top">
   <div class="wrap hero-in">
     <div>
-      <span class="badge"><span class="dot" style="background:var(--tr-green)"></span>Meet Ponos, the robot behind ticket-runner</span>
+      <span class="badge"><span class="dot" style="background:var(--tr-green)"></span>Ponos · the robot that does your tickets</span>
       <h1>Write the ticket. <span>It comes back done.</span></h1>
       <p class="lede">
         <strong>Ponos</strong> takes it from there — on your machine, while you do something else —
@@ -351,13 +363,17 @@
         <button class="btn btn-primary btn-sm" id="copy-install" type="button" aria-label="Copy the install command">Copy</button>
       </div>
       <div class="cta">
-        <a class="btn btn-outline btn-lg" href="#loop">See how it works</a>
+        <a class="btn btn-outline btn-lg" href="#video">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg>
+          See it in 60 seconds
+        </a>
+        <a class="btn btn-ghost btn-lg" href="#loop">How it works</a>
         <a class="btn btn-ghost btn-lg" href="https://github.com/SalvadorCardona/ticket-runner">The source code</a>
       </div>
       <p class="byline">Free and open source, MIT · Linux · Python and git, nothing else to install.</p>
     </div>
     <figure class="card stage">
-      <ticket-runner-robot id="hero-bot" state="idle" aria-label="Ponos, the ticket-runner robot"></ticket-runner-robot>
+      <ticket-runner-robot id="hero-bot" state="idle" aria-label="Ponos, the robot"></ticket-runner-robot>
       <span class="mood" aria-live="off"><span class="dot"></span><span id="hero-mood">Ponos is waiting for a ticket</span></span>
       <figcaption>
         <b>Ponos</b>
@@ -365,6 +381,14 @@
       </figcaption>
     </figure>
   </div>
+  <figure class="wrap film" id="video">
+    <video controls playsinline preload="none" poster="media/ponos-promo-poster.jpg" width="1920" height="1080"
+           aria-label="Ponos, in a minute: a ticket written, done on your machine, and back for your yes. English voice-over and subtitles.">
+      <source src="media/ponos-promo.mp4" type="video/mp4">
+      <a href="media/ponos-promo.mp4">Download the video</a> (MP4, 8.6 MB).
+    </video>
+    <figcaption>One ticket, from <em>Ready</em> to <em>Done</em>, in a minute. Sound on: English voice-over, subtitles in the picture.</figcaption>
+  </figure>
 </section>
 
 <section id="loop">
@@ -537,7 +561,7 @@
     <div class="sec-head">
       <span class="label">Handmade</span>
       <h2>Made by a developer — and by Ponos himself.</h2>
-      <p>Most of this repository’s pull requests were opened by ticket-runner, from tickets on its own board. The releases are cut the same way.</p>
+      <p>Most of this repository’s pull requests were opened by Ponos, from tickets on its own board. The releases are cut the same way.</p>
     </div>
     <div class="card author">
       <div class="avatar" aria-hidden="true">SC</div>
@@ -557,7 +581,7 @@
 
 <footer>
   <div class="wrap foot">
-    <div>ticket-runner and Ponos — MIT licence · © 2026 <a href="https://cardona.digital" target="_blank" rel="noopener">Salvador Cardona</a></div>
+    <div>Ponos — MIT licence · © 2026 <a href="https://cardona.digital" target="_blank" rel="noopener">Salvador Cardona</a></div>
     <nav aria-label="Elsewhere">
       <a href="https://github.com/SalvadorCardona/ticket-runner#readme">Documentation</a>
       <a href="https://github.com/SalvadorCardona/ticket-runner">Repository</a>

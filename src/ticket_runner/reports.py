@@ -440,7 +440,7 @@ class Reports(Base):
         credits.hold(outcome.resets_at)
         when = credits.when(outcome.resets_at)
         self.say(f"  ⏸ out of credit — nothing is run until {when}")
-        self._announce("ticket-runner is out of credit", f"Back to work at {when}.")
+        self._announce("Ponos is out of credit", f"Back to work at {when}.")
 
     def _requeue(
         self,
@@ -543,7 +543,7 @@ class Reports(Base):
             if credits.release(what="reserve"):
                 self.say(f"  ▶ {used:.0f}% of the subscription spent — carrying on")
                 self._announce(
-                    "ticket-runner has credit again",
+                    "Ponos has credit again",
                     f"{used:.0f}% of the subscription spent — back to work.",
                 )
             return 0.0
@@ -558,7 +558,7 @@ class Reports(Base):
                 f"nothing new until {when}"
             )
             self._announce(
-                "ticket-runner is leaving you the rest",
+                "Ponos is leaving you the rest",
                 f"{used:.0f}% of the subscription spent, {reserve}% reserved — "
                 f"nothing new is started before {when}.",
             )

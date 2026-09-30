@@ -495,6 +495,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The product is called Ponos.** The robot gave it his name: the site, the
+  README, the console's sidebar and tab, the messages on Telegram and Slack,
+  the desktop notifications and the words `ticket-runner doctor` and the
+  welcome screen print all say Ponos, and the site opens on a one-minute video
+  of a ticket going from *Ready* to *Done*. Nothing to change on your side:
+  the command, the Python package, the repository, the configuration and state
+  paths, the `TICKET_RUNNER_*` variables, the systemd units and the
+  `ticket-runner://` links keep the name they were installed under.
 - **The robot has a name — Ponos — and the site looks like the console.**
   Ponos, after the Greek god of toil, is the one who does the tedious part:
   the console says so when you hover him (*Ponos is taking a ticket*, *Ponos

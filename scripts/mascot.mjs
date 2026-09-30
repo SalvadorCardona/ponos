@@ -29,7 +29,7 @@ const out = join(root, 'docs', 'mascot');
 const source = readFileSync(join(out, 'ticket-runner-robot.js'), 'utf8');
 const { STATES, standalone } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
-writeFileSync(join(out, 'robot.svg'), standalone({ title: 'Ponos, the ticket-runner robot' }));
+writeFileSync(join(out, 'robot.svg'), standalone({ title: 'Ponos' }));
 writeFileSync(join(out, 'favicon.svg'), standalone({ small: true }));
 
 /* The cards are drawn in the product's own tokens — the file the console and
@@ -43,6 +43,7 @@ const og = `<!doctype html><html class="dark"><meta charset="utf-8">${fonts}
   body { background: radial-gradient(700px 420px at 28% 30%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%), var(--background);
          color: var(--foreground); font-family: var(--sans); display: flex; align-items: center; gap: 40px; padding: 0 80px; box-sizing: border-box; }
   .bot { width: 380px; flex: none; }
+  .mark { font: 700 60px/1 var(--sans); letter-spacing: -.035em; margin: 0 0 26px; }
   h1 { font: 700 76px/1.02 var(--sans); margin: 0; letter-spacing: -.035em; }
   h1 span { color: var(--primary); }
   p { font-size: 28px; line-height: 1.4; color: var(--muted-foreground); margin: 26px 0 0; }
@@ -50,8 +51,8 @@ const og = `<!doctype html><html class="dark"><meta charset="utf-8">${fonts}
   code { font: 20px var(--mono); color: var(--primary); display: block; margin-top: 30px; }
 </style>
 <div class="bot">${standalone({ state: 'success', theme: 'dark' })}</div>
-<div><h1>Write the ticket.<br><span>It comes back done.</span></h1>
-<p><b>Ponos</b>, the ticket-runner robot, does the work on your machine — a pull request, a text, an action.</p>
+<div><div class="mark">Ponos</div><h1>Write the ticket.<br><span>It comes back done.</span></h1>
+<p>The robot does the work <b>on your machine</b> — a pull request, a text, an action.</p>
 <code>cardona.digital/ticket-runner</code></div>`;
 
 const cells = (theme) => Object.entries(STATES).map(([name, s]) => `

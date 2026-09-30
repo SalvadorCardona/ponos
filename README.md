@@ -1,13 +1,17 @@
-![Ponos, the ticket-runner robot — Write the ticket. It comes back done.](docs/mascot/og.png)
+[![Ponos — Write the ticket. It comes back done. Play the one-minute video on the site.](docs/media/ponos-promo-poster.jpg)](https://cardona.digital/ticket-runner/#video)
 
-# ticket-runner
+<sub>▶ **[Ponos in a minute](https://cardona.digital/ticket-runner/#video)** — one ticket, from *Ready* to *Done*. The video plays on the site, sound on.</sub>
 
-**Write the ticket. It comes back done.**
+# Ponos
+
+**Ponos — write the ticket, it comes back done.**
 
 *(En français : écris le ticket. Il revient fait.)*
 
-ticket-runner has a robot, and the robot has a name: **Ponos**, after the Greek god of
-toil — he does the tedious part of a ticket in your place, and you keep the decisions.
+Ponos is a robot named after the Greek god of toil: he does the tedious part of a ticket in
+your place, and you keep the decisions. The product took his name; the repository, the
+`ticket-runner` command and the `ticket_runner` Python package keep theirs, so nothing you
+installed or scripted has to change.
 
 📖 **[The documentation, online](https://cardona.digital/ticket-runner/)**
 
@@ -55,7 +59,7 @@ nothing else to install. The rest, from the Notion side to the console's address
 Everything from here on is the documentation: how it works, and every switch it has.
 
 ```
-Notion                    ticket-runner                       what you get
+Notion                    Ponos                               what you get
 ──────                    ─────────────                       ────────────
 
 Ready         ──────▶     claims it, writes the session link
@@ -83,7 +87,7 @@ first, and a doubt stops it before anything runs. See [The type of a ticket](#th
 
 ## Architecture
 
-![The pieces of ticket-runner and how they fit together](diagrams/ticket-runner.png)
+![The pieces of Ponos and how they fit together](diagrams/ticket-runner.png)
 
 Everything inside the dotted frame runs on your machine and nowhere else. Three things are
 outside it, and they are the only three the runner reaches: the Notion board it reads and
@@ -230,7 +234,7 @@ The runner works alone, on your machine, at three in the morning. It needs an id
 its own: an **internal integration**, which is a robot account with its own token.
 
 On [notion.so/my-integrations](https://www.notion.so/my-integrations) → **New
-integration** → give it a name (`ticket-runner`), pick your workspace, type **Internal**.
+integration** → give it a name (`Ponos`), pick your workspace, type **Internal**.
 Copy the token it shows you; it starts with `ntn_`.
 
 ### 2. Share one page with it
@@ -1275,7 +1279,7 @@ the one part of a ticket that is pure mechanics.
 its next pass the runner does the last thing the ticket needs:
 
 ```
-Notion                    ticket-runner                       what happens
+Notion                    Ponos                               what happens
 
 In review     ──────▶     you read it. Good?
     │
@@ -1374,7 +1378,7 @@ on its own and its history shows what was asked for that day. Three columns are 
 runner's to write: `Next`, `Last`, and `Last ticket`.
 
 ```
-Schedules                 ticket-runner                       Tickets
+Schedules                 Ponos                               Tickets
 
 Active ✓, Next ≤ now ────▶ recur()
                             │
@@ -1592,7 +1596,7 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 
 ```
 ┌───────────────┬──────────────────────────────┬─────────────────────────────┐
-│ ticket-runner │        ● live  v0.9.2  ⟳  ☀  │  you                        │
+│ Ponos         │        ● live  v0.9.2  ⟳  ☀  │  you                        │
 │               │ + New ticket   board · table │  Where is the SQLite ticket │
 │ ▸ Board    4  │  Ready     1   In progress 1 │                             │
 │   Projects    │  ┌──────────┐  ┌──────────┐  │  workspace                  │
@@ -2024,7 +2028,7 @@ door, and `http://127.0.0.1:8787` is the whole of the address:
 
 ```
 ┌──────────────────────────────────────────────────┐
-│ ticket-runner                                    │
+│ Ponos                                            │
 │ Nobody has claimed this console yet.             │
 │                                                  │
 │ ┌─ You ──────────────────────────────────────┐   │
@@ -2449,10 +2453,10 @@ ssh tunnel above — never on `0.0.0.0` because it happened to be easier that ev
 
 ![Ponos in every state, light and dark, and the same SVG from 24 to 160 px](docs/mascot/states.png)
 
-The runner has a face, and a name: **Ponos**, the Greek god of toil — a small robot whose
-mood follows a ticket. He is the product's character and its face everywhere, while the
-product itself keeps its name: the command, the package, the repository and the element's
-tag all stay `ticket-runner`. He lives in one file,
+The product is called **Ponos**, and so is its face: a small robot named after the Greek god
+of toil, whose mood follows a ticket. What a machine runs or addresses keeps the first
+name — the command, the package, the repository, the paths and the element's tag all stay
+`ticket-runner`. He lives in one file,
 [`docs/mascot/ticket-runner-robot.js`](docs/mascot/ticket-runner-robot.js) — a Web
 Component in vanilla JavaScript, because the landing page is a single static file with no
 build step and has to load it from a `<script>` tag:
@@ -2715,7 +2719,7 @@ pushed are never touched.
 
 ## Author
 
-ticket-runner is written by [Salvador Cardona — portfolio](https://cardona.digital), web
+Ponos is written by [Salvador Cardona — portfolio](https://cardona.digital), web
 developer for thirteen years, currently on Animalink. The rest of what comes out of the
 same workshop is over there.
 

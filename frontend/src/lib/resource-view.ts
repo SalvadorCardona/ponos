@@ -70,7 +70,7 @@ export function configureConsoleViews() {
     // The one page the Python server serves is `/`; the rest is the query
     // string, so a deep link survives a reload.
     routing: { mode: "query", param: "view", basePath: "/" },
-    appName: "ticket-runner",
+    appName: "Ponos",
     // `index.html` names the page; the views are not to rename it.
     ownsDocumentHead: false,
     isDev: false,

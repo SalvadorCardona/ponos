@@ -570,7 +570,7 @@ class Delivery(Base):
             return self._fail(ticket, said.say("push-refused"), failure, note=aside)
         count = state.rebased(ticket.id)
         record = said.paragraphs(facts, told)
-        git.comment_pull_request(url, f"ticket-runner — {record}", accounts)
+        git.comment_pull_request(url, f"Ponos — {record}", accounts)
         checks = git.wait_for_checks(
             url, job.workdir, self.config.runner.checks_timeout_minutes, accounts
         )
