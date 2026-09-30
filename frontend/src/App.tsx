@@ -15,6 +15,7 @@ import { TalkDrawer } from "@/components/console/talk-drawer"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ConsoleProvider, useConsole } from "@/hooks/use-console"
+import { RunnerMoodProvider } from "@/hooks/use-mood"
 import { useBoard } from "@/lib/board-store"
 import { useLanguage, useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
@@ -127,8 +128,10 @@ export default function App() {
   return (
     <TooltipProvider>
       <ConsoleProvider>
-        <RouterProvider router={router} />
-        <Toaster />
+        <RunnerMoodProvider>
+          <RouterProvider router={router} />
+          <Toaster />
+        </RunnerMoodProvider>
       </ConsoleProvider>
     </TooltipProvider>
   )
