@@ -37,7 +37,7 @@ import { EmptyState } from "@/components/console/empty-state"
 import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip } from "@/components/console/runner-strip"
 import { CardLive } from "@/components/console/session-log"
-import { TicketPage } from "@/components/console/ticket-page"
+import { TicketHeadLinks, TicketPage } from "@/components/console/ticket-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api, why } from "@/lib/api"
@@ -713,7 +713,14 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       // already as wide as a brief wants and scrolls inside when one runs long.
       behavior: { openIn: "popup" },
     },
-    [ActionList.read]: { name: "Ticket", viewComponent: TicketPage },
+    [ActionList.read]: {
+      name: "Ticket",
+      viewComponent: TicketPage,
+      // The layout's header, told where else the ticket is: the page has no
+      // header of its own. `top` said again, as on the list: without it the
+      // page no longer rereads the ticket the stream moves.
+      components: { top: BoardTop, actions: TicketHeadLinks },
+    },
   },
 })
 

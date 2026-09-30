@@ -111,7 +111,8 @@ export const layoutOf = (resourceId: string): string | undefined =>
  * a link shared as `/?view=console/tickets/list` stays what somebody typed.
  */
 export function useLayoutInTheAddress(resourceId: string): void {
-  const { view, viewVariant, resource, resourceAction } = useCurrentViewResourceContext()
+  const { view, viewVariant, resource, resourceAction, setViewResource } =
+    useCurrentViewResourceContext()
   const first = view?.viewVariants?.[0]?.id
   const listing = resourceAction === ActionList.list
   // The address as the router has it, not as `window.location` has it: a
@@ -126,6 +127,16 @@ export function useLayoutInTheAddress(resourceId: string): void {
     // there the variant is whatever the declaration lists first: left to run, a
     // ticket opened from the table would forget the table on its way in.
     if (!listing || !viewVariant) return
+    // Back from a record through the layout's own header, whose link to the
+    // list knows no layout: the one it was left in is put back — the way its
+    // tab would, on the context, which is what the address is then written
+    // from — rather than taken for a choice of the first. A tab opened on a
+    // bare address has nothing remembered, and stays on what was typed.
+    const left = layouts.get(resourceId)
+    if (!carried && viewVariant === first && left) {
+      setViewResource((current) => ({ ...current, viewVariant: left }))
+      return
+    }
     // Kept here as well as in the address, because the pages that link back to
     // a list — a record, the sidebar — have an address of their own to read and
     // would otherwise send everybody back to the first layout.
@@ -139,5 +150,5 @@ export function useLayoutInTheAddress(resourceId: string): void {
       }),
       replace: true,
     })
-  }, [listing, resourceId, viewVariant, first, resource, carried])
+  }, [listing, resourceId, viewVariant, first, resource, carried, setViewResource])
 }
