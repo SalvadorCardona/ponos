@@ -410,6 +410,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   else. The runner's mood is still on the mark, Ponos beside his name, at the
   top of the menu (and in the bar, on a phone).
 
+- **The top of the site says what Ponos is.** The line under the headline
+  names Notion, where the ticket is written, Claude Code, which does it on
+  your machine, and what comes back — a pull request or a text, merged or
+  published on your word. Beside it, where Ponos stood alone, a small picture
+  plays the loop: a ticket in Notion goes *Ready*, Ponos works it with a few
+  lines of his log, and pull request #96 opens — held at its end when motion
+  is unwelcome, and under the text on a phone. *See it in 60 seconds* is the
+  main button, the install command comes after the buttons and shows whole,
+  and the line below says what it needs: Claude Code, and Notion or a folder
+  of Markdown files. The count of sessions is gone from the public page.
+
 ### Fixed
 
 - **An update that does not start is taken back.** A version is started by a
