@@ -6013,6 +6013,7 @@ def the_console_draws_what_comes_back_on_its_own():
     assert (first["cadence"], first["at"], first["active"]) == ("Daily", "09:00", True)
     assert first["next"].startswith("2026-09-14T09:00")
     assert first["project"] == "Animalink", "the relation is resolved, as it is on a card"
+    assert first["project_id"] == "panimalink", "and the page, for a name not known yet"
     assert first["ticket"] == "aaaaaaaabbbbccccddddeeeeeeeeeeee", "addressed as the board does"
     assert not first["problem"]
 
@@ -6020,6 +6021,13 @@ def the_console_draws_what_comes_back_on_its_own():
     # says so here rather than showing a date it does not have.
     assert second["problem"], "a schedule the runner cannot read has to say why"
     assert second["next"] == "" and second["active"] is False
+
+    # A projects cache gone cold is not a query the rows wait for: the name is
+    # left to the console, which has the page to find it by.
+    api._projects = {}
+    api.projects = lambda: (_ for _ in ()).throw(AssertionError("the projects were read"))
+    first = api.schedules()["schedules"][0]
+    assert first["project"] == "" and first["project_id"] == "panimalink"
 
 
 class _PageClient(_TalkClient):
@@ -9031,13 +9039,21 @@ def the_console_lists_every_project_it_knows_of():
 
         api = _markdown_api(board)
         api._config.projects["Jeu d'usine"] = "/home/salva/workspace/usine"
+        asked: list[str] = []
+        query = api.runner.client.query
+        api.runner.client.query = lambda database, *rest, **named: (
+            asked.append(database) or query(database, *rest, **named)
+        )
         drawn = api.all_projects()
+        assert api.runner.database not in asked, "the tickets are the console's to count"
 
     rows = {project["name"]: project for project in drawn["projects"]}
     assert set(rows) == {"ticket-runner", "Site vitrine", "Jeu d'usine"}
     assert rows["ticket-runner"]["kind"] == "code"
     assert rows["ticket-runner"]["repository"] == "user/repo"
-    assert rows["ticket-runner"]["tickets"] == 1
+    # Counted by the console on the tickets it already holds: a count here was
+    # the whole tickets database read again on every call.
+    assert "tickets" not in rows["ticket-runner"]
     # No repository declared anywhere: a document project, not a broken one.
     assert rows["Site vitrine"]["kind"] == "document"
     assert rows["Jeu d'usine"]["source"] == "config"

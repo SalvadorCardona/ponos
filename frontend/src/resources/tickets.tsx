@@ -19,6 +19,7 @@ import {
   useListViewContext,
   type ListComponentPropsInterface,
   type RowComponentPropsInterface,
+  type RowInterface,
 } from "react-resource-view"
 
 import { MarkdownInputController } from "@/components/console/markdown-editor"
@@ -357,14 +358,103 @@ function NoTicket() {
   )
 }
 
-/** A column's name as a heading: the board's own word, with a capital, under its colour. */
-function heading(key: string, name: string) {
+/** A column's name as a heading: the board's own word, with a capital, under its colour.
+ *
+ * With the number of its cards when there is one to say. The package counts
+ * the cards it is handed, and a column that is handed its thirty latest is not
+ * a column of thirty: the count is the column's own, drawn here, and the
+ * package's is hidden (see `BoardColumn`). */
+function heading(key: string, name: string, count?: number) {
   const said = name.charAt(0).toUpperCase() + name.slice(1)
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="flex items-center gap-2">
       <span className={cn("size-1.5 shrink-0 rounded-full", SEED[key] ?? "bg-muted-foreground")} />
-      {said}
+      <span className="truncate">{said}</span>
+      {count === undefined ? null : (
+        <span className="bg-background text-muted-foreground ms-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-normal tabular-nums">
+          {count}
+        </span>
+      )}
     </span>
+  )
+}
+
+/* The columns where cards only ever pile up, and how many of their latest are
+ * drawn at a time.
+ *
+ * Done grows by every ticket the runner has ever finished: 344 cards on the
+ * board of September 2026, each with its robot, all drawn every time somebody
+ * went to the board — the browser held for a third of a second on a slow
+ * machine (`scripts/measure-console.mjs`). Nobody reads the three hundredth card of
+ * Done; the most recent are the ones worth a look. So a terminal column draws
+ * its `TERMINAL_PAGE` latest — by when the ticket was last touched, which is
+ * when it got there — and a button under it draws that many more. Every other
+ * column is work in flight, and is drawn whole.
+ *
+ * What a filter keeps is what is counted: the rows are the ones the list was
+ * handed, so a search that finds an old ticket finds it among thirty, not
+ * behind three hundred. */
+const TERMINAL = new Set<string>(["done"])
+export const TERMINAL_PAGE = 30
+
+/* How far each terminal column was opened, for as long as the tab lives: going
+ * to a ticket and back to the board is not starting again from thirty. */
+const opened = new Map<string, number>()
+
+const touched = (row: RowInterface) => Date.parse(String(row.data?.edited ?? "")) || 0
+
+/** One column of the board, as the package draws it — terminal ones cut short, with the way to the rest. */
+function BoardColumn({
+  column,
+  label,
+  rows,
+  dragging,
+  onDragging,
+}: {
+  column: string
+  label: string
+  rows: RowInterface[]
+  dragging: boolean
+  onDragging: (dragging: boolean) => void
+}) {
+  const [shown, setShown] = React.useState(() => opened.get(column) ?? TERMINAL_PAGE)
+  const mine = React.useMemo(() => {
+    const own = rows.filter((row) => row.data?.column === column)
+    return TERMINAL.has(column) ? own.sort((a, b) => touched(b) - touched(a)) : own
+  }, [rows, column])
+  const drawn = TERMINAL.has(column) ? mine.slice(0, shown) : mine
+  const left = mine.length - drawn.length
+
+  const more = () => {
+    const next = shown + TERMINAL_PAGE
+    opened.set(column, next)
+    setShown(next)
+  }
+
+  // The package draws its column 18rem wide and rigid; the wrapper is what
+  // shares the width, and the column fills it — no wider: left at
+  // `min-width: auto`, its widest card would widen it. Its own count is
+  // hidden: it counts what it was handed, and the heading says the column's.
+  return (
+    <div
+      className={cn(
+        "flex flex-1 basis-0 snap-start flex-col gap-2 *:w-auto *:min-w-0 [&_header>p]:flex-1 [&_header>span]:hidden",
+        COLUMN_MIN
+      )}
+    >
+      <RowWrapperColumnComponent
+        identifierKey="column"
+        valueIdentifier={{ value: column, label: heading(column, label, mine.length) }}
+        isDragging={dragging}
+        handleDragging={onDragging}
+        rows={drawn}
+      />
+      {left > 0 ? (
+        <Button variant="outline" size="sm" onClick={more}>
+          {t("Show more ({{count}} left)", { count: String(left) })}
+        </Button>
+      ) : null}
+    </div>
   )
 }
 
@@ -512,33 +602,26 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
           className="scroll-thin flex snap-x snap-mandatory items-start gap-3 overflow-x-auto scroll-smooth pb-2"
         >
           {columns.map((column) => {
-            const label = heading(column.key, column.name || t(LABEL[column.key] ?? ""))
+            const name = column.name || t(LABEL[column.key] ?? "")
             if (!emptyShown && empty.has(column.key)) {
               return dragging ? (
                 <DropZone
                   key={column.key}
                   column={column.key}
-                  label={label}
+                  label={heading(column.key, name)}
                   onDropped={() => setDragging(false)}
                 />
               ) : null
             }
-            // The package draws its column 18rem wide and rigid; the wrapper
-            // is what shares the width, and the column fills it — no wider:
-            // left at `min-width: auto`, its widest card would widen it.
             return (
-              <div
+              <BoardColumn
                 key={column.key}
-                className={cn("flex flex-1 basis-0 snap-start *:w-auto *:min-w-0 *:flex-1", COLUMN_MIN)}
-              >
-                <RowWrapperColumnComponent
-                  identifierKey="column"
-                  valueIdentifier={{ value: column.key, label }}
-                  isDragging={dragging}
-                  handleDragging={setDragging}
-                  rows={rows}
-                />
-              </div>
+                column={column.key}
+                label={name}
+                rows={rows}
+                dragging={dragging}
+                onDragging={setDragging}
+              />
             )
           })}
         </div>

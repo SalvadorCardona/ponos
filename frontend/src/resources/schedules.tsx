@@ -21,10 +21,12 @@ import {
 import { EmptyState } from "@/components/console/empty-state"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, why } from "@/lib/api"
 import { t } from "@/lib/i18n"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { Schedule, Schedules } from "@/lib/types"
+import { projectsOnce, useProjects } from "@/resources/projects"
 
 /* What comes back on its own, declared once for react-resource-view.
  *
@@ -267,6 +269,30 @@ const PageLink: InputControllerComponentInterface = ({ formInput }) => {
   )
 }
 
+/* The project a schedule points at, by name.
+ *
+ * The rows do not wait for the list of projects: the server writes the name
+ * when it already knows it, and the page it points at always. A row whose name
+ * is not known yet is drawn with a skeleton in its place, filled in once the
+ * list the projects page reads has arrived — asked once, whatever the number
+ * of rows. */
+const ProjectName: InputControllerComponentInterface = ({ formInput }) => {
+  const { form } = useFormContext()
+  const said = String(formInput.value ?? "")
+  const page = String((form?.data as { project_id?: string } | undefined)?.project_id ?? "")
+  const known = useProjects()
+  const wanted = !said && Boolean(page)
+  const [unread, setUnread] = React.useState(false)
+  React.useEffect(() => {
+    // A list that cannot be read leaves the cell empty, as a project with no
+    // name would; the schedule itself is still there.
+    if (wanted) void projectsOnce().catch(() => setUnread(true))
+  }, [wanted])
+  if (!wanted) return <>{said}</>
+  if (!known) return unread ? null : <Skeleton className="h-3 w-20" />
+  return <>{known.projects.find((project) => project.id === page)?.name ?? ""}</>
+}
+
 /* The columns of the table, and the fields the calendar's preview lists.
  *
  * Read-only but one: `active` carries the switch, and the package saves a cell
@@ -291,7 +317,7 @@ const rowForm: FormInterface = {
     active: { label: "On", controller: SwitchInputController },
     next: { label: "Next", readonly: true, controller: MomentInputController },
     last: { label: "Last", readonly: true, controller: MomentInputController },
-    project: { label: "Project", readonly: true },
+    project: { label: "Project", readonly: true, controller: ProjectName },
     problem: { label: "Problem", readonly: true },
   },
 }

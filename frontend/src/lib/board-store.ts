@@ -79,6 +79,30 @@ export function subscribeBoard(listener: () => void) {
   }
 }
 
+/* How many tickets point at each project, by its name as a card carries it.
+ *
+ * Counted here rather than asked of the server: `/api/projects` used to read
+ * the whole tickets database again to say it, while every ticket was already
+ * in this store. Counted once per board the stream sends, however many cards
+ * ask. */
+let counted: { from: Board; counts: Map<string, number> } | null = null
+
+function countsOf(from: Board): Map<string, number> {
+  if (counted?.from !== from) {
+    const counts = new Map<string, number>()
+    for (const ticket of from.tickets)
+      if (ticket.project) counts.set(ticket.project, (counts.get(ticket.project) ?? 0) + 1)
+    counted = { from, counts }
+  }
+  return counted.counts
+}
+
+/** The tickets of each project, by name — `null` until the first board arrives. */
+export function useTicketCounts(): Map<string, number> | null {
+  const held = React.useSyncExternalStore(subscribeBoard, () => board)
+  return held ? countsOf(held) : null
+}
+
 const EMPTY: Board = { tickets: [], columns: [] }
 
 export function useBoard(): Board {

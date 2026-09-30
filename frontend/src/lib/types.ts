@@ -66,8 +66,6 @@ export interface Project {
   configured?: string
   /** Where this row came from: the board, or the file on this machine. */
   source?: "board" | "config"
-  /** How many tickets point at it. */
-  tickets?: number
 }
 
 /** One project, opened: the row, and what is written on its page. */
@@ -108,7 +106,9 @@ export interface Schedule {
   last: string
   /** The ticket the last occurrence made, addressed as the board addresses one. */
   ticket: string
+  /** The project's name, when the server already knew it; the page it points at, always. */
   project: string
+  project_id: string
   model: string
   priority: string
   /** What stops this schedule being acted on, in the words `doctor` prints. */

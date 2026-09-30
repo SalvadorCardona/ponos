@@ -1,6 +1,11 @@
 import * as React from "react"
 import { FolderGit2 } from "lucide-react"
-import { ActionList, type FormInterface } from "react-data-form"
+import {
+  ActionList,
+  useFormContext,
+  type FormInterface,
+  type InputControllerComponentInterface,
+} from "react-data-form"
 import {
   Link,
   cardViewOptionFactory,
@@ -18,7 +23,9 @@ import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
 import { Chip } from "@/components/console/ticket-bits"
 import { buttonVariants } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
+import { useTicketCounts } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { Project, Projects } from "@/lib/types"
@@ -117,6 +124,33 @@ export function useProjects(): Projects | null {
   return React.useSyncExternalStore(subscribe, () => drawn)
 }
 
+let asked: Promise<Projects> | null = null
+
+/** The list, for a page that only wants the names: what was last read, or one
+ * request shared by whoever asks while it is out. */
+export function projectsOnce(): Promise<Projects> {
+  if (drawn) return Promise.resolve(drawn)
+  asked ??= api
+    .projects()
+    .then((fresh) => {
+      publish(fresh)
+      return fresh
+    })
+    .finally(() => {
+      asked = null
+    })
+  return asked
+}
+
+/* How many tickets point at a project, counted on the board the console holds
+ * rather than asked of the server with the list. The list is drawn as soon as
+ * it is read; until the first board arrives, the count is a skeleton in its
+ * place. */
+export function useTicketCount(name: string): number | null {
+  const counts = useTicketCounts()
+  return counts ? (counts.get(name) ?? 0) : null
+}
+
 /* Why the last project read failed, for the page to say rather than swallow.
  *
  * What a view component is handed is `error: true` and nothing else, so the
@@ -197,6 +231,14 @@ const editForm: FormInterface = {
   },
 }
 
+/** The count in the table: the row's name is what it is counted by. */
+const TicketsCell: InputControllerComponentInterface = () => {
+  const { form } = useFormContext()
+  const count = useTicketCount(String((form?.data as { name?: string } | undefined)?.name ?? ""))
+  if (count === null) return <Skeleton className="h-3 w-6" />
+  return <span className="tabular-nums">{count}</span>
+}
+
 /** The columns of the table layout. The headings go through the dictionary on their way to the page. */
 const rowForm: FormInterface = {
   inputs: {
@@ -204,7 +246,7 @@ const rowForm: FormInterface = {
     work: { label: "Kind", readonly: true },
     repository: { label: "Repository", readonly: true },
     where: { label: "On this machine", readonly: true },
-    tickets: { label: "Tickets", readonly: true },
+    tickets: { label: "Tickets", readonly: true, controller: TicketsCell },
   },
 }
 
@@ -222,6 +264,7 @@ const rowForm: FormInterface = {
 function ProjectCard({ row }: RowComponentPropsInterface) {
   const project = row?.data as ProjectItem | undefined
   const { resource } = useCurrentViewResourceContext()
+  const count = useTicketCount(project?.name ?? "")
   if (!project) return null
   const href = generateLinkByResource({
     resource,
@@ -234,9 +277,11 @@ function ProjectCard({ row }: RowComponentPropsInterface) {
       <div className="flex items-baseline gap-2">
         <Eyebrow>{project.work}</Eyebrow>
         <span className="flex-1" />
-        {project.tickets ? (
+        {count === null ? (
+          <Skeleton className="h-3 w-14" />
+        ) : count ? (
           <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
-            {t("{{count}} ticket(s)", { count: String(project.tickets) })}
+            {t("{{count}} ticket(s)", { count: String(count) })}
           </span>
         ) : null}
       </div>

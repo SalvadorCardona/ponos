@@ -326,6 +326,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **The console no longer drags on a board with years of Done.** The Done
+  column draws its thirty most recent tickets and a *Show more* button under
+  them; its heading still counts every one. The projects page no longer reads
+  the whole tickets database to count what each project holds — the console
+  counts the tickets it already has — and the schedules page draws its rows
+  without waiting for the list of projects. `node scripts/measure-console.mjs`
+  times it on a board of 350 tickets.
+
 - **What an audit found, closed.** A `ticket-runner://` link could hand ssh an
   option (`?host=-oProxyCommand=…`): the host and the session id are now checked
   and ssh gets the host after `--`. The console no longer offers `run`, `update`
