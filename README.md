@@ -2533,16 +2533,15 @@ ask for it.
 
 The web console bundles the same file — `frontend/` imports it through the `@mascot` alias,
 and its favicon is `docs/mascot/favicon.svg` — so the robot is never drawn twice. It is the
-mark at the top of the menu; the face at the right of the bar, in the runner's mood right now
+mark at the top of the menu — in the bar, on a phone — in the runner's mood right now
 (asleep on an empty queue, thinking while a ticket is claimed, working while a session runs,
 jumping for a few seconds when a ticket comes back, upset when one has just been blocked or
-the stream is lost, waiting when the credits are out), with the words beside it; one per card
+the stream is lost, waiting when the credits are out), with its name beside it; one per card
 and per row of the board, in the mood of its column; and the face of every empty list,
 loading page, error and toast. Only a ticket in progress moves on the board — the others are
 `still` — and every robot follows the console's own light or dark theme and is hidden from
-screen readers, the words beside it carrying the state. Hovered, it says whose face it is:
-the bar's robot carries the same state as a sentence about Ponos — *Ponos is taking a
-ticket*, *Ponos is waiting for credit*, *Ponos prend un ticket* in French.
+screen readers, the words beside it carrying the state. The right end of the bar keeps words
+only — the stream, the version, the sync with Notion — and no face.
 
 ### Layers
 

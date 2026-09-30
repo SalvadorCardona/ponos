@@ -375,6 +375,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   droops red when one is blocked, and is down to an ember when he sleeps. Under
   40 pixels it is one fatter orange shape, so it still reads in a browser tab.
 
+- **The console's top bar no longer has a Ponos at its right end.** It says the
+  stream, the version and the sync with Notion, then the two buttons — nothing
+  else. The runner's mood is still on the mark, Ponos beside his name, at the
+  top of the menu (and in the bar, on a phone).
+
 ### Fixed
 
 - **Every page of the console scrolls again.** Since the console moved to the
