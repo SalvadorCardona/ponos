@@ -1,38 +1,58 @@
-![ticket-runner](https://raw.githubusercontent.com/SalvadorCardona/brand-assets/main/projects/ticket-runner/banner.png)
+![Ponos, the ticket-runner robot — Write the ticket. It comes back done.](docs/mascot/og.png)
 
 # ticket-runner
 
-**Your Notion tickets, played by Claude Code.** You write a ticket, you move it to
-*Ready*, and a few minutes later the work is waiting for you.
+**Write the ticket. It comes back done.**
 
-Not only the tickets about code. *"Remove that header"* comes back as a pull request on
-its own branch; *"draft me a post about the new release"* comes back written into the
-ticket page itself. Both live on the same board, and it is the ticket that decides which
-one you get — not a setting.
+*(En français : écris le ticket. Il revient fait.)*
 
-And when you have read what came back, one column does the last step for you: move the
-ticket to *Validated* and the runner merges that pull request, or publishes what it wrote
-— the post, the mail, the announcement — and only then calls it *Done*. See
-[Validated, and what it sets off](#validated-and-what-it-sets-off).
-
-The runner lives on your machine, in the background, across **all of your projects at
-once**. It never touches your working copy: every ticket gets a disposable git worktree of
-its own.
-
-And you can talk to it where the work is. A comment under one of its reports is
-answered, in the thread, by something that has read the ticket, the project and the
-repository — see [Talking to it in the comments](#talking-to-it-in-the-comments).
-
-And when you would rather have your hands on it than wait for a board to refresh,
-`ticket-runner serve` opens a console on `127.0.0.1`: the same board live, this CLI in a
-browser, and a chat with your whole workspace. See [The web console](#the-web-console).
-
-And when you are not at a keyboard at all, it comes to you: a ticket the agent would not
-guess at asks its question on **Telegram or Slack**, and *oui* is the whole answer — the
-reply lands on the ticket and the next run carries on. See
-[Being told, and answering with one word](#being-told-and-answering-with-one-word).
+ticket-runner has a robot, and the robot has a name: **Ponos**, after the Greek god of
+toil — he does the tedious part of a ticket in your place, and you keep the decisions.
 
 📖 **[The documentation, online](https://cardona.digital/ticket-runner/)**
+
+## The loop, in four gestures
+
+1. **You write the ticket** — what you would tell a colleague — and move it to *Ready*.
+2. **Ponos does it while you do something else**: a pull request on its own branch, a
+   text written into the ticket, an action carried out.
+3. **You read it and answer in a word**, even from your phone: *oui* is a whole answer.
+4. **He delivers.** Move the ticket to *Validated* and the pull request is merged, or the
+   post is published — and only then is it *Done*.
+
+## Three things it does that a to-do list does not
+
+- **Not only code.** *"Remove that header"* comes back as a pull request; *"draft me a
+  post about the new release"* comes back written into the ticket. Same board, same
+  gesture — it is the ticket that decides which one you get, not a setting. See
+  [The type of a ticket](#the-type-of-a-ticket).
+- **You keep the hand.** Nothing is merged or published until you move the ticket to
+  *Validated*, and everything runs on your machine, each ticket on a disposable git
+  worktree of its own — your working copy is never touched. See
+  [What protects your code](#what-protects-your-code).
+- **It comes to you.** A ticket that needs a decision asks its question on **Telegram or
+  Slack**, and *oui* is the whole answer — the reply lands on the ticket and the next run
+  carries on. See [Being told, and answering with one word](#being-told-and-answering-with-one-word).
+
+The board is Notion and the agent is [Claude Code](https://claude.com/claude-code) by
+default — or a folder of [Markdown files](#without-notion-the-board-as-markdown-files), and
+[any other model](#every-other-model) through OpenRouter.
+
+## Install it
+
+```sh
+curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ticket-runner/main/install.sh | sh
+```
+
+Linux with systemd, `python3` ≥ 3.11, `git`, Claude Code, and `gh` for pull requests —
+nothing else to install. The rest, from the Notion side to the console's address, is in
+[Installation](#installation) below.
+
+---
+
+## How a ticket travels
+
+Everything from here on is the documentation: how it works, and every switch it has.
 
 ```
 Notion                    ticket-runner                       what you get
@@ -1431,6 +1451,12 @@ for the session that will read them, because a bare "oui" means nothing to an ag
 never saw the notification. Anything else travels verbatim; a word plus a sentence keeps
 both.
 
+| Read as a yes | Read as a no |
+| --- | --- |
+| *yes*, *oui*, *ok*, *go*, *ship it*, *vas-y*, *ça marche*, 👍, ✅ … | *no*, *non*, *stop*, *cancel*, *laisse tomber*, *annule*, 👎, ❌ … |
+
+The full lists are `_YES` and `_NO` in `src/ticket_runner/channels/__init__.py`.
+
 Answers are read **at the top of each run**, so a ticket answered thirty seconds ago is
 picked up by that very run. Which question an answer belongs to is settled in three steps,
 narrowest first: a reply *to* the runner's message (a Telegram reply, a Slack thread), then
@@ -1489,6 +1515,16 @@ conversations in it, and a colleague's "ok" is not an approval of anything.
 5. `allowed_users = ["U0123ABCD"]` — the member ids of the people whose answers count
    (profile → `···` → *Copy member ID*). Empty, anybody in the channel can answer, and
    `ticket-runner doctor` says so.
+
+### Telegram or Slack
+
+| | Telegram | Slack |
+| --- | --- | --- |
+| Best for | one person, on the move | a team that already lives in a channel |
+| Setup | a bot token and one message | an app, two scopes, an invitation |
+| Public URL needed | no — the runner polls | no — the runner polls |
+| Where you answer | a reply, the ticket's link, or just the next message | in the question's thread, or naming the ticket |
+| Who is read | the paired chat, and nobody else | the configured channel |
 
 ### What gets sent, and what does not
 
@@ -1759,6 +1795,15 @@ npm run build      # writes ../src/ticket_runner/web/static — commit what it w
 npm run dev        # hot reload, proxying /api to a console you started yourself
 npm run lint       # tsc, in the strict configuration the build uses
 ```
+
+**One set of tokens for the console and the site.** The colours of both themes, the two
+faces (DM Sans, JetBrains Mono), the radius, the `--tr-*` status colours and the chart
+series live in `frontend/src/tokens.css`, which `index.css` imports. The landing page has
+no build step, so it links `docs/tokens.css` — a copy that `npm run build` writes and that
+`tests/run.py` checks is still byte for byte the source. Change a colour in
+`frontend/src/tokens.css`, build, and commit both; `docs/index.html` names no colour of its
+own, and recopies the shapes of the console's shadcn button, badge, card and tabs as plain
+classes.
 
 `npm run dev` proxies `/api` to `http://127.0.0.1:8787` — set `TICKET_RUNNER_ORIGIN` for
 another address. Open the real console once first (`ticket-runner serve`, then its URL with
@@ -2322,11 +2367,16 @@ ssh tunnel above — never on `0.0.0.0` because it happened to be easier that ev
 
 ---
 
-## Mascot
+<a id="mascot"></a>
 
-![Every state, light and dark, and the same SVG from 24 to 160 px](docs/mascot/states.png)
+## Ponos, the mascot
 
-The runner has a face: a small robot whose mood follows a ticket. It lives in one file,
+![Ponos in every state, light and dark, and the same SVG from 24 to 160 px](docs/mascot/states.png)
+
+The runner has a face, and a name: **Ponos**, the Greek god of toil — a small robot whose
+mood follows a ticket. He is the product's character and its face everywhere, while the
+product itself keeps its name: the command, the package, the repository and the element's
+tag all stay `ticket-runner`. He lives in one file,
 [`docs/mascot/ticket-runner-robot.js`](docs/mascot/ticket-runner-robot.js) — a Web
 Component in vanilla JavaScript, because the landing page is a single static file with no
 build step and has to load it from a `<script>` tag:
@@ -2375,7 +2425,9 @@ the stream is lost, waiting when the credits are out), with the words beside it;
 and per row of the board, in the mood of its column; and the face of every empty list,
 loading page, error and toast. Only a ticket in progress moves on the board — the others are
 `still` — and every robot follows the console's own light or dark theme and is hidden from
-screen readers, the words beside it carrying the state.
+screen readers, the words beside it carrying the state. Hovered, it says whose face it is:
+the bar's robot carries the same state as a sentence about Ponos — *Ponos is taking a
+ticket*, *Ponos is waiting for credit*, *Ponos prend un ticket* in French.
 
 ### Layers
 

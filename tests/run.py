@@ -8116,6 +8116,134 @@ def the_console_and_the_landing_page_draw_one_robot():
     assert "'still'" in source, "a board of robots cannot hold them still"
 
 
+LANDING = ROOT / "docs/index.html"
+
+
+@case
+def the_console_and_the_landing_page_share_one_set_of_tokens():
+    """One file of colours, faces and radius, and the site has no other.
+
+    The console imports `frontend/src/tokens.css`; the site has no build step,
+    so it links `docs/tokens.css`, which `npm run build` copies. A copy that
+    drifts is two identities again — and the site's own stylesheet naming a
+    colour of its own is the same drift, written by hand.
+    """
+    source = (FRONTEND / "src/tokens.css").read_text(encoding="utf-8")
+    copy = (ROOT / "docs/tokens.css").read_text(encoding="utf-8")
+    assert copy == source, "docs/tokens.css is stale — run npm run build in frontend/ and commit it"
+    for name in ("--primary", "--background", "--radius", "--tr-green", "--series-1", "--sans", "--mono"):
+        assert f"{name}:" in source, f"{name} is not among the tokens"
+    assert ".dark {" in source, "the tokens have no dark theme"
+    index = (FRONTEND / "src/index.css").read_text(encoding="utf-8")
+    assert '@import "./tokens.css";' in index, "the console no longer reads the tokens"
+    assert "--primary:" not in index, "the console declares a colour outside the tokens"
+    vite = (FRONTEND / "vite.config.ts").read_text(encoding="utf-8")
+    assert '"../docs/tokens.css"' in vite, "the build no longer publishes the tokens for the site"
+
+    page = LANDING.read_text(encoding="utf-8")
+    assert '<link rel="stylesheet" href="tokens.css">' in page, "the site does not load the tokens"
+    style = page.split("<style>", 1)[1].split("</style>", 1)[0]
+    stray = re.findall(r"#[0-9a-fA-F]{3,8}\b", style)
+    assert not stray, f"the site names colours of its own: {stray}"
+    for gone in ("Inter", "Instrument Serif", "#3b82f6"):
+        assert gone not in page, f"{gone} is the old identity"
+    assert "family=DM+Sans" in page and "JetBrains+Mono" in page, "the site does not load the console's faces"
+    assert "ticket-runner-theme" in page and "prefers-color-scheme" in page, "the site has no light and dark"
+
+
+@case
+def the_landing_page_opens_on_ponos_and_tells_the_loop_in_six_sections():
+    """Six sections at most, the first one Ponos and the promise.
+
+    Seventeen sections at the same level is a manual, and the manual is the
+    README: the site says the promise, the loop, three proofs, the console,
+    the install and who made it, and links the rest.
+    """
+    page = LANDING.read_text(encoding="utf-8")
+    sections = re.findall(r"<section\b[^>]*>", page)
+    assert 0 < len(sections) <= 6, f"{len(sections)} sections — the site is a manual again"
+    hero = page.split("<section", 2)[1]
+    assert 'id="top"' in hero.split(">", 1)[0], "the page does not open on its hero"
+    assert "<ticket-runner-robot" in hero and "Ponos" in hero, "Ponos is not on the first screen"
+    assert "Write the ticket." in hero and "It comes back done." in hero, "the promise is not the headline"
+    title = re.search(r"<title>(.*?)</title>", page).group(1)
+    assert "Write the ticket. It comes back done." in title
+    assert "Notion" not in title and "Claude" not in title, "the promise leans on somebody else's brand"
+    description = re.search(r'<meta name="description" content="([^"]*)"', page).group(1)
+    assert "It comes back done." in description
+    assert "It comes back done." in re.search(r'<meta property="og:title" content="([^"]*)"', page).group(1)
+    assert "It comes back done." in (ROOT / "docs/llms.txt").read_text(encoding="utf-8")
+
+
+@case
+def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
+    """The robot's name, in both languages, wherever the robot is."""
+    assert "Ponos" in LANDING.read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "Write the ticket. It comes back done." in readme.split("---", 1)[0], "the README opens elsewhere"
+    assert "## Ponos, the mascot" in readme
+    mood = (FRONTEND / "src/hooks/use-mood.ts").read_text(encoding="utf-8")
+    french = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
+    tips = re.findall(r'tip: "([^"]+)"', mood)
+    assert "Ponos is taking a ticket" in tips, "the console's robot has no name"
+    for tip in tips:
+        assert f'"{tip}":' in french, f"nothing translates “{tip}” — add it to french.ts"
+    assert '"Ponos prend un ticket"' in french
+    mascot = (ROOT / "docs/mascot/ticket-runner-robot.js").read_text(encoding="utf-8")
+    assert "Ponos" in mascot.split("*/", 1)[0], "the component's documentation does not say Ponos"
+    assert "customElements.define('ticket-runner-robot'" in mascot, (
+        "the tag changed name — pages that embed it would lose their robot"
+    )
+    assert "<title>Ponos" in (ROOT / "docs/mascot/robot.svg").read_text(encoding="utf-8")
+
+
+def _readme_anchors() -> set[str]:
+    """The anchors GitHub gives the README's headings, and the ones it declares.
+
+    GitHub's rule: lowercase, drop what is neither a letter, a digit, a space, a
+    hyphen nor an underscore, and turn spaces into hyphens. Headings inside a
+    code block are not headings.
+    """
+    anchors: set[str] = set()
+    fenced = False
+    for line in (ROOT / "README.md").read_text(encoding="utf-8").splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        heading = re.match(r"#{1,6} (.+)", line)
+        if heading:
+            text = heading.group(1).strip().lower().replace("`", "")
+            anchors.add(re.sub(r"[^\w\- ]", "", text).replace(" ", "-"))
+        anchors.update(re.findall(r'<a id="([^"]+)"', line))
+    return anchors
+
+
+@case
+def the_landing_page_and_the_readme_link_to_anchors_that_exist():
+    """A link into the documentation is a promise the documentation keeps.
+
+    The site sends everything it no longer explains to a README heading, and
+    the README sends its reader around itself: a heading renamed without its
+    links is a reader landing at the top of a very long page.
+    """
+    page = LANDING.read_text(encoding="utf-8")
+    ids = set(re.findall(r'\bid="([^"]+)"', page))
+    for anchor in re.findall(r'href="#([^"]*)"', page):
+        assert anchor in ids, f"the site links #{anchor}, which it does not have"
+    for target in re.findall(r'href="([^"#:]+)"', page):
+        assert (ROOT / "docs" / target).exists(), f"the site links {target}, which docs/ does not have"
+    anchors = _readme_anchors()
+    linked = re.findall(r'href="https://github\.com/SalvadorCardona/ticket-runner#([^"]+)"', page)
+    assert linked, "the site no longer points at the documentation"
+    for anchor in linked:
+        assert anchor == "readme" or anchor in anchors, f"the site links README#{anchor}, which has no such heading"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for anchor in re.findall(r"\]\(#([^)]+)\)", readme):
+        assert anchor in anchors, f"the README links #{anchor}, which has no such heading"
+
+
 @case
 def the_console_says_the_version_it_is_running_beside_the_stream_s_dot():
     """The number reaches the page, rather than staying in the payload.

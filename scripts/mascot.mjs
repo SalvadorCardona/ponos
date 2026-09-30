@@ -29,25 +29,29 @@ const out = join(root, 'docs', 'mascot');
 const source = readFileSync(join(out, 'ticket-runner-robot.js'), 'utf8');
 const { STATES, standalone } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
-writeFileSync(join(out, 'robot.svg'), standalone({ title: 'ticket-runner — the robot' }));
+writeFileSync(join(out, 'robot.svg'), standalone({ title: 'Ponos, the ticket-runner robot' }));
 writeFileSync(join(out, 'favicon.svg'), standalone({ small: true }));
 
-const fonts = '<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">';
+/* The cards are drawn in the product's own tokens — the file the console and
+   the landing page share — rather than in colours written here a third time. */
+const tokens = `<style>${readFileSync(join(root, 'docs', 'tokens.css'), 'utf8')}</style>`;
+const fonts = `<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">${tokens}`;
 
-const og = `<!doctype html><meta charset="utf-8">${fonts}
+const og = `<!doctype html><html class="dark"><meta charset="utf-8">${fonts}
 <style>
   html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
-  body { background: radial-gradient(700px 420px at 30% 20%, rgba(59,130,246,.22), transparent 70%), #0b0d12;
-         color: #e9ecf3; font-family: Inter, sans-serif; display: flex; align-items: center; gap: 36px; padding: 0 80px; box-sizing: border-box; }
-  .bot { width: 400px; flex: none; }
-  h1 { font: 400 104px/1 'Instrument Serif', serif; margin: 0; letter-spacing: -.02em; }
-  h1 span { color: #3b82f6; }
-  p { font-size: 29px; line-height: 1.4; color: #c6cddb; margin: 24px 0 0; }
-  code { font: 20px 'JetBrains Mono', monospace; color: #7cb0ff; display: block; margin-top: 30px; }
+  body { background: radial-gradient(700px 420px at 28% 30%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%), var(--background);
+         color: var(--foreground); font-family: var(--sans); display: flex; align-items: center; gap: 40px; padding: 0 80px; box-sizing: border-box; }
+  .bot { width: 380px; flex: none; }
+  h1 { font: 700 76px/1.02 var(--sans); margin: 0; letter-spacing: -.035em; }
+  h1 span { color: var(--primary); }
+  p { font-size: 28px; line-height: 1.4; color: var(--muted-foreground); margin: 26px 0 0; }
+  p b { color: var(--foreground); font-weight: 600; }
+  code { font: 20px var(--mono); color: var(--primary); display: block; margin-top: 30px; }
 </style>
 <div class="bot">${standalone({ state: 'success', theme: 'dark' })}</div>
-<div><h1>ticket&#8209;runner<span>.</span></h1>
-<p>Move a Notion ticket to Ready. A few minutes later, a pull request.</p>
+<div><h1>Write the ticket.<br><span>It comes back done.</span></h1>
+<p><b>Ponos</b>, the ticket-runner robot, does the work on your machine — a pull request, a text, an action.</p>
 <code>cardona.digital/ticket-runner</code></div>`;
 
 const cells = (theme) => Object.entries(STATES).map(([name, s]) => `
@@ -58,22 +62,21 @@ const faces = Object.keys(STATES).map((name) => `<div class="box" style="width:2
 const sheet = `<!doctype html><meta charset="utf-8">${fonts}
 <style>
   html, body { margin: 0; width: 1200px; }
-  body { font-family: Inter, sans-serif; }
+  body { font-family: var(--sans); }
   .row { display: grid; grid-template-columns: repeat(${Object.keys(STATES).length}, 1fr); gap: 12px; padding: 28px 28px 20px; }
-  .light { background: #f4f2ee; color: #0f172a; }
-  .dark { background: #0b0d12; color: #e9ecf3; }
+  .light, .dark { background: var(--background); color: var(--foreground); }
   figure { margin: 0; text-align: center; }
   .bot { width: min(150px, 100%); margin: 0 auto; }
   figcaption { font-size: 13px; opacity: .75; margin-top: 8px; }
-  figcaption b { display: block; font: 600 15px 'JetBrains Mono', monospace; opacity: 1; margin-bottom: 2px; }
+  figcaption b { display: block; font: 600 15px var(--mono); opacity: 1; margin-bottom: 2px; }
   .sizes { display: flex; align-items: flex-end; gap: 28px; padding: 16px 28px 32px; }
-  .sizes span { font: 12px/1.5 'JetBrains Mono', monospace; opacity: .6; align-self: center; max-width: 150px; }
+  .sizes span { font: 12px/1.5 var(--mono); opacity: .6; align-self: center; max-width: 150px; }
   .sizes .faces { display: flex; gap: 14px; margin-left: auto; align-self: center; }
   .box { container-type: inline-size; flex: none; }
 </style>
 <div class="row light">${cells('light')}</div>
 <div class="dark"><div class="row">${cells('dark')}</div>
-<div class="sizes">${sizes}<span>24 · 32 · 48 · 96 · 160 px, one SVG</span><div class="faces">${faces}</div><span>every state at 24 px</span></div></div>`;
+<div class="sizes">${sizes}<span>Ponos at 24 · 32 · 48 · 96 · 160 px, one SVG</span><div class="faces">${faces}</div><span>every state at 24 px</span></div></div>`;
 
 const chrome = process.env.CHROME || 'google-chrome';
 const scratch = mkdtempSync(join(tmpdir(), 'mascot-'));

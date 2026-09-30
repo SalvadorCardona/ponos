@@ -1,5 +1,10 @@
 /*
- * <ticket-runner-robot> — the ticket-runner mascot, as a Web Component.
+ * <ticket-runner-robot> — Ponos, the ticket-runner mascot, as a Web Component.
+ *
+ * Ponos is the Greek god of toil: the robot is the one who does the tedious
+ * part of a ticket in your place, and the name is his. The product keeps its
+ * own — the command, the package and this element's tag are ticket-runner, and
+ * the tag stays `ticket-runner-robot` so that no page embedding it breaks.
  *
  * The landing page is one static file with no build step, so the mascot is
  * vanilla JavaScript rather than React: it has to load the way the page does,
@@ -510,7 +515,7 @@ function accessoriesMarkup(names) {
  * whatever the size (the favicon). Without it, the face alone is still what
  * an <img> narrower than SMALL shows, or an SVG inline in a container that is.
  */
-export function standalone({ state = DEFAULT_STATE, theme = 'auto', viewBox = '0 0 128 128', accessories = [], title = 'ticket-runner', small = false } = {}) {
+export function standalone({ state = DEFAULT_STATE, theme = 'auto', viewBox = '0 0 128 128', accessories = [], title = 'Ponos, the ticket-runner robot', small = false } = {}) {
   const themed = (t) => (t === 'auto' ? 'svg:not([data-theme="light"])' : `svg[data-theme="${t}"]`);
   const style = paletteStyle('svg', themed) + BASE_STYLE + stateStyle(false)
     + smallStyle([[null, 'svg.small'], [`@media (max-width: ${SMALL}px)`, 'svg'], [`@container (max-width: ${SMALL}px)`, 'svg']]);
@@ -586,7 +591,7 @@ if (typeof customElements !== 'undefined' && !customElements.get('ticket-runner-
       if (!this.hasAttribute('role')) this.setAttribute('role', 'img');
       if (!this.hasAttribute('aria-label') || this.labelled) {
         this.labelled = true;
-        this.setAttribute('aria-label', `ticket-runner robot — ${STATES[this.state].label.toLowerCase()}`);
+        this.setAttribute('aria-label', `Ponos, the ticket-runner robot — ${STATES[this.state].label.toLowerCase()}`);
       }
     }
 

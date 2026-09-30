@@ -1,16 +1,16 @@
 # ticket-runner
 
-> Your Notion tickets, played by Claude Code. Move a ticket to Ready, and a few minutes later a pull request is waiting — or the page itself is written.
+> Write the ticket. It comes back done. Ponos, the ticket-runner robot, does the work on your machine while you do something else — a pull request, a text, an action — asks on Telegram or Slack when it needs you, and merges or publishes only once you say yes.
 
-A systemd timer reads a Notion board, claims every ticket in *Ready*, and starts one
-[Claude Code](https://claude.com/claude-code) session per ticket on a disposable git worktree of its own. A project
-that names a repository gets a pull request; a project that names none gets its answer
-written back into the ticket as Notion blocks. Nothing reaches the outside world until a
-human moves the ticket to *Validated*. Python 3.11+, standard library only — no dependency
-to install, no build step.
+The loop is four gestures: you write a ticket and move it to *Ready*; Ponos does it, in a
+Claude Code session (by default) on a disposable git worktree of its own; you read what came
+back and answer in a word, even from your phone; you move it to *Validated* and he merges the
+pull request or publishes the text, and only then calls it *Done*. The board is Notion by
+default, or a folder of Markdown files; any model can be used through OpenRouter. Python
+3.11+, standard library only — no dependency to install, no build step.
 
 ## Docs
 
-- [Documentation](https://cardona.digital/ticket-runner/): features, installation, the board, the Validated column, recurring tickets, Telegram and Slack connectors, the web console, the Markdown board, OpenRouter, several GitHub accounts, usage limits, configuration, safety, troubleshooting
-- [Repository](https://github.com/SalvadorCardona/ticket-runner): source code, README
+- [Landing page](https://cardona.digital/ticket-runner/): the promise, the loop, the three proofs, the console, installation
+- [Documentation](https://github.com/SalvadorCardona/ticket-runner#readme): installation, the board and its columns, the Validated column, recurring tickets, Telegram and Slack, the web console, the Markdown board, OpenRouter, several GitHub accounts, usage limits, configuration, safety, troubleshooting, Ponos the mascot
 - [Changelog](https://github.com/SalvadorCardona/ticket-runner/blob/main/CHANGELOG.md): what changed, release by release

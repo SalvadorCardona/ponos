@@ -13,7 +13,9 @@
 # sur des tickets qui n'y touchent pas. Et il vérifie que `web/static/`, que le
 # runner sert tel qu'il est commité, est bien ce que le build produit : une
 # console modifiée sans son build commité serait une console que personne ne
-# reçoit.
+# reçoit. Le même build copie les jetons de la console dans `docs/tokens.css`,
+# que le site lit : la copie est vérifiée ici, et par `tests/run.py` à chaque
+# pull request, frontend touché ou non.
 
 name: CI
 
@@ -84,10 +86,10 @@ jobs:
       - name: Le build commité est celui que le code produit
         if: steps.changes.outputs.frontend == 'true'
         run: |
-          git diff --exit-code -- src/ticket_runner/web/static
-          untracked="$(git status --porcelain -- src/ticket_runner/web/static)"
+          git diff --exit-code -- src/ticket_runner/web/static docs/tokens.css
+          untracked="$(git status --porcelain -- src/ticket_runner/web/static docs/tokens.css)"
           if [ -n "$untracked" ]; then
-            echo "src/ticket_runner/web/static n'est pas à jour : lancez npm run build et commitez le résultat"
+            echo "src/ticket_runner/web/static ou docs/tokens.css n'est pas à jour : lancez npm run build et commitez le résultat"
             echo "$untracked"
             exit 1
           fi
