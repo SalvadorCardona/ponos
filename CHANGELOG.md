@@ -18,6 +18,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Force validated, one type of ticket at a time.** Four boxes in *Settings ›
+  Force validated* — Code, Writing, External action, Publication — or
+  `force_validated_<type> = true` under `[runner]`, all off by default. Ticked,
+  a ticket of that type no longer waits in *In review*: once its session has
+  succeeded, a Code ticket's pull request is opened, its CI waited for and
+  merged with `merge_method`, and a Publication is published straight away —
+  then *Done*, with *Validated automatically (Force validated: …)* in its
+  report. A merge GitHub refuses leaves the ticket in review, with the reason in
+  its report and on its card. A failed, blocked or out-of-credit ticket is never
+  validated, and a ticket already in review is left alone. Writing and External
+  action already end in *Done*: their boxes change nothing today.
+
 - **The console updates Ponos in one click.** The day a newer version is
   waiting, the version at the top right turns into a button: it names the
   installed version and the new one, links the release notes, and asks before

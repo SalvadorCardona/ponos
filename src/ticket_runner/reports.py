@@ -70,6 +70,15 @@ class Reports(Base):
         if status in values:
             self._remember(ticket, str(values[status]))
 
+    def _refusal_cleared(self, ticket: Ticket) -> dict[str, object]:
+        """The card's line emptied, when a forced merge left its refusal there.
+
+        Only on a card that says something: a board without the column, or a
+        ticket whose card is already blank, is not written to for nothing.
+        """
+        progress = self.config.notion.prop("progress")
+        return {progress: ""} if store.read(ticket.page, progress) else {}
+
     def _still(self, ticket: Ticket, target: str) -> bool:
         """Is the page still in the column this run last saw it in?
 

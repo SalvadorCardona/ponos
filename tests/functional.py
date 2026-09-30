@@ -664,6 +664,11 @@ if args[:2] == ["pr", "create"]:
 
 if args[:2] == ["pr", "merge"]:
     url = args[2] if len(args) > 2 else ""
+    # A refusal that is about the rules rather than the branch — a check still
+    # red, a review still required — in whatever words the scenario chose.
+    if os.environ.get("FAKE_GH_REFUSE"):
+        print(os.environ["FAKE_GH_REFUSE"], file=sys.stderr)
+        raise SystemExit(1)
     opened = pull_request(url)
     if opened:
         behind = git("merge-base", "--is-ancestor", opened["base"], opened["branch"],
@@ -1003,6 +1008,7 @@ def bench(**overrides: object):
                 "FAKE_CLAUDE_FAIL": "",
                 "FAKE_CLAUDE_KIND": "",
                 "FAKE_CLAUDE_RESOLVE": "",
+                "FAKE_GH_REFUSE": "",
                 **{name: str(path) for name, path in logs.items()},
             }
             with _environ(environment):
@@ -1164,6 +1170,101 @@ def a_ticket_with_no_type_is_classified_then_published_only_once_validated():
         published = machine.sessions()
         assert len(published) == 1 and "You are publishing, not producing" in published[0]["prompt"]
         assert machine.board.value(ticket, "Type") == "Publication", "the type is left alone"
+
+
+@case
+def a_code_ticket_whose_validation_is_forced_is_merged_and_done_in_one_pass():
+    """Force validated for Code: the pull request is opened, then merged, unread.
+
+    What the remote holds afterwards is the proof: `main` carries what the
+    session wrote. And the report says why nobody was asked.
+    """
+    with bench(force_validated_code=True) as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+
+        results = machine.run()
+
+        assert [result["status"] for result in results] == ["done"], results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        opened = machine.pull_requests()
+        assert len(opened) == 1, opened
+        merges = machine.merges()
+        assert [merge["url"] for merge in merges] == [opened[0]["url"]], merges
+        assert "FAKE.md" in machine.files_on(repository, "main")
+        said = machine.board.said(ticket)
+        assert "Validated automatically (Force validated: Code)" in said[-1], said[-1]
+        assert not machine.worktrees(repository), machine.worktrees(repository)
+
+
+@case
+def a_forced_merge_github_refuses_leaves_the_ticket_in_review_with_the_reason():
+    """Checks red, rights missing: not done, and the refusal on the card."""
+    with bench(force_validated_code=True) as machine:
+        machine.board.databases[machine.database]["properties"] = {
+            **machine.board.databases[machine.database]["properties"],
+            "Progress": {"type": "rich_text", "rich_text": {}},
+        }
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        os.environ["FAKE_GH_REFUSE"] = "Required status check \"build\" is failing"
+
+        machine.run()
+
+        assert machine.status(ticket) == "In review", machine.status(ticket)
+        assert "main" in machine.branches(repository)
+        assert "FAKE.md" not in machine.files_on(repository, "main"), "merged all the same"
+        said = machine.board.said(ticket)
+        assert "Force validated: Code" in said[-1], said[-1]
+        assert "is failing" in said[-1], said[-1]
+        card = str(machine.board.value(ticket, "Progress") or "")
+        assert "Not merged" in card and "is failing" in card, card
+
+
+@case
+def force_validated_never_touches_a_failed_session_nor_a_ticket_already_in_review():
+    """The two guards: only a success is validated, only a ticket run from now on."""
+    with bench(force_validated_code=True) as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        waiting = machine.ticket("Déjà relu à moitié", "Rien.", project, status="In review")
+        machine.board.pages[waiting]["properties"]["Pull Request"] = _stored(
+            {"url": "https://github.com/fake/repo/pull/99"}
+        )
+        broken = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        os.environ["FAKE_CLAUDE_FAIL"] = "la session a planté"
+
+        machine.run()
+
+        assert machine.status(broken) == "Failed", machine.status(broken)
+        assert machine.status(waiting) == "In review", machine.status(waiting)
+        assert not machine.merges(), machine.merges()
+
+
+@case
+def a_publication_whose_validation_is_forced_goes_out_without_waiting():
+    """Force validated for Publication: prepared, then published, in one pass."""
+    with bench(force_validated_publication=True) as machine:
+        machine.typed()
+        project = machine.project("Lettre d'information", None)
+        ticket = machine.ticket("Annoncer la version 2", "Un post LinkedIn pour la v2.", project)
+        machine.board.pages[ticket]["properties"]["Type"] = _stored(
+            {"select": {"name": "Publication"}}
+        )
+
+        results = machine.run()
+
+        assert [result.get("kind") for result in results] == ["delivery"], results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        sessions = machine.sessions()
+        assert len(sessions) == 2, sessions
+        assert "prepare it, do not publish it" in sessions[0]["prompt"]
+        assert "You are publishing, not producing" in sessions[1]["prompt"]
+        said = machine.board.said(ticket)
+        assert len(said) == 1 and said[0].startswith("✅"), said
+        assert "Validated automatically (Force validated: Publication)" in said[0], said
 
 
 @case

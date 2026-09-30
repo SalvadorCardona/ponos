@@ -18,7 +18,7 @@ from pathlib import Path
 from datetime import datetime
 
 from . import __version__, channels, config as config_module, conversation, credits, git, notion
-from . import store
+from . import kinds, store
 from . import provision
 from . import schedules as schedules_module
 from . import session, state, systemd
@@ -692,6 +692,16 @@ def command_doctor(args: argparse.Namespace) -> int:
     else:
         why = "runner.rebase" if not settings.rebase else "runner.resolve_conflicts"
         warn(f"{why} is off — a validated merge that conflicts blocks its ticket")
+    # Not a problem, since it is a choice — but the one setting that lets work
+    # leave the machine for good without anybody having read it, so it is said.
+    forced = [kind for kind in kinds.KINDS if settings.forces_validation(kind)]
+    if forced:
+        warn(
+            f"force validated: {', '.join(forced)} — merged or published as soon as "
+            "the session succeeds, without waiting for review"
+        )
+        if "code" in forced and not (settings.push and settings.open_pull_request):
+            warn("runner.force_validated_code is on, but no pull request is opened to merge")
 
     title("Version")
     print(f"  {DIM}Ponos {__version__} — releases: CHANGELOG.md{RESET}")

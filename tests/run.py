@@ -477,6 +477,35 @@ def a_merge_method_gh_would_refuse_never_reaches_it():
 
 
 @case
+def force_validated_is_off_for_every_type_until_the_file_says_otherwise():
+    """Nothing is merged or published unread by a file that never mentioned it.
+
+    One switch per type, each read on its own, and an empty type — a ticket the
+    runner ran by what its project holds — is never one of them.
+    """
+    quiet = _config("").runner
+    assert not any(quiet.forces_validation(kind) for kind in ("code", "writing",
+                                                              "external", "publication", ""))
+    runner = _config(
+        "[runner]\nforce_validated_code = true\nforce_validated_publication = true\n"
+    ).runner
+    assert runner.forces_validation("code") and runner.forces_validation("publication")
+    assert not runner.forces_validation("writing")
+    assert not runner.forces_validation("external")
+    assert not runner.forces_validation("")
+
+    # And the console can tick them, one box per type, where it saves them.
+    path, config = _saved()
+    for kind in ("code", "writing", "external", "publication"):
+        field = web_settings.FIELDS[f"runner.force_validated_{kind}"]
+        assert field.kind == "bool", field
+    web_settings.save(config, {"settings": {"runner.force_validated_code": True}})
+    assert C.load(path).runner.forces_validation("code")
+    web_settings.save(config, {"settings": {"runner.force_validated_code": None}})
+    assert not C.load(path).runner.forces_validation("code")
+
+
+@case
 def the_interval_never_reaches_systemd_as_zero():
     assert _config("[runner]\ninterval_seconds = 0\n").runner.interval_seconds == 1
     assert _config("[runner]\ninterval_seconds = 10\n").runner.interval_seconds == 10

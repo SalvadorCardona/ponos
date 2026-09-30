@@ -378,6 +378,9 @@ for reading rather than for filling in.
 | `runner.resolve_model` | `""` | the model that resolves — empty: the ticket's own |
 | `runner.checks_timeout_minutes` | `20` | how long a resolved pull request's CI is waited for before the merge; `0` does not wait |
 | `runner.merge_method` | `"squash"` | how a **validated** pull request is merged — `squash`, `merge`, `rebase` |
+| `runner.force_validated_code` | `false` | merge a Code ticket's pull request as soon as its session succeeds, then *Done* — see [*Force validated*](#force-validated-skipping-the-review) |
+| `runner.force_validated_publication` | `false` | publish a Publication as soon as it is prepared, without waiting in review |
+| `runner.force_validated_writing`, `runner.force_validated_external` | `false` | the same switch for Writing and External action — which already end in *Done*, so they change nothing today |
 | `runner.keep_worktree_on_failure` | `true` | keep enough around to understand a failure |
 | `runner.notify` | `true` | one desktop notification per finished ticket, clicked to open its Notion page — `[notify]` carries it to your phone |
 | `runner.auto_update` | `true` | a run keeps the installation on the latest version |
@@ -1403,9 +1406,40 @@ Five things are worth knowing:
   `ticket-runner list` shows those alongside the ready tickets that are waiting, and a
   pass says how many are;
 - **it is never guessed at.** The runner acts on that column and on nothing else: no
-  ticket is merged or published because a session felt sure of itself. And
+  ticket is merged or published because a session felt sure of itself — only because you
+  moved it, or ticked [*Force validated*](#force-validated-skipping-the-review) for its
+  type beforehand. And
   `ticket-runner run --dry-run` says what it *would* merge or publish without touching
   anything — this is the one gesture worth rehearsing.
+
+### Force validated: skipping the review
+
+For some types of ticket the review stopped earning its keep: you validate every pull
+request of a project you trust, or every post of an account that only relays. One box per
+type — **Code**, **Writing**, **External action**, **Publication** — in the console's
+*Settings › Force validated*, or `force_validated_<type> = true` under `[runner]`, makes
+that gesture in advance. All four are off by default, and nothing changes until you tick
+one.
+
+Ticked, a ticket of that type no longer stops in *In review*: as soon as its session has
+succeeded, the runner does what moving it to *Validated* would have set off, then moves it
+to *Done*. Its report says so — *Validated automatically (Force validated: Code)*.
+
+- **Code** — the pull request is opened, its CI waited for (at most
+  `checks_timeout_minutes`, only on a repository with workflows), then merged with
+  `merge_method`, as a validated one is. When GitHub refuses the merge — a conflict, a red
+  check, missing rights — the ticket is **not** done: it stays in *In review*, with the
+  refusal in its report and on its card, and you take it from there as before;
+- **Publication** — what the session prepared is published straight away by the
+  publishing session, in the same pass. Under the credit reserve it goes to *Validated*
+  instead, and the first pass with credit again publishes it;
+- **Writing** and **External action** already end in *Done*, with nothing left to
+  validate: their boxes are there for symmetry, and change nothing today.
+
+Two guards hold whatever is ticked: a ticket whose session failed, was blocked or ran out
+of credit is never validated, and the option only applies to tickets run after it is
+switched on — a ticket already in *In review* stays there until you move it.
+`ticket-runner doctor` says which types are forced.
 
 ---
 

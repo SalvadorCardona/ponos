@@ -300,10 +300,36 @@ SECTIONS: tuple[Section, ...] = (
                   "Empty: the model the ticket was worked with."),
             Field("runner", "checks_timeout_minutes", "int", "Wait for CI after a resolution (minutes)",
                   "Zero does not wait: GitHub still refuses a merge that a required check has "
-                  "not passed."),
+                  "not passed. A merge forced by Force validated waits the same way."),
             Field("runner", "keep_worktree_on_failure", "bool", "Keep the worktree on failure",
                   "The state a failed session died in, for you to look at. "
                   "`ticket-runner clean --force` sweeps them."),
+        ),
+    ),
+    Section(
+        key="validation",
+        title="Force validated",
+        blurb=(
+            "Skip the review, one type of ticket at a time. Once its session has "
+            "succeeded, the runner does at once what moving it to Validated would have "
+            "set off, then moves it to Done — and its report says the validation was "
+            "forced. A ticket that failed, was blocked or ran out of credit is never "
+            "validated, and one already in review stays there. All off: every ticket "
+            "waits for you, as before."
+        ),
+        fields=(
+            Field("runner", "force_validated_code", "bool", "Code",
+                  "The pull request is opened, its CI waited for, then merged the way a "
+                  "validated one is. A merge GitHub refuses leaves the ticket in review, "
+                  "with the reason on its card."),
+            Field("runner", "force_validated_writing", "bool", "Writing",
+                  "A text already ends in Done, with nothing to validate: this changes "
+                  "nothing today."),
+            Field("runner", "force_validated_external", "bool", "External action",
+                  "An external action already ends in Done, with nothing to validate: this "
+                  "changes nothing today."),
+            Field("runner", "force_validated_publication", "bool", "Publication",
+                  "What was prepared is published straight away, without waiting in review."),
         ),
     ),
     Section(
