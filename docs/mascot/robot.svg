@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" data-state="idle" data-theme="auto" role="img">
-<title>Ponos, the ticket-runner robot</title>
+<title>Ponos</title>
 <style>
 svg { --robot-body: #78a0ff; --robot-body-shade: #5079e6; --robot-screen: #1c2547; --robot-eye: #b4f1ff; --robot-accent: #ffcf5c; --robot-cheek: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff6b86; --robot-ink: #46599a; --robot-shadow: rgba(36, 52, 110, .16); }
 svg[data-theme="dark"] { --robot-body: #82a8ff; --robot-body-shade: #5c84ee; --robot-screen: #141b36; --robot-eye: #b4f1ff; --robot-accent: #ffd36b; --robot-cheek: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff7d93; --robot-ink: #a9bdf2; --robot-shadow: rgba(130, 168, 255, .16); }

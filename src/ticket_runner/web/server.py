@@ -875,7 +875,7 @@ def _page(title: str, body: str, style: str = "", language: str = "en") -> str:
     return (
         f'<!doctype html>\n<html lang="{language}">\n<meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-        f"<title>{html.escape(title)} · ticket-runner</title>\n" + _STYLE + style + body
+        f"<title>{html.escape(title)} · Ponos</title>\n" + _STYLE + style + body
     )
 
 
@@ -892,7 +892,7 @@ def gate_page(language: str = "en", where: str = "") -> str:
     return _page(
         say("token"),
         f"""<form onsubmit="location='/?token='+encodeURIComponent(this.t.value.trim());return false">
-  <h1>ticket-runner</h1>
+  <h1>Ponos</h1>
   <p>{say("This console needs its token. <code>ticket-runner serve --print-token</code> prints it, "
           "and it is written in {where}.").format(where=where)}</p>
   <label for="t">{say("Token")}</label>
@@ -915,7 +915,7 @@ def sign_in_page(language: str = "en") -> str:
     return _page(
         say("sign in"),
         f"""<form onsubmit="enter(this);return false">
-  <h1>ticket-runner</h1>
+  <h1>Ponos</h1>
   <p>{say("Sign in to open the console.")}</p>
   <label for="email">{say("Email")}</label>
   <input id="email" name="email" type="email" autofocus autocomplete="username" spellcheck="false">
@@ -984,7 +984,7 @@ def setup_page(language: str = "en") -> str:
     return _page(
         say("first connection"),
         f"""<form onsubmit="start(this);return false">
-  <h1>ticket-runner</h1>
+  <h1>Ponos</h1>
   <p>{say("Nobody has claimed this console yet. What you fill in here is written into "
           "your <code>config.toml</code>, and the first two lines are how you open it "
           "from now on — this page does not come back.")}</p>
@@ -1155,7 +1155,7 @@ def serve(
     address = server.server_address
     shown = f"http://{address[0]}:{address[1]}"
     if announce:
-        print(f"ticket-runner console on {shown}")
+        print(f"Ponos console on {shown}")
         print(f"  open  {opening(shown)}")
         print(f"  stop  Ctrl-C\n")
 

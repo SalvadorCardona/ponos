@@ -33,7 +33,10 @@ if sys.stdout.isatty():
     BOLD, DIM = "\033[1m", "\033[2m"
     GREEN, RED, YELLOW, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[0m"
 
+# The product is called Ponos; the command, the package and every path keep
+# the name they were installed under, so `--version` and argparse say that one.
 PRODUCT = "ticket-runner"
+NAME = "Ponos"
 TAGLINE = "Turns ready Notion tickets into Claude Code sessions."
 
 
@@ -688,7 +691,7 @@ def command_doctor(args: argparse.Namespace) -> int:
         warn(f"{why} is off — a validated merge that conflicts blocks its ticket")
 
     title("Version")
-    print(f"  {DIM}ticket-runner {__version__} — releases: CHANGELOG.md{RESET}")
+    print(f"  {DIM}Ponos {__version__} — releases: CHANGELOG.md{RESET}")
     channel = configuration.runner.update_channel
     status = update_module.check(channel=channel)
     if status.reason:
@@ -1148,7 +1151,7 @@ def command_notify(args: argparse.Namespace) -> int:
         return 1
 
     text = args.message or (
-        "ticket-runner speaking. Questions arrive here, and what you answer "
+        "Ponos speaking. Questions arrive here, and what you answer "
         "lands on the ticket."
     )
     problems = 0
@@ -1436,8 +1439,8 @@ def banner_lines() -> list[tuple[str, str]]:
     """
     lines = [
         (
-            f"{PRODUCT} {__version__}",
-            f"{BOLD}{PRODUCT}{RESET} {GREEN}{__version__}{RESET}",
+            f"{NAME} {__version__}",
+            f"{BOLD}{NAME}{RESET} {GREEN}{__version__}{RESET}",
         ),
         (TAGLINE, f"{DIM}{TAGLINE}{RESET}"),
     ]

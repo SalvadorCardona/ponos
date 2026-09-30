@@ -239,7 +239,7 @@ def between_runs(
         say(f"  ! update failed: {error}")
         return
     say("    updated — the next run uses it")
-    notify("ticket-runner updated", short)
+    notify("Ponos updated", short)
 
 
 def describe(status: Status) -> str:

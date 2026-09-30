@@ -67,7 +67,7 @@ function Page({ params }: { params: ViewResourceContextParams }) {
   )
 }
 
-/** What the tab says: where you are, so seven tabs of "ticket-runner" are not a row to open one by one. */
+/** What the tab says: where you are, so seven tabs of "Ponos" are not a row to open one by one. */
 function useTitle(params: ViewResourceContextParams, ticketShort?: string) {
   const t = useT()
   const resourceId = String(params.resourceId ?? TICKETS)
@@ -77,7 +77,7 @@ function useTitle(params: ViewResourceContextParams, ticketShort?: string) {
       : (consoleScope.menu?.find((item) => (item as { resource?: string }).resource === resourceId)
           ?.name ?? t("Board"))
   React.useEffect(() => {
-    document.title = here ? `${here} · ticket-runner` : "ticket-runner"
+    document.title = here ? `${here} · Ponos` : "Ponos"
   }, [here])
 }
 

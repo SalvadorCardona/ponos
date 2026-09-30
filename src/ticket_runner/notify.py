@@ -29,7 +29,7 @@ import sys
 import threading
 from pathlib import Path
 
-APP = "ticket-runner"
+APP = "Ponos"
 BUS = "org.freedesktop.Notifications"
 OBJECT = "/org/freedesktop/Notifications"
 

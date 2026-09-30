@@ -7347,11 +7347,11 @@ def a_notification_with_nowhere_to_go_is_a_notification_all_the_same():
         assert launched[0][0] == "/usr/bin/notify-send", f"sent anyway, without {tool}"
 
     with _notifying() as launched:
-        assert notify.send("ticket-runner updated", "0.4.0")
+        assert notify.send("Ponos updated", "0.4.0")
     assert launched[0][0] == "/usr/bin/notify-send", "nothing to open, so nothing to follow"
 
     with _notifying(missing="notify-send") as launched:
-        assert notify.send("ticket-runner updated", "0.4.0") is False
+        assert notify.send("Ponos updated", "0.4.0") is False
     assert launched == []
 
 
@@ -7369,7 +7369,7 @@ def the_notification_posted_over_dbus_is_the_one_notify_send_would_have_sent():
     command = posted[0]
     assert "--" in command, "`-1` is an expiry, and gdbus would read it as an option"
     assert command[command.index("--") + 1:] == [
-        '"ticket-runner"', "0", '"dialog-warning"', '"Blocked · t"', '"42 \\"why\\""',
+        '"Ponos"', "0", '"dialog-warning"', '"Blocked · t"', '"42 \\"why\\""',
         '["default", "Open the ticket"]', "{'urgency': <byte 2>}", "-1",
     ], "a body is a string, even when it reads like a number"
 
@@ -8305,7 +8305,7 @@ def a_bare_command_line_presents_the_product_and_its_version():
             assert cli_main([]) == 0
         printed = _plain(buffer.getvalue())
 
-    assert f"ticket-runner {__version__}" in printed
+    assert f"Ponos {__version__}" in printed
     assert "Turns ready Notion tickets into Claude Code sessions." in printed
     for name in subcommands():
         assert f"\n    {name} " in printed or f"\n    {name}  " in printed, (
