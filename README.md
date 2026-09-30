@@ -616,6 +616,21 @@ ticket-runner sync --journal   # what past reconciliations did
 
 ## The Notion side
 
+What it looks like from Notion, filmed on a demonstration board — the projects and
+tickets are made up:
+
+![A ticket in review, opened in Notion: the folded log of the run, then the comment with the pull request and the cost](docs/media/notion/notion-read-result.gif)
+
+*A ticket in review: the log Ponos folds into the page, then his comment — pull request, time, cost.*
+
+![A writing ticket in Notion, the text Ponos wrote appearing in the page of the ticket](docs/media/notion/notion-text.gif)
+
+*A writing ticket: the text comes back in the page itself, ready to copy.*
+
+![On the Notion board, a card dragged from In review to Validated](docs/media/notion/notion-validate.gif)
+
+*The go-ahead: drag the card to Validated, and he merges or publishes.*
+
 ### The tickets database
 
 | Property | Type | Role |
