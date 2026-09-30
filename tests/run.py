@@ -8542,6 +8542,8 @@ def the_landing_page_and_the_readme_link_to_anchors_that_exist():
     for anchor in re.findall(r'href="#([^"]*)"', page):
         assert anchor in ids, f"the site links #{anchor}, which it does not have"
     for target in re.findall(r'href="([^"#:]+)"', page):
+        # `?v=` only makes a browser fetch the file again: the file is what has to exist.
+        target = target.split("?", 1)[0]
         assert (ROOT / "docs" / target).exists(), f"the site links {target}, which docs/ does not have"
     anchors = _readme_anchors()
     linked = re.findall(r'href="https://github\.com/SalvadorCardona/ticket-runner#([^"]+)"', page)

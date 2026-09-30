@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" data-state="idle" data-theme="auto" class="small" role="img">
 <title>Ponos</title>
 <style>
-svg { --robot-body: #78a0ff; --robot-body-shade: #5079e6; --robot-screen: #1c2547; --robot-eye: #b4f1ff; --robot-accent: #ffcf5c; --robot-cheek: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff6b86; --robot-ink: #46599a; --robot-shadow: rgba(36, 52, 110, .16); }
-svg[data-theme="dark"] { --robot-body: #82a8ff; --robot-body-shade: #5c84ee; --robot-screen: #141b36; --robot-eye: #b4f1ff; --robot-accent: #ffd36b; --robot-cheek: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff7d93; --robot-ink: #a9bdf2; --robot-shadow: rgba(130, 168, 255, .16); }
-@media (prefers-color-scheme: dark) { svg:not([data-theme="light"]) { --robot-body: #82a8ff; --robot-body-shade: #5c84ee; --robot-screen: #141b36; --robot-eye: #b4f1ff; --robot-accent: #ffd36b; --robot-cheek: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff7d93; --robot-ink: #a9bdf2; --robot-shadow: rgba(130, 168, 255, .16); } }
+svg { --robot-body: #78a0ff; --robot-body-shade: #5079e6; --robot-screen: #1c2547; --robot-eye: #b4f1ff; --robot-accent: #ffcf5c; --robot-flame: #f59a3c; --robot-flame-core: #fbd35a; --robot-gold: #f2c65a; --robot-gold-deep: #b8861f; --robot-tunic: #f3ecdc; --robot-sash: #c4553a; --robot-pink: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff6b86; --robot-ink: #46599a; --robot-shadow: rgba(36, 52, 110, .16); }
+svg[data-theme="dark"] { --robot-body: #82a8ff; --robot-body-shade: #5c84ee; --robot-screen: #141b36; --robot-eye: #b4f1ff; --robot-accent: #ffd36b; --robot-flame: #f59a3c; --robot-flame-core: #fbd35a; --robot-gold: #f2c65a; --robot-gold-deep: #b8861f; --robot-tunic: #f3ecdc; --robot-sash: #c4553a; --robot-pink: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff7d93; --robot-ink: #a9bdf2; --robot-shadow: rgba(130, 168, 255, .16); }
+@media (prefers-color-scheme: dark) { svg:not([data-theme="light"]) { --robot-body: #82a8ff; --robot-body-shade: #5c84ee; --robot-screen: #141b36; --robot-eye: #b4f1ff; --robot-accent: #ffd36b; --robot-flame: #f59a3c; --robot-flame-core: #fbd35a; --robot-gold: #f2c65a; --robot-gold-deep: #b8861f; --robot-tunic: #f3ecdc; --robot-sash: #c4553a; --robot-pink: #ff8fb0; --robot-glint: #ffffff; --robot-alert: #ff7d93; --robot-ink: #a9bdf2; --robot-shadow: rgba(130, 168, 255, .16); } }
 svg { display: block; width: 100%; height: auto; overflow: visible; }
 [data-layer] { transform-box: view-box; }
 [data-layer="frame"] { transform-origin: 64px 44px; }
 [data-layer="base"] { transform-origin: 64px 119px; }
 [data-layer="rig"] { transform-origin: 64px 119px; }
 [data-layer="head"] { transform-origin: 64px 86px; }
-[data-layer="antenna"] { transform-origin: 64px 24px; }
-[data-layer="bulb"] { transform-origin: 64px 14px; }
+[data-layer="flame"] { transform-origin: 64px 22px; }
+[data-layer="fire"] { transform-origin: 64px 21px; }
 [data-layer="arm-left"] { transform-origin: 45px 89px; }
 [data-layer="arm-right"] { transform-origin: 83px 89px; }
 [data-layer="forearm-left"] { transform-origin: 38.5px 96px; }
@@ -30,10 +30,12 @@ svg { display: block; width: 100%; height: auto; overflow: visible; }
 .ear, .hand, .foot, .limb-fill { fill: var(--robot-body-shade); }
 .limb { fill: none; stroke: var(--robot-body-shade); stroke-width: 8; stroke-linecap: round; }
 .sheen { fill: none; stroke: var(--robot-glint); stroke-width: 3.6; stroke-linecap: round; opacity: .55; }
-.plate { fill: var(--robot-screen); }
-.chevron, .cursor { fill: none; stroke: var(--robot-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.stem { fill: none; stroke: var(--robot-ink); stroke-width: 3.2; stroke-linecap: round; }
-.bulb { fill: var(--robot-accent); }
+.tunic { fill: var(--robot-tunic); }
+.sash { fill: var(--robot-sash); }
+.brooch, .socket { fill: var(--robot-gold); }
+.brooch-pin { fill: var(--robot-gold-deep); }
+.fire { fill: var(--robot-flame); stroke: var(--robot-flame); stroke-width: 0; stroke-linejoin: round; }
+.fire-core { fill: var(--robot-flame-core); }
 .screen, .lid { fill: var(--robot-screen); }
 .eye, .mouth-fill { fill: var(--robot-eye); }
 .glint { fill: var(--robot-glint); }
@@ -41,13 +43,12 @@ svg { display: block; width: 100%; height: auto; overflow: visible; }
 .eye-line, .mouth-line { fill: none; stroke: var(--robot-eye); stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
 .mouth-line { stroke-width: 2.6; }
 .eye-joy, .eye-closed, .mouth-alt { opacity: 0; }
-.cheek, .tongue { fill: var(--robot-cheek); }
-.cheek { opacity: .8; }
+.tongue { fill: var(--robot-pink); }
 .tear { fill: var(--robot-eye); opacity: 0; }
 .lid { transform: scaleY(0); transition: transform .07s ease-in; }
 .z { fill: none; stroke: var(--robot-body-shade); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .star { fill: var(--robot-accent); }
-.heart { fill: var(--robot-cheek); }
+.heart { fill: var(--robot-pink); }
 .dot { fill: var(--robot-body-shade); }
 .fx-zzz, .fx-stars, .fx-dots { opacity: 0; }
 svg.blinking[data-state] [data-layer^="lid-"] { transform: scaleY(1); }
@@ -65,6 +66,7 @@ svg[data-state="working"] [data-layer="arm-left"] { transform: rotate(40deg); }
 svg[data-state="working"] [data-layer="arm-right"] { transform: rotate(-40deg); }
 svg[data-state="working"] [data-layer="forearm-left"] { transform: rotate(-50deg); }
 svg[data-state="working"] [data-layer="forearm-right"] { transform: rotate(50deg); }
+svg[data-state="working"] [data-layer="fire"] { transform: scale(1.15, 1.3); }
 svg[data-state="success"] [data-layer="eye-open-left"] { opacity: 0; }
 svg[data-state="success"] [data-layer="eye-open-right"] { opacity: 0; }
 svg[data-state="success"] [data-layer="eye-joy-left"] { opacity: 1; }
@@ -87,28 +89,29 @@ svg[data-state="error"] [data-layer="mouth-smile"] { opacity: 0; }
 svg[data-state="error"] [data-layer="mouth-frown"] { opacity: 1; }
 svg[data-state="error"] [data-layer="arm-left"] { transform: rotate(-14deg); }
 svg[data-state="error"] [data-layer="arm-right"] { transform: rotate(14deg); }
-svg[data-state="error"] [data-layer="antenna"] { transform: rotate(-22deg); }
-svg[data-state="error"] .bulb { fill: var(--robot-alert); }
+svg[data-state="error"] [data-layer="flame"] { transform: rotate(-22deg); }
+svg[data-state="error"] .fire { fill: var(--robot-alert); stroke: var(--robot-alert); }
 svg[data-state="error"] [data-layer="tear"] { opacity: 1; }
 svg[data-state="sleep"] [data-layer="rig"] { transform: translateY(1px); }
 svg[data-state="sleep"] [data-layer="head"] { transform: rotate(-7deg); }
-svg[data-state="sleep"] [data-layer="antenna"] { transform: rotate(-12deg); }
+svg[data-state="sleep"] [data-layer="flame"] { transform: rotate(-12deg); }
 svg[data-state="sleep"] [data-layer="eye-open-left"] { opacity: 0; }
 svg[data-state="sleep"] [data-layer="eye-open-right"] { opacity: 0; }
 svg[data-state="sleep"] [data-layer="eye-closed-left"] { opacity: 1; }
 svg[data-state="sleep"] [data-layer="eye-closed-right"] { opacity: 1; }
 svg[data-state="sleep"] [data-layer="mouth-smile"] { opacity: 0; }
 svg[data-state="sleep"] [data-layer="mouth-o"] { opacity: 1; }
-svg[data-state="sleep"] [data-layer="bulb"] { opacity: .35; }
+svg[data-state="sleep"] [data-layer="fire"] { transform: scale(.45); opacity: .5; }
+svg[data-state="sleep"] .fire-core { opacity: 0; }
 svg[data-state="sleep"] [data-layer="fx-zzz"] { opacity: 1; }
 svg[data-state="waiting"] [data-layer="head"] { transform: rotate(-6deg); }
 svg[data-state="waiting"] [data-layer="eyes"] { transform: translate(5px, -4px); }
 svg[data-state="waiting"] [data-layer="mouth-smile"] { opacity: 0; }
 svg[data-state="waiting"] [data-layer="mouth-o"] { opacity: 1; }
-svg[data-state="waiting"] [data-layer="fx-dots"] { opacity: 1; }svg.small [data-layer="frame"] { transform: translateY(20px) scale(1.4); }svg.small [data-layer="base"], svg.small [data-layer="body"], svg.small [data-layer="arm-left"], svg.small [data-layer="arm-right"], svg.small [data-layer="accessories"], svg.small [data-layer="fx"], svg.small .ear, svg.small .sheen, svg.small .glint-small, svg.small .tear { display: none; }svg.small .stem { stroke-width: 5; }svg.small .eye-line { stroke-width: 6; }svg.small .mouth-line { stroke-width: 4; }svg.small .cheek { opacity: 1; }
-@media (max-width: 40px) { svg [data-layer="frame"] { transform: translateY(20px) scale(1.4); }svg [data-layer="base"], svg [data-layer="body"], svg [data-layer="arm-left"], svg [data-layer="arm-right"], svg [data-layer="accessories"], svg [data-layer="fx"], svg .ear, svg .sheen, svg .glint-small, svg .tear { display: none; }svg .stem { stroke-width: 5; }svg .eye-line { stroke-width: 6; }svg .mouth-line { stroke-width: 4; }svg .cheek { opacity: 1; }
+svg[data-state="waiting"] [data-layer="fx-dots"] { opacity: 1; }svg.small [data-layer="frame"] { transform: translateY(20px) scale(1.4); }svg.small [data-layer="base"], svg.small [data-layer="body"], svg.small [data-layer="arm-left"], svg.small [data-layer="arm-right"], svg.small [data-layer="accessories"], svg.small [data-layer="fx"], svg.small .ear, svg.small .sheen, svg.small .glint-small, svg.small .tear, svg.small .fire-core, svg.small .socket { display: none; }svg.small .fire { stroke-width: 4.5; }svg.small .eye-line { stroke-width: 6; }svg.small .mouth-line { stroke-width: 4; }
+@media (max-width: 40px) { svg [data-layer="frame"] { transform: translateY(20px) scale(1.4); }svg [data-layer="base"], svg [data-layer="body"], svg [data-layer="arm-left"], svg [data-layer="arm-right"], svg [data-layer="accessories"], svg [data-layer="fx"], svg .ear, svg .sheen, svg .glint-small, svg .tear, svg .fire-core, svg .socket { display: none; }svg .fire { stroke-width: 4.5; }svg .eye-line { stroke-width: 6; }svg .mouth-line { stroke-width: 4; }
 }
-@container (max-width: 40px) { svg [data-layer="frame"] { transform: translateY(20px) scale(1.4); }svg [data-layer="base"], svg [data-layer="body"], svg [data-layer="arm-left"], svg [data-layer="arm-right"], svg [data-layer="accessories"], svg [data-layer="fx"], svg .ear, svg .sheen, svg .glint-small, svg .tear { display: none; }svg .stem { stroke-width: 5; }svg .eye-line { stroke-width: 6; }svg .mouth-line { stroke-width: 4; }svg .cheek { opacity: 1; }
+@container (max-width: 40px) { svg [data-layer="frame"] { transform: translateY(20px) scale(1.4); }svg [data-layer="base"], svg [data-layer="body"], svg [data-layer="arm-left"], svg [data-layer="arm-right"], svg [data-layer="accessories"], svg [data-layer="fx"], svg .ear, svg .sheen, svg .glint-small, svg .tear, svg .fire-core, svg .socket { display: none; }svg .fire { stroke-width: 4.5; }svg .eye-line { stroke-width: 6; }svg .mouth-line { stroke-width: 4; }
 }</style>
   <defs>
     <linearGradient id="trr-shade" x1="0" y1="0" x2="0" y2="1">
@@ -123,6 +126,7 @@ svg[data-state="waiting"] [data-layer="fx-dots"] { opacity: 1; }svg.small [data-
       <stop offset="0" stop-color="#fff" stop-opacity=".1"/>
       <stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </radialGradient>
+    <clipPath id="trr-torso"><rect x="42" y="78" width="44" height="30" rx="15"/></clipPath>
   </defs>
   <g data-layer="frame">
   <g data-layer="base">
@@ -140,18 +144,24 @@ svg[data-state="waiting"] [data-layer="fx-dots"] { opacity: 1; }svg.small [data-
         <ellipse class="foot" cx="75" cy="114.5" rx="8" ry="4.5"/>
       </g>
       <rect class="shell" x="42" y="78" width="44" height="30" rx="15"/>
+      <g data-layer="dress" clip-path="url(#trr-torso)">
+        <path class="tunic" d="M42 92 Q64 89 86 92 V108 H42 Z"/>
+        <path class="sash" d="M42 86 L54 81.5 L86 100 L86 108 Z"/>
+      </g>
       <rect x="42" y="78" width="44" height="30" rx="15" fill="url(#trr-shade)"/>
-      <rect class="plate" x="55" y="89" width="18" height="12" rx="6"/>
-      <path class="chevron" d="M59.5 92.5 l2.6 2.3 l-2.6 2.3"/>
-      <path data-layer="cursor" class="cursor" d="M65 97.3 h3.6"/>
+      <g data-layer="brooch">
+        <circle class="brooch" cx="51" cy="89" r="3.4"/>
+        <circle class="brooch-pin" cx="51" cy="89" r="1.5"/>
+        <circle class="glint" cx="50" cy="88" r=".8"/>
+      </g>
     </g>
     <g data-layer="head">
-      <g data-layer="antenna">
-        <path class="stem" d="M64 24 Q62.5 18 64 13"/>
-        <g data-layer="bulb">
-          <circle class="bulb" cx="64" cy="8.5" r="6"/>
-          <circle class="glint" cx="61.8" cy="6.4" r="1.9"/>
+      <g data-layer="flame">
+        <g data-layer="fire">
+          <path class="fire" d="M64 4.6 C68.8 10.6 70.6 15.4 67.6 20.2 C66.4 22 61.6 22 60.4 20.2 C57.4 15.4 59.2 10.6 64 4.6 Z"/>
+          <path class="fire-core" d="M64 10.6 C66.4 14.2 67 17.2 65.2 19.6 C64.6 20.2 63.4 20.2 62.8 19.6 C61 17.2 61.6 14.2 64 10.6 Z"/>
         </g>
+        <rect class="socket" x="59.2" y="19.6" width="9.6" height="3.6" rx="1.2"/>
       </g>
       <circle class="ear" cx="19.5" cy="56" r="7.5"/>
       <circle class="ear" cx="108.5" cy="56" r="7.5"/>
@@ -185,10 +195,6 @@ svg[data-state="waiting"] [data-layer="fx-dots"] { opacity: 1; }svg.small [data-
         <rect data-layer="lid-right" class="lid" x="68" y="42" width="20" height="22"/>
       </g>
       <rect x="30" y="33" width="68" height="44" rx="20" fill="url(#trr-glow)"/>
-      <g data-layer="cheeks">
-        <ellipse class="cheek" cx="38.5" cy="65" rx="5" ry="3.2"/>
-        <ellipse class="cheek" cx="89.5" cy="65" rx="5" ry="3.2"/>
-      </g>
       <g data-layer="mouth">
         <path data-layer="mouth-smile" class="mouth-line" d="M59.5 66 Q64 70.5 68.5 66"/>
         <g data-layer="mouth-open" class="mouth-alt">
