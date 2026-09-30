@@ -15,7 +15,10 @@
 # console modifiée sans son build commité serait une console que personne ne
 # reçoit. Le même build copie les jetons de la console dans `docs/tokens.css`,
 # que le site lit : la copie est vérifiée ici, et par `tests/run.py` à chaque
-# pull request, frontend touché ou non.
+# pull request, frontend touché ou non. Il ouvre enfin la console dans le Chrome
+# du runner GitHub (`npm run test:e2e`), servie par le vrai `ticket-runner
+# serve` sur un board de fichiers : ce qu'un navigateur fait d'une page — la
+# faire défiler, par exemple — aucune des deux suites ne le voit.
 
 name: CI
 
@@ -93,3 +96,8 @@ jobs:
             echo "$untracked"
             exit 1
           fi
+
+      - name: La console dans un navigateur
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run test:e2e
+        working-directory: frontend

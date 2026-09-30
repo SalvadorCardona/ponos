@@ -7,3 +7,5 @@ dist/
 diagrams/*.visual-check.*
 # The diagram renderer is installed, not vendored — see "The architecture diagram".
 .claude/skills/archify/
+test-results/
+playwright-report/
