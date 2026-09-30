@@ -163,6 +163,34 @@ export function TicketLinks({ ticket }: { ticket: Ticket }) {
   )
 }
 
+/* A move made from the console that is not in Notion yet — or will not be, and
+ * why. On the card itself, because that is where the column it claims to be
+ * in is drawn: a card standing in Review that Notion has in Done has to say so
+ * right there. */
+export function TicketSync({ ticket }: { ticket: Ticket }) {
+  const t = useT()
+  if (!ticket.sync) return null
+  const said =
+    ticket.sync === "pending"
+      ? t("waiting to be sent to Notion")
+      : ticket.sync === "failed"
+        ? t("not sent to Notion")
+        : t("changed in Notion meanwhile — not overwritten")
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <Chip
+        className={cn(
+          ticket.sync === "pending" && "animate-pulse",
+          ticket.sync === "failed" && "border-tr-red text-tr-red",
+          ticket.sync === "conflict" && "border-tr-amber text-tr-amber"
+        )}
+      >
+        <span title={ticket.sync_error || undefined}>{said}</span>
+      </Chip>
+    </div>
+  )
+}
+
 /** What is said *about* a ticket rather than in it: how urgent, on which model, when. */
 export function TicketTags({ ticket }: { ticket: Ticket }) {
   if (!ticket.priority && !ticket.model && !ticket.scheduled) return null

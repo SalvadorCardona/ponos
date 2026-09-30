@@ -164,8 +164,13 @@ export const api = {
     project: string
     ready: boolean
   }) => request<{ id: string; title: string }>("/api/tickets", ticket),
-  setStatus: (id: string, column: string) =>
-    request<{ id: string; status: string }>(`/api/tickets/${id}/status`, { column }),
+  /** `from` is the status the card showed: Notion saying anything else by the
+   * time the write goes out is somebody else's move, not overwritten. */
+  setStatus: (id: string, column: string, from?: string) =>
+    request<{ id: string; status: string; sync?: string }>(`/api/tickets/${id}/status`, {
+      column,
+      from,
+    }),
   tell: (id: string, text: string) =>
     request<unknown>(`/api/tickets/${id}/talk`, { text }),
   command: (line: string) => request<unknown>("/api/command", { line }),

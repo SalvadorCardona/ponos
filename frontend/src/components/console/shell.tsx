@@ -1,9 +1,10 @@
+import * as React from "react"
 import { ArrowUp, Moon, RefreshCw, Sun } from "lucide-react"
 import { Link, type MenuItemInterface } from "react-resource-view"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useConsole, useStatus } from "@/hooks/use-console"
+import { useConsole, useStatus, useSync } from "@/hooks/use-console"
 import { useRunnerMood } from "@/hooks/use-mood"
 import { useTheme } from "@/hooks/use-theme"
 import { useT } from "@/lib/i18n"
@@ -118,6 +119,68 @@ function RunnerMood() {
   )
 }
 
+/* When the board last agreed with Notion, and whether anything does not.
+ *
+ * Green is "read a moment ago, and nothing is out of step". Amber is anything
+ * worth a look: a move still waiting for Notion, one Notion refused or one it
+ * had been changed under, an écart the last full read found, or a read that
+ * failed. What exactly is under the pointer; the button beside it is the one
+ * that does something about it. */
+function SyncLine() {
+  const synced = useSync()
+  const t = useT()
+  // Redrawn on a clock of its own: "12 s ago" that never moves is a lie.
+  const [, tick] = React.useState(0)
+  React.useEffect(() => {
+    const timer = window.setInterval(() => tick((count) => count + 1), 5000)
+    return () => window.clearInterval(timer)
+  }, [])
+  if (!synced?.synced_at) return null
+
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(synced.synced_at).getTime()) / 1000))
+  const age =
+    seconds < 60
+      ? t("{{count}} s ago", { count: String(seconds) })
+      : t("{{count}} min ago", { count: String(Math.round(seconds / 60)) })
+  const troubled =
+    Boolean(synced.error) || synced.drift + synced.pending + synced.failed + synced.conflicts > 0
+  const clock = (at: string) => (at ? new Date(at).toLocaleTimeString() : "—")
+  const said = [
+    t("last read of Notion: {{at}}", { at: clock(synced.synced_at) }),
+    t("whole board compared: {{at}}", { at: clock(synced.reconciled_at) }),
+    synced.drift ? t("{{count}} gap(s) found and corrected", { count: String(synced.drift) }) : "",
+    synced.pending ? t("{{count}} move(s) waiting for Notion", { count: String(synced.pending) }) : "",
+    synced.failed ? t("{{count}} move(s) Notion refused", { count: String(synced.failed) }) : "",
+    synced.conflicts
+      ? t("{{count}} ticket(s) changed in Notion meanwhile", { count: String(synced.conflicts) })
+      : "",
+    synced.error ? t("the last read failed: {{why}}", { why: synced.error }) : "",
+  ].filter(Boolean)
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "flex items-center gap-1.5 px-2 font-mono text-[0.7rem]",
+            troubled ? "text-tr-amber" : "text-muted-foreground"
+          )}
+        >
+          <span
+            className={cn("size-1.5 shrink-0 rounded-full", troubled ? "bg-tr-amber" : "bg-tr-green")}
+          />
+          <span className="hidden md:inline">{t("synced {{age}}", { age })}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {said.map((line) => (
+          <div key={line}>{line}</div>
+        ))}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 /* The machine's own state, and the two gestures that are about the console
  * rather than about a page: reread the board, change the light.
  *
@@ -190,13 +253,17 @@ export function TopBarEnd() {
         </Tooltip>
       ) : null}
 
+      <SyncLine />
+
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" onClick={refresh} aria-label={t("Refresh")}>
+          <Button variant="ghost" size="icon-sm" onClick={refresh} aria-label={t("Resynchronise now")}>
             <RefreshCw />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{t("reread the board now")}</TooltipContent>
+        <TooltipContent>
+          {t("resynchronise now: the whole board read again, the refused moves sent again")}
+        </TooltipContent>
       </Tooltip>
 
       <Tooltip>

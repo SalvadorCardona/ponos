@@ -118,12 +118,32 @@ export const FRENCH: Record<string, string> = {
   Board: "Tableau",
   Schedules: "Récurrences",
   Settings: "Réglages",
-  Refresh: "Relire",
   Light: "Clair",
   Dark: "Sombre",
   "go light": "passer au clair",
   "go dark": "passer au sombre",
-  "reread the board now": "relire le tableau maintenant",
+  // The board and Notion, side by side: when they last agreed, and what does
+  // not — the line in the bar, its tooltip, and the button beside it.
+  "Resynchronise now": "Resynchroniser maintenant",
+  "resynchronise now: the whole board read again, the refused moves sent again":
+    "resynchroniser maintenant : tout le tableau relu, les déplacements refusés renvoyés",
+  "synced {{age}}": "synchro {{age}}",
+  "{{count}} s ago": "il y a {{count}} s",
+  "last read of Notion: {{at}}": "dernière lecture de Notion : {{at}}",
+  "whole board compared: {{at}}": "tableau entier comparé : {{at}}",
+  "{{count}} gap(s) found and corrected": "{{count}} écart(s) trouvé(s) et corrigé(s)",
+  "{{count}} move(s) waiting for Notion": "{{count}} déplacement(s) en attente d’envoi à Notion",
+  "{{count}} move(s) Notion refused": "{{count}} déplacement(s) refusé(s) par Notion",
+  "{{count}} ticket(s) changed in Notion meanwhile":
+    "{{count}} ticket(s) modifié(s) dans Notion entre-temps",
+  "the last read failed: {{why}}": "la dernière lecture a échoué : {{why}}",
+  // On a card moved from the console, until Notion has it — and on the toast
+  // that says it once when it will not.
+  "waiting to be sent to Notion": "en attente d’envoi à Notion",
+  "not sent to Notion": "non envoyé à Notion",
+  "changed in Notion meanwhile — not overwritten": "modifié dans Notion entre-temps — non écrasé",
+  "“{{title}}” did not reach Notion": "« {{title}} » n’est pas arrivé dans Notion",
+  "“{{title}}” was changed in Notion meanwhile": "« {{title}} » a été modifié dans Notion entre-temps",
   "event stream": "flux d'événements",
   "connecting…": "connexion…",
   "reconnecting…": "reconnexion…",

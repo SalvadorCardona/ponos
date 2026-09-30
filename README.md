@@ -599,13 +599,23 @@ Three rules, and they are the ones worth arguing about.
   journalled as a deletion and left exactly as it is on the side that still has it. A file
   disappears for a hundred reasons — a bad merge, a stray `rm`, an editor writing to the
   wrong place — and none of them is a decision to delete a ticket.
+- **A timestamp to the minute is not trusted alone.** Notion keeps `last_edited_time` to
+  the minute, so each stamp also carries a fingerprint of the page's properties: two
+  edits in the same minute, with a reconciliation between them, are both carried.
 - **A page that never existed on the other side is created there.** Which is what makes
   the switch work from a board that is already full: the first reconciliation copies
   everything across, in whichever direction it is missing. A page born in a file then
   takes Notion's identifier, because that is what its URL, its relations and every report
   about it will carry from then on.
 
-The journal is `~/.local/state/ticket-runner/sync.jsonl`, one JSON object per line:
+The journal is `~/.local/state/ticket-runner/sync.jsonl`, one JSON object per line. The
+console and the runner write in it too, whatever the storage mode: `seen` when the
+console notices a status change (with Notion's edit time — to the minute, all Notion
+keeps — and the moment it saw it), `console→notion` when a move from the console is
+confirmed, `write-failed` when one is given up on, `drift` when the five-minute full read
+of the board finds something the incremental reads had wrong, and `conflict` when a
+status was not written over somebody else's — by the console, or by a run that finds its
+ticket moved by hand during the session:
 
 ```sh
 ticket-runner sync             # reconcile now, and say what moved
@@ -1618,8 +1628,10 @@ along the bottom edge instead. The frame is react-resource-view's admin layout (
 about the console itself: whether the event stream is up — a stream the server refuses
 because the session expired sends the page back to the sign-in rather than saying
 *reconnecting…* forever — the version this one runs — in amber, with what to type, on the
-day a newer one is waiting — and the two buttons that reread the board and change the
-light. Every page has an address — `/?view=console/tickets/list`,
+day a newer one is waiting — when the board last agreed with Notion, a green dot that
+turns amber when something is out of step (the tooltip says what), and the two buttons
+that **resynchronise** — the whole board read again, the refused moves sent again — and
+change the light. Every page has an address — `/?view=console/tickets/list`,
 `/?view=console/tickets/read/<id>` — so a reload, a bookmark or a link pasted into a chat
 lands where you were. The page of sessions the console used to have is gone, and its old
 address leads to the board: a session is followed on its ticket.
@@ -1636,8 +1648,15 @@ what it is on in one line — what the agent last said, or else the last tool it
 the columns, one strip carries the runner's figures: the sessions writing, the timer
 between two passes, the tickets handled and what they cost. A card in review carries a **validate** button, where the board has that column:
 confirm it and the next pass merges its pull request, or publishes what it holds; *run
-again* asks the same way, since it starts a session that is paid for. A move that Notion
-refuses puts the card back where it was, and a gesture that sends a card off the screen —
+again* asks the same way, since it starts a session that is paid for. A move is queued by
+the console rather than made while the browser waits: the card lands in its new column
+saying *waiting to be sent to Notion*, the console reads the page first — and **does not
+overwrite a status somebody changed in Notion since the card showed it**, saying so on the
+card instead — writes it, reads it back to confirm, and tries again with a growing wait
+when Notion is slow or answers 429. A move Notion refuses for good says *not sent to
+Notion* on the card, and stays said until *resynchronise* or another move. The queue is
+kept on disk (`~/.local/state/ticket-runner/web/outbox.json`), so a console restarted
+mid-way still sends it. A gesture that sends a card off the screen —
 *hold*, into your *Blocked* column — says where it went. A ticket with no status, or one
 your board has not named, is not hidden: it gets a *No status* column of its own while
 there is one. Seven columns do not fit a laptop, so the board scrolls sideways, and each
@@ -2015,7 +2034,7 @@ but the tunnel is the answer that does not depend on the token never leaking.
 | `web.token` | `""` | empty: drawn once into `~/.local/state/ticket-runner/web/token` |
 | `web.email` | `""` | with a password: what the console asks for instead of the token |
 | `web.password` | `""` | kept in the file, or in the environment — see below |
-| `web.poll_seconds` | `15` | how often the board is reread — only while a browser is connected |
+| `web.poll_seconds` | `15` | how often the console asks Notion what changed (a two-minute overlapping window; the whole board every five minutes) — only while a browser is connected |
 | `web.chat_timeout_minutes` | `20` | past this, a chat turn is killed |
 
 ### The first connection

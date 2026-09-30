@@ -40,7 +40,7 @@ IDLE_SECONDS = 180
 # What is kept as a *state* rather than as an event (see `Hub`): a browser that
 # connects wants the board as it is and the sessions running now, not the last
 # twenty versions of either.
-STATES = ("board", "state", "sessions")
+STATES = ("board", "state", "sessions", "sync")
 
 # How much of a log is read at a time, from its end, to find its last line —
 # which is enough, nearly always, to find it in one read.
@@ -320,9 +320,14 @@ class Watch:
         interval: int = 15,
         directory: Path | None = None,
         held: Callable[[], str] | None = None,
+        status: Callable[[], dict] | None = None,
     ) -> None:
         self.hub = hub
         self.board = board
+        # When the board last agreed with Notion. Published after every read,
+        # on its own: it changes every time, and the board must not be
+        # redrawn for a clock that moved.
+        self.status = status
         self.interval = max(5, interval)
         self.tail = Tail(hub, directory, held)
         self._thread: threading.Thread | None = None
@@ -362,8 +367,13 @@ class Watch:
         try:
             payload = self.board()
         except Exception as error:  # noqa: BLE001
-            self.hub.publish("notice", where="board", message=str(error).splitlines()[0])
+            message = str(error).splitlines()[0]
+            self.hub.publish("notice", where="board", message=message)
+            if self.status is not None:
+                self.hub.publish("sync", **self.status(), error=message)
             return
+        if self.status is not None:
+            self.hub.publish("sync", **self.status(), error="")
         fingerprint = json.dumps(payload, sort_keys=True, ensure_ascii=False)
         if not force and fingerprint == self._fingerprint:
             return

@@ -447,8 +447,13 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 )
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/status", route):
+                seen = payload.get("from")
                 return self._json(
-                    self.api.set_status(match.group(1), str(payload.get("column", "")))
+                    self.api.set_status(
+                        match.group(1),
+                        str(payload.get("column", "")),
+                        None if seen is None else str(seen),
+                    )
                 )
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
                 return self._json(self.api.tell(match.group(1), str(payload.get("text", ""))))
@@ -478,8 +483,7 @@ class Handler(BaseHTTPRequestHandler):
             if match := re.fullmatch(r"/api/schedules/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.save_schedule(match.group(1), payload))
             if route == "/api/refresh":
-                self.api.forget()
-                self.api.watch.nudge()
+                self.api.resynchronise()
                 return self._json({"ok": True})
         except config_module.ConfigError as error:
             return self._fail(400, str(error).splitlines()[0])

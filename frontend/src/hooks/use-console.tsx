@@ -19,6 +19,7 @@ import type {
   SessionsEvent,
   Step,
   StepEvent,
+  SyncEvent,
   TalkEvent,
   Ticket,
 } from "@/lib/types"
@@ -113,6 +114,9 @@ interface StepsValue {
 const Context = React.createContext<ConsoleValue | null>(null)
 const StatusContext = React.createContext<StatusValue | null>(null)
 const StepsContext = React.createContext<StepsValue | null>(null)
+/* When the board last agreed with Notion. Its own context: it changes on every
+ * read, and nothing but the line that says it has to redraw for it. */
+const SyncContext = React.createContext<SyncEvent | null>(null)
 
 export function useConsole(): ConsoleValue {
   const value = React.useContext(Context)
@@ -124,6 +128,11 @@ export function useStatus(): StatusValue {
   const value = React.useContext(StatusContext)
   if (!value) throw new Error("useStatus outside its provider")
   return value
+}
+
+/** `null` until the first read of the board has been said. */
+export function useSync(): SyncEvent | null {
+  return React.useContext(SyncContext)
 }
 
 export function useSteps(): StepsValue {
@@ -139,6 +148,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [transcript, setTranscript] = React.useState<Entry[]>([])
   const [busy, setBusy] = React.useState(false)
   const [running, setRunning] = React.useState<Running[]>([])
+  const [synced, setSynced] = React.useState<SyncEvent | null>(null)
   const [steps, setSteps] = React.useState<Record<string, Step[]>>({})
   // Counted apart from the steps kept: a card says how far a run has come,
   // and the panel forgets all but its last two hundred.
@@ -253,6 +263,19 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   const connection = useStream({
     board: (fresh: Board) => {
+      // A move that did not reach Notion is said once, when it stops being on
+      // its way — the card keeps saying it after the toast is gone.
+      const before = new Map((currentBoard()?.tickets ?? []).map((item) => [item.id, item.sync]))
+      for (const item of fresh.tickets) {
+        if (item.sync !== "failed" && item.sync !== "conflict") continue
+        if (before.get(item.id) === item.sync) continue
+        toast.error(
+          item.sync === "failed"
+            ? t("“{{title}}” did not reach Notion", { title: item.title })
+            : t("“{{title}}” was changed in Notion meanwhile", { title: item.title }),
+          { description: item.sync_error }
+        )
+      }
       setBoard(fresh)
       // The same board, where the resource views read it from.
       publishBoard(fresh)
@@ -383,6 +406,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     // "notice", not "error": EventSource fires an `error` event of its own for
     // every dropped connection, and a server event under the same name would
     // arrive through the same listener with nothing in it.
+    sync: (event: SyncEvent) => setSynced(event),
+
     notice: (event: NoticeEvent) => {
       toast.error(event.where, { description: event.message })
       say("error", `${event.where}: ${event.message}`)
@@ -572,9 +597,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <StatusContext.Provider value={status}>
-      <StepsContext.Provider value={live}>
-        <Context.Provider value={value}>{children}</Context.Provider>
-      </StepsContext.Provider>
+      <SyncContext.Provider value={synced}>
+        <StepsContext.Provider value={live}>
+          <Context.Provider value={value}>{children}</Context.Provider>
+        </StepsContext.Provider>
+      </SyncContext.Provider>
     </StatusContext.Provider>
   )
 }

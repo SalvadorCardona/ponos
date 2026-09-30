@@ -46,6 +46,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   within the hour — and a change Notion refuses is kept and sent again rather
   than lost. On a Markdown board, the picture is a file beside the project's.
 
+- **The console and Notion, kept in step — and saying when they are not.** The
+  console reads what changed since its last read, reaching two minutes back
+  (Notion's `last_edited_time` is to the minute: four moves in one minute all
+  read `09:32:00`), and the whole board every five minutes and on demand; what
+  the full read finds the others missed is counted and shown. A move made from
+  the console is queued on disk, checked against the page first, retried with
+  a growing wait, confirmed by reading the page back, and the card says
+  *waiting*, *not sent* or *changed in Notion meanwhile* until it is settled.
+  The bar says when the board last agreed with Notion, and its button now
+  resynchronises. Every change seen, confirmed or refused is written in
+  `sync.jsonl`.
+
 - **A statistics page in the console.** *Statistics* in the menu opens on the
   last month — or seven days, three months, two dates of your own — with the
   tickets open on the last evening, closed and created over the period, and
@@ -361,6 +373,20 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   a bar and a menu that stay where they are; a dialog still holds it still
   while it is open, and lets it go when it closes. `npm run test:e2e` in
   `frontend/` checks it in a browser.
+
+- **Blocked tickets were missing from the console on a board where `failed` and
+  `blocked` are one status.** The console drew one column for both, the first,
+  and put the tickets in the second — three tickets blocked in Notion, none on
+  the console. A status now lands in the first column that carries it.
+
+- **A run no longer writes its verdict over a status you changed by hand.** The
+  page is read again before a status is written; a ticket moved during the
+  session keeps your column, the run says so in its log and in the journal, and
+  the console marks the card.
+
+- **The Markdown mirror no longer loses the second edit of a Notion minute.**
+  Its stamps carry a fingerprint of the page's properties, not only an edit
+  time Notion rounds to the minute.
 
 - **The console no longer drags on a board with years of Done.** The Done
   column draws its thirty most recent tickets and a *Show more* button under
