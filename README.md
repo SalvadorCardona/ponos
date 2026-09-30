@@ -540,8 +540,9 @@ Project:
 Le titre déborde sur deux lignes en dessous de 380px.
 ```
 
-Four keys are the page's own — `id`, `title`, `created`, `edited` — and everything else is
-a column. The column *types* are not declared twice: they come from `provision.py`, which
+Six keys are the page's own — `id`, `title`, `created`, `edited`, and the page's `cover`
+and `icon` — and everything else is a column. A picture is a file beside the page
+(`cover: animalink-b05e7e3a.cover.webp`), a URL, or — for an icon — an emoji. The column *types* are not declared twice: they come from `provision.py`, which
 is the same place the Notion databases are built from, so a property the runner learns to
 read is one both boards read the same day. Moving a ticket to the ready column is changing
 one word in one file, which is the whole point: `git`, `grep` and `$EDITOR` become the
@@ -557,6 +558,19 @@ from the list itself, a pencil opens the six columns it is written in and the co
 tickets are born with, and a new schedule is created unticked whatever the form said. Every
 field of the console that holds Markdown — that context, the standing one, a project's
 brief, a new ticket — is a Notion-like editor rather than a text area.
+
+**A project has a picture.** The cover of its page and its icon — Notion's own, the
+banner and the emoji or image in front of the title — are the thumbnail in the list of
+projects and the banner of the project's page; a project with neither gets its initial on
+a colour of its own. *Change the image* uploads a file (shrunk to 1500 px, WebP, before it
+leaves the browser), takes a pasted address, or an emoji for the icon, and sets it on the
+Notion page — through Notion's File Upload API for a file, as it is for an address. What
+is changed in Notion comes back at the next reading of the projects. A file Notion keeps is
+behind a URL that expires within the hour, so the console never shows that URL: it keeps
+a copy under `~/.local/state/ticket-runner/images/`, fetched again when the page was
+edited since or the picture is another one. A change Notion refuses — no network, no right
+to update the page — is kept and shown as chosen, says why, and is sent again at the next
+reading; changed on both sides in between, the newest wins and the page says which.
 
 ### Both, and what happens when they disagree
 

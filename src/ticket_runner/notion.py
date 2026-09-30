@@ -25,7 +25,7 @@ import urllib.request
 from typing import Any
 
 from .config import PLACEHOLDER
-from .store import Comment, Page, StoreError, read
+from .store import SLOTS, Comment, Page, Picture, StoreError, read
 
 API = "https://api.notion.com/v1"
 # The one seam in this file, and it exists for `tests/functional.py`: the
@@ -36,6 +36,10 @@ API = "https://api.notion.com/v1"
 API_ENV = "TICKET_RUNNER_NOTION_API"
 VERSION = "2022-06-28"
 MAX_ATTEMPTS = 4
+
+# What Notion takes in one request of its File Upload API. Past it, an upload is
+# sent in parts — which a picture the console has already shrunk never needs.
+UPLOAD_LIMIT = 20 * 1024 * 1024
 
 # Re-exported so that `notion.Page`, `notion.Comment` and `notion.read` keep
 # meaning what they always meant.
@@ -90,7 +94,15 @@ class Client:
 
     # -- transport -----------------------------------------------------------
 
-    def _request(self, method: str, path: str, body: dict | None = None) -> dict:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict | None = None,
+        *,
+        raw: bytes | None = None,
+        kind: str = "application/json",
+    ) -> dict:
         if not self._token.strip() or self._token.strip() == PLACEHOLDER:
             # A fresh installation: the console runs before anybody has typed a
             # token, and asks for the board every few seconds while a browser
@@ -100,7 +112,7 @@ class Client:
                 "no Notion token yet — the console's first connection, "
                 "or `ticket-runner init`, sets it"
             )
-        data = json.dumps(body).encode() if body is not None else None
+        data = raw if raw is not None else json.dumps(body).encode() if body is not None else None
         request = urllib.request.Request(
             f"{endpoint()}{path}",
             data=data,
@@ -108,7 +120,7 @@ class Client:
             headers={
                 "Authorization": f"Bearer {self._token}",
                 "Notion-Version": VERSION,
-                "Content-Type": "application/json",
+                "Content-Type": kind,
                 "User-Agent": "ticket-runner",
             },
         )
@@ -461,6 +473,61 @@ class Client:
         else:
             body["parent"] = {"page_id": page_id}
         self._request("POST", "/comments", body)
+
+    def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
+        """Set the page's cover or icon. See `store.Store.set_picture`.
+
+        An image of our own goes through the File Upload API first and is then
+        attached by the upload's ID; a URL is attached as it is, `external`,
+        without being fetched — Notion shows it from wherever it lives.
+        """
+        if slot not in SLOTS:
+            raise NotionError(f"no such picture on a page: {slot}")
+        value: dict | None
+        if picture.data:
+            upload = self.upload(picture.data, picture.type, picture.name or f"{slot}")
+            value = {"type": "file_upload", "file_upload": {"id": upload}}
+        elif picture.url:
+            value = {"type": "external", "external": {"url": picture.url}}
+        elif picture.emoji:
+            if slot != "icon":
+                raise NotionError("a cover is an image, not an emoji")
+            value = {"type": "emoji", "emoji": picture.emoji}
+        else:
+            value = None
+        return _to_page(self._request("PATCH", f"/pages/{page_id}", {slot: value}))
+
+    def upload(self, data: bytes, kind: str, name: str) -> str:
+        """Hand a file to Notion, and return the ID a page attaches it by.
+
+        Two requests: one that says what is coming, one that carries it as a
+        form — the only body in this client that is not JSON. What comes back
+        is an upload nobody has attached yet; Notion forgets it within the
+        hour, so it is attached at once.
+        """
+        if len(data) > UPLOAD_LIMIT:
+            raise NotionError(
+                f"{name}: {len(data) // (1024 * 1024)} MB is more than Notion takes in one piece"
+            )
+        created = self._request(
+            "POST", "/file_uploads", {"filename": name, "content_type": kind}
+        )
+        identifier = str(created.get("id", ""))
+        if not identifier:
+            raise NotionError("POST /file_uploads: Notion answered without an upload ID")
+        boundary = f"ticket-runner-{os.urandom(12).hex()}"
+        safe = name.replace('"', "").replace("\r", "").replace("\n", "")
+        body = (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{safe}"\r\n'
+            f"Content-Type: {kind}\r\n\r\n"
+        ).encode() + data + f"\r\n--{boundary}--\r\n".encode()
+        self._request(
+            "POST",
+            f"/file_uploads/{identifier}/send",
+            raw=body,
+            kind=f"multipart/form-data; boundary={boundary}",
+        )
+        return identifier
 
     def me(self) -> str:
         """The integration's own user ID, fetched once.

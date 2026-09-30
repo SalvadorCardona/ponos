@@ -36,6 +36,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   conversation nobody closed left behind. `>` still runs a command, now with
   the verbs offered as you type.
 
+- **Every project has a picture in the console.** The cover and the icon of its
+  Notion page are the project's thumbnail in the list and the banner of its page
+  — or its initial on a colour of its own, when it has neither. *Change the
+  image* uploads a file, takes a pasted address or an emoji, and the picture
+  becomes the page's cover or icon in Notion; one changed in Notion shows in the
+  console at the next reading. Pictures stay on screen for as long as the
+  console is open — a copy is kept on disk, since Notion's own links expire
+  within the hour — and a change Notion refuses is kept and sent again rather
+  than lost. On a Markdown board, the picture is a file beside the project's.
+
 - **A statistics page in the console.** *Statistics* in the menu opens on the
   last month — or seven days, three months, two dates of your own — with the
   tickets open on the last evening, closed and created over the period, and

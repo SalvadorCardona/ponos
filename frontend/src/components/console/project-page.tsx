@@ -8,13 +8,14 @@ import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
+import { ProjectCover } from "./project-picture"
 import { Robot } from "./robot"
 import { Away, Chip, reachable } from "./ticket-bits"
 
 /* One project, as a page.
  *
- * The `read` view of the projects resource: what the card said, and then the
- * thing a card has no room for — the brief. Which is the reason to open a
+ * The `read` view of the projects resource: the page's cover and icon, what
+ * the card said, and then the thing a card has no room for — the brief. Which is the reason to open a
  * project at all: it is not a description of the project, it is what every
  * ticket of that project is told before it is told the ticket.
  *
@@ -53,6 +54,10 @@ export function ProjectPage() {
         )
       ) : (
         <>
+          {/* A project with a page has its pictures; one the configuration
+              alone names has neither page nor pictures to show. */}
+          {page ? <ProjectCover project={project} editable /> : null}
+
           {project.source === "config" || project.configured ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}

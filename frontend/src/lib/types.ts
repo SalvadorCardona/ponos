@@ -66,6 +66,35 @@ export interface Project {
   configured?: string
   /** Where this row came from: the board, or the file on this machine. */
   source?: "board" | "config"
+  /** The banner of its page, and the mark in front of its name. See `Picture`. */
+  cover?: Picture
+  icon?: Picture
+}
+
+/* One of a project's two pictures, as the console draws it.
+ *
+ * `src` is the console's own address for the image, never the board's: a file
+ * Notion keeps is behind a URL that is dead within the hour, so the server
+ * keeps a copy and serves that. */
+export interface Picture {
+  kind: "image" | "emoji" | ""
+  src?: string
+  emoji?: string
+  /** The address a pasted picture lives at — somebody else's, so not a secret. */
+  url?: string
+  /** Chosen here, and not yet taken by the board. */
+  pending?: boolean
+  /** Why the board did not take it — it is tried again at the next reading. */
+  error?: string
+  /** Changed on both sides between two readings: which side's picture won. */
+  conflict?: "notion" | "console" | ""
+}
+
+/** What a picture's change answers: both pictures of the project, as they now are. */
+export interface Pictures {
+  id: string
+  cover: Picture
+  icon: Picture
 }
 
 /** One project, opened: the row, and what is written on its page. */

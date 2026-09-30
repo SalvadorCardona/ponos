@@ -37,7 +37,7 @@ import time
 import traceback
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -46,7 +46,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ticket_runner import config as C  # noqa: E402
-from ticket_runner import notion  # noqa: E402
+from ticket_runner import images, notion, store  # noqa: E402
 from ticket_runner.config import PRIORITIES  # noqa: E402
 from ticket_runner.runner import Runner  # noqa: E402
 
@@ -109,6 +109,11 @@ class Board:
         self.pages: dict[str, dict] = {}
         self.blocks: dict[str, list[dict]] = {}
         self.comments: list[dict] = []
+        # Files handed over through the File Upload API, and where they are
+        # served from afterwards — this server, under a URL that "expires".
+        self.uploads: dict[str, dict] = {}
+        self.files: dict[str, tuple[bytes, str]] = {}
+        self.address = ""
         self.requests: list[str] = []
         # Every request this Notion could not answer, so that a run is never
         # silently short of one: most roads in `notion.py` swallow a refusal.
@@ -183,7 +188,9 @@ class Board:
 
     # -- serving it ----------------------------------------------------------
 
-    def handle(self, method: str, path: str, query: dict, body: dict, token: str):
+    def handle(
+        self, method: str, path: str, query: dict, body: dict, token: str, raw: bytes = b""
+    ):
         """One request, routed. The endpoints `notion.py` calls, and those only.
 
         Anything else is refused *and remembered*: a client that grew a request
@@ -206,7 +213,13 @@ class Board:
             return 200, self._query(identifier, body)
         if route == ("GET", "pages", "*"):
             found = self.pages.get(identifier)
-            return (200, found) if found else (404, {"message": "page not found"})
+            return (200, self._signed(found)) if found else (404, {"message": "page not found"})
+        if route == ("POST", "file_uploads"):
+            upload = _ident()
+            self.uploads[upload] = {"status": "pending", **body}
+            return 200, {"object": "file_upload", "id": upload, "status": "pending"}
+        if route == ("POST", "file_uploads", "*", "send"):
+            return self._receive(identifier, raw)
         if route == ("PATCH", "pages", "*"):
             return self._update(identifier, body)
         if route == ("GET", "blocks", "*", "children"):
@@ -233,7 +246,7 @@ class Board:
             return {"results": [], "has_more": False}
         filter_ = body.get("filter")
         results = [
-            page
+            self._signed(page)
             for page in self.pages.values()
             if page["parent"].get("database_id") == database_id and self._matches(page, filter_)
         ]
@@ -267,6 +280,18 @@ class Board:
         database = page["parent"].get("database_id", "")
         if database in self.databases:
             schema = self.databases[database]["properties"]
+        for slot in ("cover", "icon"):
+            if slot not in body:
+                continue
+            value = body[slot]
+            if value and value.get("type") == "file_upload":
+                upload = self.uploads.get(value["file_upload"]["id"], {})
+                if upload.get("status") != "uploaded":
+                    return 400, {"message": "that file upload has not been sent"}
+                name = _ident()
+                self.files[name] = (upload["data"], upload.get("content_type", ""))
+                value = self.hosted(name, upload.get("filename", "file"))
+            page[slot] = value
         for name, value in body.get("properties", {}).items():
             if schema and name not in schema:
                 # Notion refuses a property the database does not declare, and
@@ -274,7 +299,44 @@ class Board:
                 return 400, {"message": f"{name} is not a property that exists"}
             page["properties"][name] = _stored(value)
         page["last_edited_time"] = _now()
-        return 200, page
+        return 200, self._signed(page)
+
+    def hosted(self, name: str, filename: str) -> dict:
+        """A file this Notion keeps, as a page's cover or icon points at it."""
+        return {
+            "type": "file",
+            "file": {"url": f"{self.address}/files/{name}/{filename}", "expiry_time": ""},
+        }
+
+    def _signed(self, page: dict) -> dict:
+        """The page as it is read: every hosted file under a fresh signature.
+
+        Which is what Notion does, and what the console must not mistake for a
+        new picture — the signature changes with each read, the file does not.
+        """
+        signed = dict(page)
+        for slot in ("cover", "icon"):
+            value = page.get(slot)
+            if value and value.get("type") == "file":
+                url = value["file"]["url"].split("?", 1)[0]
+                expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+                signed[slot] = {
+                    "type": "file",
+                    "file": {"url": f"{url}?X-Amz-Signature={_ident()}", "expiry_time": expires},
+                }
+        return signed
+
+    def _receive(self, upload: str, raw: bytes):
+        """The second half of an upload: the file, as a multipart form."""
+        if upload not in self.uploads:
+            return 404, {"message": "no such file upload"}
+        head, _, rest = raw.partition(b"\r\n\r\n")
+        if b'name="file"' not in head:
+            return 400, {"message": "the upload carries no part named file"}
+        boundary = raw.split(b"\r\n", 1)[0]
+        data = rest[: rest.rindex(b"\r\n" + boundary)]
+        self.uploads[upload].update(status="uploaded", data=data)
+        return 200, {"object": "file_upload", "id": upload, "status": "uploaded"}
 
     def _append(self, block_id: str, children: list[dict]) -> list[dict]:
         created = []
@@ -335,10 +397,21 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b""
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/files/"):
+            # Where a hosted file is fetched: storage, not the API — no token
+            # asked, and the bytes rather than JSON.
+            name = parsed.path.split("/")[2]
+            data, kind = self.server.board.files.get(name, (b"", ""))  # type: ignore[attr-defined]
+            self.send_response(200 if data else 404)
+            self.send_header("Content-Type", kind or "application/octet-stream")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         try:
             body = json.loads(raw or b"{}")
-        except json.JSONDecodeError:
-            body = {}
+        except ValueError:
+            body = {}  # a file sent as a form, which `_receive` reads raw
         try:
             status, payload = self.server.board.handle(  # type: ignore[attr-defined]
                 method,
@@ -346,6 +419,7 @@ class _Handler(BaseHTTPRequestHandler):
                 parse_qs(parsed.query),
                 body,
                 self.headers.get("Authorization", ""),
+                raw,
             )
         except Exception as error:  # noqa: BLE001 — a fake that raises must still answer
             # 400 rather than 500: the client retries a 500 four times, a minute
@@ -367,6 +441,7 @@ def _notion_server():
     board = Board()
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     server.board = board  # type: ignore[attr-defined]
+    board.address = f"http://127.0.0.1:{server.server_port}"
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -1371,6 +1446,59 @@ def a_ticket_runs_in_the_repository_its_project_names():
         # the work actually happened rather than where it landed.
         assert Path(sessions[0]["cwd"]).name.startswith("api-"), sessions[0]["cwd"]
         assert not machine.worktrees(site) and not machine.worktrees(api)
+
+
+@case
+def a_picture_chosen_in_the_console_is_the_cover_in_notion_and_the_other_way_round():
+    """Both directions, over HTTP, against a Notion that signs its URLs.
+
+    The console's picture is uploaded and set as the page's cover; read back
+    under a new signature, it is recognised rather than downloaded again or
+    sent a second time. Then somebody changes the cover in Notion, and the
+    next reading brings their picture — fetched from Notion's storage, not
+    from the API, and without the token.
+    """
+    png = b"\x89PNG\r\n\x1a\n" + b"console" * 8
+    theirs = b"\xff\xd8\xff\xe0" + b"notion" * 8
+    directory = Path(tempfile.mkdtemp())
+    try:
+        with _notion_server() as (url, board), _environ({notion.API_ENV: url}):
+            project = board.page({"Name": {"type": "title", "title": _rich("Opoil")}})
+            client = notion.Client("ntn_functional")
+            cache = images.Cache(directory)
+
+            def push(slot: str, picture: store.Picture) -> notion.Page:
+                return client.set_picture(project, slot, picture)
+
+            cache.observe(client.page(project), push)
+            cache.change(
+                project, "cover", store.Picture(data=png, type="image/png", name="opoil.png"), push
+            )
+            cover = board.pages[project]["cover"]
+            assert cover["type"] == "file", cover
+            assert list(board.files.values()) == [(png, "image/png")]
+
+            sent = len(board.requests)
+            cache.observe(client.page(project), push)
+            assert not any(
+                "file_uploads" in line or line.startswith("PATCH") for line in board.requests[sent:]
+            ), board.requests[sent:]
+            assert cache.picture(project, "cover", lambda: client.page(project)) == (png, "image/png")
+
+            # Changed in Notion, by hand: another file, and an emoji for the icon.
+            board.files["theirs"] = (theirs, "image/jpeg")
+            board.pages[project]["cover"] = board.hosted("theirs", "theirs.jpg")
+            board.pages[project]["icon"] = {"type": "emoji", "emoji": "🛢️"}
+            time.sleep(1.1)  # the fake's clock is to the second, like Notion's
+            board.pages[project]["last_edited_time"] = _now()
+
+            cache.observe(client.page(project), push)
+            assert cache.shown(project, "icon") == {"kind": "emoji", "emoji": "🛢️"}
+            data = cache.picture(project, "cover", lambda: client.page(project))
+            assert data == (theirs, "image/jpeg"), data
+            assert not board.refused, board.refused
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 def main() -> int:

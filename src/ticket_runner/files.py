@@ -15,8 +15,8 @@ token. So the same board, written down:
 
 Three decisions carry the rest of the module.
 
-**The frontmatter is flat, and four keys are reserved.** `id`, `title`,
-`created` and `edited` are the page itself; every other key is a property, under
+**The frontmatter is flat, and six keys are reserved.** `id`, `title`,
+`created`, `edited`, `cover` and `icon` are the page itself; every other key is a property, under
 the name the board spells it — `Status: Ready`, not `status: ready`. Flat and
 under the real column names, because the whole point of files is that you open
 one and change a word. Nested tables and a `properties:` level would have been
@@ -39,6 +39,7 @@ mode that loses nothing.
 
 from __future__ import annotations
 
+import glob
 import json
 import re
 import unicodedata
@@ -47,7 +48,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .store import Comment, Page, StoreError, read, written
+from .store import SLOTS, Comment, Page, Picture, StoreError, read, written
 
 # The collections a board is made of, and the file that is not one of them.
 COLLECTIONS = ("tickets", "projects", "agents", "schedules")
@@ -62,7 +63,19 @@ CONTEXT_PAGE = "context"
 FENCE = "---"
 
 # What a page carries about itself, as opposed to what the board carries about it.
-RESERVED = ("id", "title", "created", "edited")
+# `cover` and `icon` are last so that a file written before they existed comes
+# out of `render` byte for byte as it went in.
+RESERVED = ("id", "title", "created", "edited", "cover", "icon")
+
+# The pictures this board keeps beside a page, by what they are. What a
+# browser can show, and nothing it would run: no SVG, which is a document.
+PICTURES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/avif": ".avif",
+}
 
 
 def now() -> str:
@@ -458,8 +471,30 @@ class Board:
                 "collection": collection,
                 "path": str(path),
                 "body": body,
+                **{slot: self._picture(path, slot, front.get(slot)) for slot in SLOTS},
             },
         )
+
+    def _picture(self, path: Path, slot: str, value: Any) -> dict | None:
+        """A `cover:` or `icon:` line, in the shape Notion hands the same thing over.
+
+        A URL is somebody else's image; a name is a file beside this page, and
+        is handed over as a `file://` URL — which is how `images.py` knows there
+        is nothing to download. A short line with neither a dot nor a slash in
+        it is an emoji, and only an icon may be one. A path that leads out of
+        the board is nothing: a frontmatter is not a way to serve `~/.ssh`.
+        """
+        text = str(value or "").strip()
+        if not text:
+            return None
+        if re.match(r"https?://", text):
+            return {"type": "external", "external": {"url": text}}
+        if slot == "icon" and len(text) <= 16 and not re.search(r"[./\\]", text):
+            return {"type": "emoji", "emoji": text}
+        target = (path.parent / text).resolve()
+        if not target.is_relative_to(self._root.resolve()) or target.suffix.lower() not in PICTURES.values():
+            return None
+        return {"type": "external", "external": {"url": target.as_uri()}}
 
     # -- writing -------------------------------------------------------------
 
@@ -500,6 +535,43 @@ class Board:
                 front[name] = value
         front["edited"] = now()
         _write(path, render(front, body))
+
+    def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
+        """A page's cover or icon, written beside it. See `store.Store.set_picture`.
+
+        An image of the console's is a file named after the page it belongs to
+        — `<page>.cover.webp` next to `<page>.md` — and the frontmatter holds its
+        name, so the directory can be moved, committed or synced whole. The one
+        file this module ever removes is the picture that one replaces: it was
+        written here, for this slot, and nothing else points at it.
+        """
+        if slot not in SLOTS:
+            raise StoreError(f"no such picture on a page: {slot}")
+        collection, path = self._find(page_id)
+        front, body = parse(_text(path))
+        for old in path.parent.glob(f"{glob.escape(path.stem)}.{slot}.*"):
+            old.unlink(missing_ok=True)
+        if picture.data:
+            suffix = PICTURES.get(picture.type.split(";")[0].strip().lower())
+            if not suffix:
+                raise StoreError(f"{picture.type or 'that file'} is not an image this board keeps")
+            target = path.with_name(f"{path.stem}.{slot}{suffix}")
+            try:
+                target.write_bytes(picture.data)
+            except OSError as error:
+                raise StoreError(f"{target}: {error}") from error
+            front[slot] = target.name
+        elif picture.url:
+            front[slot] = picture.url
+        elif picture.emoji:
+            if slot != "icon":
+                raise StoreError("a cover is an image, not an emoji")
+            front[slot] = picture.emoji
+        else:
+            front.pop(slot, None)
+        front["edited"] = now()
+        _write(path, render(front, body))
+        return self._page_of(collection, path)
 
     def rename(self, collection: str, page_id: str, fresh: str) -> None:
         """Give a page another identifier, file and all.

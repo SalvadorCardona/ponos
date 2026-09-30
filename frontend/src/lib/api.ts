@@ -6,6 +6,7 @@ import type {
   Context,
   Message,
   Pair,
+  Pictures,
   ProjectDetail,
   Projects,
   RunnerState,
@@ -88,7 +89,22 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
         body: JSON.stringify(body),
       }
     : { headers: { ...GUARD } }
-  const response = await fetch(path, { ...options, credentials: "same-origin" })
+  return answer<T>(await fetch(path, { ...options, credentials: "same-origin" }))
+}
+
+/* A picture is sent as the file it is rather than as JSON: base64 would make
+ * it a third heavier, and the server reads it straight into the upload. */
+async function upload<T>(path: string, file: Blob, name: string): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": file.type, "X-Filename": encodeURIComponent(name), ...GUARD },
+    body: file,
+    credentials: "same-origin",
+  })
+  return answer<T>(response)
+}
+
+async function answer<T>(response: Response): Promise<T> {
   // Signed out underneath the page — a password changed, a cookie expired, the
   // console restarted with another token. Every call after this one would fail
   // the same way, each with its own toast: the page goes back to the door.
@@ -172,6 +188,13 @@ export const api = {
   saveContext: (text: string) => request<{ text: string }>("/api/context", { text }),
   saveProject: (id: string, values: Record<string, unknown>) =>
     request<ProjectDetail>(`/api/projects/${id}`, values),
+  setPicture: (
+    id: string,
+    slot: "cover" | "icon",
+    value: { url: string } | { emoji: string } | { remove: true }
+  ) => request<Pictures>(`/api/projects/${id}/image/${slot}`, value),
+  uploadPicture: (id: string, slot: "cover" | "icon", file: Blob, name: string) =>
+    upload<Pictures>(`/api/projects/${id}/image/${slot}`, file, name),
   saveSchedule: (id: string, values: Record<string, unknown>) =>
     request<{ id: string }>(`/api/schedules/${id}`, values),
   createSchedule: (values: Record<string, unknown>) =>
