@@ -459,6 +459,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The robot has a name — Ponos — and the site looks like the console.**
+  Ponos, after the Greek god of toil, is the one who does the tedious part:
+  the console says so when you hover him (*Ponos is taking a ticket*, *Ponos
+  prend un ticket*), and the site opens on him and on one promise — *Write the
+  ticket. It comes back done.* The site now tells the loop in six sections
+  instead of seventeen, and everything it used to explain lives in the README,
+  which opens the same way. It takes its colours, faces and radius from the
+  console's own tokens, in light and in dark, with a switch; the command, the
+  package and the repository keep the name ticket-runner.
+
 - **The robot is cuter, and still reads at 24 pixels.** A big round head on a
   small round body, stubby arms and legs, big eyes with lights in them, pink
   cheeks and a mouth; softer colours, with a gloss and a soft shadow. Every

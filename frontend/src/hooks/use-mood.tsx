@@ -19,6 +19,10 @@ import { useConsole, useStatus } from "@/hooks/use-console"
  * Read once, for the whole console, and handed down: two faces show it — the
  * bar's and the menu's — and each reading its own would remember a different
  * first board, so one could be sad while the other slept.
+ *
+ * The robot has a name, Ponos — the Greek god of toil, since the toil is what
+ * he takes off your hands — and the tooltip over him says it: the words read
+ * out are a state, the tooltip is the sentence with its subject.
  */
 
 /** How long a ticket that came back keeps the robot jumping. */
@@ -33,6 +37,8 @@ export interface Mood {
   state: RobotState
   /** A key of the dictionary, and what fills it. */
   said: string
+  /** The same state as a sentence about Ponos: a key of the dictionary too. */
+  tip: string
   params?: Record<string, string>
 }
 
@@ -74,24 +80,30 @@ function useReadMood(): Mood {
     return () => clearTimeout(timer)
   }, [cheer, grief, now])
 
-  if (connection === "reconnecting") return { state: "error", said: "reconnecting…" }
-  if (connection === "connecting") return { state: "thinking", said: "connecting…" }
-  if (cheer > now) return { state: "success", said: "a ticket is back" }
-  if (runner && !runner.claude) return { state: "error", said: "claude is missing" }
-  if (grief > now) return { state: "error", said: "a ticket is blocked" }
+  if (connection === "reconnecting") return { state: "error", said: "reconnecting…", tip: "Ponos is reconnecting…" }
+  if (connection === "connecting") return { state: "thinking", said: "connecting…", tip: "Ponos is connecting…" }
+  if (cheer > now) return { state: "success", said: "a ticket is back", tip: "Ponos brought a ticket back" }
+  if (runner && !runner.claude) return { state: "error", said: "claude is missing", tip: "Ponos cannot find claude" }
+  if (grief > now) return { state: "error", said: "a ticket is blocked", tip: "Ponos is stuck on a ticket" }
   if (running.length)
     return {
       state: "working",
       said: "{{count}} session(s) at work",
+      tip: "Ponos is at work on {{count}} session(s)",
       params: { count: String(running.length) },
     }
-  if (runner?.credits) return { state: "waiting", said: "out of credit" }
+  if (runner?.credits) return { state: "waiting", said: "out of credit", tip: "Ponos is waiting for credit" }
   if (runner?.running || board.tickets.some((ticket) => ticket.column === "running"))
-    return { state: "thinking", said: "taking a ticket" }
+    return { state: "thinking", said: "taking a ticket", tip: "Ponos is taking a ticket" }
   const ready = board.tickets.filter((ticket) => ticket.column === "ready").length
   if (ready)
-    return { state: "idle", said: "{{count}} ticket(s) ready", params: { count: String(ready) } }
-  return { state: "sleep", said: "nothing to do" }
+    return {
+      state: "idle",
+      said: "{{count}} ticket(s) ready",
+      tip: "Ponos is waiting: {{count}} ticket(s) ready",
+      params: { count: String(ready) },
+    }
+  return { state: "sleep", said: "nothing to do", tip: "Ponos is resting: nothing to do" }
 }
 
 const MoodContext = React.createContext<Mood | null>(null)

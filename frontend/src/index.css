@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* The palette, the faces and the radius live in a file of their own, shared
+   with the landing page: see its header. */
+@import "./tokens.css";
+
 /* Milkdown's Crepe, the Markdown editor (see `markdown-editor.tsx`), sheet by
    sheet: only the features it is built with, and none of its themes — the
    colours are the console's, mapped at the foot of this file. */
@@ -15,7 +19,7 @@
 @import "@milkdown/crepe/theme/common/table.css";
 
 /* The views and the forms are written in Tailwind classes against the shadcn
-   variables below, so Tailwind has to read their compiled files to emit the
+   variables of `tokens.css`, so Tailwind has to read their compiled files to emit the
    classes they use. Their own `styles.css` is not imported: the palette is
    this file's. */
 @source "../node_modules/react-resource-view/dist";
@@ -23,119 +27,6 @@
 @source "../node_modules/@shadcn/react/dist";
 
 @custom-variant dark (&:is(.dark *));
-
-/* The console's palette, as shadcn/ui names things.
- *
- * Dark is the console's own mode — it sits beside a terminal and a Notion board
- * and the thing it shows most of the time is a log — so dark is where the
- * palette is decided and light is the translation of it. The ladder is four
- * steps deep: the page, the card on it, the popover above that, and the fill
- * behind a control. The accent is a lime, not a blue: the one colour on the
- * page that means "this is the button", and nothing else is allowed to use it.
- *
- * Light cannot take the same lime — `text-primary` on white is unreadable, and
- * both view libraries use it — so it takes the deep end of the same hue.
- *
- * `--tr-*` are the console's own colours: the ones a column heading, a status
- * tag or a session step is drawn in. They are not shadcn's to name, and they
- * are declared here so a component can ask for `text-tr-green` and get the same
- * green everywhere. `--field` is not shadcn's either: it is the fill every
- * control sits on, and it exists because a form of filled boxes reads as a form
- * where a form of outlines reads as a table.
- */
-
-:root {
-  --radius: 0.625rem;
-
-  --background: #fbfbf9;
-  --foreground: #14161a;
-  --card: #ffffff;
-  --card-foreground: #14161a;
-  --popover: #ffffff;
-  --popover-foreground: #14161a;
-  --primary: #46600f;
-  --primary-foreground: #f4ffe0;
-  --secondary: #f1f2ee;
-  --secondary-foreground: #14161a;
-  --muted: #f1f2ee;
-  /* #6b7280 was 4.3:1 on the muted fill and 4.0:1 on a hovered row, under
-     the 4.5:1 an 11px label needs. This one is 4.8:1 on the darkest of them. */
-  --muted-foreground: #5f6573;
-  --accent: #eceee8;
-  --accent-foreground: #14161a;
-  --destructive: #c8332a;
-  --destructive-foreground: #ffffff;
-  --border: #e4e5e0;
-  --input: #e4e5e0;
-  --ring: #46600f;
-  --field: #f4f5f1;
-
-  --sidebar: #f5f5f2;
-  --sidebar-foreground: #14161a;
-  --sidebar-primary: #46600f;
-  --sidebar-primary-foreground: #f4ffe0;
-  --sidebar-accent: #e9eae4;
-  --sidebar-accent-foreground: #14161a;
-  --sidebar-border: #e4e5e0;
-  --sidebar-ring: #46600f;
-
-  --tr-blue: #2563eb;
-  --tr-green: #4d7a10;
-  --tr-amber: #b45309;
-  --tr-red: #c8332a;
-  --tr-violet: #7c3aed;
-  --tr-pink: #db2777;
-
-  /* The two series a chart draws, and only charts: slots 1 and 2 of a
-     palette checked for colour blindness in both themes, rather than the
-     tags' blue and amber, which were picked to be told from text. */
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-}
-
-.dark {
-  --background: #0e0f13;
-  --foreground: #f1f2f4;
-  --card: #16181e;
-  --card-foreground: #f1f2f4;
-  --popover: #1b1e26;
-  --popover-foreground: #f1f2f4;
-  --primary: #d5f95a;
-  --primary-foreground: #14180b;
-  --secondary: #1b1e26;
-  --secondary-foreground: #f1f2f4;
-  --muted: #1b1e26;
-  --muted-foreground: #8d95a5;
-  --accent: #232833;
-  --accent-foreground: #f1f2f4;
-  --destructive: #f2685f;
-  --destructive-foreground: #12141a;
-  --border: #262a34;
-  --input: #262a34;
-  --ring: #d5f95a;
-  --field: #1a1d24;
-
-  /* A shade below the page, not above it: the sidebar is the frame, and a
-     frame that glows brighter than what it holds is a frame you keep reading. */
-  --sidebar: #0b0c0f;
-  --sidebar-foreground: #f1f2f4;
-  --sidebar-primary: #d5f95a;
-  --sidebar-primary-foreground: #14180b;
-  --sidebar-accent: #1e222b;
-  --sidebar-accent-foreground: #f1f2f4;
-  --sidebar-border: #1e222b;
-  --sidebar-ring: #d5f95a;
-
-  --tr-blue: #4d91ff;
-  --tr-green: #b8f24a;
-  --tr-amber: #e5a94e;
-  --tr-red: #f2685f;
-  --tr-violet: #9b7bff;
-  --tr-pink: #f26bae;
-
-  --series-1: #3987e5;
-  --series-2: #d95926;
-}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -183,15 +74,9 @@
 
   --color-field: var(--field);
 
-  /* The two faces the console speaks in: a geometric grotesque for everything
-     that is prose, and a monospace for everything that is a fact — an id, a
-     path, a cost, a timestamp. Named first are the ones the design was drawn
-     in; what follows is what the machine already has, because the console is
-     served by a Python process on a loopback port and is not going to ask the
-     network for a typeface before it can show you a log. */
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
-    Consolas, monospace;
+  /* The faces are the tokens' — see `tokens.css`. */
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
 }
 
 @layer base {
@@ -355,9 +240,9 @@
   --crepe-color-selected: color-mix(in srgb, var(--primary), transparent 75%);
   --crepe-color-inline-area: var(--muted);
   --crepe-base-font-size: 14px;
-  --crepe-font-title: var(--font-sans);
-  --crepe-font-default: var(--font-sans);
-  --crepe-font-code: var(--font-mono);
+  --crepe-font-title: var(--sans);
+  --crepe-font-default: var(--sans);
+  --crepe-font-code: var(--mono);
   --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.2);
   --crepe-shadow-2: 0 4px 12px rgb(0 0 0 / 0.16), 0 1px 3px rgb(0 0 0 / 0.2);
 }

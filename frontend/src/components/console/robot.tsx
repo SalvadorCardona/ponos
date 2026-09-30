@@ -5,7 +5,7 @@ import type { STATES } from "@mascot/ticket-runner-robot.js"
 import { useShownTheme } from "@/hooks/use-theme"
 import type { ColumnKey } from "@/lib/types"
 
-/* The mascot, as the console draws it.
+/* Ponos, the mascot, as the console draws it.
  *
  * The drawing is not here: it is `docs/mascot/ticket-runner-robot.js`, a Web
  * Component in vanilla JavaScript because the landing page has no build step,

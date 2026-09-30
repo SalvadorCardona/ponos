@@ -26,10 +26,13 @@ export function Mark() {
   const mood = useRunnerMood()
   return (
     <div className="flex h-8 items-center gap-2">
-      {/* The console's mark is the runner's face, and it wears the runner's
+      {/* Ponos, the console's mark and the runner's face, wears the runner's
           mood: the very one the bar's robot wears, read once for both, so the
-          two faces a hand's width apart always say the same thing. */}
-      <Robot state={mood.state} size={24} className="shrink-0" />
+          two faces a hand's width apart always say the same thing. Hovered, it
+          says whose face it is. */}
+      <span className="flex shrink-0" title="Ponos">
+        <Robot state={mood.state} size={24} />
+      </span>
       <span className="truncate text-sm font-semibold">ticket-runner</span>
     </div>
   )
@@ -96,8 +99,8 @@ export function MenuEntry({ menuItem }: { menuItem: MenuItemInterface }) {
 /* The robot answers the only question somebody looks up to ask, "is it doing
  * anything?" — one face, not five pills. The sentence it stands for is not
  * drawn beside it, at any width: it crowded the bar. It is kept where it is
- * asked for — under the pointer, and read out to a screen reader each time
- * the mood changes. */
+ * asked for — read out to a screen reader each time the mood changes, and
+ * under the pointer, where it says whose face it is: Ponos's. */
 function RunnerMood() {
   const mood = useRunnerMood()
   const t = useT()
@@ -105,7 +108,7 @@ function RunnerMood() {
   return (
     <div
       className="text-muted-foreground flex shrink-0 items-center gap-2 px-2 font-mono text-[0.7rem]"
-      title={said}
+      title={t(mood.tip, mood.params)}
     >
       <span className="sr-only" aria-live="polite">
         {said}

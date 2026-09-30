@@ -1,7 +1,8 @@
+import { copyFileSync } from "node:fs"
 import path from "node:path"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
-import { defineConfig, searchForWorkspaceRoot } from "vite"
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite"
 
 /* The console is served by Python, not by Node.
  *
@@ -22,9 +23,27 @@ import { defineConfig, searchForWorkspaceRoot } from "vite"
  */
 const MASCOT = path.resolve(import.meta.dirname, "../docs/mascot")
 
+/* The tokens go the other way: the console owns them, and the landing page
+ * links a copy — `docs/` is published as it stands, with no build of its own
+ * to import anything through. So every build writes that copy, and a copy
+ * that no longer matches the source fails `tests/run.py`.
+ */
+function publishTokens(): Plugin {
+  return {
+    name: "publish-tokens",
+    apply: "build",
+    closeBundle() {
+      copyFileSync(
+        path.resolve(import.meta.dirname, "src/tokens.css"),
+        path.resolve(import.meta.dirname, "../docs/tokens.css")
+      )
+    },
+  }
+}
+
 export default defineConfig({
   base: "/static/",
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), publishTokens()],
   resolve: {
     alias: { "@": path.resolve(import.meta.dirname, "./src"), "@mascot": MASCOT },
   },
