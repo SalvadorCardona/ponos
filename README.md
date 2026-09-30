@@ -2501,6 +2501,18 @@ four of them take a handful of seconds. The one thing the runner cannot guess is
 Notion lives, so that is the one seam in the code: `TICKET_RUNNER_NOTION_API`, read at
 each request and unset in every installation.
 
+How fast the console goes from page to page is a browser's question, so it is
+not in either suite:
+
+```sh
+node scripts/measure-console.mjs --runs 3 --throttle 4
+```
+
+writes a throwaway Markdown board of 350 tickets, 340 of them Done, serves it from this
+checkout and drives headless Chrome (`$CHROME`, or `google-chrome`) over the board, the
+projects and the schedules — how long each page takes to be drawn, and the longest the
+browser is held on the way. `--throttle` slows the CPU down by that factor.
+
 `.github/workflows/ci.yml` runs both suites on every pull request and on every push to
 `main`, on Python 3.11 — the oldest the runner promises — and 3.13 — the runner opens its
 own PRs, and none of them was checked before merge until this ran. A second job builds and

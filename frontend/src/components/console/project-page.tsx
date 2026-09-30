@@ -3,7 +3,7 @@ import { Link, ResourceViewButton, useCurrentViewResourceContext } from "react-r
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/lib/i18n"
-import { isAPage, whyNotRead, type ProjectItem } from "@/resources/projects"
+import { isAPage, useTicketCount, whyNotRead, type ProjectItem } from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
@@ -140,14 +140,17 @@ export function ProjectActions() {
   const context = useCurrentViewResourceContext()
   const project = context.data as ProjectItem | undefined
   const t = useT()
+  const count = useTicketCount(project?.name ?? "")
   if (!project) return null
   /** Where the project is really written, when that is somewhere a browser can go. */
   const away = reachable(project.url) ? project.url : ""
   return (
     <>
       {away ? <Away label="Notion" href={away} /> : null}
-      {project.tickets ? (
-        <Chip>{t("{{count}} ticket(s)", { count: String(project.tickets) })}</Chip>
+      {count === null ? (
+        <Skeleton className="h-5 w-16 rounded-full" />
+      ) : count ? (
+        <Chip>{t("{{count}} ticket(s)", { count: String(count) })}</Chip>
       ) : null}
       {isAPage(project.id) ? (
         <ResourceViewButton

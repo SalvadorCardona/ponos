@@ -265,16 +265,10 @@ class Api:
                     "source": "config",
                 }
             )
-        counts: dict[str, int] = {}
-        try:
-            for page in self.runner.client.query(self.runner.database):
-                for page_id in store.read(page, self.config.notion.prop("project")) or []:
-                    key = str(page_id).replace("-", "")
-                    counts[key] = counts.get(key, 0) + 1
-        except store.StoreError:
-            counts = {}
-        for row in rows:
-            row["tickets"] = counts.get(row["id"], 0)
+        # No count of tickets per project: that was the whole tickets database
+        # read again on every call, three hundred pages to write six numbers,
+        # while the console already holds every ticket the stream sent it. It
+        # counts them there.
         return {
             "projects": rows,
             "workspace_root": str(self.config.runner.workspace_root),
@@ -460,7 +454,11 @@ class Api:
         except store.StoreError:
             self.forget()
             raise
-        projects = self.projects()
+        # The names the board has already read, and no more: a projects cache
+        # gone cold is a query the rows do not have to wait for. A row whose
+        # project is not in it still carries the page it points at, and the
+        # console writes the name in once its list of projects arrives.
+        projects = self._projects
         return {
             "enabled": self.config.runner.schedule,
             "database": database,
@@ -507,6 +505,7 @@ class Api:
             # addresses one: the console links to its page, not to Notion's.
             "ticket": schedule.last_ticket.replace("-", ""),
             "project": (projects.get(schedule.project) or {}).get("name", ""),
+            "project_id": schedule.project.replace("-", ""),
             "model": schedule.model,
             "priority": schedule.priority,
             "problem": schedule.problem,
