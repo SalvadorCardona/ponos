@@ -30,6 +30,7 @@ export const FRENCH: Record<string, string> = {
   create: "Nouveau ticket",
   read: "Ouvrir",
   update: "modifier",
+  Edit: "Modifier",
   delete: "retirer",
   Cancel: "Annuler",
   "Search...": "Rechercher…",

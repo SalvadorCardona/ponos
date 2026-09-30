@@ -36,13 +36,17 @@ import {
  * this page is what loads it.
  *
  * It opens the way the board's cards do and then says more: the column as a
- * banner, the title big enough to be the page's title, and the metadata as a
- * ruled grid — because six facts in a row of pills is six pills, where six
+ * banner, and the metadata as a ruled grid — because six facts in a row of pills is six pills, where six
  * facts in a grid is a thing you can read down.
  *
  * Under them, two tabs: the brief, and the session — live while the ticket is
  * in progress, which is when somebody opens it to see what it is doing, so it
  * is the tab a running ticket opens on.
+ *
+ * The way back to the board and the title are the layout's header, as on
+ * every page of the console; the page drew its own under it, and said both
+ * twice. What the header is told is where else the ticket is — see
+ * `TicketHeadLinks`.
  */
 
 export function TicketPage() {
@@ -69,147 +73,138 @@ export function TicketPage() {
     : ""
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b pb-2.5">
-        <Link
-          to={back}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
-        >
-          <ArrowLeft className="size-3.5" />
-          {t("board")}
-        </Link>
-        <span className="flex-1" />
-        {ticket ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <TicketLinks ticket={ticket} />
-            <span className="text-muted-foreground font-mono text-xs">#{ticket.short}</span>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="pt-5">
-        {ticket ? (
-          <>
-            {/* The column, across the top: the one fact that decides what the
-                runner will do with this ticket next — and the robot in the
-                mood of it, moving here, where it is the only one on the
-                page, whatever the column. */}
-            <div className="bg-card mb-4 flex items-center gap-2 rounded-lg border px-3 py-2">
-              <Robot state={MOOD[ticket.column] ?? "sleep"} size={32} className="-my-1.5 shrink-0" />
-              <span
-                className={cn(
-                  "text-sm font-medium",
-                  TONE[ticket.column] ?? "text-muted-foreground"
-                )}
-              >
-                {column}
-              </span>
-              {ticket.progress ? (
-                <span className="text-muted-foreground min-w-0 truncate text-xs">
-                  · {ticket.progress}
-                </span>
-              ) : null}
-            </div>
-
-            <h2 className="text-xl leading-tight font-bold tracking-[-0.02em] text-balance sm:text-2xl">
-              {ticket.title}
-            </h2>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <TicketTags ticket={ticket} />
-              <TicketActions ticket={ticket} className="-mx-1" />
-            </div>
-
-            <Facts className="mt-4">
-              <Fact label={t("project")}>
-                {ticket.project || t("no project — a document")}
-              </Fact>
-              <Fact label={t("priority")}>{ticket.priority || "—"}</Fact>
-              <Fact label={t("model")}>{ticket.model || "—"}</Fact>
-              <Fact label={t("spent")}>
-                {typeof ticket.cost === "number" && ticket.cost
-                  ? `$${ticket.cost.toFixed(2)}`
-                  : "—"}
-              </Fact>
-              {/* What the run cost in time, next to what it cost in money.
-                  The board carries it and nothing drew it, so a ticket back
-                  from a session said what it had spent and never how long. */}
-              <Fact label={t("took")}>
-                {typeof ticket.duration === "number" && ticket.duration
-                  ? lasted(ticket.duration)
-                  : "—"}
-              </Fact>
-              <Fact label={t("created")}>{ago(ticket.created) || "—"}</Fact>
-              <Fact label={t("scheduled")}>{when(ticket.scheduled) || "—"}</Fact>
-              {/* Which machine has it, for the days two of them share a board
-                  — and the other half of the answer to "why has nothing
-                  happened": nobody claimed it. */}
-              <Fact label={t("taken by")}>
-                <span className={ticket.runner ? "font-mono text-xs" : undefined} title={ticket.runner || undefined}>
-                  {ticket.runner || "—"}
-                </span>
-              </Fact>
-            </Facts>
-
-            <Tabs
-              // Chosen once per ticket, not every time the column moves: a
-              // tab that switched itself under the reader would lose them.
-              key={ticket.id}
-              defaultValue={ticket.column === "running" ? "live" : "brief"}
-              className="mt-6"
+    <div>
+      {ticket ? (
+        <>
+          {/* The column, across the top: the one fact that decides what the
+              runner will do with this ticket next — and the robot in the
+              mood of it, moving here, where it is the only one on the
+              page, whatever the column. */}
+          <div className="bg-card mb-4 flex items-center gap-2 rounded-lg border px-3 py-2">
+            <Robot state={MOOD[ticket.column] ?? "sleep"} size={32} className="-my-1.5 shrink-0" />
+            <span
+              className={cn(
+                "text-sm font-medium",
+                TONE[ticket.column] ?? "text-muted-foreground"
+              )}
             >
-              <TabsList>
-                <TabsTrigger value="brief">{t("the brief")}</TabsTrigger>
-                <TabsTrigger value="live" className="gap-1.5">
-                  {ticket.column === "running" ? <Pulse /> : null}
-                  {t("live")}
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="brief" className="mt-2">
-                {ticket.content ? (
-                  <Markdown text={ticket.content} />
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    {t("The page is empty: the title is the whole brief.")}
-                  </p>
-                )}
-              </TabsContent>
-              <TabsContent value="live" className="mt-2">
-                <TicketLive ticket={ticket} />
-              </TabsContent>
-            </Tabs>
-          </>
-        ) : context.error ? (
-          // Why, as the server said it, and the two ways on from here: a
-          // board that did not answer often answers the second time.
-          <EmptyState
-            robot="error"
-            title={t("This ticket could not be read.")}
-            action={
-              <>
-                <Button variant="outline" size="sm" onClick={() => context.fetchData()}>
-                  <RotateCw />
-                  {t("Try again")}
-                </Button>
-                <Link to={back} className={buttonVariants({ variant: "ghost", size: "sm" })}>
-                  <ArrowLeft />
-                  {t("Back to the board")}
-                </Link>
-              </>
-            }
-          >
-            {lastTicketProblem() || t("The server gave no reason.")}
-          </EmptyState>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <Robot state="thinking" size={56} className="mb-2" />
-            <Skeleton className="h-8 w-2/3" />
-            <Skeleton className="mt-2 h-20 w-full" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-5/6" />
+              {column}
+            </span>
+            {ticket.progress ? (
+              <span className="text-muted-foreground min-w-0 truncate text-xs">
+                · {ticket.progress}
+              </span>
+            ) : null}
           </div>
-        )}
-      </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <TicketTags ticket={ticket} />
+            <TicketActions ticket={ticket} className="-mx-1" />
+          </div>
+
+          <Facts className="mt-4">
+            <Fact label={t("project")}>
+              {ticket.project || t("no project — a document")}
+            </Fact>
+            <Fact label={t("priority")}>{ticket.priority || "—"}</Fact>
+            <Fact label={t("model")}>{ticket.model || "—"}</Fact>
+            <Fact label={t("spent")}>
+              {typeof ticket.cost === "number" && ticket.cost
+                ? `$${ticket.cost.toFixed(2)}`
+                : "—"}
+            </Fact>
+            {/* What the run cost in time, next to what it cost in money.
+                The board carries it and nothing drew it, so a ticket back
+                from a session said what it had spent and never how long. */}
+            <Fact label={t("took")}>
+              {typeof ticket.duration === "number" && ticket.duration
+                ? lasted(ticket.duration)
+                : "—"}
+            </Fact>
+            <Fact label={t("created")}>{ago(ticket.created) || "—"}</Fact>
+            <Fact label={t("scheduled")}>{when(ticket.scheduled) || "—"}</Fact>
+            {/* Which machine has it, for the days two of them share a board
+                — and the other half of the answer to "why has nothing
+                happened": nobody claimed it. */}
+            <Fact label={t("taken by")}>
+              <span className={ticket.runner ? "font-mono text-xs" : undefined} title={ticket.runner || undefined}>
+                {ticket.runner || "—"}
+              </span>
+            </Fact>
+          </Facts>
+
+          <Tabs
+            // Chosen once per ticket, not every time the column moves: a
+            // tab that switched itself under the reader would lose them.
+            key={ticket.id}
+            defaultValue={ticket.column === "running" ? "live" : "brief"}
+            className="mt-6"
+          >
+            <TabsList>
+              <TabsTrigger value="brief">{t("the brief")}</TabsTrigger>
+              <TabsTrigger value="live" className="gap-1.5">
+                {ticket.column === "running" ? <Pulse /> : null}
+                {t("live")}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="brief" className="mt-2">
+              {ticket.content ? (
+                <Markdown text={ticket.content} />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  {t("The page is empty: the title is the whole brief.")}
+                </p>
+              )}
+            </TabsContent>
+            <TabsContent value="live" className="mt-2">
+              <TicketLive ticket={ticket} />
+            </TabsContent>
+          </Tabs>
+        </>
+      ) : context.error ? (
+        // Why, as the server said it, and the two ways on from here: a
+        // board that did not answer often answers the second time.
+        <EmptyState
+          robot="error"
+          title={t("This ticket could not be read.")}
+          action={
+            <>
+              <Button variant="outline" size="sm" onClick={() => context.fetchData()}>
+                <RotateCw />
+                {t("Try again")}
+              </Button>
+              <Link to={back} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                <ArrowLeft />
+                {t("Back to the board")}
+              </Link>
+            </>
+          }
+        >
+          {lastTicketProblem() || t("The server gave no reason.")}
+        </EmptyState>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <Robot state="thinking" size={56} className="mb-2" />
+          <Skeleton className="h-8 w-2/3" />
+          <Skeleton className="mt-2 h-20 w-full" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Notion, the pull request, the session: the right of the layout's header. */
+export function TicketHeadLinks() {
+  const page = useCurrentViewResourceContext().data as TicketDetail | undefined
+  const { ticket: open } = useConsole()
+  if (!page) return null
+  // The pull request is opened while the page is on screen: the stream has it first.
+  const ticket = open && open.id === page.id ? { ...page, ...open } : page
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <TicketLinks ticket={ticket} />
     </div>
   )
 }

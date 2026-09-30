@@ -1,10 +1,9 @@
-import { ArrowLeft } from "lucide-react"
 import { ActionList } from "react-data-form"
 import { Link, ResourceViewButton, useCurrentViewResourceContext } from "react-resource-view"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/lib/i18n"
-import { isAPage, projectsHref, whyNotRead, type ProjectItem } from "@/resources/projects"
+import { isAPage, whyNotRead, type ProjectItem } from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
@@ -19,40 +18,19 @@ import { Away, Chip, reachable } from "./ticket-bits"
  * project at all: it is not a description of the project, it is what every
  * ticket of that project is told before it is told the ticket.
  *
- * The gesture the page exists for is the *edit* button, and it is the
- * package's own: the same form, the same drawer and the same toast as
- * everywhere else in the console. A project the configuration alone names has
- * no page to write to — it is a line in `config.toml` — so it gets the way to
- * the settings instead of a button that could only fail.
+ * What sits above it — the way back, the name, the edit button — is the
+ * layout's header, told what a project adds to it: see `ProjectTitle` and
+ * `ProjectActions` below.
  */
 
 export function ProjectPage() {
   const context = useCurrentViewResourceContext()
   const project = context.data as ProjectItem | undefined
   const t = useT()
-
-  // The list, in the layout it was left in: coming back from a project onto the
-  // cards, when the table is what you were comparing eleven projects in, is
-  // losing your place.
-  const back = projectsHref()
   const page = project ? isAPage(project.id) : false
-  /** Where the project is really written, when that is somewhere a browser can go. */
-  const away = project && reachable(project.url) ? project.url : ""
 
   return (
     <div className="min-w-0">
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <Link
-          to={back}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
-        >
-          <ArrowLeft className="size-3.5" />
-          {t("projects")}
-        </Link>
-        <span className="flex-1" />
-        {away ? <Away label="Notion" href={away} /> : null}
-      </div>
-
       {!project ? (
         context.error ? (
           <div className="flex flex-col gap-1.5">
@@ -75,34 +53,16 @@ export function ProjectPage() {
         )
       ) : (
         <>
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-            <div className="min-w-0">
-              <Eyebrow>{project.work}</Eyebrow>
-              <h2 className="mt-1 text-xl leading-tight font-bold tracking-[-0.02em] text-balance sm:text-2xl">
-                {project.name}
-              </h2>
+          {project.source === "config" || project.configured ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
+              {project.configured && project.source === "board" ? (
+                <Chip>{t("path set in the configuration")}</Chip>
+              ) : null}
             </div>
-            {page ? (
-              <ResourceViewButton
-                action={ActionList.update}
-                resource={context.resource}
-                id={project.id}
-                data={project}
-              />
-            ) : null}
-          </div>
+          ) : null}
 
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {project.tickets ? (
-              <Chip>{t("{{count}} ticket(s)", { count: String(project.tickets) })}</Chip>
-            ) : null}
-            {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
-            {project.configured && project.source === "board" ? (
-              <Chip>{t("path set in the configuration")}</Chip>
-            ) : null}
-          </div>
-
-          <Facts className="mt-4">
+          <Facts className="mt-4 first:mt-0">
             <Fact label={t("repository")}>
               <span className="font-mono text-xs" title={project.repository || undefined}>
                 {project.repository || "—"}
@@ -143,5 +103,60 @@ export function ProjectPage() {
         </>
       )}
     </div>
+  )
+}
+
+/* The top of the page is the layout's: the way back, the title, the line under
+ * it and the actions, drawn by react-resource-view the way it draws them on
+ * every page of the console. The page drew its own on top of it — two ways
+ * back, two titles, two edit buttons — so what only a project has is handed to
+ * that header instead: the kind of work above the name, and on the right the
+ * page in Notion, how many tickets point at it, and the edit button.
+ */
+
+/** The name, under the kind of work it is. */
+export function ProjectTitle() {
+  const project = useCurrentViewResourceContext().data as ProjectItem | undefined
+  const t = useT()
+  return (
+    <div className="min-w-0">
+      {project ? <Eyebrow>{project.work}</Eyebrow> : null}
+      <h2 className="truncate text-2xl font-semibold tracking-tight">
+        {project ? project.name : t("Project")}
+      </h2>
+    </div>
+  )
+}
+
+/**
+ * What the header offers besides the way back.
+ *
+ * The edit button is the package's own, as the header would have drawn it:
+ * the same form, the same drawer and the same toast as everywhere else. A
+ * project the configuration alone names has no page to write to, so it gets
+ * none — the page says where it is changed instead.
+ */
+export function ProjectActions() {
+  const context = useCurrentViewResourceContext()
+  const project = context.data as ProjectItem | undefined
+  const t = useT()
+  if (!project) return null
+  /** Where the project is really written, when that is somewhere a browser can go. */
+  const away = reachable(project.url) ? project.url : ""
+  return (
+    <>
+      {away ? <Away label="Notion" href={away} /> : null}
+      {project.tickets ? (
+        <Chip>{t("{{count}} ticket(s)", { count: String(project.tickets) })}</Chip>
+      ) : null}
+      {isAPage(project.id) ? (
+        <ResourceViewButton
+          action={ActionList.update}
+          resource={context.resource}
+          id={project.id}
+          data={project}
+        />
+      ) : null}
+    </>
   )
 }

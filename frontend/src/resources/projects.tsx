@@ -15,7 +15,7 @@ import {
 import { EmptyState } from "@/components/console/empty-state"
 import { Eyebrow, Fact, Facts } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
-import { ProjectPage } from "@/components/console/project-page"
+import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
 import { Chip } from "@/components/console/ticket-bits"
 import { buttonVariants } from "@/components/ui/button"
 import { api } from "@/lib/api"
@@ -426,9 +426,18 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
       behavior: { rowActions: [ActionList.read] },
       components: { top: ProjectsTop, bottom: ProjectsFoot, noResult: NoProject },
     },
-    [ActionList.read]: { name: "Project", viewComponent: ProjectPage },
+    [ActionList.read]: {
+      name: "Project",
+      viewComponent: ProjectPage,
+      // The layout's header, with what only a project has in it: the page has
+      // no header of its own.
+      components: { title: ProjectTitle, actions: ProjectActions },
+    },
     [ActionList.update]: {
       name: "Project",
+      // What the button that opens this form says. Left to the package it is
+      // the action's own name, which reads as a lower-case "update".
+      label: { update: "Edit" },
       form: editForm,
       // Against the edge and at full height: the brief is the field that is
       // actually written here, and it is a page of text.
