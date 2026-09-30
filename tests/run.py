@@ -8182,7 +8182,7 @@ def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Write the ticket. It comes back done." in readme.split("---", 1)[0], "the README opens elsewhere"
     assert "## Ponos, the mascot" in readme
-    mood = (FRONTEND / "src/hooks/use-mood.ts").read_text(encoding="utf-8")
+    mood = (FRONTEND / "src/hooks/use-mood.tsx").read_text(encoding="utf-8")
     french = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
     tips = re.findall(r'tip: "([^"]+)"', mood)
     assert "Ponos is taking a ticket" in tips, "the console's robot has no name"
