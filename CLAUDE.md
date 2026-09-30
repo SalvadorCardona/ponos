@@ -41,6 +41,7 @@ Frontend, depuis `frontend/` :
 npm install
 npm run build   # tsc -b && vite build — écrit dans ../src/ticket_runner/web/static
 npm run lint    # tsc -b --noEmit
+npm run test:e2e  # Playwright dans le Chrome installé, sur un vrai `serve` et un board jetable
 npm run dev     # serveur de dev avec hot reload, proxy /api vers un console déjà lancé
 ```
 
@@ -50,8 +51,9 @@ npm run dev     # serveur de dev avec hot reload, proxy /api vers un console dé
 vers `main` : le job cœur relance `python3 tests/run.py` puis
 `python3 tests/functional.py` sous Python 3.11 et 3.13, sans installer quoi que
 ce soit ; le job frontend ne se déclenche que si `frontend/**` a changé, et y
-fait `npm ci`, `npm run lint`, `npm run build`, puis échoue si
-`src/ticket_runner/web/static` diffère de ce que le build vient d'écrire.
+fait `npm ci`, `npm run lint`, `npm run build`, échoue si
+`src/ticket_runner/web/static` diffère de ce que le build vient d'écrire, puis
+lance `npm run test:e2e`.
 `release.yml` reste séparé, ne se déclenche que sur un tag, et relance les deux
 suites.
 

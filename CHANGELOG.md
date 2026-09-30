@@ -326,6 +326,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **Every page of the console scrolls again.** Since the console moved to the
+  admin layout, a page taller than the screen — a ticket and its session log,
+  the settings, a long board — stopped at its bottom edge: no wheel, no
+  touchpad, no scroll bar, no Page Down. The page scrolls as a whole now, under
+  a bar and a menu that stay where they are; a dialog still holds it still
+  while it is open, and lets it go when it closes. `npm run test:e2e` in
+  `frontend/` checks it in a browser.
+
 - **The console no longer drags on a board with years of Done.** The Done
   column draws its thirty most recent tickets and a *Show more* button under
   them; its heading still counts every one. The projects page no longer reads

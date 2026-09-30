@@ -1794,7 +1794,14 @@ npm install
 npm run build      # writes ../src/ticket_runner/web/static — commit what it writes
 npm run dev        # hot reload, proxying /api to a console you started yourself
 npm run lint       # tsc, in the strict configuration the build uses
+npm run test:e2e   # the built console in your Chrome, on a board of files of its own
 ```
+
+`npm run test:e2e` is Playwright, driving the Chrome already installed rather than a
+browser of its own: `e2e/console.py` starts a real `ticket-runner serve` on a throwaway
+Markdown board, so the tests read the build that `npm run build` last wrote and nothing of
+yours. They hold what neither Python suite can see — that a page taller than the screen
+scrolls, by the wheel and by the keyboard, and still does once a dialog has come and gone.
 
 **One set of tokens for the console and the site.** The colours of both themes, the two
 faces (DM Sans, JetBrains Mono), the radius, the `--tr-*` status colours and the chart

@@ -84,17 +84,17 @@
     @apply border-border outline-ring/50;
   }
 
-  html,
-  body,
-  #root {
-    height: 100%;
-  }
-
   body {
     @apply bg-background text-foreground font-sans;
-    /* The console is a set of panes that scroll inside themselves. The page
-       behind them does not scroll, or the header leaves with the board. */
-    overflow: hidden;
+    /* The page scrolls, and nothing inside it does on its behalf. The admin
+       layout is drawn for that: its bar is sticky at the top, its menu sticky
+       at the height of the screen, and the page between them is as tall as
+       what it holds. The console used to be panes that scrolled inside
+       themselves, under a body told not to — kept past the move to the admin
+       layout, that `overflow: hidden` reached the viewport and every page
+       taller than the screen stopped at its bottom edge. A dialog still locks
+       the page while it is open: Radix sets that on the body itself, and takes
+       it back when the dialog closes. */
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
   }
