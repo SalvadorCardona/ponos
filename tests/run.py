@@ -8491,13 +8491,9 @@ def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Write the ticket. It comes back done." in readme.split("---", 1)[0], "the README opens elsewhere"
     assert "## Ponos, the mascot" in readme
-    mood = (FRONTEND / "src/hooks/use-mood.tsx").read_text(encoding="utf-8")
-    french = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
-    tips = re.findall(r'tip: "([^"]+)"', mood)
-    assert "Ponos is taking a ticket" in tips, "the console's robot has no name"
-    for tip in tips:
-        assert f'"{tip}":' in french, f"nothing translates “{tip}” — add it to french.ts"
-    assert '"Ponos prend un ticket"' in french
+    shell = (FRONTEND / "src/components/console/shell.tsx").read_text(encoding="utf-8")
+    mark = shell.split("export function Mark()", 1)[1].split("\n}\n", 1)[0]
+    assert 'title="Ponos"' in mark and ">Ponos<" in mark, "the console's robot has no name"
     mascot = (ROOT / "docs/mascot/ticket-runner-robot.js").read_text(encoding="utf-8")
     assert "Ponos" in mascot.split("*/", 1)[0], "the component's documentation does not say Ponos"
     assert "customElements.define('ticket-runner-robot'" in mascot, (

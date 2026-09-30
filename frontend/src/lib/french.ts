@@ -92,26 +92,6 @@ export const FRENCH: Record<string, string> = {
   "A sentence talks to your workspace; a line that starts with > runs a command.":
     "Une phrase parle à votre espace de travail ; une ligne qui commence par > lance une commande.",
   "No such page.": "Cette page n'existe pas.",
-  // The robot in the bar, and the few words beside it that say its mood.
-  "a ticket is back": "un ticket est revenu",
-  "claude is missing": "claude est introuvable",
-  "a ticket is blocked": "un ticket est bloqué",
-  "{{count}} session(s) at work": "{{count}} session(s) au travail",
-  "out of credit": "plus de crédit",
-  "taking a ticket": "prend un ticket",
-  "{{count}} ticket(s) ready": "{{count}} ticket(s) prêt(s)",
-  "nothing to do": "rien à faire",
-  // The same states, over the robot, as sentences about Ponos — his name.
-  "Ponos is reconnecting…": "Ponos se reconnecte…",
-  "Ponos is connecting…": "Ponos se connecte…",
-  "Ponos brought a ticket back": "Ponos a rapporté un ticket",
-  "Ponos cannot find claude": "Ponos ne trouve pas claude",
-  "Ponos is stuck on a ticket": "Ponos bloque sur un ticket",
-  "Ponos is at work on {{count}} session(s)": "Ponos travaille sur {{count}} session(s)",
-  "Ponos is waiting for credit": "Ponos attend du crédit",
-  "Ponos is taking a ticket": "Ponos prend un ticket",
-  "Ponos is waiting: {{count}} ticket(s) ready": "Ponos attend : {{count}} ticket(s) prêt(s)",
-  "Ponos is resting: nothing to do": "Ponos se repose : rien à faire",
   "Reading the board…": "Lecture du tableau…",
 
   /* -- the menu ------------------------------------------------------------ */

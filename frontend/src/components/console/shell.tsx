@@ -28,9 +28,8 @@ export function Mark() {
   return (
     <div className="flex h-8 items-center gap-2">
       {/* Ponos, the console's mark and the runner's face, wears the runner's
-          mood: the very one the bar's robot wears, read once for both, so the
-          two faces a hand's width apart always say the same thing. Hovered, it
-          says whose face it is. */}
+          mood — the only face that does, now the bar's end no longer carries
+          one. Hovered, it says whose face it is. */}
       <span className="flex shrink-0" title="Ponos">
         <Robot state={mood.state} size={24} />
       </span>
@@ -96,28 +95,6 @@ export function MenuEntry({ menuItem }: { menuItem: MenuItemInterface }) {
 }
 
 /* -- the end of the bar --------------------------------------------------- */
-
-/* The robot answers the only question somebody looks up to ask, "is it doing
- * anything?" — one face, not five pills. The sentence it stands for is not
- * drawn beside it, at any width: it crowded the bar. It is kept where it is
- * asked for — read out to a screen reader each time the mood changes, and
- * under the pointer, where it says whose face it is: Ponos's. */
-function RunnerMood() {
-  const mood = useRunnerMood()
-  const t = useT()
-  const said = t(mood.said, mood.params)
-  return (
-    <div
-      className="text-muted-foreground flex shrink-0 items-center gap-2 px-2 font-mono text-[0.7rem]"
-      title={t(mood.tip, mood.params)}
-    >
-      <span className="sr-only" aria-live="polite">
-        {said}
-      </span>
-      <Robot state={mood.state} size={28} className="-my-1" />
-    </div>
-  )
-}
 
 /* When the board last agreed with Notion, and whether anything does not.
  *
@@ -197,8 +174,6 @@ export function TopBarEnd() {
 
   return (
     <>
-      <RunnerMood />
-
       <Tooltip>
         <TooltipTrigger asChild>
           <span
