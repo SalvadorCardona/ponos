@@ -263,6 +263,9 @@ const rowForm: FormInterface = {
  *
  * The id and the age never wrap: "#3f2acf09" cut in two is a different id to
  * read, and "il y a 1 j" over two lines was a line of the card spent on it.
+ * The title and the summary do, anywhere if they must: a path, a URL or a
+ * branch name has no space to break at, and unbroken it set the width of the
+ * whole column, which then ran under the ones beside it.
  */
 function TicketCard({ row }: RowComponentPropsInterface) {
   const ticket = row?.data as TicketItem | undefined
@@ -273,7 +276,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   return (
     <div
       className={cn(
-        "-m-4 flex flex-col gap-2 rounded-2xl border-l-3 p-3",
+        "-m-4 flex min-w-0 flex-col gap-2 rounded-2xl border-l-3 p-3",
         EDGE[ticket.column] ?? "border-l-border"
       )}
     >
@@ -283,10 +286,10 @@ function TicketCard({ row }: RowComponentPropsInterface) {
           #{ticket.short}
         </Link>
         <span className="flex-1" />
-        <span className="text-muted-foreground truncate">{ago(ticket.created)}</span>
+        <span className="text-muted-foreground min-w-0 truncate">{ago(ticket.created)}</span>
       </div>
 
-      <Link to={href} className="text-[0.93rem] leading-snug font-semibold hover:underline">
+      <Link to={href} className="text-[0.93rem] leading-snug font-semibold break-words hover:underline">
         {ticket.title}
       </Link>
 
@@ -295,7 +298,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />
       ) : ticket.progress ? (
-        <p className="text-muted-foreground line-clamp-3 text-xs leading-relaxed">
+        <p className="text-muted-foreground line-clamp-3 text-xs leading-relaxed break-words">
           {ticket.progress}
         </p>
       ) : null}
@@ -521,11 +524,12 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
               ) : null
             }
             // The package draws its column 18rem wide and rigid; the wrapper
-            // is what shares the width, and the column fills it.
+            // is what shares the width, and the column fills it — no wider:
+            // left at `min-width: auto`, its widest card would widen it.
             return (
               <div
                 key={column.key}
-                className={cn("flex flex-1 basis-0 snap-start *:w-auto *:flex-1", COLUMN_MIN)}
+                className={cn("flex flex-1 basis-0 snap-start *:w-auto *:min-w-0 *:flex-1", COLUMN_MIN)}
               >
                 <RowWrapperColumnComponent
                   identifierKey="column"
