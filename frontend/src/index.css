@@ -211,6 +211,20 @@
     max-height: calc(100dvh - 2rem);
     grid-template-rows: auto minmax(0, 1fr);
   }
+
+  /* A project's form, the whole screen on a phone. The package's drawer comes
+     up from the bottom there, 85% of the height with a gap and rounded corners
+     around it — room for the list to show above, which a phone has none of,
+     and the brief is a page of text. Only the drawer that holds a project's
+     form, which says so by the attribute over it (see `resources/projects`). */
+  @media (width < 48rem) {
+    [data-slot="drawer-popup"][data-swipe-axis="y"]:has([data-project-form]) {
+      --drawer-height: 100dvh;
+      --drawer-content-max-height: 100dvh;
+      --drawer-inset: 0px;
+      border-radius: 0;
+    }
+  }
 }
 
 /* The Markdown editor, in the console's palette and at the size of a form.

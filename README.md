@@ -555,7 +555,7 @@ board's interface, and the directory can live in a repository of its own.
 The console works against it exactly as against Notion — the board, a ticket's page, its
 discussion, the live steps. And it gained three screens that make a Markdown-only
 installation self-sufficient: **Projects** (every project this installation knows of, the
-board's and the ones only `[projects]` names — each of them a page you open and change),
+board's and the ones only `[projects]` names — each of them a form a click opens in a drawer over the list, and a page of its own),
 **Context** (the standing text every ticket is told first, editable rather than read-only)
 and an editable **Schedules** — a row is turned off
 from the list itself, a pencil opens the six columns it is written in and the context its

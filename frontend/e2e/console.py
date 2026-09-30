@@ -10,7 +10,8 @@ console you run for yourself.
     python3 e2e/console.py 8790
 
 One ticket is written long on purpose: a brief several screens tall, which is
-the page that stopped scrolling.
+the page that stopped scrolling. Two projects, for the list that opens one in a
+drawer.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from ticket_runner import files  # noqa: E402
 # The token the tests open the console with: a board of fixtures has nothing to guard.
 TOKEN = "e2e"
 LONG = "000000000000000000000000000abcde"
+PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 
 
 def board(root: Path) -> None:
@@ -43,6 +45,13 @@ def board(root: Path) -> None:
         page = {"id": f"{number:032d}", "title": f"Ticket {number}", "Status": "Backlog"}
         (tickets / f"ticket-{number}-{page['id'][-8:]}.md").write_text(
             files.render(page, "A short brief."), encoding="utf-8"
+        )
+    projects = root / "projects"
+    projects.mkdir()
+    for id, name in PROJECTS.items():
+        page = {"id": id, "title": name, "Repository": f"example/{name.lower()}"}
+        (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
+            files.render(page, f"The brief of {name}."), encoding="utf-8"
         )
 
 

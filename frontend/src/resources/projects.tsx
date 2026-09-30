@@ -8,6 +8,7 @@ import {
 } from "react-data-form"
 import {
   Link,
+  ResourceViewButton,
   cardViewOptionFactory,
   createResourceCollection,
   createViewResource,
@@ -29,6 +30,7 @@ import { api } from "@/lib/api"
 import { useTicketCounts } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
+import { useRoute } from "@/lib/router"
 import type { Project, Projects } from "@/lib/types"
 import { settingsHref } from "@/resources/settings"
 
@@ -130,7 +132,16 @@ let asked: Promise<Projects> | null = null
 /** The list, for a page that only wants the names: what was last read, or one
  * request shared by whoever asks while it is out. */
 export function projectsOnce(): Promise<Projects> {
-  if (drawn) return Promise.resolve(drawn)
+  return drawn ? Promise.resolve(drawn) : readAgain()
+}
+
+/* The list, read again — but once for everybody who asks while it is out.
+ *
+ * A save is followed by one reread per card: each card's way into the form is
+ * the package's button, and each of those refreshes the list when the resource
+ * changes. Eleven projects would be eleven reads of the same board in the same
+ * instant; shared, they are one. */
+function readAgain(): Promise<Projects> {
   asked ??= api
     .projects()
     .then((fresh) => {
@@ -240,16 +251,85 @@ const TicketsCell: InputControllerComponentInterface = () => {
   return <span className="tabular-nums">{count}</span>
 }
 
-/** The name in the table, behind the project's thumbnail. */
+/* -- the way in ----------------------------------------------------------- */
+
+/* What a click on a project opens: its form, straight away, in a drawer over
+ * the list.
+ *
+ * It used to open the project's page, and the form was one more click from
+ * there — the edit button in the page's header. The page is still there, for
+ * what only it shows (the pictures, the brief as it reads, the way to Notion),
+ * but it is no longer on the way to changing a project: the list is where a
+ * project is chosen, so it is where it is changed.
+ *
+ * The drawer is the package's, the one `views.update` already opens in: its
+ * button, handed what to draw instead of a button, opens it in place rather
+ * than following the link — and, closed by a save, has the list read again.
+ * The link it wraps is the full-page form, which is what a middle click or a
+ * copied address gets.
+ *
+ * A project the configuration alone names has no page to write to, so there
+ * is no form to open: it goes where it always went, the page that says where
+ * it is changed.
+ */
+function OpenProject({ project, children }: { project: ProjectItem; children: React.ReactNode }) {
+  const { resource } = useCurrentViewResourceContext()
+  if (!isAPage(project.id))
+    return (
+      <Link to={generateLinkByResource({ resource, resourceAction: ActionList.read, id: project.id })}>
+        {children}
+      </Link>
+    )
+  // The id alone, not the row: a row has no brief, and the form would open
+  // with that field empty. Given nothing but the id, the drawer reads it.
+  return (
+    <ResourceViewButton action={ActionList.update} resource={resource} id={project.id}>
+      {children}
+    </ResourceViewButton>
+  )
+}
+
+/** The name in the table, behind the project's thumbnail — and the way into its form. */
 const NameCell: InputControllerComponentInterface = () => {
   const { form } = useFormContext()
   const project = form?.data as ProjectItem | undefined
-  if (!project) return null
+  // Not every form this is drawn in holds a row: nothing to open without one.
+  if (!project?.id) return null
   return (
-    <span className="inline-flex min-w-0 items-center gap-2.5">
-      <ProjectThumb project={project} className="size-8 rounded-md" />
-      <span className="truncate">{project.name}</span>
-    </span>
+    <OpenProject project={project}>
+      <span className="inline-flex min-w-0 items-center gap-2.5 hover:underline">
+        <ProjectThumb project={project} className="size-8 rounded-md" />
+        <span className="truncate">{project.name}</span>
+      </span>
+    </OpenProject>
+  )
+}
+
+/* Over the form, the page it no longer goes through: the pictures, the brief
+ * as it reads and the way to Notion are there and nowhere else. Not over the
+ * form opened from that page, which would be a link to where you are.
+ *
+ * The attribute is how the stylesheet knows the drawer holds a project's
+ * form, to give it the whole screen on a phone: see `index.css`. */
+function ToThePage() {
+  const context = useCurrentViewResourceContext()
+  const { params } = useRoute()
+  const id = String(context.id ?? "")
+  const here = params.resourceAction === ActionList.read && String(params.id ?? "") === id
+  return (
+    <div data-project-form>
+      {id && !here ? (
+        <p className="text-muted-foreground mb-4 text-xs">
+          <Link
+            to={generateLinkByResource({ resource: context.resource, resourceAction: ActionList.read, id })}
+            className="underline underline-offset-2"
+          >
+            {t("Open the project's page")}
+          </Link>{" "}
+          — {t("its pictures, the brief as it reads, and the way to Notion.")}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -266,8 +346,8 @@ const rowForm: FormInterface = {
 
 /* -- one card ------------------------------------------------------------- */
 
-/* How a project is drawn in the card layout. The card is the way into the
- * project's page — its name is the link — and it says the same three things
+/* How a project is drawn in the card layout. The whole card is the way into
+ * the project's form — see `OpenProject` — and it says the same three things
  * the pane's rows said: what kind of work it is, what it declares, and where
  * that declaration comes from.
  *
@@ -277,74 +357,63 @@ const rowForm: FormInterface = {
  */
 function ProjectCard({ row }: RowComponentPropsInterface) {
   const project = row?.data as ProjectItem | undefined
-  const { resource } = useCurrentViewResourceContext()
   const count = useTicketCount(project?.name ?? "")
   if (!project) return null
-  const href = generateLinkByResource({
-    resource,
-    resourceAction: ActionList.read,
-    id: project.id,
-  })
 
   return (
-    <div className="flex min-w-0 flex-col gap-2.5">
-      <div className="flex items-baseline gap-2">
-        <Eyebrow>{project.work}</Eyebrow>
-        <span className="flex-1" />
-        {count === null ? (
-          <Skeleton className="h-3 w-14" />
-        ) : count ? (
-          <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
-            {t("{{count}} ticket(s)", { count: String(count) })}
-          </span>
-        ) : null}
-      </div>
+    <OpenProject project={project}>
+      <div className="group flex min-w-0 flex-col gap-2.5">
+        <div className="flex items-baseline gap-2">
+          <Eyebrow>{project.work}</Eyebrow>
+          <span className="flex-1" />
+          {count === null ? (
+            <Skeleton className="h-3 w-14" />
+          ) : count ? (
+            <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
+              {t("{{count}} ticket(s)", { count: String(count) })}
+            </span>
+          ) : null}
+        </div>
 
-      <div className="flex min-w-0 items-center gap-3">
-        {/* The thumbnail is the same link as the name: it is what the eye
-            lands on first in a grid of cards. */}
-        <Link to={href} tabIndex={-1} aria-hidden>
+        <div className="flex min-w-0 items-center gap-3">
           <ProjectThumb project={project} />
-        </Link>
-        <Link
-          to={href}
-          className="min-w-0 text-[0.95rem] leading-snug font-semibold [overflow-wrap:anywhere] hover:underline"
-        >
-          {project.name}
-        </Link>
-      </div>
+          <span className="min-w-0 text-[0.95rem] leading-snug font-semibold [overflow-wrap:anywhere] group-hover:underline">
+            {project.name}
+          </span>
+        </div>
 
-      {project.repository || project.where ? (
-        <Facts>
-          {/* A fact is one line and these two are longer than it — three cards
-              across, a path is cut about where it stops being a path. The title
-              is what makes the cut recoverable without opening the project. */}
-          <Fact label={t("repository")}>
-            <span className="font-mono text-xs" title={project.repository || undefined}>
-              {project.repository || "—"}
-            </span>
-          </Fact>
-          <Fact label={t("on this machine")}>
-            <span className="font-mono text-xs" title={project.where || undefined}>
-              {project.where || t("wherever the clone is")}
-            </span>
-          </Fact>
-        </Facts>
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          {t(
-            "Nothing declares a repository, so its tickets produce a document rather than a pull request."
-          )}
-        </p>
-      )}
+        {project.repository || project.where ? (
+          <Facts>
+            {/* A fact is one line and these two are longer than it — three cards
+                across, a path is cut about where it stops being a path. The title
+                is what makes the cut recoverable without opening the project. */}
+            <Fact label={t("repository")}>
+              <span className="font-mono text-xs" title={project.repository || undefined}>
+                {project.repository || "—"}
+              </span>
+            </Fact>
+            <Fact label={t("on this machine")}>
+              <span className="font-mono text-xs" title={project.where || undefined}>
+                {project.where || t("wherever the clone is")}
+              </span>
+            </Fact>
+          </Facts>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {t(
+              "Nothing declares a repository, so its tickets produce a document rather than a pull request."
+            )}
+          </p>
+        )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
-        {project.configured && project.source === "board" ? (
-          <Chip>{t("path set in the configuration")}</Chip>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
+          {project.configured && project.source === "board" ? (
+            <Chip>{t("path set in the configuration")}</Chip>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </OpenProject>
   )
 }
 
@@ -417,8 +486,7 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
   canDelete: false,
 
   getCollection: async () => {
-    const read = await api.projects()
-    publish(read)
+    const read = await readAgain()
     return {
       data: createResourceCollection({
         id: "/api/projects",
@@ -487,8 +555,8 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
       name: "Projects",
       description:
         "What the tickets are about: where the work happens, and what conventions hold there. One with no repository is not a mistake — its tickets come back as a document.",
-      // There is one way in, and it is the page: what a project is changed
-      // through is the form that page opens.
+      // A click on a project opens its form; the button under a card, and
+      // beside a row, is the way to its page.
       behavior: { rowActions: [ActionList.read] },
       components: { top: ProjectsTop, bottom: ProjectsFoot, noResult: NoProject },
     },
@@ -508,6 +576,7 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
       // Against the edge and at full height: the brief is the field that is
       // actually written here, and it is a page of text.
       behavior: { openIn: "drawer" },
+      components: { top: ToThePage },
     },
   },
 })

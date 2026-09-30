@@ -446,6 +446,9 @@ export const FRENCH: Record<string, string> = {
   "This project is a line in config.toml and has no page: the board has never heard of it, so there is nothing here to write a brief on.":
     "Ce projet est une ligne de config.toml et n'a pas de page : le tableau n'en a jamais entendu parler, il n'y a donc rien ici sur quoi écrire un brief.",
   "Change its path in the settings.": "Changez son chemin dans les réglages.",
+  "Open the project's page": "Ouvrir la page du projet",
+  "its pictures, the brief as it reads, and the way to Notion.":
+    "ses images, le brief tel qu'il se lit, et le chemin vers Notion.",
 
   /* -- a project's pictures ------------------------------------------------ */
   "Change the image": "Changer l'image",
