@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArrowUp, Moon, RefreshCw, Sun } from "lucide-react"
+import { Moon, RefreshCw, Sun } from "lucide-react"
 import { Link, type MenuItemInterface } from "react-resource-view"
 
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { TICKETS } from "@/resources/tickets"
 
 import { Robot } from "./robot"
+import { VersionBadge } from "./version-badge"
 
 /* What the console puts into react-resource-view's admin layout.
  *
@@ -167,7 +168,7 @@ function SyncLine() {
  * over every page.
  */
 export function TopBarEnd() {
-  const { refresh, runner } = useConsole()
+  const { refresh } = useConsole()
   const { connection } = useStatus()
   const { theme, toggle } = useTheme()
   const t = useT()
@@ -200,33 +201,9 @@ export function TopBarEnd() {
         <TooltipContent>{t("event stream")}</TooltipContent>
       </Tooltip>
 
-      {/* The number this console is running, and — the one day it matters —
-          that a newer one is waiting. */}
-      {runner ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              className={cn(
-                "flex items-center gap-1 px-2 font-mono text-[0.7rem]",
-                runner.update ? "text-tr-amber" : "text-muted-foreground"
-              )}
-            >
-              {runner.update ? <ArrowUp className="size-3 shrink-0" /> : null}
-              <span className={runner.update ? undefined : "hidden sm:inline"}>
-                v{runner.version}
-              </span>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {runner.update
-              ? t("v{{version}} — {{waiting}} is waiting, run: ticket-runner update", {
-                  version: runner.version,
-                  waiting: runner.update,
-                })
-              : t("the version this console runs")}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
+      {/* The number this console is running — and, the day a newer one is
+          waiting, the button that installs it. */}
+      <VersionBadge />
 
       <SyncLine />
 

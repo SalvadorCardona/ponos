@@ -196,6 +196,33 @@ ticket-runner update --check   # what is available, changing nothing
 ticket-runner update           # apply it now
 ```
 
+**From the console**, the version at the top right says it too: the day a check has found
+a newer one, it turns amber with an arrow and becomes a button. Hovered, it names the
+installed version and the one waiting; clicked, it shows both, links the release notes (or
+the commits in between, on `main`), and asks before doing anything. *Update now* then does
+what `ticket-runner update` does, with every step drawn as it happens — downloading,
+installing, restarting — and the page reconnects by itself onto the new version:
+
+- **nothing running is cut short.** The update takes the run lock, which every ticket's
+  session runs under: with a ticket in flight the button reads *Update after the ticket*,
+  the update waits for it (and can be called off meanwhile), and the timer's next pass,
+  finding the lock held, claims nothing. A chat turn or a command typed in the console is
+  waited for the same way;
+- **a failure leaves the old version.** The new code is started by a Python of its own
+  before it is kept; if it does not start, or its launcher and units cannot be written,
+  the installation goes back to the commit it replaced, the dialog says why, and the log is
+  there — in the dialog, and in `~/.local/state/ticket-runner/web/update.log`. The same
+  holds for an update made by a run or by `ticket-runner update`;
+- **the page chooses nothing.** `POST /api/update` takes no command, no version and no
+  path; it asks the remote again, under the lock, for the newest version of the configured
+  channel. It answers only a request from this machine carrying the console's guard header
+  and, from a browser, the console's own `Origin`. Opened from another machine, the dialog
+  shows `ticket-runner update` to copy instead — as it does when the app directory is not
+  writable by the console.
+
+The console restarts through its systemd unit when that is what started it, and replaces
+its own process with the same command line otherwise.
+
 `runner.auto_update = false` turns the automatic half off; `runner.update_interval_seconds`
 changes the hour; `runner.update_channel` chooses between releases and `main` —
 `ticket-runner doctor` says which one is followed. An installation made from a local copy (`TR_SRC=.`) has no remote to

@@ -134,8 +134,49 @@ export const FRENCH: Record<string, string> = {
   // the one day it matters, that a newer one is waiting. The row of pills it
   // used to be said this beside four other things nobody was reading.
   "the version this console runs": "la version que fait tourner cette console",
-  "v{{version}} — {{waiting}} is waiting, run: ticket-runner update":
-    "v{{version}} — {{waiting}} attend, lancez : ticket-runner update",
+  // The day a newer one is waiting, the version is the button that installs
+  // it — and the dialog that asks first, then follows the update to the end.
+  "v{{version}} → {{target}}, click to update": "v{{version}} → {{target}}, cliquez pour mettre à jour",
+  Update: "Mettre à jour",
+  "updating…": "mise à jour…",
+  "update failed": "mise à jour échouée",
+  "Update Ponos": "Mettre à jour Ponos",
+  "Updating Ponos": "Ponos se met à jour",
+  "The update failed": "La mise à jour a échoué",
+  "Ponos is up to date": "Ponos est à jour",
+  "restarted on {{version}}": "redémarré sur {{version}}",
+  "Release notes": "Notes de version",
+  "What changed": "Ce qui a changé",
+  "Ponos downloads the new version, checks that it starts, then restarts the console. The page reconnects on its own; if anything fails, the current version stays.":
+    "Ponos télécharge la nouvelle version, vérifie qu'elle démarre, puis redémarre la console. La page se reconnecte seule ; au moindre échec, la version actuelle reste en place.",
+  "A ticket is running": "Un ticket est en cours",
+  "The update will start once it has finished: nothing is interrupted, and no ticket starts in between.":
+    "La mise à jour partira quand il sera terminé : rien n'est interrompu, et aucun ticket ne démarre entre-temps.",
+  "Update now": "Mettre à jour maintenant",
+  "Update after the ticket": "Mettre à jour après le ticket",
+  "Call it off": "Annuler la mise à jour",
+  "The update did not start": "La mise à jour n'a pas démarré",
+  "Ponos stayed on its previous version": "Ponos est resté sur sa version précédente",
+  "This console cannot update Ponos itself: {{why}}. On the machine it runs on, type:":
+    "Cette console ne peut pas mettre Ponos à jour elle-même : {{why}}. Sur la machine où il tourne, tapez :",
+  Copy: "Copier",
+  "Update scheduled": "Mise à jour programmée",
+  "It starts as soon as this is over: {{what}}. No ticket starts in between.":
+    "Elle part dès que ceci est terminé : {{what}}. Aucun ticket ne démarre entre-temps.",
+  "Starting…": "Démarrage…",
+  "Downloading the new version": "Téléchargement de la nouvelle version",
+  "Checking that it starts, and installing it": "Vérification qu'elle démarre, et installation",
+  "Restarting the console": "Redémarrage de la console",
+  "The page reconnects by itself once the new version answers.":
+    "La page se reconnecte d'elle-même dès que la nouvelle version répond.",
+  Log: "Journal",
+  // What the server says it waits for, or why it cannot do it from here
+  // (`web/upgrade.py`, `web/api.py`).
+  "a ticket is running": "un ticket est en cours",
+  "a conversation turn is being answered": "une réponse de la conversation est en cours",
+  "a command is running": "une commande est en cours",
+  "an update is started from the machine the runner is on":
+    "une mise à jour se lance depuis la machine où tourne le runner",
 
   /* -- the board and a ticket ---------------------------------------------- */
   // The columns as the runner names them, for a board that has not named them

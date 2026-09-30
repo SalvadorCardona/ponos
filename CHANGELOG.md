@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The console updates Ponos in one click.** The day a newer version is
+  waiting, the version at the top right turns into a button: it names the
+  installed version and the new one, links the release notes, and asks before
+  anything happens. The update then runs with every step shown — downloading,
+  installing, restarting — and the page reconnects on its own to the new
+  version. A ticket in flight is never cut: the update waits for it (*Update
+  after the ticket*, and can be called off meanwhile), and no ticket starts in
+  between. Opened from another machine, the dialog gives `ticket-runner update`
+  to copy instead.
+
 - **The console's message bar takes photos, videos, documents and your voice.**
   *Talking to your machine* is now one rounded bar with the files above the
   words, a **+** to attach, a microphone, and a round arrow to send. A
@@ -389,6 +399,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   top of the menu (and in the bar, on a phone).
 
 ### Fixed
+
+- **An update that does not start is taken back.** A version is started by a
+  Python of its own before it is kept; if it fails to import, or its launcher
+  and units cannot be written, the installation returns to the commit it
+  replaced instead of leaving a runner that dies before its first ticket.
+
+- **The version no longer shows ↑ for an update already installed.** The check
+  was written before the update it announced and read for the hour after; the
+  header now compares it with what is actually on disk.
 
 - **Every page of the console scrolls again.** Since the console moved to the
   admin layout, a page taller than the screen — a ticket and its session log,

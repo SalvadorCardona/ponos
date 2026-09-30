@@ -336,6 +336,24 @@ def apply(status: Status, interval_seconds: int, app: Path | None = None) -> str
     console is restarted onto it, because it is the one part of the installation
     that would otherwise keep running the old code.
     """
+    error = install(status, interval_seconds, app)
+    if error:
+        return error
+    if shutil.which("systemctl"):
+        restart_console()
+    return ""
+
+
+def install(status: Status, interval_seconds: int, app: Path | None = None) -> str:
+    """Put `status.latest` on disk, or leave `status.current` there. "" or why.
+
+    Everything but the restart, so that the console — which is the process an
+    update restarts — can say "installed" before it goes. And never half of it:
+    a version that lands but does not import, or whose launcher and units cannot
+    be written, is taken back to the commit it replaced, launcher and units
+    included. A runner on last week's code runs tickets; a runner on a commit
+    that fails at `import` runs nothing, and nobody is there to notice.
+    """
     app = app or app_dir()
     try:
         reset = git.git(["reset", "--hard", "--quiet", status.latest], app)
@@ -343,12 +361,97 @@ def apply(status: Status, interval_seconds: int, app: Path | None = None) -> str
         return f"git reset: {error}"
     if not reset.ok:
         return f"git reset: {reset.err or reset.out}"
+    problem = verify(app)
+    if not problem:
+        try:
+            _regenerate(interval_seconds, app)
+        except (OSError, subprocess.SubprocessError) as error:
+            problem = f"the installed files could not be regenerated: {error}"
+    if not problem:
+        remember(Status(current=status.latest, latest=status.latest, tag=status.tag))
+        return ""
+    if not status.current:
+        return f"{problem} — and there is no previous version to go back to"
     try:
-        write_launcher(app)
-        if shutil.which("systemctl"):
-            write_units(interval_seconds, app)
-            git.run(["systemctl", "--user", "daemon-reload"])
-            restart_console()
+        back = git.git(["reset", "--hard", "--quiet", status.current], app)
+        if back.ok:
+            _regenerate(interval_seconds, app)
     except (OSError, subprocess.SubprocessError) as error:
-        return f"code updated, but the installed files could not be regenerated: {error}"
+        return f"{problem} — and going back to {status.current[:8]} failed: {error}"
+    if not back.ok:
+        return f"{problem} — and going back to {status.current[:8]} failed: {back.err or back.out}"
+    return f"{problem} — back on {status.current[:8]}"
+
+
+def _regenerate(interval_seconds: int, app: Path) -> None:
+    write_launcher(app)
+    if shutil.which("systemctl"):
+        write_units(interval_seconds, app)
+        git.run(["systemctl", "--user", "daemon-reload"])
+
+
+def verify(app: Path) -> str:
+    """Does the code on disk start? "" when it does, what it said otherwise.
+
+    Imported by a Python of its own, from the directory itself: the process
+    asking is still running the old modules, and would answer for those. The
+    console's page is checked too — it is committed, and a version without it
+    is a console that answers every address with a 404.
+    """
+    probe = "import ticket_runner.__main__, ticket_runner.web.server"
+    environment = {**os.environ, "PYTHONPATH": str(app / "src")}
+    try:
+        done = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=app, env=environment, capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"the new version could not be started: {error}"
+    if done.returncode != 0:
+        said = (done.stderr or done.stdout).strip().splitlines()
+        return f"the new version does not start: {said[-1] if said else done.returncode}"
+    if not (app / "src" / "ticket_runner" / "web" / "static" / "index.html").is_file():
+        return "the new version has no console page (web/static/index.html)"
     return ""
+
+
+def waiting(app: Path | None = None) -> Status:
+    """What the last check found — if it still describes what is installed.
+
+    The stamp is written before an update is applied and read for hours after,
+    so it can describe a commit that is no longer on disk: the installation it
+    compared was moved since, by a run, by hand, or by `git pull` in the app
+    directory. Asked of the directory itself, that is one `rev-parse`; an update
+    offered for a version that is already installed was the one lie the header
+    could tell.
+    """
+    status = remembered()
+    if not status.stale:
+        return status
+    try:
+        head = git.git(["rev-parse", "HEAD"], app or app_dir()).out
+    except (OSError, subprocess.SubprocessError):
+        return status
+    if head and head != status.current:
+        return Status(current=head, latest=head, tag=status.tag if head == status.latest else "")
+    return status
+
+
+def repository_page(app: Path | None = None) -> str:
+    """The installation's remote, as a GitHub page — or "" when it is not one."""
+    try:
+        url = git.git(["config", "--get", "remote.origin.url"], app or app_dir()).out.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    match = re.match(r"^(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)"
+                     r"([\w.-]+/[\w.-]+?)(?:\.git)?/?$", url)
+    return f"https://github.com/{match.group(1)}" if match else ""
+
+
+def notes(status: Status, page: str) -> str:
+    """Where what changed is written: the release, or the commits in between."""
+    if not page or not status.stale:
+        return ""
+    if status.tag:
+        return f"{page}/releases/tag/{status.tag}"
+    return f"{page}/compare/{status.current[:12]}...{status.latest[:12]}"

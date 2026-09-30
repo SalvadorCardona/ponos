@@ -31,6 +31,7 @@ from ..schedules import scheduled_for
 from ..ticket import short_id
 from . import board as board_module
 from . import console, live, statistics
+from . import upgrade as upgrade_module
 from . import settings as settings_module
 
 # The project index is read from one database query, not one page fetch per
@@ -70,6 +71,9 @@ class Api:
         # whether or not a browser is still open to watch it go.
         self._outbox = board_module.Outbox(outbox_path())
         self._outbox.start(self._send, self.watch.nudge)
+        self._upgrade = upgrade_module.Upgrade(
+            self.hub.publish, lambda: self.config.runner, self._restarting_would_cut
+        )
 
     # -- the pieces underneath ------------------------------------------------
 
@@ -123,6 +127,23 @@ class Api:
         if getattr(self, "_outbox", None) is None:
             self._outbox = board_module.Outbox()
         return self._outbox
+
+    @property
+    def upgrade(self) -> upgrade_module.Upgrade:
+        """The update a click starts. See `upgrade.py` for why it waits for the lock."""
+        if getattr(self, "_upgrade", None) is None:
+            self._upgrade = upgrade_module.Upgrade(
+                self.hub.publish, lambda: self.config.runner, self._restarting_would_cut
+            )
+        return self._upgrade
+
+    def _restarting_would_cut(self) -> str:
+        """What of the console's own a restart would interrupt, or ""."""
+        if self.chat.busy:
+            return "a conversation turn is being answered"
+        if self.commands.busy:
+            return "a command is running"
+        return ""
 
     def forget(self) -> None:
         """Drop the caches. What a failed Notion call earns, so the next retries."""
@@ -644,8 +665,12 @@ class Api:
             "problem": schedule.problem,
         }
 
-    def state(self) -> dict:
-        """Everything the header shows: the timer, the lock, the version, the spend."""
+    def state(self, local: bool = True) -> dict:
+        """Everything the header shows: the timer, the lock, the version, the spend.
+
+        `local`: whether the page asking is on this machine, which is where an
+        update can be started from — see `upgrade.Upgrade.offer`.
+        """
         configuration = self.config
         held = state.running()
         entries = state.history(10_000)
@@ -683,6 +708,7 @@ class Api:
             "claude": bool(session.available()),
             "version": _version(),
             "update": _update_available(),
+            "upgrade": self.upgrade.offer(local),
             "spend": round(sum(float(entry.get("cost_usd") or 0) for entry in entries), 2),
             "handled": len(entries),
             "chat": self.chat.state(),
@@ -1030,7 +1056,7 @@ def _update_available() -> str:
     console redraws its header on every reconnection, and a `git fetch` behind
     that would be a fetch every time a laptop wakes up.
     """
-    status = update_module.remembered()
+    status = update_module.waiting()
     return status.latest[:8] if status.stale else ""
 
 
