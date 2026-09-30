@@ -38,6 +38,13 @@ export interface Ticket {
   created: string
   /** Notion's `last_edited_time`: when a done ticket closed, where the runner's history does not say. */
   edited: string
+  /** A move that has not reached Notion: on its way, refused, or not made
+   * because Notion had been changed meanwhile — see `web/board.py`. */
+  sync?: "pending" | "failed" | "conflict"
+  /** Why, when it is not on its way. */
+  sync_error?: string
+  /** The status the move was to. */
+  sync_status?: string
 }
 
 /** A ticket, with the page under it: the brief, the report, the notes between. */
@@ -276,6 +283,19 @@ export type CommandEvent =
 
 export interface TalkEvent extends Message {
   ticket: string
+}
+
+/** When the board last agreed with Notion, and what does not. `board.describe`. */
+export interface SyncEvent {
+  synced_at: string
+  reconciled_at: string
+  /** Tickets the last full read found the incremental reads had wrong. */
+  drift: number
+  pending: number
+  failed: number
+  conflicts: number
+  /** Why the last read failed, empty when it did not. */
+  error: string
 }
 
 export interface NoticeEvent {

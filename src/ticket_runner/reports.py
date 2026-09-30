@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import channels, conversation, credits, session, state, store
+from . import channels, conversation, credits, session, state, store, sync
 from . import voice as voice_module
 from .base import Base
 from .ticket import Job, Ticket
@@ -55,14 +55,71 @@ class Reports(Base):
         """
         if self.dry_run:
             return
+        status = self.config.notion.prop("status")
+        if status in values and not self._still(ticket, str(values[status])):
+            values = {name: value for name, value in values.items() if name != status}
+            if not values:
+                return
         try:
             self.client.update(self.database, ticket.page.id, values)
         except store.StoreError as error:
-            status = self.config.notion.prop("status")
             if status not in values:
                 raise
             self.say(f"    ! Notion refused some properties ({error}) — writing the status alone")
             self.client.update(self.database, ticket.page.id, {status: values[status]})
+        if status in values:
+            self._remember(ticket, str(values[status]))
+
+    def _still(self, ticket: Ticket, target: str) -> bool:
+        """Is the page still in the column this run last saw it in?
+
+        A session lasts minutes, sometimes half an hour, and the board is yours
+        meanwhile: a ticket you moved to done because you did it yourself, or
+        back to ready because you rewrote it, must not be put in review by a run
+        that has not looked since. So the page is read again before its status
+        is written, and a status that is neither what the run last saw nor what
+        it is about to write is somebody else's — left alone, said in the log,
+        and written in the journal, where the console finds it and marks the
+        card. The other columns are still written: they describe the work, and
+        the work was done.
+
+        A page that cannot be read is written as before: the write that follows
+        would meet the same Notion, and a refusal there is already handled.
+        """
+        status = self.config.notion.prop("status")
+        known = store.read(ticket.page, status)
+        try:
+            fresh = self.client.page(ticket.page.id)
+        except store.StoreError:
+            return True
+        found = store.read(fresh, status)
+        if found == known or found == target:
+            return True
+        if status in fresh.properties:
+            ticket.page.properties[status] = fresh.properties[status]
+        self.say(
+            f"    ! {ticket.title} — moved to {found or 'no status'} in Notion during the run; "
+            f"{target} is not written over it"
+        )
+        report = sync.Report()
+        report.note(
+            "conflict", "tickets", ticket.id, ticket.title,
+            f"the runner would have written {target}, but the page says {found or 'no status'} "
+            f"(it said {known or 'no status'} when the runner last read it); not overwritten",
+        )
+        sync.write_journal(report)
+        return False
+
+    def _remember(self, ticket: Ticket, value: str) -> None:
+        """What this run just wrote, as the page it holds now says it — so the
+        next write compares against the column the ticket is really in."""
+        status = self.config.notion.prop("status")
+        kind = (ticket.page.properties.get(status) or {}).get("type") or self.client.schema(
+            self.database
+        ).get(status, "status")
+        shaped = store.written(kind, value)
+        if shaped is not None:
+            ticket.page.properties[status] = shaped
 
     def _measures(self, outcome: session.Outcome) -> dict[str, object]:
         """What the run cost, for the columns that want to know.

@@ -48,19 +48,30 @@ export function addTicket(ticket: Ticket) {
 
 export const currentBoard = (): Board | null => board
 
-/* A card moved to another column: drawn there now, written, and put back where
- * it was if the write fails. The one way a ticket changes column from the
- * console — the buttons on a card and a card dropped on the board both come
- * through here, so neither can leave a card standing in a column Notion never
- * heard about. Says whether it moved anything. */
+/* A card moved to another column: drawn there now, marked as waiting to be
+ * sent, and put back where it was if the console refuses the move. The one way
+ * a ticket changes column from the console — the buttons on a card and a card
+ * dropped on the board both come through here, so neither can leave a card
+ * standing in a column Notion never heard about.
+ *
+ * The console queues the write rather than making it while this waits: Notion
+ * may be slow, or say 429. So "accepted" is not "in Notion" — the card says
+ * "waiting" until the board the stream sends next says otherwise, and that
+ * board says it failed, too, when it did. Says whether it moved anything. */
 export async function moveTicket(id: string, column: ColumnKey): Promise<boolean> {
   const before = board?.tickets.find((ticket) => ticket.id === id)
   if (before && before.column === column) return false
-  if (before) patchTicket(id, { column })
+  if (before) patchTicket(id, { column, sync: "pending", sync_error: "" })
   try {
-    await api.setStatus(id, column)
+    await api.setStatus(id, column, before?.status)
   } catch (error) {
-    if (before) patchTicket(id, { column: before.column, status: before.status })
+    if (before)
+      patchTicket(id, {
+        column: before.column,
+        status: before.status,
+        sync: before.sync,
+        sync_error: before.sync_error,
+      })
     throw error
   }
   return true

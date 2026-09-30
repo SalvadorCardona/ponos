@@ -16,6 +16,13 @@ own work does not have to wait for the next reconciliation to be visible on
 disk. The Markdown side is addressed under the *Notion* page ID throughout,
 which is what makes the two halves of a page findable from either.
 
+**Notion's edit time is to the minute**, and that alone is not enough to tell
+a change from no change: a page edited at 10:05:10 and again at 10:05:40 says
+`10:05:00` both times, so a pass that ran in between would never see the second
+edit. Each stamp therefore carries a fingerprint of the Notion page's
+properties as well, and a page whose fingerprint moved has moved, whatever its
+timestamp claims.
+
 Three rules decide everything else, and they are the ones worth arguing about:
 
 - **the newest wins, and the loser is written down.** A page edited on both
@@ -36,6 +43,7 @@ and it is what `ticket-runner sync --journal` prints.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -67,7 +75,10 @@ class Entry:
 
     `what` is one of: `notion→markdown`, `markdown→notion`, `conflict`,
     `deleted-in-notion`, `deleted-in-markdown`, `created-in-notion`,
-    `created-in-markdown`.
+    `created-in-markdown` — and, written by the console and the runner rather
+    than by a reconciliation (see `web/board.py`): `seen`, `drift`,
+    `console→notion`, `write-failed`, and `conflict` again when a status was
+    not written over somebody else's.
     """
 
     what: str
@@ -160,9 +171,11 @@ class Stamps:
 
     Without this there is no telling a change from a difference: two pages that
     differ tell you nothing about *who* moved. `{page id: [notion edited,
-    markdown edited]}`, written after every reconciliation, and a page it has
-    never heard of is a page that has never been reconciled — which is what
-    makes "created" and "deleted" distinguishable at all.
+    markdown edited, notion fingerprint]}`, written after every reconciliation,
+    and a page it has never heard of is a page that has never been reconciled —
+    which is what makes "created" and "deleted" distinguishable at all. The
+    fingerprint is absent from stamps written before it existed, and empty when
+    it is not known; the timestamps alone decide then, as they used to.
     """
 
     def __init__(self, path: Path) -> None:
@@ -182,8 +195,12 @@ class Stamps:
     def markdown(self, page_id: str) -> str:
         return (self._known.get(page_id) or ["", ""])[1]
 
-    def agreed(self, page_id: str, notion_at: str, markdown_at: str) -> None:
-        self._known[page_id] = [notion_at, markdown_at]
+    def printed(self, page_id: str) -> str:
+        known = self._known.get(page_id) or []
+        return known[2] if len(known) > 2 else ""
+
+    def agreed(self, page_id: str, notion_at: str, markdown_at: str, printed: str = "") -> None:
+        self._known[page_id] = [notion_at, markdown_at, printed]
 
     def forget_nothing(self) -> None:
         """Deliberately not a method: a page is never dropped from the stamps.
@@ -209,6 +226,27 @@ def stamps_path() -> Path:
 
 
 # -- the mirror --------------------------------------------------------------
+
+
+# Computed by Notion on every read, whether or not anybody touched the page: a
+# `now()` in a formula would make every page look edited on every pass.
+_COMPUTED = ("formula", "rollup")
+
+
+def fingerprint(page: Page) -> str:
+    """What a page's properties say, in a few characters.
+
+    What tells two versions of a page apart when Notion's timestamp cannot: it
+    is to the minute, and a minute is long enough for a ticket to go through
+    three columns.
+    """
+    kept = {
+        name: value
+        for name, value in page.properties.items()
+        if (value or {}).get("type") not in _COMPUTED
+    }
+    body = json.dumps(kept, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha1(body.encode("utf-8")).hexdigest()[:16]
 
 
 def _edited(page: Page) -> str:
@@ -438,7 +476,7 @@ class Mirror:
                     )
                     continue
                 self._write_file(collection, left)
-                marks.agreed(page_id, _edited(left), _now())
+                marks.agreed(page_id, _edited(left), _now(), fingerprint(left))
                 report.note("created-in-markdown", collection, page_id, left.title)
             else:
                 assert right is not None
@@ -465,7 +503,13 @@ class Mirror:
     ) -> None:
         """One page that exists on both sides. Who moved, and what to do about it."""
         notion_at, markdown_at = _edited(left), _edited(right)
-        moved_notion = _newer(notion_at, marks.notion(page_id)) if marks.seen(page_id) else True
+        printed = fingerprint(left)
+        moved_notion = (
+            _newer(notion_at, marks.notion(page_id))
+            or printed != (marks.printed(page_id) or printed)
+            if marks.seen(page_id)
+            else True
+        )
         moved_markdown = (
             _newer(markdown_at, marks.markdown(page_id)) if marks.seen(page_id) else False
         )
@@ -487,15 +531,26 @@ class Mirror:
         elif moved_markdown:
             wins_notion = False
         else:
+            if not marks.printed(page_id):
+                # A stamp from before fingerprints: the two sides agree, so
+                # this is what Notion says when they do.
+                marks.agreed(page_id, marks.notion(page_id), marks.markdown(page_id), printed)
             return
 
         if wins_notion:
             self._write_file(collection, left)
             report.note("notion→markdown", collection, page_id, left.title)
-            marks.agreed(page_id, notion_at, _now())
+            marks.agreed(page_id, notion_at, _now(), printed)
         else:
             self._push(collection, database, page_id, right, report)
-            marks.agreed(page_id, _now(), markdown_at)
+            # What the push left in Notion, read back: its edit time is the
+            # minute it happened, and only the fingerprint will tell an edit
+            # made in that same minute from the push itself.
+            try:
+                pushed = fingerprint(self.primary.page(page_id))
+            except StoreError:
+                pushed = ""
+            marks.agreed(page_id, _now(), markdown_at, pushed)
 
     @staticmethod
     def _carried(page: Page, schema: dict[str, str]) -> dict[str, Any]:

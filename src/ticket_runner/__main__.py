@@ -320,7 +320,10 @@ def command_sync(args: argparse.Namespace) -> int:
             return 0
         title(f"The last {len(entries)} entries")
         for entry in entries:
-            mark = {"conflict": YELLOW, "deleted-in-notion": YELLOW, "deleted-in-markdown": YELLOW}
+            mark = {
+                "conflict": YELLOW, "deleted-in-notion": YELLOW, "deleted-in-markdown": YELLOW,
+                "drift": YELLOW, "write-failed": YELLOW,
+            }
             colour = mark.get(entry.get("what", ""), DIM)
             said = " — " + entry["detail"] if entry.get("detail") else ""
             print(

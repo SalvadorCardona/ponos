@@ -8,7 +8,10 @@ workspace — and duplicates nothing it already does well.
 
 Three reads are cached, because a page left open in a tab must not turn into a
 full-time reader of your workspace: the configuration (reloaded when its file
-changes), the project index, and the tickets database ID.
+changes), the project index, and the tickets database ID. The tickets
+themselves are held too, and brought up to date by what changed — how, and why
+a move from the console waits in a queue rather than in the browser, is
+`board.py`'s to say.
 """
 
 from __future__ import annotations
@@ -19,13 +22,14 @@ from pathlib import Path
 from typing import Any
 
 from .. import config as config_module
-from .. import conversation, credits, images, session, state, store, systemd, voice
+from .. import conversation, credits, images, session, state, store, sync, systemd, voice
 from .. import schedules as schedules_module
 from .. import update as update_module
 from ..config import Config
 from ..runner import Runner
 from ..schedules import scheduled_for
 from ..ticket import short_id
+from . import board as board_module
 from . import console, live, statistics
 from . import settings as settings_module
 
@@ -57,7 +61,15 @@ class Api:
         self.hub = live.Hub()
         self.commands = console.Commands(self.hub.publish, _subcommands())
         self.chat = console.Chat(config, self.hub.publish, self.brief)
-        self.watch = live.Watch(self.hub, self.board, interval=config.web.poll_seconds)
+        self.watch = live.Watch(
+            self.hub, self.board, interval=config.web.poll_seconds, status=self.synchronised
+        )
+        self._reader = board_module.Reader()
+        self._synced: dict = {}
+        # Started here and nowhere else: a move made from the console is sent
+        # whether or not a browser is still open to watch it go.
+        self._outbox = board_module.Outbox(outbox_path())
+        self._outbox.start(self._send, self.watch.nudge)
 
     # -- the pieces underneath ------------------------------------------------
 
@@ -79,6 +91,9 @@ class Api:
             self._config = fresh
             self._runner = None
             self._projects = {}
+            # Another file may be another board: what was held was held of
+            # the old one.
+            self._reader = board_module.Reader()
             self.chat.config = fresh
         return self._config
 
@@ -95,12 +110,38 @@ class Api:
             self._images = images.Cache(images.root())
         return self._images
 
+    @property
+    def reader(self) -> board_module.Reader:
+        if getattr(self, "_reader", None) is None:
+            self._reader = board_module.Reader()
+        return self._reader
+
+    @property
+    def outbox(self) -> board_module.Outbox:
+        """The writes waiting for Notion. In memory, and idle, for an `Api` a
+        test built without `__init__`: only the console's own sends anything."""
+        if getattr(self, "_outbox", None) is None:
+            self._outbox = board_module.Outbox()
+        return self._outbox
+
     def forget(self) -> None:
         """Drop the caches. What a failed Notion call earns, so the next retries."""
         self._runner = None
         self._projects = {}
         self._projects_at = 0.0
         self._schema_at = 0.0
+
+    def resynchronise(self) -> None:
+        """"Resynchronise now": the whole board read again, the failed writes
+        tried again, and the conflicts let go of — see `Outbox.retry`."""
+        self.forget()
+        self.reader.reconcile_next()
+        self.outbox.retry()
+        self.watch.nudge()
+
+    def synchronised(self) -> dict:
+        """When the board last agreed with Notion, and what does not. See `board.describe`."""
+        return dict(getattr(self, "_synced", {}) or {})
 
     # -- reading --------------------------------------------------------------
 
@@ -111,15 +152,30 @@ class Api:
             if time.time() - self._schema_at > SCHEMA_TTL:
                 self.runner.client.forget_database(self.runner.database)
                 self._schema_at = time.time()
-            pages = self.runner.client.query(self.runner.database)
+            pages = self.reader.read(
+                self.runner.client, self.runner.database, settings.prop("status")
+            )
         except store.StoreError:
             self.forget()
             raise
-        names = {settings.state(key): key for key in COLUMNS}
+        names = _columns(settings)
         projects = self.projects()
         host = self.config.runner.session_host
 
-        tickets = [self._ticket(page, names, projects, host) for page in pages]
+        writes = self.outbox.marks()
+        refused = board_module.conflicts(sync.journal(200))
+        tickets = [
+            board_module.settled(
+                board_module.overlay(
+                    self._ticket(page, names, projects, host),
+                    writes.get(page.id.replace("-", "")),
+                    lambda status: names.get(status, "other"),
+                ),
+                refused.get(page.id.replace("-", "")),
+            )
+            for page in pages
+        ]
+        self._synced = board_module.describe(self.reader, tickets)
 
         # Whether this board has a validated column at all. The console offers
         # the gesture only where the runner would honour it: a button that
@@ -195,14 +251,18 @@ class Api:
         both is showing one thing.
         """
         settings = self.config.notion
-        names = {settings.state(key): key for key in COLUMNS}
+        names = _columns(settings)
         try:
             page = self.runner.client.page(page_id)
             content = self.runner.client.blocks_text(page_id)
         except store.StoreError:
             self.forget()
             raise
-        card = self._ticket(page, names, self.projects(), self.config.runner.session_host)
+        card = board_module.overlay(
+            self._ticket(page, names, self.projects(), self.config.runner.session_host),
+            self.outbox.marks().get(page_id.replace("-", "")),
+            lambda status: names.get(status, "other"),
+        )
         return {**card, "content": content}
 
     def projects(self) -> dict[str, dict]:
@@ -725,15 +785,39 @@ class Api:
         self.watch.nudge()
         return {"id": page_id, "title": title}
 
-    def set_status(self, page_id: str, key: str) -> dict:
+    def set_status(self, page_id: str, key: str, seen: str | None = None) -> dict:
+        """Move a ticket: queued now, in Notion as soon as Notion takes it.
+
+        `seen` is the status the card showed when it was moved. A page that says
+        anything else by the time the write goes out was moved in Notion
+        meanwhile, and is left as it is — see `board.send`. A caller that does
+        not say is taken to mean the status the console last read.
+        """
         if key not in COLUMNS:
             raise ValueError(f"unknown column “{key}”")
         settings = self.config.notion
-        self.runner.client.update(
-            self.runner.database, page_id, {settings.prop("status"): settings.state(key)}
+        held = self.reader.get(page_id)
+        if seen is None:
+            seen = str(store.read(held, settings.prop("status")) or "") if held else ""
+        self.outbox.put(
+            board_module.Write(
+                page=page_id.replace("-", ""),
+                column=key,
+                status=settings.state(key),
+                seen=seen,
+                title=held.title if held else "",
+            )
         )
         self.watch.nudge()
-        return {"id": page_id, "status": settings.state(key)}
+        return {"id": page_id, "status": settings.state(key), "sync": "pending"}
+
+    def _send(self, write: board_module.Write) -> store.Page:
+        """One attempt at one queued move, and the page it left, held."""
+        page = board_module.send(
+            self.runner.client, self.runner.database, self.config.notion.prop("status"), write
+        )
+        self.reader.hold(page)
+        return page
 
     def tell(self, page_id: str, text: str) -> dict:
         """Say something to a ticket, as a comment on it.
@@ -899,6 +983,25 @@ def _session_id(value: str) -> str:
     if "://" in value:
         return value.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
     return value
+
+
+def _columns(settings) -> dict[str, str]:
+    """Which column each status is drawn in: the first that carries it.
+
+    A board whose `blocked` and `failed` are one status draws one column for
+    them — the first of the two, see `board` — and the tickets have to land in
+    that one. A plain `{status: key}` kept the *last*, and every blocked ticket
+    went to a `failed` column that was never drawn: three tickets Notion shows
+    as blocked, and a console that showed none.
+    """
+    names: dict[str, str] = {}
+    for key in COLUMNS:
+        names.setdefault(settings.state(key), key)
+    return names
+
+
+def outbox_path() -> Path:
+    return config_module.state_dir() / "web" / "outbox.json"
 
 
 def _mtime(path: Path) -> float:
