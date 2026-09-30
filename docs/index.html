@@ -191,29 +191,86 @@
   /* -- 1. hero -- */
   .hero { padding-top: 4rem; }
   .hero-in { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 3rem; align-items: center; }
-  @media (max-width: 900px) { .hero-in { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } .hero-in .stage { order: -1; } }
+  @media (max-width: 900px) { .hero-in { grid-template-columns: minmax(0, 1fr); gap: 2.5rem; } }
   h1 { font-size: clamp(2.75rem, 7vw, 4.75rem); line-height: 1; letter-spacing: -.04em; margin: 0; }
   h1 span { color: var(--primary); display: block; }
   .lede { font-size: clamp(1.0625rem, 2vw, 1.25rem); color: var(--muted-foreground); margin: 1.5rem 0 0; max-width: 36rem; }
   .lede strong { color: var(--foreground); font-weight: 600; }
+  .cta { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 2rem; }
+  .cta .link { margin-left: .5rem; font-size: .875rem; font-weight: 500; color: var(--muted-foreground); text-underline-offset: 3px; }
+  .cta .link:hover { color: var(--foreground); }
+  /* The whole command, always: it breaks at its slashes rather than hiding
+     its end behind the button. */
   .install {
-    display: flex; align-items: center; gap: .75rem; margin-top: 2rem; max-width: 36rem;
+    display: flex; align-items: flex-start; gap: .75rem; margin-top: 1.25rem; max-width: 36rem;
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: .375rem .375rem .375rem 1rem;
-    font: .8125rem/1.5 var(--mono); box-shadow: var(--shadow-xs);
+    font: .8125rem/1.6 var(--mono); box-shadow: var(--shadow-xs);
   }
-  .install .p { color: var(--primary); user-select: none; }
-  .install code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; background: none; border: 0; padding: 0; font-size: inherit; }
-  .install code::-webkit-scrollbar { display: none; }
-  .cta { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
-  .byline { margin-top: 1.5rem; font-size: .875rem; color: var(--muted-foreground); }
-  .stage {
-    position: relative; display: grid; justify-items: center; gap: 1rem; padding: 2rem 1.5rem 1.5rem;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--primary) 16%, transparent), transparent), var(--card);
+  .install .p { color: var(--primary); user-select: none; padding-top: .3rem; }
+  .install code { flex: 1; min-width: 0; padding: .3rem 0; overflow-wrap: anywhere; white-space: normal; background: none; border: 0; font-size: inherit; }
+  .byline { margin-top: 1.25rem; font-size: .875rem; color: var(--muted-foreground); max-width: 36rem; }
+
+  /* The hero's picture: a ticket as Notion shows it, Ponos at work on it, and
+     what comes back. One attribute, data-step, says how far the ticket went;
+     the page's script moves it round, and without script — or with motion
+     unwelcome — it stays at the end, the pull request opened. */
+  .flow { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 1.25rem; background: radial-gradient(60% 45% at 50% 50%, color-mix(in srgb, var(--primary) 12%, transparent), transparent), var(--card); }
+  .flow > * { padding-inline: 0; }
+  .flow-step { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: .375rem; }
+  .flow-step > .label { font-size: .625rem; }
+  .flow-pane {
+    background: var(--background); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: .75rem .875rem; font-size: .8125rem; line-height: 1.45; box-shadow: var(--shadow-xs);
+    transition: opacity .5s, border-color .5s, box-shadow .5s;
   }
-  .stage ticket-runner-robot { width: min(260px, 64vw); }
-  .stage figcaption { text-align: center; }
-  .stage figcaption b { display: block; font-size: 1.125rem; letter-spacing: -.01em; }
-  .stage figcaption span { color: var(--muted-foreground); font-size: .875rem; }
+  .flow-crumb { display: flex; align-items: center; gap: .375rem; color: var(--muted-foreground); font-size: .75rem; }
+  .flow-crumb svg { width: .875rem; height: .875rem; }
+  .flow-title { font-weight: 600; font-size: .9375rem; letter-spacing: -.01em; margin: .25rem 0 .5rem; }
+  .flow-props { display: grid; grid-template-columns: 5.5rem 1fr; gap: .25rem .5rem; font-size: .75rem; color: var(--muted-foreground); }
+  .flow-props dt { margin: 0; }
+  .flow-props dd { margin: 0; color: var(--foreground); }
+  .status { display: none; align-items: center; gap: .375rem; padding: 0 .5rem; border-radius: 999px; font-weight: 500; background: color-mix(in srgb, currentColor 14%, transparent); }
+  .status::before { content: ""; width: .375rem; height: .375rem; border-radius: 999px; background: currentColor; }
+  .flow[data-step="0"] .status.ready, .flow[data-step="1"] .status.running, .flow[data-step="2"] .status.running,
+  .flow[data-step="3"] .status.running, .flow[data-step="4"] .status.review { display: inline-flex; }
+  .status.ready { color: var(--tr-green); }
+  .status.running { color: var(--tr-blue); }
+  .status.review { color: var(--tr-violet); }
+  .flow-work { display: flex; align-items: center; gap: 1rem; }
+  .flow-work ticket-runner-robot { width: 5.5rem; flex: none; }
+  .flow-work > div { flex: 1; min-width: 0; }
+  .flow-who { font-weight: 600; font-size: .8125rem; }
+  .flow-who span { color: var(--muted-foreground); font-weight: 400; }
+  .log { list-style: none; margin: .375rem 0 0; padding: 0; font: .75rem/1.7 var(--mono); color: var(--muted-foreground); }
+  .log li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .35s, transform .35s; }
+  .log .k { color: var(--tr-blue); }
+  .log .ok { color: var(--tr-green); }
+  .flow[data-step="0"] .log li, .flow[data-step="1"] .log li:nth-child(n+2),
+  .flow[data-step="2"] .log li:nth-child(n+3), .flow[data-step="3"] .log li:nth-child(n+4) { opacity: 0; transform: translateY(4px); }
+  .flow-pr { display: flex; align-items: center; gap: .75rem; }
+  .flow-pr > svg { width: 1.25rem; height: 1.25rem; flex: none; color: var(--tr-green); }
+  .flow-pr div { flex: 1; min-width: 0; }
+  .flow-pr b { display: block; font-weight: 600; }
+  .flow-pr small { display: block; color: var(--muted-foreground); font-size: .75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flow-pr .badge { color: var(--tr-green); border-color: color-mix(in srgb, currentColor 40%, transparent); }
+  .flow:not([data-step="4"]) .flow-pr { opacity: .35; border-style: dashed; box-shadow: none; }
+  .flow[data-step="4"] .flow-pr { border-color: color-mix(in srgb, var(--tr-green) 55%, var(--border)); }
+  /* Between two panes, a thread; lit once the ticket has passed along it. */
+  .flow-link { position: relative; height: 1.5rem; }
+  .flow-link::before {
+    content: ""; position: absolute; left: 50%; top: .25rem; bottom: .25rem; width: 2px; translate: -50% 0; border-radius: 2px;
+    background: var(--border); transition: background-color .5s;
+  }
+  .flow:not([data-step="0"]) .flow-link.to-work::before, .flow[data-step="4"] .flow-link.to-pr::before { background: var(--primary); }
+  .flow figcaption { margin-top: 1rem; text-align: center; color: var(--muted-foreground); font-size: .8125rem; }
+  @media (max-width: 480px) {
+    .flow { padding: 1rem; }
+    .flow-work ticket-runner-robot { width: 4rem; }
+    .flow-work { gap: .75rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flow-pane, .log li, .flow-link::before { transition: none; }
+  }
   .mood { font: .75rem/1 var(--mono); color: var(--muted-foreground); display: inline-flex; align-items: center; gap: .5rem; }
   .mood .dot { background: var(--tr-green); }
   .film { margin-block: 3.5rem 0; }
@@ -426,32 +483,73 @@
     <div>
       <h1>Write the ticket. <span>It comes back done.</span></h1>
       <p class="lede">
-        <strong>Ponos</strong> takes it from there — on your machine, while you do something else —
-        and brings back a pull request, a text or an action. You read it, answer in a word,
-        even from your phone, and he delivers.
+        Write tickets in <strong>Notion</strong>. <strong>Ponos</strong> hands each one to
+        <strong>Claude Code</strong>, on your machine, and brings back a pull request or a written
+        text. You review, answer in a word — even from your phone — and he merges or publishes it.
       </p>
-      <div class="install">
-        <span class="p" aria-hidden="true">$</span>
-        <code id="install-cmd">curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ticket-runner/main/install.sh | sh</code>
-        <button class="btn btn-primary btn-sm" id="copy-install" type="button" aria-label="Copy the install command">Copy</button>
-      </div>
       <div class="cta">
-        <a class="btn btn-outline btn-lg" href="#video">
+        <a class="btn btn-primary btn-lg" href="#video">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg>
           See it in 60 seconds
         </a>
-        <a class="btn btn-ghost btn-lg" href="#loop">How it works</a>
-        <a class="btn btn-ghost btn-lg" href="https://github.com/SalvadorCardona/ticket-runner">The source code</a>
+        <a class="btn btn-outline btn-lg" href="#loop">How it works</a>
+        <a class="link" href="https://github.com/SalvadorCardona/ticket-runner">The source code →</a>
       </div>
-      <p class="byline">Free and open source, MIT · Linux · Python and git, nothing else to install.</p>
+      <div class="install">
+        <span class="p" aria-hidden="true">$</span>
+        <code id="install-cmd">curl -LsSf https://raw.githubusercontent.com/<wbr>SalvadorCardona/ticket-runner/<wbr>main/install.sh | sh</code>
+        <button class="btn btn-outline btn-sm" id="copy-install" type="button" aria-label="Copy the install command">Copy</button>
+      </div>
+      <p class="byline">Free and open source, MIT · Linux · Python and git · Requires Claude Code and a Notion workspace — or <a href="https://github.com/SalvadorCardona/ticket-runner#without-notion-the-board-as-markdown-files">a folder of Markdown files</a>.</p>
     </div>
-    <figure class="card stage">
-      <ticket-runner-robot id="hero-bot" state="idle" aria-label="Ponos, the robot"></ticket-runner-robot>
-      <span class="mood" aria-live="off"><span class="dot"></span><span id="hero-mood">Ponos is waiting for a ticket</span></span>
-      <figcaption>
-        <b>Ponos</b>
-        <span>Named after the Greek god of toil: he does the tedious part, you keep the decisions.</span>
-      </figcaption>
+    <figure class="card flow" id="flow" data-step="4">
+      <div role="img" aria-label="A ticket written in Notion, Console: limit the Done column, set to Ready; Ponos works it with Claude Code on your machine — reads the repository, edits, runs the tests; it comes back as pull request #96, opened and waiting for your review.">
+        <div class="flow-step" aria-hidden="true">
+          <span class="label">You write it · Notion</span>
+          <div class="flow-pane">
+            <div class="flow-crumb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+              Tickets
+            </div>
+            <div class="flow-title">Console: limit the Done column</div>
+            <dl class="flow-props">
+              <dt>Status</dt>
+              <dd><span class="status ready">Ready</span><span class="status running">In progress</span><span class="status review">In review</span></dd>
+              <dt>Project</dt>
+              <dd>ticket-runner</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="flow-link to-work" aria-hidden="true"></div>
+        <div class="flow-step" aria-hidden="true">
+          <span class="label">Ponos works it · Claude Code</span>
+          <div class="flow-pane flow-work">
+            <ticket-runner-robot id="hero-bot" state="success"></ticket-runner-robot>
+            <div>
+              <div class="flow-who">Ponos <span>· on your machine</span></div>
+              <ol class="log">
+                <li><span class="k">Reading</span> the repo…</li>
+                <li><span class="k">Editing</span> board.tsx</li>
+                <li><span class="k">Running</span> tests <span class="ok">✓</span></li>
+                <li><span class="k">Opening</span> the pull request</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <div class="flow-link to-pr" aria-hidden="true"></div>
+        <div class="flow-step" aria-hidden="true">
+          <span class="label">It comes back · for your yes</span>
+          <div class="flow-pane flow-pr">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12"/></svg>
+            <div>
+              <b>Pull request #96 opened</b>
+              <small>Done shows its last 30 tickets · tests pass</small>
+            </div>
+            <span class="badge">Open</span>
+          </div>
+        </div>
+      </div>
+      <figcaption>Ponos is named after the Greek god of toil: he does the tedious part, you keep the decisions.</figcaption>
     </figure>
   </div>
   <figure class="wrap film" id="video">
@@ -952,41 +1050,48 @@
     count();
   }
 
-  var heroBot = document.getElementById('hero-bot');
-  var heroMood = document.getElementById('hero-mood');
-  function mood(state, said) { heroBot.setAttribute('state', state); heroMood.textContent = said; }
-
   var timers = [];
   function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
   function type(html, ms) { at(ms, function () { setLive(html + '<span class="caret"></span>'); }); }
 
   function cycle() {
     timers.forEach(clearTimeout); timers = [];
-    mood('idle', 'Ponos is waiting: 2 ticket(s) ready');
     move('ready'); setMeta('Landing page · High'); setLive('');
-    at(2200, function () { move('running'); mood('thinking', 'Ponos is taking a ticket'); setMeta('Landing page · claimed'); });
-    at(4300, function () { mood('working', 'Ponos is at work on 1 session(s)'); });
+    at(2200, function () { move('running'); setMeta('Landing page · claimed'); });
     type('<span class="k">Read</span> src/header.html', 2900);
     type('<span class="k">Edit</span> src/header.html', 4300);
     type('<span class="k">Edit</span> src/header.css', 5500);
     type('<span class="k">Bash</span> npm test', 6700);
     at(8400, function () { setLive('<span class="ok">✓</span> 27 steps · 6 minutes · 2 commits'); });
-    at(9600, function () { mood('success', 'Ponos brought a ticket back'); move('review'); setMeta('Landing page · PR #12'); setLive('yours to read'); });
-    at(11800, function () { mood('waiting', 'Ponos is waiting for your yes'); });
-    at(13400, function () { mood('working', 'Ponos is merging'); move('validated'); setMeta('Landing page · you said yes'); setLive('<span class="k">gh</span> pr merge --squash<span class="caret"></span>'); });
-    at(15600, function () { mood('success', 'Ponos delivered it'); move('done'); setMeta('Landing page · PR #12'); setLive('<span class="ok">✓ merged</span>'); });
-    at(17800, function () { mood('sleep', 'Ponos is resting: nothing to do'); });
+    at(9600, function () { move('review'); setMeta('Landing page · PR #12'); setLive('yours to read'); });
+    at(13400, function () { move('validated'); setMeta('Landing page · you said yes'); setLive('<span class="k">gh</span> pr merge --squash<span class="caret"></span>'); });
+    at(15600, function () { move('done'); setMeta('Landing page · PR #12'); setLive('<span class="ok">✓ merged</span>'); });
     at(19200, cycle);
   }
 
+  /* --- the hero's picture: the ticket goes from Ready to a pull request, and
+     Ponos's face goes with it, then it starts over. Held at its end — the
+     pull request opened — when motion is unwelcome, as the markup has it. --- */
+  var flow = document.getElementById('flow');
+  var heroBot = document.getElementById('hero-bot');
+  var faces = ['idle', 'thinking', 'working', 'working', 'success'];
+  var flowTimers = [];
+  function step(n) { flow.setAttribute('data-step', String(n)); heroBot.setAttribute('state', faces[n]); }
+  function round() {
+    flowTimers.forEach(clearTimeout);
+    step(0);
+    flowTimers = [1800, 3200, 4600, 6200].map(function (ms, i) { return setTimeout(function () { step(i + 1); }, ms); });
+    flowTimers.push(setTimeout(round, 11000));
+  }
+
   if (reduce) {
-    mood('success', 'Ponos brought a ticket back');
+    heroBot.setAttribute('still', '');
     move('review'); setMeta('Landing page · PR #12'); setLive('yours to read');
   } else {
-    cycle();
+    cycle(); round();
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden) { timers.forEach(clearTimeout); timers = []; }
-      else cycle();
+      if (document.hidden) { timers.forEach(clearTimeout); timers = []; flowTimers.forEach(clearTimeout); flowTimers = []; }
+      else { cycle(); round(); }
     });
   }
 })();
