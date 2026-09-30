@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config as config_module
-from .. import conversation, credits, session, state, store, systemd, voice
+from .. import conversation, credits, images, session, state, store, systemd, voice
 from .. import schedules as schedules_module
 from .. import update as update_module
 from ..config import Config
@@ -53,6 +53,7 @@ class Api:
         self._projects: dict[str, dict] = {}
         self._projects_at = 0.0
         self._schema_at = 0.0
+        self._images: images.Cache | None = None
         self.hub = live.Hub()
         self.commands = console.Commands(self.hub.publish, _subcommands())
         self.chat = console.Chat(config, self.hub.publish, self.brief)
@@ -86,6 +87,13 @@ class Api:
         if self._runner is None:
             self._runner = Runner(self.config, quiet=True)
         return self._runner
+
+    @property
+    def images(self) -> images.Cache:
+        """The projects' pictures, as this machine keeps them. See `images.py`."""
+        if self._images is None:
+            self._images = images.Cache(images.root())
+        return self._images
 
     def forget(self) -> None:
         """Drop the caches. What a failed Notion call earns, so the next retries."""
@@ -220,6 +228,7 @@ class Api:
                         "url": page.url,
                         "repository": repository,
                         "path": path,
+                        **self._pictures(page),
                     }
         except store.StoreError:
             # A projects database that cannot be read costs the board its
@@ -228,6 +237,35 @@ class Api:
         self._projects = index
         self._projects_at = time.time()
         return index
+
+    def _pictures(self, page: store.Page) -> dict[str, dict]:
+        """A project's cover and icon, read with the rest of the page.
+
+        Reading the projects database is the synchronisation: what somebody
+        changed in Notion is agreed on here, and a change of the console's that
+        Notion refused last time is sent again. A cache that cannot be written
+        costs the pictures, never the list.
+        """
+        client = self.runner.client
+        try:
+            self.images.observe(
+                page, lambda slot, picture: client.set_picture(page.id, slot, picture)
+            )
+        except OSError:
+            pass
+        return self._shown(page.id)
+
+    def _shown(self, page_id: str) -> dict[str, dict]:
+        """Both pictures of a page, each at the console's own address for it."""
+        bare = page_id.replace("-", "")
+        shown: dict[str, dict] = {}
+        for slot in store.SLOTS:
+            said = self.images.shown(bare, slot)
+            version = said.pop("version", "")
+            if said["kind"] == "image":
+                said["src"] = f"/api/projects/{bare}/image/{slot}?v={version}"
+            shown[slot] = said
+        return shown
 
     def all_projects(self) -> dict:
         """Every project this installation knows of, from wherever it knows it.
@@ -333,6 +371,41 @@ class Api:
         self._projects_at = 0.0
         self.hub.publish("projects", saved=page_id)
         return self.project(page_id)
+
+    def set_picture(self, page_id: str, slot: str, picture: store.Picture) -> dict:
+        """Change a project's cover or icon, and say where that leaves it.
+
+        Shown here at once, whatever the board says: what it refused stays
+        pending, with the reason, and is sent again at the next reading of the
+        projects. Which is why the answer is the two pictures and not the whole
+        project — rereading the page is exactly what a board that is not
+        answering would refuse too.
+        """
+        if slot not in store.SLOTS:
+            raise ValueError(f"a project has a cover and an icon, not a {slot}")
+        if not self.runner.workspace.projects:
+            raise ValueError("this workspace has no projects database")
+        bare = page_id.replace("-", "")
+        client = self.runner.client
+        self.images.change(
+            bare, slot, picture, lambda which, chosen: client.set_picture(bare, which, chosen)
+        )
+        shown = self._shown(bare)
+        for row in self._projects.values():
+            if row["id"] == bare:
+                row.update(shown)
+        self.hub.publish("projects", saved=bare)
+        return {"id": bare, **shown}
+
+    def picture(self, page_id: str, slot: str) -> tuple[bytes, str]:
+        """The bytes of a project's picture, from this machine's copy.
+
+        Never a redirect to where the board keeps it: a Notion file's URL is
+        good for an hour, and a console left open is open longer than that.
+        """
+        if slot not in store.SLOTS:
+            raise LookupError(f"a project has a cover and an icon, not a {slot}")
+        return self.images.picture(page_id, slot, lambda: self.runner.client.page(page_id))
 
     # -- the standing context -------------------------------------------------
 

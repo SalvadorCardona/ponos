@@ -20,6 +20,7 @@ import {
 import { EmptyState } from "@/components/console/empty-state"
 import { Eyebrow, Fact, Facts } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
+import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
 import { Chip } from "@/components/console/ticket-bits"
 import { buttonVariants } from "@/components/ui/button"
@@ -239,10 +240,23 @@ const TicketsCell: InputControllerComponentInterface = () => {
   return <span className="tabular-nums">{count}</span>
 }
 
+/** The name in the table, behind the project's thumbnail. */
+const NameCell: InputControllerComponentInterface = () => {
+  const { form } = useFormContext()
+  const project = form?.data as ProjectItem | undefined
+  if (!project) return null
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2.5">
+      <ProjectThumb project={project} className="size-8 rounded-md" />
+      <span className="truncate">{project.name}</span>
+    </span>
+  )
+}
+
 /** The columns of the table layout. The headings go through the dictionary on their way to the page. */
 const rowForm: FormInterface = {
   inputs: {
-    name: { label: "Project", readonly: true },
+    name: { label: "Project", readonly: true, controller: NameCell },
     work: { label: "Kind", readonly: true },
     repository: { label: "Repository", readonly: true },
     where: { label: "On this machine", readonly: true },
@@ -286,12 +300,19 @@ function ProjectCard({ row }: RowComponentPropsInterface) {
         ) : null}
       </div>
 
-      <Link
-        to={href}
-        className="text-[0.95rem] leading-snug font-semibold hover:underline"
-      >
-        {project.name}
-      </Link>
+      <div className="flex min-w-0 items-center gap-3">
+        {/* The thumbnail is the same link as the name: it is what the eye
+            lands on first in a grid of cards. */}
+        <Link to={href} tabIndex={-1} aria-hidden>
+          <ProjectThumb project={project} />
+        </Link>
+        <Link
+          to={href}
+          className="min-w-0 text-[0.95rem] leading-snug font-semibold [overflow-wrap:anywhere] hover:underline"
+        >
+          {project.name}
+        </Link>
+      </div>
 
       {project.repository || project.where ? (
         <Facts>

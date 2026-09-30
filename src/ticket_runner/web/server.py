@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse
+from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlparse
 
 from .. import config as config_module
 from .. import openrouter, store, voice
@@ -63,6 +63,14 @@ MAX_BODY = 256 * 1024
 # is sent: close on a client still writing and it sees a broken pipe, not the
 # 413 that says why. Past this much, it gets the broken pipe.
 MAX_DRAIN = 256 * 1024 * 1024
+
+# Except a picture, which is a file and not a message: the console shrinks it
+# before sending, and this is Notion's own ceiling for one piece.
+MAX_PICTURE = 20 * 1024 * 1024
+
+# What a picture is served under. It is drawn by an <img> and never run: an SVG
+# opened on its own, at this origin, would otherwise be a page with a script.
+PICTURE_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 
 LOOPBACK = ("127.0.0.1", "::1", "localhost", "[::1]")
 
@@ -183,12 +191,15 @@ class Handler(BaseHTTPRequestHandler):
     def entry(self) -> SignIn | None:
         return self.server.entry  # type: ignore[attr-defined]
 
-    def _send(self, code: int, body: bytes, kind: str, extra: dict | None = None) -> None:
+    def _send(
+        self, code: int, body: bytes, kind: str, extra: dict | None = None, cache: str = "no-store"
+    ) -> None:
         self.send_response(code)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(body)))
-        # Nothing here is meant to be cached, framed, sniffed or embedded.
-        self.send_header("Cache-Control", "no-store")
+        # Nothing here is meant to be cached, framed, sniffed or embedded —
+        # but a picture, whose address changes with it, and is kept a day.
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -328,6 +339,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.all_projects())
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.project(match.group(1)))
+            if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/image/(\w+)", route):
+                data, kind = self.api.picture(match.group(1), match.group(2))
+                return self._send(
+                    200, data, kind, {"Content-Security-Policy": PICTURE_POLICY},
+                    cache="private, max-age=86400",
+                )
             if route == "/api/context":
                 return self._json(self.api.context())
             if route == "/api/schedules":
@@ -402,10 +419,22 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/chat/transcribe":
             return self._transcribe(parse_qs(parsed.query))
 
+        picture = re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/image/(\w+)", route)
+        if picture and (self.headers.get("Content-Type") or "").startswith("image/"):
+            return self._picture(picture.group(1), picture.group(2))
+
         payload = self._body()
         if signing_in:
             return self._sign_in(payload)
         try:
+            if picture:
+                chosen = store.Picture(
+                    url=str(payload.get("url") or "").strip(),
+                    emoji=str(payload.get("emoji") or "").strip(),
+                )
+                if chosen.removed and not payload.get("remove"):
+                    raise ValueError("say which picture: a url, an emoji, or remove")
+                return self._json(self.api.set_picture(picture.group(1), picture.group(2), chosen))
             if route == "/api/setup":
                 return self._setup(payload)
             if route == "/api/tickets":
@@ -554,6 +583,31 @@ class Handler(BaseHTTPRequestHandler):
         if attachment.type != "application/pdf":
             extra["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self'; media-src 'self'"
         self._send(200, body, attachment.type, extra)
+
+    def _picture(self, page_id: str, slot: str) -> None:
+        """A picture sent as it is, the body being the file. See `Api.set_picture`."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if length <= 0 or length > MAX_PICTURE:
+            self.close_connection = True
+            return self._fail(413, f"a picture is sent whole, and under {MAX_PICTURE // (1024 * 1024)} MB")
+        data = self.rfile.read(length)
+        kind = (self.headers.get("Content-Type") or "").split(";")[0].strip()
+        name = re.sub(r"[^\w.\-]+", "-", unquote(self.headers.get("X-Filename") or ""))[:80]
+        try:
+            return self._json(
+                self.api.set_picture(
+                    page_id, slot, store.Picture(data=data, type=kind, name=name)
+                )
+            )
+        except ValueError as error:
+            return self._fail(400, str(error))
+        except store.StoreError as error:
+            return self._fail(502, f"the board: {str(error).splitlines()[0]}")
+        except Exception as error:  # noqa: BLE001
+            return self._fail(500, str(error).splitlines()[0])
 
     # -- the three kinds of response ------------------------------------------
 

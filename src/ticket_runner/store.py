@@ -76,6 +76,32 @@ class Page:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+# The two pictures a page carries beside its properties: a banner across its
+# top, and a small mark in front of its title. Notion's words, and its places —
+# neither is a column, and neither is read by `read`.
+SLOTS = ("cover", "icon")
+
+
+@dataclass
+class Picture:
+    """What a page's cover or icon is to become. At most one field is set.
+
+    `data` is an image to be kept by the board itself — uploaded to Notion,
+    written beside the file on disk; `url` is one somebody else keeps; `emoji`
+    is only ever an icon. None of them is the picture going away.
+    """
+
+    data: bytes = b""
+    type: str = ""
+    name: str = ""
+    url: str = ""
+    emoji: str = ""
+
+    @property
+    def removed(self) -> bool:
+        return not (self.data or self.url or self.emoji)
+
+
 def read(page: Page, name: str) -> Any:
     """A property's value, reduced to a plain Python type."""
     prop = page.properties.get(name)
@@ -177,6 +203,15 @@ class Store(Protocol):
     def replace_markdown(self, page_id: str, markdown: str) -> int: ...
 
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None: ...
+
+    def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
+        """Set a page's cover or icon, and hand back the page as it now is.
+
+        The page, not nothing: what the board answers is what the next read
+        will say, and `images.py` agrees on it at once rather than taking its
+        own change, read back, for somebody else's.
+        """
+        ...
 
     # -- who we are ----------------------------------------------------------
 

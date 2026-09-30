@@ -446,6 +446,38 @@ export const FRENCH: Record<string, string> = {
   "This project is a line in config.toml and has no page: the board has never heard of it, so there is nothing here to write a brief on.":
     "Ce projet est une ligne de config.toml et n'a pas de page : le tableau n'en a jamais entendu parler, il n'y a donc rien ici sur quoi écrire un brief.",
   "Change its path in the settings.": "Changez son chemin dans les réglages.",
+
+  /* -- a project's pictures ------------------------------------------------ */
+  "Change the image": "Changer l'image",
+  "The cover and the icon of the project's page, in Notion as well as here.":
+    "La couverture et l'icône de la page du projet, dans Notion comme ici.",
+  Cover: "Couverture",
+  Icon: "Icône",
+  "Drop an image here, or paste one.": "Déposez une image ici, ou collez-en une.",
+  "Choose a file": "Choisir un fichier",
+  "Remove the cover": "Retirer la couverture",
+  "Remove the icon": "Retirer l'icône",
+  "Or the address of an image": "Ou l'adresse d'une image",
+  "Or an emoji": "Ou un emoji",
+  "Another emoji": "Un autre emoji",
+  "Sending…": "Envoi…",
+  "Use this image": "Utiliser cette image",
+  "That file is not an image.": "Ce fichier n'est pas une image.",
+  "This image could not be read.": "Cette image n'a pas pu être lue.",
+  "The cover is changed": "La couverture est changée",
+  "The icon is changed": "L'icône est changée",
+  "The image was not changed": "L'image n'a pas été changée",
+  "Kept here, not yet in Notion": "Gardée ici, pas encore dans Notion",
+  "It is sent again at the next reading of the board.":
+    "Elle sera renvoyée à la prochaine lecture du tableau.",
+  "Not in Notion yet — kept here, and sent again at the next reading: {{why}}":
+    "Pas encore dans Notion — gardée ici, et renvoyée à la prochaine lecture : {{why}}",
+  "Not in Notion yet — sent again at the next reading.":
+    "Pas encore dans Notion — renvoyée à la prochaine lecture.",
+  "Changed on both sides: Notion's picture was newer, and it won.":
+    "Changée des deux côtés : celle de Notion était la plus récente, elle l'emporte.",
+  "Changed on both sides: this one was newer, and it won in Notion too.":
+    "Changée des deux côtés : celle-ci était la plus récente, elle l'emporte aussi dans Notion.",
   "This project is a line in config.toml; it is changed in the settings.":
     "Ce projet est une ligne de config.toml ; il se modifie dans les réglages.",
   "What the board calls it. A ticket points at this page, not at this name.":

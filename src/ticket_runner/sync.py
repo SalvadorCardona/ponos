@@ -44,7 +44,7 @@ from typing import Any
 
 from . import disk
 from .files import COLLECTIONS, Board
-from .store import Page, StoreError, read
+from .store import Page, Picture, StoreError, read
 
 # What the reconciliation walks, and the order it walks it in: a ticket's
 # relations point at projects and agents, so those exist on both sides first.
@@ -342,6 +342,20 @@ class Mirror:
             self.mirror.comment(page_id, text, discussion_id)
         except StoreError:
             pass
+
+    def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
+        """Notion's page is what is answered, and its twin on disk follows.
+
+        Only the writes made through here: the reconciliation carries columns
+        and bodies, and a cover changed in Notion stays Notion's — the console
+        reads it there, and keeps its own copy under the state directory.
+        """
+        page = self.primary.set_picture(page_id, slot, picture)
+        try:
+            self.mirror.set_picture(page_id, slot, picture)
+        except StoreError:
+            pass
+        return page
 
     def append_blocks(self, block_id: str, blocks: list[dict]) -> list[str]:
         # Only Notion's IDs come back, and only Notion has anything to hand
