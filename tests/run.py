@@ -8440,22 +8440,24 @@ def the_console_and_the_landing_page_share_one_set_of_tokens():
     stray = re.findall(r"#[0-9a-fA-F]{3,8}\b", style)
     assert not stray, f"the site names colours of its own: {stray}"
     for gone in ("Inter", "Instrument Serif", "#3b82f6"):
-        assert gone not in page, f"{gone} is the old identity"
+        # A whole word: `IntersectionObserver` is not the old face.
+        assert not re.search(rf"(?<!\w){re.escape(gone)}(?!\w)", page), f"{gone} is the old identity"
     assert "family=DM+Sans" in page and "JetBrains+Mono" in page, "the site does not load the console's faces"
     assert "ticket-runner-theme" in page and "prefers-color-scheme" in page, "the site has no light and dark"
 
 
 @case
-def the_landing_page_opens_on_ponos_and_tells_the_loop_in_six_sections():
-    """Six sections at most, the first one Ponos and the promise.
+def the_landing_page_opens_on_ponos_and_tells_the_loop_in_seven_sections():
+    """Seven sections at most, the first one Ponos and the promise.
 
     Seventeen sections at the same level is a manual, and the manual is the
-    README: the site says the promise, the loop, three proofs, the console,
-    the install and who made it, and links the rest.
+    README: the site says the promise, the loop, three proofs, the board as
+    Notion shows it, the console, the install and who made it, and links the
+    rest.
     """
     page = LANDING.read_text(encoding="utf-8")
     sections = re.findall(r"<section\b[^>]*>", page)
-    assert 0 < len(sections) <= 6, f"{len(sections)} sections — the site is a manual again"
+    assert 0 < len(sections) <= 7, f"{len(sections)} sections — the site is a manual again"
     hero = page.split("<section", 2)[1]
     assert 'id="top"' in hero.split(">", 1)[0], "the page does not open on its hero"
     assert "<ticket-runner-robot" in hero and "Ponos" in hero, "Ponos is not on the first screen"
