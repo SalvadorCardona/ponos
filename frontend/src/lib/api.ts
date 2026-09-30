@@ -10,6 +10,7 @@ import type {
   ProjectDetail,
   Projects,
   RunnerState,
+  UpgradeProgress,
   Saved,
   ScheduleDetail,
   Schedules,
@@ -205,6 +206,10 @@ export const api = {
   createSchedule: (values: Record<string, unknown>) =>
     request<{ id: string; name: string }>("/api/schedules", values),
   refresh: () => request<unknown>("/api/refresh", {}),
+  /* Nothing in the body: which version, and how it is installed, is the
+   * server's to know. */
+  upgrade: () => request<UpgradeProgress>("/api/update", {}),
+  cancelUpgrade: () => request<UpgradeProgress>("/api/update/cancel", {}),
 }
 
 /** The message of whatever went wrong, however it went wrong. */

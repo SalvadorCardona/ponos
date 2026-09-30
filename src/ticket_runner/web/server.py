@@ -256,6 +256,26 @@ class Handler(BaseHTTPRequestHandler):
             pass
         return host in expected
 
+    def _local(self) -> bool:
+        """The request comes from this machine — not only to an address of it."""
+        address = str(self.client_address[0])
+        return address in ("127.0.0.1", "::1") or address.startswith(("127.", "::ffff:127."))
+
+    def _same_origin(self) -> bool:
+        """The page that sent this is the console, as far as the browser says.
+
+        The guard header already needs a page of this origin to be set at all;
+        this is the second lock on the one write that replaces the code the
+        console runs. A browser names the page a POST comes from in `Origin`,
+        and a script outside a browser — which carries the token anyway — sends
+        none, which is allowed.
+        """
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True
+        host = self.headers.get("Host") or ""
+        return origin in (f"http://{host}", f"https://{host}")
+
     def _presented(self) -> str:
         header = self.headers.get("Authorization") or ""
         if header.lower().startswith("bearer "):
@@ -332,7 +352,7 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             if route == "/api/state":
-                return self._json(self.api.state())
+                return self._json(self.api.state(local=self._local()))
             if route == "/api/board":
                 return self._json(self.api.board())
             if route == "/api/projects":
@@ -426,6 +446,8 @@ class Handler(BaseHTTPRequestHandler):
         payload = self._body()
         if signing_in:
             return self._sign_in(payload)
+        if route in ("/api/update", "/api/update/cancel"):
+            return self._update(route)
         try:
             if picture:
                 chosen = store.Picture(
@@ -501,6 +523,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._fail(500, str(error).splitlines()[0])
 
         return self._fail(404, f"no such route: {route}")
+
+    def _update(self, route: str) -> None:
+        """Start, or call off, the update the header offers. See `upgrade.py`.
+
+        Answered only to this machine and to the console's own page: of every
+        write, this is the one that replaces the code answering it. The body
+        says nothing — which version, which command and which directory are
+        the server's to know, never the page's.
+        """
+        if not self._local():
+            return self._fail(403, "an update is started from the machine the runner is on")
+        if not self._same_origin():
+            return self._fail(403, "this request did not come from the console")
+        try:
+            if route == "/api/update/cancel":
+                return self._json(self.api.upgrade.cancel())
+            return self._json(self.api.upgrade.start())
+        except RuntimeError as error:
+            return self._fail(409, str(error))
 
     # -- what a message carries -----------------------------------------------
 

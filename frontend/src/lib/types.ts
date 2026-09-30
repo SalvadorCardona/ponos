@@ -6,6 +6,8 @@
  * says which components have to care.
  */
 
+import type { UpgradePhase } from "./upgrade"
+
 export type ColumnKey =
   | "ready"
   | "running"
@@ -208,11 +210,42 @@ export interface RunnerState {
   claude: boolean
   version: string
   update: string
+  /** The update the version offers, and how far one is — see `web/upgrade.py`. */
+  upgrade?: Upgrade
   spend: number
   handled: number
   chat: ChatState
   commands: string[]
   busy: boolean
+}
+
+/** An update's progress, as the stream carries it. */
+export interface UpgradeProgress {
+  phase: UpgradePhase
+  /** What it waits for while `waiting`; the version being installed while `installing`. */
+  detail: string
+  error: string
+  /** The version being installed, or the one the console came back on. */
+  target: string
+  log: string[]
+  log_path: string
+}
+
+/** What the version at the top right knows: whether a newer one waits, and where to read about it. */
+export interface Upgrade extends UpgradeProgress {
+  available: boolean
+  /** The installed commit and the newest one, both short. */
+  current: string
+  latest: string
+  /** The release the newest one is, on the release channel. */
+  tag: string
+  /** The release notes, or the commits in between. */
+  notes: string
+  /** Whether the console can install it itself; `manual` says why not. */
+  automatic: boolean
+  manual: string
+  /** What to type instead. */
+  command: string
 }
 
 /** A line of a session: the tool it used, and what it used it on — or, `said`, what the agent wrote. */

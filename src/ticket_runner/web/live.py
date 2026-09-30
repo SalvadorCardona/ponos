@@ -40,7 +40,7 @@ IDLE_SECONDS = 180
 # What is kept as a *state* rather than as an event (see `Hub`): a browser that
 # connects wants the board as it is and the sessions running now, not the last
 # twenty versions of either.
-STATES = ("board", "state", "sessions", "sync")
+STATES = ("board", "state", "sessions", "sync", "upgrade")
 
 # How much of a log is read at a time, from its end, to find its last line —
 # which is enough, nearly always, to find it in one read.

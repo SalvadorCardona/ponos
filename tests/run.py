@@ -2854,7 +2854,8 @@ def an_update_puts_the_console_on_the_code_it_just_installed():
     kept = {name: os.environ.get(name) for name in ("HOME", "PATH")}
     os.environ["HOME"], os.environ["PATH"] = str(elsewhere), str(elsewhere)
     try:
-        error = update.apply(update.Status(current="a" * 40, latest="b" * 40), 600, ROOT)
+        with _state_home():
+            error = update.apply(update.Status(current="a" * 40, latest="b" * 40), 600, ROOT)
     finally:
         git_module.run, git_module.git = was_run, was_git
         for name, value in kept.items():
@@ -2872,6 +2873,276 @@ def an_update_puts_the_console_on_the_code_it_just_installed():
     assert ran.index(restarts[0]) > ran.index(["systemctl", "--user", "daemon-reload"]), (
         "the console is restarted before its unit is reloaded"
     )
+
+
+@contextlib.contextmanager
+def _installable():
+    """An installation of this very runner, cloned from a remote of its own.
+
+    Yields `(commit, app, first)`: `commit(message, change)` lands a commit on
+    the remote after `change(work)` has edited its files. The launcher is
+    written to a home of the test's own, and systemd is out of the PATH — an
+    install that rewrote this machine's units would be a test gone too far.
+    """
+    quiet = {"capture_output": True, "check": True}
+    who = ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"]
+    kept = {name: os.environ.get(name) for name in ("HOME", "PATH")}
+    with tempfile.TemporaryDirectory() as directory, _state_home():
+        remote, work, app = (Path(directory) / name for name in ("remote.git", "work", "app"))
+        subprocess.run(["git", "init", "--quiet", "--bare", "-b", "main", str(remote)], **quiet)
+        subprocess.run(["git", "clone", "--quiet", str(remote), str(work)], **quiet)
+        ignore = shutil.ignore_patterns("__pycache__")
+        for part in ("src", "bin", "systemd"):
+            shutil.copytree(ROOT / part, work / part, ignore=ignore)
+
+        def commit(message: str, change=lambda work: None) -> str:
+            change(work)
+            subprocess.run(["git", "-C", str(work), "add", "-A"], **quiet)
+            subprocess.run(["git", *who, "-C", str(work), "commit", "--quiet", "--allow-empty",
+                            "-m", message], **quiet)
+            subprocess.run(["git", "-C", str(work), "push", "--quiet", "origin", "HEAD:main"], **quiet)
+            return subprocess.run(["git", "-C", str(work), "rev-parse", "HEAD"],
+                                  capture_output=True, text=True, check=True).stdout.strip()
+
+        first = commit("one")
+        subprocess.run(["git", "clone", "--quiet", str(remote), str(app)], **quiet)
+        # git and nothing else on the PATH: no systemctl to reload this machine's units with.
+        tools = Path(directory) / "bin"
+        tools.mkdir()
+        (tools / "git").symlink_to(shutil.which("git") or "/usr/bin/git")
+        os.environ["HOME"], os.environ["PATH"] = directory, str(tools)
+        try:
+            yield commit, app, first
+        finally:
+            for name, value in kept.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+
+def _head(app: Path) -> str:
+    return subprocess.run(["git", "-C", str(app), "rev-parse", "HEAD"],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+@case
+def a_version_that_does_not_start_is_taken_back_and_one_that_does_is_kept():
+    """An update is all of it or none of it.
+
+    `git reset` was the whole update: a commit that failed at `import` would
+    have been installed, and every run after it would have died before
+    claiming a ticket — with nobody there, since the runner runs alone. The new
+    code is started by a Python of its own first, and the installation goes
+    back to the commit it replaced when it does not.
+    """
+    with _installable() as (commit, app, first):
+        broken = commit("broken", lambda work: (work / "src/ticket_runner/__main__.py").write_text(
+            "this is not python\n"))
+        status = update.check(app, "main")
+        assert status.stale and status.latest == broken
+        error = update.install(status, 600, app)
+        assert error and "does not start" in error and f"back on {first[:8]}" in error, error
+        assert _head(app) == first, "a version that does not start was left installed"
+        assert update.waiting(app).stale, "the update is still to be made"
+
+        fixed = commit("fixed", lambda work: shutil.copy(
+            ROOT / "src/ticket_runner/__main__.py", work / "src/ticket_runner/__main__.py"))
+        status = update.check(app, "main")
+        assert update.install(status, 600, app) == ""
+        assert _head(app) == fixed
+        launcher = Path(os.environ["HOME"]) / ".local/bin/ticket-runner"
+        assert str(app) in launcher.read_text(), "the launcher still points at the old sources"
+        assert not update.waiting(app).stale, (
+            "the header still offered the update it had just installed"
+        )
+
+
+@case
+def the_header_does_not_offer_a_version_already_installed():
+    """On 30 September 2026 the header said ↑ on an installation already on the
+    newest commit: the stamp was written before the update it announced, and
+    read for the hour after. What is on disk has the last word."""
+    with _installable() as (commit, app, first):
+        second = commit("two")
+        update.remember(update.Status(current=first, latest=second))
+        assert update.waiting(app).stale, "installed is what the stamp compared: an update"
+        subprocess.run(["git", "-C", str(app), "pull", "--quiet", "origin", "main"],
+                       capture_output=True, check=True)
+        assert not update.waiting(app).stale, "moved by hand since the check: nothing to offer"
+    page = "https://github.com/owner/repo"
+    tagged = update.Status(current="a" * 40, latest="b" * 40, tag="v0.2.0")
+    assert update.notes(tagged, page) == f"{page}/releases/tag/v0.2.0"
+    assert update.notes(update.Status(current="a" * 40, latest="b" * 40), page) == (
+        f"{page}/compare/{'a' * 12}...{'b' * 12}"
+    )
+    assert update.notes(update.Status(current="a" * 40, latest="a" * 40), page) == ""
+
+
+class _FakeUpdate:
+    """`update`, as `web.upgrade` uses it: what is waiting, and what installing did."""
+
+    def __init__(self, error: str = "") -> None:
+        self.error = error
+        self.installed: list[str] = []
+        self.status = update.Status(current="a" * 40, latest="b" * 40)
+
+    def __enter__(self):
+        from ticket_runner.web import upgrade as web_upgrade
+
+        self.module = web_upgrade.update_module
+        self.kept = {name: getattr(self.module, name) for name in ("waiting", "check", "install")}
+        self.module.waiting = lambda app=None: self.status
+        self.module.check = lambda app=None, channel="release": self.status
+        self.module.install = lambda status, interval, app=None: (
+            self.installed.append(status.latest) or self.error
+        )
+        return self
+
+    def __exit__(self, *_):
+        for name, value in self.kept.items():
+            setattr(self.module, name, value)
+
+
+def _until(condition, seconds: float = 5.0) -> None:
+    deadline = time.time() + seconds
+    while not condition():
+        if time.time() > deadline:
+            raise AssertionError("waited in vain")
+        time.sleep(0.02)
+
+
+@case
+def an_update_from_the_console_waits_for_the_ticket_in_flight():
+    """A click while a ticket runs is queued behind the run lock, never under it.
+
+    Every session a ticket starts runs inside a pass that holds the lock; the
+    update takes the same lock, so nothing is swapped while one runs, and the
+    timer's next pass finds it busy and claims nothing. Called off while it
+    waits, nothing is installed; a chat turn is waited for as well.
+    """
+    from ticket_runner.web import upgrade as web_upgrade
+
+    with _state_home(), _FakeUpdate() as fake:
+        said: list[dict] = []
+        restarted: list[int] = []
+        talking = {"now": "a conversation turn is being answered"}
+        upgrade = web_upgrade.Upgrade(
+            lambda kind, **payload: said.append(payload), C.Runner, lambda: talking["now"],
+            app=Path(tempfile.mkdtemp()), reboot=lambda: restarted.append(1), poll=0.02,
+        )
+        with state.lock():
+            upgrade.start()
+            _until(lambda: upgrade.detail == "a conversation turn is being answered")
+            talking["now"] = ""
+            _until(lambda: upgrade.detail == "a ticket is running")
+            assert upgrade.phase == "waiting" and not fake.installed, "installed under a run"
+            try:
+                upgrade.start()
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("two updates at once")
+        _until(lambda: restarted)
+        assert fake.installed == ["b" * 40]
+        assert upgrade.phase == "restarting"
+        phases = [payload["phase"] for payload in said]
+        assert phases.index("installing") > phases.index("waiting")
+        assert phases[-1] == "restarting"
+        # The process that comes back knows what it came back from.
+        again = web_upgrade.Upgrade(lambda kind, **payload: None, C.Runner, app=upgrade.app)
+        assert again.phase == "done" and again.target == "b" * 8
+
+        # Called off while it waits: nothing installed, nothing restarted. (The
+        # restart above was a function: a real one would have ended this process.)
+        upgrade.phase = "idle"
+        fake.installed.clear()
+        restarted.clear()
+        with state.lock():
+            upgrade.start()
+            _until(lambda: upgrade.detail == "a ticket is running")
+            upgrade.cancel()
+            _until(lambda: upgrade.phase == "idle")
+        time.sleep(0.1)
+        assert not fake.installed and not restarted
+
+
+@case
+def a_failed_update_from_the_console_says_why_and_restarts_nothing():
+    from ticket_runner.web import upgrade as web_upgrade
+
+    with _state_home(), _FakeUpdate("the new version does not start: boom — back on aaaaaaaa"):
+        restarted: list[int] = []
+        upgrade = web_upgrade.Upgrade(
+            lambda kind, **payload: None, C.Runner,
+            app=Path(tempfile.mkdtemp()), reboot=lambda: restarted.append(1), poll=0.02,
+        )
+        upgrade.start()
+        _until(lambda: upgrade.phase == "failed")
+        assert "back on aaaaaaaa" in upgrade.error
+        assert any("failed:" in line for line in upgrade.progress()["log"])
+        assert "failed:" in web_upgrade.log_path().read_text(encoding="utf-8"), "no log to read"
+        assert not restarted, "the console was restarted onto a version that was taken back"
+        offer = upgrade.offer(local=False)
+        assert offer["available"] and not offer["automatic"] and offer["command"] == "ticket-runner update"
+
+
+@case
+def the_update_endpoint_answers_only_this_machine_and_the_console_page():
+    """The one write that replaces the code answering it: loopback, the guard
+    header, and an `Origin` that is the console's own — and a body that
+    chooses nothing."""
+    import urllib.error
+    import urllib.request
+
+    from ticket_runner.web import server as web_server
+
+    started: list[int] = []
+
+    class Upgrade:
+        def start(self):
+            started.append(1)
+            return {"phase": "waiting"}
+
+        def cancel(self):
+            raise RuntimeError("the update is no longer waiting")
+
+    api = _bare_api(_TalkClient([]))
+    api._upgrade = Upgrade()
+    console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+    threading.Thread(target=console.serve_forever, daemon=True).start()
+    port = console.server_address[1]
+
+    def post(path: str, **headers: str):
+        sent = {"Authorization": "Bearer tok", "Content-Type": "application/json", **headers}
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}", data=b'{"command": "rm -rf ~"}', headers=sent,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+
+    guard = {"X-Ticket-Runner": "1"}
+    try:
+        assert post("/api/update") == 403, "a form posted from another page"
+        assert post("/api/update", Origin="http://evil.example", **guard) == 403
+        assert not started
+        assert post("/api/update", Origin=f"http://127.0.0.1:{port}", **guard) == 200
+        assert post("/api/update", **guard) == 200, "a script with the token sends no Origin"
+        assert post("/api/update/cancel", **guard) == 409
+    finally:
+        console.shutdown()
+        console.server_close()
+    assert len(started) == 2
+
+    handler = web_server.Handler.__new__(web_server.Handler)
+    for address, local in (("127.0.0.1", True), ("::1", True), ("192.168.1.20", False),
+                           ("100.64.0.3", False)):
+        handler.client_address = (address, 0)
+        assert handler._local() is local, address
 
 
 # -- staying alive -----------------------------------------------------------
@@ -8355,7 +8626,8 @@ def the_console_header_and_the_command_line_agree_on_the_version():
     with _state_home():
         assert web_api._version() == __version__
         assert web_api._update_available() == "", "nothing checked yet is not an update"
-        update.remember(update.Status(current="a" * 40, latest="b" * 40))
+        # Compared against what is on disk: the stamp has to be about this checkout.
+        update.remember(update.Status(current=_head(ROOT), latest="b" * 40))
         assert web_api._version() == __version__
         assert web_api._update_available() == "b" * 8
 
@@ -8565,9 +8837,12 @@ def the_console_says_the_version_it_is_running_beside_the_stream_s_dot():
     and asserting on minified identifiers is asserting on the minifier.
     """
     shell = (FRONTEND / "src/components/console/shell.tsx").read_text(encoding="utf-8")
+    badge = (FRONTEND / "src/components/console/version-badge.tsx").read_text(encoding="utf-8")
     assert "Pill" not in shell, "the bar carries a row of pills again"
-    assert "runner.version" in shell, "the console has nowhere to print the version"
-    assert "runner.update" in shell, "an update waiting has to be said too"
+    assert "<VersionBadge" in shell, "the bar lost the version"
+    assert "runner.version" in badge, "the console has nowhere to print the version"
+    assert "runner.upgrade" in badge, "an update waiting has to be said too"
+    assert "api.upgrade()" in badge, "and offered, rather than left to a terminal"
 
 
 @case

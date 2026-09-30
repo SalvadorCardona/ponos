@@ -22,7 +22,9 @@ import type {
   SyncEvent,
   TalkEvent,
   Ticket,
+  UpgradeProgress,
 } from "@/lib/types"
+import { justUpdated, type UpgradePhase } from "@/lib/upgrade"
 import { useStream, type Connection } from "./use-stream"
 
 /* Everything the console knows, in three places.
@@ -201,6 +203,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         })
     }
   }, [])
+
+  // The phase this page last saw, to tell a restart it watched from one it did not.
+  const upgradePhase = React.useRef<UpgradePhase | undefined>(undefined)
 
   const reloadState = React.useCallback(async () => {
     try {
@@ -407,6 +412,22 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     // every dropped connection, and a server event under the same name would
     // arrive through the same listener with nothing in it.
     sync: (event: SyncEvent) => setSynced(event),
+
+    // An update's progress, from the click to the console coming back. The
+    // process that answers after the restart is a new one: its first word is
+    // `done`, and the header is read again for the version it runs.
+    upgrade: (event: UpgradeProgress) => {
+      const before = upgradePhase.current
+      upgradePhase.current = event.phase
+      setRunner((current) =>
+        current?.upgrade ? { ...current, upgrade: { ...current.upgrade, ...event } } : current
+      )
+      if (event.phase === "done" || event.phase === "idle") void reloadState()
+      if (justUpdated(before, event.phase))
+        toast.success(t("Ponos is up to date"), {
+          description: t("restarted on {{version}}", { version: event.target }),
+        })
+    },
 
     notice: (event: NoticeEvent) => {
       toast.error(event.where, { description: event.message })

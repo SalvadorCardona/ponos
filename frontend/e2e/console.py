@@ -11,12 +11,16 @@ console you run for yourself.
 
 One ticket is written long on purpose: a brief several screens tall, which is
 the page that stopped scrolling. Two projects, for the list that opens one in a
-drawer.
+drawer. And a check that found a newer version than this checkout, for the
+version at the top right to offer it — a commit that exists nowhere, so that a
+click on "Update now" could only ever fail.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -29,6 +33,7 @@ from ticket_runner import files  # noqa: E402
 # The token the tests open the console with: a board of fixtures has nothing to guard.
 TOKEN = "e2e"
 LONG = "000000000000000000000000000abcde"
+NEWER = "f" * 40
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 
 
@@ -64,6 +69,12 @@ def main() -> None:
         f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n\n[web]\ntoken = "{TOKEN}"\n',
         encoding="utf-8",
     )
+    head = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    stamp = here / "state" / "ticket-runner" / "update.json"
+    stamp.parent.mkdir(parents=True)
+    stamp.write_text(json.dumps({"checked_at": 0, "current": head, "latest": NEWER, "tag": ""}))
     os.environ.update(
         TICKET_RUNNER_CONFIG=str(config),
         XDG_STATE_HOME=str(here / "state"),

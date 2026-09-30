@@ -77,7 +77,10 @@ REFUSED = {
         "starts Claude sessions that outlive a command typed here — make the ticket "
         "ready and the timer runs it, or type `ticket-runner run` in a terminal"
     ),
-    "update": "replaces the code this console is running — do it from a terminal",
+    "update": (
+        "replaces the code this console is running — the version at the top right "
+        "offers it when there is one, or type it in a terminal"
+    ),
     "clean": "deletes worktrees a session may be standing in — do it from a terminal",
     "init": "builds a whole Notion workspace — do it from a terminal, or the first connection",
 }
