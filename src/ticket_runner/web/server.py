@@ -46,7 +46,7 @@ from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse
 from .. import config as config_module
 from .. import openrouter, store, voice
 from ..config import Config, state_dir
-from . import setup
+from . import attachments, setup
 from .api import Api
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -59,6 +59,10 @@ GUARD_HEADER = "X-Ticket-Runner"
 # Bodies are small — a ticket, a message, a command. Anything larger is a
 # mistake, and reading it would be the mistake becoming ours.
 MAX_BODY = 256 * 1024
+# A file refused for its size is still read — and dropped — before the refusal
+# is sent: close on a client still writing and it sees a broken pipe, not the
+# 413 that says why. Past this much, it gets the broken pipe.
+MAX_DRAIN = 256 * 1024 * 1024
 
 LOOPBACK = ("127.0.0.1", "::1", "localhost", "[::1]")
 
@@ -473,6 +477,17 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return 0
 
+    def _drain(self, length: int) -> None:
+        """Read and drop an announced body the request will not be granted."""
+        if length > MAX_DRAIN:
+            return
+        left = length
+        while left > 0:
+            chunk = self.rfile.read(min(1 << 16, left))
+            if not chunk:
+                return
+            left -= len(chunk)
+
     def _upload(self, query: dict) -> None:
         """One file for the message being written, as the raw body of the request.
 
@@ -485,12 +500,15 @@ class Handler(BaseHTTPRequestHandler):
         chat = self.api.chat
         try:
             said = chat.attach(name, self.rfile, length)
+        except attachments.TooLarge as error:
+            self._drain(length)
+            self.close_connection = True
+            return self._fail(413, str(error))
         except ValueError as error:
             # Refused before its body was read, or halfway: nothing after it on
             # this connection can be trusted to start where it should.
             self.close_connection = True
-            code = 413 if "attachment_max_mb" in str(error) else 400
-            return self._fail(code, str(error))
+            return self._fail(400, str(error))
         except OSError as error:
             self.close_connection = True
             return self._fail(500, f"the file could not be kept: {error}")
@@ -500,6 +518,7 @@ class Handler(BaseHTTPRequestHandler):
         length = self._length()
         chat = self.api.chat
         if length > chat.config.web.attachment_max_mb * 1024 * 1024:
+            self._drain(length)
             self.close_connection = True
             return self._fail(413, "the recording is longer than a message can be")
         audio = self.rfile.read(length) if length > 0 else b""
