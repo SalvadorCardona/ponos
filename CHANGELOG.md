@@ -470,6 +470,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A session no longer kills itself with `pkill -f`.** The prompt went on
+  `claude`'s command line, and it holds the ticket's page — the last run's
+  trace included. A ticket that quoted `vite --port 5199` had its session run
+  `pkill -f "vite --port 5199"`, match its own command line, and die with exit
+  code 137; other sessions carrying the same words could go with it. The
+  prompt now always reaches the session on its standard input, never as an
+  argument, so `ps` shows nothing of a brief to the other users of the machine
+  either. The instructions of a code ticket also ask to stop a server by its
+  PID or its port (`fuser -k 5199/tcp`) rather than by a pattern.
+
 - **A ticket opens at once.** Its page stayed empty two to five seconds while
   the console read the whole ticket from Notion — and read it two or three
   times per opening. The title, the column, the project and the cost are drawn

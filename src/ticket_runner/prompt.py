@@ -72,7 +72,9 @@ AGENTS.md if it has one, the neighbouring code. Your change must read like the r
 2. Implement what is asked, and nothing more. No opportunistic refactoring, no \
 fixing nearby bugs: those are other tickets.
 3. Run whatever the repository offers to check itself — lint, tests, build — and \
-fix what you break.
+fix what you break. A server or a watcher you start, you stop by its PID or its \
+port (`kill <pid>`, `fuser -k 5199/tcp`), never with `pkill -f` or `pgrep -f`: \
+a pattern matches every process whose command line holds it, not only yours.
 4. Commit inside the worktree, with a clear message written in the language the \
 repository already uses. **Do not push** and do not open a pull request: that is \
 the runner's job.

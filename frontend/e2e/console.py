@@ -77,7 +77,7 @@ session = args[args.index("--resume" if resumed else "--session-id") + 1]
 filed = pathlib.Path.home() / ".claude" / "projects" / "-e2e" / f"{{session}}.jsonl"
 filed.parent.mkdir(parents=True, exist_ok=True)
 filed.touch()
-prompt = args[-1]
+prompt = sys.stdin.read()
 
 def say(event):
     print(json.dumps(event), flush=True)
