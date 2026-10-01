@@ -64,6 +64,17 @@ export interface Board {
   /** What a new ticket may be given beside its title, for the columns this
    * board has: a column it lacks is not a key here. */
   choices?: Partial<Record<"priority" | "type" | "model", { value: string; label: string }[]>>
+  /** Which board the stream sent, for the changes that follow it. */
+  version?: number
+}
+
+/** What moved on the board since version `base`, as the stream sends it. */
+export interface BoardChanges {
+  base: number
+  version: number
+  /** Changed or new, each with the ticket it now follows (`""`: the first). */
+  changed: { after: string; ticket: Ticket }[]
+  removed: string[]
 }
 
 export interface Project {
