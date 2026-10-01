@@ -6333,15 +6333,119 @@ def a_session_log_is_tailed_forward_and_never_twice():
 def the_board_is_published_only_when_it_has_moved():
     """A poll that redrew an unchanged board would lose your scroll for nothing."""
     hub = web_live.Hub()
-    boards = [{"tickets": [{"title": "one"}]}, {"tickets": [{"title": "one"}]},
-              {"tickets": [{"title": "two"}]}]
+    boards = [{"tickets": [{"id": "a", "title": "one"}]}, {"tickets": [{"id": "a", "title": "one"}]},
+              {"tickets": [{"id": "a", "title": "two"}]}]
     watch = web_live.Watch(hub, lambda: boards.pop(0), interval=5)
-    published = []
-    hub.publish = lambda kind, **payload: published.append(kind)  # type: ignore[method-assign]
+    channel = hub.subscribe()
     watch.refresh()
     watch.refresh()
     watch.refresh()
-    assert published == ["board", "board"], published
+    published = [channel.get_nowait() for _ in range(channel.qsize())]
+    assert [event.kind for event in published] == ["board", "changes"], published
+    assert published[1].payload == {
+        "changed": [{"after": "", "ticket": {"id": "a", "title": "two"}}],
+        "removed": [],
+        "base": 1,
+        "version": 2,
+    }, published[1].payload
+
+
+def _tickets(*cards: tuple[str, str, str]) -> dict:
+    """A board as `Api.board` sorts it: by column, then by title."""
+    order = ["ready", "running", "review"]
+    tickets = [{"id": i, "column": c, "title": t, "steps": 0} for i, c, t in cards]
+    tickets.sort(key=lambda item: (order.index(item["column"]), item["title"]))
+    return {"tickets": tickets, "validate": False, "columns": [{"key": k, "name": k} for k in order]}
+
+
+def _apply(board: dict, changes: dict) -> list[dict]:
+    """What `applyChanges` in `board-store.ts` does with them, line for line."""
+    gone = set(changes["removed"]) | {entry["ticket"]["id"] for entry in changes["changed"]}
+    tickets = [ticket for ticket in board["tickets"] if ticket["id"] not in gone]
+    for entry in changes["changed"]:
+        at = next(i for i, t in enumerate(tickets) if t["id"] == entry["after"]) + 1 if entry["after"] else 0
+        tickets.insert(at, entry["ticket"])
+    return tickets
+
+
+@case
+def a_board_that_moved_is_sent_as_what_moved_and_gives_back_the_same_board():
+    """A card moved, one added, one gone: the page rebuilds exactly the board, in its order."""
+    before = _tickets(("a", "ready", "Alpha"), ("b", "ready", "Beta"), ("c", "running", "Gamma"),
+                      ("d", "review", "Delta"))
+    after = _tickets(("a", "running", "Alpha"), ("b", "ready", "Beta"), ("c", "running", "Gamma"),
+                     ("e", "ready", "Epsilon"))
+    changes = web_live.difference(before, after)
+    assert changes is not None
+    assert [entry["ticket"]["id"] for entry in changes["changed"]] == ["e", "a"], changes
+    assert changes["removed"] == ["d"]
+    assert _apply(before, changes) == after["tickets"]
+
+    # The same board again says nothing has changed; new columns need the whole board.
+    assert web_live.difference(after, after) == {"changed": [], "removed": []}
+    renamed = {**after, "columns": [{"key": "ready", "name": "Prêt"}]}
+    assert web_live.difference(after, renamed) is None
+    assert web_live.difference(None, after) is None
+
+
+@case
+def a_ticket_in_flight_costs_the_stream_its_own_card_not_the_board():
+    """475 tickets, one step further on one of them: under 10 KB, where the board is ~360."""
+    filler = "x" * 600
+    cards = [{"id": f"{n:032x}", "column": "backlog", "title": f"Ticket {n:03d}", "brief": filler}
+             for n in range(475)]
+    board = {"tickets": cards, "validate": True, "columns": [{"key": "backlog", "name": "Backlog"}]}
+    moved = {**board, "tickets": [dict(card) for card in cards]}
+    moved["tickets"][200]["steps"] = 42
+    hub = web_live.Hub()
+    watch = web_live.Watch(hub, iter([board, moved]).__next__)
+    channel = hub.subscribe()
+    watch.refresh()
+    watch.refresh()
+    whole, step = (channel.get_nowait() for _ in range(2))
+    assert step.kind == "changes"
+    assert len(whole.encode().encode()) > 300_000
+    assert len(step.encode().encode()) < 10_000, len(step.encode().encode())
+
+
+@case
+def a_browser_is_given_the_whole_board_again_only_when_it_missed_a_version():
+    hub = web_live.Hub()
+    watch = web_live.Watch(hub, iter([
+        _tickets(("a", "ready", "Alpha")),
+        _tickets(("a", "running", "Alpha")),
+    ]).__next__)
+    watch.refresh()  # event 1: the whole board
+    hub.publish("step", label="Read")  # event 2
+    watch.refresh()  # event 3: what changed
+
+    fresh = hub.subscribe()
+    first = fresh.get_nowait()
+    assert (first.kind, first.payload["version"]) == ("board", 2), "a new tab gets it whole, as it is now"
+    assert first.payload["tickets"][0]["column"] == "running"
+
+    up_to_date = hub.subscribe(after=3)
+    assert up_to_date.qsize() == 0, "a tab that saw the last changes is not sent the board again"
+
+    behind = hub.subscribe(after=2)
+    kinds = [behind.get_nowait().kind for _ in range(behind.qsize())]
+    assert kinds == ["board"], "missed changes are replaced by the whole board, never replayed"
+
+    lost = hub.subscribe(after=3, board=True)
+    assert [lost.get_nowait().kind for _ in range(lost.qsize())] == ["board"]
+
+
+@case
+def a_write_from_the_console_that_changed_nothing_sends_the_board_whole():
+    """The page drew the card ahead; a board that did not move puts it back."""
+    board = _tickets(("a", "ready", "Alpha"))
+    hub = web_live.Hub()
+    watch = web_live.Watch(hub, lambda: board)
+    channel = hub.subscribe()
+    watch.refresh()
+    watch.refresh(force=True)
+    watch.refresh()
+    assert [channel.get_nowait().kind for _ in range(channel.qsize())] == ["board", "board"]
 
 
 @case

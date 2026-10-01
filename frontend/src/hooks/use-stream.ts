@@ -23,15 +23,21 @@ type Handlers = Record<string, (payload: never) => void>
  * "reconnecting…" for as long as the tab stayed open. So a stream that closes
  * is asked why: a session that expired goes back to the sign-in, anything else
  * is tried again a few seconds later, from the last event it saw.
+ *
+ * The board comes whole once, then as what changed on it. A page whose board
+ * no longer follows from the changes it is sent — one of them was lost — asks
+ * for it whole again (`askBoard`): the stream is opened again from where it
+ * was, with the board on top.
  */
 
 /** How long a closed stream waits before it is opened again. */
 const RETRY_MS = 3000
 
-export function useStream(handlers: Handlers): Connection {
+export function useStream(handlers: Handlers): { connection: Connection; askBoard: () => void } {
   const [connection, setConnection] = React.useState<Connection>("connecting")
   const latest = React.useRef(handlers)
   latest.current = handlers
+  const reopen = React.useRef<() => void>(() => {})
 
   React.useEffect(() => {
     let stream: EventSource | null = null
@@ -39,11 +45,12 @@ export function useStream(handlers: Handlers): Connection {
     let stopped = false
     let seen = ""
 
-    const open = () => {
+    const open = (board = false) => {
       // `after` rather than the header a browser sends on its own: a stream
       // opened again by hand has no `Last-Event-ID`, and without it the events
       // of the seconds it was down would never arrive.
-      stream = new EventSource(seen ? `/api/events?after=${seen}` : "/api/events", {
+      const query = [seen && `after=${seen}`, board && "board=1"].filter(Boolean).join("&")
+      stream = new EventSource(query ? `/api/events?${query}` : "/api/events", {
         withCredentials: true,
       })
       stream.onopen = () => setConnection("live")
@@ -53,7 +60,7 @@ export function useStream(handlers: Handlers): Connection {
         stream.close()
         void signedOut().then((gone) => {
           if (gone || stopped) return
-          retry = window.setTimeout(open, RETRY_MS)
+          retry = window.setTimeout(() => open(), RETRY_MS)
         })
       }
       for (const name of Object.keys(latest.current)) {
@@ -70,6 +77,13 @@ export function useStream(handlers: Handlers): Connection {
       }
     }
 
+    reopen.current = () => {
+      if (stopped) return
+      window.clearTimeout(retry)
+      stream?.close()
+      open(true)
+    }
+
     open()
     return () => {
       stopped = true
@@ -81,5 +95,6 @@ export function useStream(handlers: Handlers): Connection {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return connection
+  const askBoard = React.useCallback(() => reopen.current(), [])
+  return { connection, askBoard }
 }

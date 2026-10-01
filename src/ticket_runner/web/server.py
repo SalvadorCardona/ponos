@@ -387,7 +387,9 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/static/"):
             return self._static(route[len("/static/") :])
         if route == "/api/events":
-            return self._stream((query.get("after") or [""])[0])
+            return self._stream(
+                (query.get("after") or [""])[0], bool((query.get("board") or [""])[0])
+            )
 
         try:
             if route == "/api/state":
@@ -806,19 +808,21 @@ class Handler(BaseHTTPRequestHandler):
             ).format(path=html.escape(str(configuration.path)))
         return f"<code>{html.escape(str(state_dir() / 'web' / 'token'))}</code>"
 
-    def _stream(self, since: str = "") -> None:
+    def _stream(self, since: str = "", board: bool = False) -> None:
         """One Server-Sent Events connection, for as long as the tab is open.
 
         Where to resume from comes as the header a browser sends when it
         reconnects on its own, or as `?after=` from a console that had to open
         the stream again itself — a refused stream is never retried by the
-        browser, and a new `EventSource` cannot set a header.
+        browser, and a new `EventSource` cannot set a header. `?board=1` is a
+        console whose board no longer follows from the changes it was sent,
+        asking for it whole.
         """
         try:
             after = int(self.headers.get("Last-Event-ID") or since or 0)
         except ValueError:
             after = 0
-        channel = self.api.hub.subscribe(after)
+        channel = self.api.hub.subscribe(after, board)
         self.api.watch.ensure_running()
         try:
             self.send_response(200)

@@ -470,6 +470,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   a year and gzipped on the way out: the first load is about 410 kB, a second
   one fetches only the page, and an update is still seen on the next load, with
   no cache to clear.
+- **An open console costs a fraction of what it did while tickets run.** The
+  board reaches a tab whole once, when it connects, and then only as the tickets
+  that changed, appeared or went: a step more on a ticket in flight is a card
+  of a few hundred bytes on the stream, where it used to be the whole board —
+  some 360 KB on a board of 475 tickets, about 170 MB an hour per open tab. A
+  board that did not move sends nothing; only the cards that moved are drawn
+  again; and a tab that missed a change, or reconnects after one, is given the
+  whole board again rather than a board that drifted.
 - **The site says what Ponos is, and that Notion is optional.** Under the
   headline, one line: a harness around Claude Code that runs your tasks on your
   machine — code, writing, actions, posts. A new *What it does* section shows the

@@ -25,7 +25,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import BinaryIO, Callable, Iterator
+from typing import Any, BinaryIO, Callable, Iterator
 
 from .. import progress, state
 
@@ -92,17 +92,48 @@ class Hub:
                 # Dropping the event beats blocking the runner behind it.
                 pass
 
-    def subscribe(self, after: int = 0) -> queue.Queue:
+    def publish_board(self, board: dict, changes: dict | None = None) -> None:
+        """The board, kept whole for the next browser, sent as what changed.
+
+        Sent whole, a board of five hundred tickets weighs a third of a
+        megabyte, and a ticket in flight moves it every few seconds — for one
+        card. So the browsers already watching are given `changes` when there
+        are any, and the whole board only when there are not; the board kept
+        for the next one is always whole, under the same id. Changes go to no
+        backlog: a browser that missed one is given the board again instead
+        (see `subscribe`).
+        """
+        with self._lock:
+            self._sequence += 1
+            whole = Event("board", dict(board), id=self._sequence)
+            self._latest["board"] = whole
+            event = whole if changes is None else Event("changes", dict(changes), id=self._sequence)
+            clients = list(self._clients)
+        for client in clients:
+            try:
+                client.put_nowait(event)
+            except queue.Full:
+                # The next changes will not follow on from what this browser
+                # holds, and it asks for the board again — see `use-console`.
+                pass
+
+    def subscribe(self, after: int = 0, board: bool = False) -> queue.Queue:
         """A channel, primed with what this browser has not seen.
 
         A first connection (`after` is zero) is given the current board and
         nothing else: its transcript comes from `/api/chat`, and replaying the
         backlog on top of that would show every message twice. A reconnection
-        names the last event it saw, and gets exactly what came after it.
+        names the last event it saw, and gets exactly what came after it — the
+        board included only if it moved since, or if the browser says (`board`)
+        that what it holds no longer follows from what it was sent.
         """
         channel: queue.Queue = queue.Queue(maxsize=1000)
         with self._lock:
-            replay = list(self._latest.values())
+            replay = [
+                event
+                for event in self._latest.values()
+                if event.kind != "board" or not after or board or event.id > after
+            ]
             if after:
                 replay += [event for event in self._backlog if event.id > after]
             for event in sorted(replay, key=lambda event: event.id):
@@ -356,7 +387,10 @@ class Watch:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
+        # The board last published, ticket by ticket, to tell what changed.
         self._fingerprint = ""
+        self._sent: dict[str, Any] | None = None
+        self._version = 0
         self._nudged = threading.Event()
 
     def ensure_running(self) -> None:
@@ -381,11 +415,14 @@ class Watch:
         self._nudged.set()
 
     def refresh(self, *, force: bool = False) -> None:
-        """Read the board and publish it, if it says something new.
+        """Read the board and publish what it says that is new.
 
         A fingerprint rather than a timestamp: the board is polled on a clock,
         but a board that has not moved is not news, and a console that redrew
         itself every fifteen seconds would lose your scroll position for nothing.
+        What did move is sent as `changes`, numbered so that a browser can tell
+        it missed some; `force` — a write from the console — sends the whole
+        board when nothing moved, to put back a card the page drew ahead.
         """
         try:
             payload = self.board()
@@ -398,10 +435,19 @@ class Watch:
         if self.status is not None:
             self.hub.publish("sync", **self.status(), error="")
         fingerprint = json.dumps(payload, sort_keys=True, ensure_ascii=False)
-        if not force and fingerprint == self._fingerprint:
+        same = fingerprint == self._fingerprint
+        if same and not force:
             return
         self._fingerprint = fingerprint
-        self.hub.publish("board", **payload)
+        base = self._version
+        self._version += 1
+        found = None if same else difference(self._sent, payload)
+        self._sent = payload
+        board = {**payload, "version": self._version}
+        if found is None:
+            self.hub.publish_board(board)
+        else:
+            self.hub.publish_board(board, {**found, "base": base, "version": self._version})
 
     def _loop(self) -> None:
         next_board = 0.0
@@ -425,3 +471,43 @@ class Watch:
                 self.hub.publish("notice", where="logs", message=str(error).splitlines()[0])
             if self._stop.wait(1):
                 return
+
+
+def difference(before: dict | None, after: dict) -> dict | None:
+    """What a page holding `before` needs to be told to hold `after`.
+
+    The tickets that changed or appeared, each with the one it now follows —
+    the board is sorted by column and title, and a card that moved column moves
+    in the list too — and the ids of the ones gone. `None` when only the whole
+    board will do: the first one, or one whose columns changed.
+
+    The page applies it in one way only (`applyChanges` in `board-store.ts`),
+    and that is replayed here: changes that would not give back exactly
+    `after`, in its order, are not sent.
+    """
+    def frame(board: dict) -> dict:
+        return {key: value for key, value in board.items() if key != "tickets"}
+
+    if before is None or frame(before) != frame(after):
+        return None
+    held = {ticket["id"]: ticket for ticket in before["tickets"]}
+    now = [ticket["id"] for ticket in after["tickets"]]
+    if len(held) != len(before["tickets"]) or len(set(now)) != len(now):
+        return None
+    removed = sorted(set(held) - set(now))
+    changed: list[dict] = []
+    previous = ""
+    for ticket in after["tickets"]:
+        if held.get(ticket["id"]) != ticket:
+            changed.append({"after": previous, "ticket": ticket})
+        previous = ticket["id"]
+
+    gone = set(removed) | {entry["ticket"]["id"] for entry in changed}
+    order = [identifier for identifier in held if identifier not in gone]
+    for entry in changed:
+        if entry["after"] and entry["after"] not in order:
+            return None
+        order.insert(order.index(entry["after"]) + 1 if entry["after"] else 0, entry["ticket"]["id"])
+    if order != now:
+        return None
+    return {"changed": changed, "removed": removed}

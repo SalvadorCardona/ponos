@@ -2,11 +2,12 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { api, why } from "@/lib/api"
-import { currentBoard, moveTicket, publishBoard, titleOf } from "@/lib/board-store"
+import { applyChanges, currentBoard, moveTicket, publishBoard, titleOf } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
 import type {
   Attached,
   Board,
+  BoardChanges,
   ChatEvent,
   ColumnKey,
   CommandEvent,
@@ -288,12 +289,13 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   /* -- the stream ----------------------------------------------------------- */
 
-  const connection = useStream({
-    board: (fresh: Board) => {
+  /* The board moved, whole or by a few tickets: `touched` are the tickets
+   * that are new or changed, the only ones worth a look. */
+  const boardMoved = React.useCallback(
+    (fresh: Board, touched: Ticket[], before: Map<string, Ticket["sync"]>) => {
       // A move that did not reach Notion is said once, when it stops being on
       // its way — the card keeps saying it after the toast is gone.
-      const before = new Map((currentBoard()?.tickets ?? []).map((item) => [item.id, item.sync]))
-      for (const item of fresh.tickets) {
+      for (const item of touched) {
         if (item.sync !== "failed" && item.sync !== "conflict") continue
         if (before.get(item.id) === item.sync) continue
         toast.error(
@@ -304,8 +306,6 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         )
       }
       setBoard(fresh)
-      // The same board, where the resource views read it from.
-      publishBoard(fresh)
       // The board moved: keep the open ticket's terminal describing the right
       // one. Reread the discussion only when the ticket *changed column* — that
       // is when a run ended and left its report under it. A ticket in flight
@@ -314,12 +314,39 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       // "reread" button is there.
       const id = openId.current
       if (!id) return
-      const moved = fresh.tickets.find((item) => item.id === id)
+      const moved = touched.find((item) => item.id === id)
       if (!moved) return
       const changed = moved.column !== openColumn.current
       openColumn.current = moved.column
       setTicket(moved)
       if (changed) void loadTalk(moved)
+    },
+    [loadTalk]
+  )
+
+  const syncs = () => new Map((currentBoard()?.tickets ?? []).map((item) => [item.id, item.sync]))
+
+  const { connection, askBoard } = useStream({
+    // Whole: on connecting, and when the columns changed.
+    board: (fresh: Board) => {
+      const before = syncs()
+      // The same board, where the resource views read it from.
+      publishBoard(fresh)
+      boardMoved(fresh, fresh.tickets, before)
+    },
+
+    // Only what moved since the last one. Changes that do not follow from the
+    // board held here — one was lost on the way — are worth nothing: the whole
+    // board is asked for again.
+    changes: (changes: BoardChanges) => {
+      const before = syncs()
+      const fresh = applyChanges(changes)
+      if (!fresh) return askBoard()
+      boardMoved(
+        fresh,
+        changes.changed.map((entry) => entry.ticket),
+        before
+      )
     },
 
     // Which sessions are running: the server's word, not a count of the steps

@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { api } from "./api"
 import { t } from "./i18n"
-import type { Board, ColumnKey, Ticket } from "./types"
+import type { Board, BoardChanges, ColumnKey, Ticket } from "./types"
 
 /* The board, as the stream last said it.
  *
@@ -25,6 +25,29 @@ export function publishBoard(fresh: Board) {
   board = fresh
   for (const resolve of waiting.splice(0)) resolve(fresh)
   tell()
+}
+
+/** What moved since the board this page holds — the board it now holds, or
+ * `null` when the changes do not follow from it (a version was missed) and
+ * only the whole board will do.
+ *
+ * The tickets that did not change are kept as they were, the same objects, so
+ * that only the cards that moved are drawn again. The server replays this very
+ * function before sending (`difference` in `web/live.py`): change one, change
+ * the other. */
+export function applyChanges(changes: BoardChanges): Board | null {
+  if (!board || board.version !== changes.base) return null
+  const gone = new Set(changes.removed)
+  for (const { ticket } of changes.changed) gone.add(ticket.id)
+  const tickets = board.tickets.filter((ticket) => !gone.has(ticket.id))
+  for (const { after, ticket } of changes.changed) {
+    const at = after ? tickets.findIndex((item) => item.id === after) + 1 : 0
+    if (after && !at) return null
+    tickets.splice(at, 0, ticket)
+  }
+  board = { ...board, tickets, version: changes.version }
+  tell()
+  return board
 }
 
 /** A ticket as the console already knows it will be, before Notion confirms.

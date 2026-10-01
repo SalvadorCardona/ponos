@@ -2133,6 +2133,10 @@ Two rules the console keeps, and they predate React:
 - **The stream is the truth.** A click posts and says nothing; what appears on the screen is
   what came back on `/api/events`. So two open tabs show the same thing, and an answer typed
   on a phone shows up on the laptop without either of them asking.
+  The board travels on it whole once, when a tab connects, then as the tickets that
+  changed (`changes`, numbered after the board they follow): a tab that finds a number
+  missing asks for the whole board again, and a tab that reconnects is given it if it
+  moved meanwhile.
 - **Nothing is loaded from anywhere but this machine.** No CDN, no web font, no analytics —
   a console that reached off the machine would look broken on a train and would tell
   somebody else when you opened it. A test asserts it against the shipped files.
