@@ -1,6 +1,7 @@
 import * as React from "react"
-import { ArrowLeft, RotateCw } from "lucide-react"
+import { ArrowLeft, CopyIcon, RotateCw } from "lucide-react"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
+import { toast } from "sonner"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,11 +26,11 @@ import { MOOD, Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
 import {
   LABEL,
-  TONE,
+  SEED,
   TicketActions,
   TicketLinks,
-  TicketTags,
   ago,
+  capital,
   lasted,
   when,
 } from "./ticket-bits"
@@ -51,10 +52,9 @@ import {
  * in progress, which is when somebody opens it to see what it is doing, so it
  * is the tab a running ticket opens on.
  *
- * The way back to the board and the title are the layout's header, as on
- * every page of the console; the page drew its own under it, and said both
- * twice. What the header is told is where else the ticket is — see
- * `TicketHeadLinks`.
+ * The way back to the board and the title are the header's, as on every page
+ * of the console; the page drew its own under it, and said both twice. The
+ * header is this file's too — see `TicketHead`.
  */
 
 export function TicketPage() {
@@ -76,9 +76,11 @@ export function TicketPage() {
   // the table is what you were reading the board in, is losing your place.
   const back = boardHref()
   const column = ticket
-    ? board.columns.find((item) => item.key === ticket.column)?.name ||
-      t(LABEL[ticket.column]) ||
-      ticket.column
+    ? capital(
+        board.columns.find((item) => item.key === ticket.column)?.name ||
+          t(LABEL[ticket.column] ?? "") ||
+          ticket.column
+      )
     : ""
 
   return (
@@ -91,14 +93,12 @@ export function TicketPage() {
               page, whatever the column. */}
           <div className="bg-card mb-4 flex items-center gap-2 rounded-lg border px-3 py-2">
             <Robot state={MOOD[ticket.column] ?? "sleep"} size={32} className="-my-1.5 shrink-0" />
-            <span
-              className={cn(
-                "text-sm font-medium",
-                TONE[ticket.column] ?? "text-muted-foreground"
-              )}
-            >
-              {column}
-            </span>
+            {/* The column as the board heads it — its dot, its name with a
+                capital — rather than in its colour: a coloured word on its own
+                read as a link, and a lower-case one as a value leaked out of
+                Notion. */}
+            <span className={cn("size-1.5 shrink-0 rounded-full", SEED[ticket.column] ?? "bg-muted-foreground")} />
+            <span className="text-sm font-medium">{column}</span>
             {ticket.progress ? (
               <span className="text-muted-foreground min-w-0 truncate text-xs">
                 · {ticket.progress}
@@ -106,40 +106,40 @@ export function TicketPage() {
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <TicketTags ticket={ticket} />
-            <TicketActions ticket={ticket} className="-mx-1" />
-          </div>
+          {/* Priority, model and date are the grid's: the tags the card wears
+              would say them a second time, one line above. */}
+          <TicketActions ticket={ticket} className="-mx-1" />
 
+          {/* A fact is drawn when the ticket has it. A board made by hand has
+              no duration, no due date, no agent column, and a row of "—" said
+              so on every ticket, as though something had gone missing. */}
           <Facts className="mt-4">
             <Fact label={t("project")}>
               {ticket.project || t("no project — a document")}
             </Fact>
-            <Fact label={t("priority")}>{ticket.priority || "—"}</Fact>
-            <Fact label={t("model")}>{ticket.model || "—"}</Fact>
-            <Fact label={t("spent")}>
-              {typeof ticket.cost === "number" && ticket.cost
-                ? `$${ticket.cost.toFixed(2)}`
-                : "—"}
-            </Fact>
-            {/* What the run cost in time, next to what it cost in money.
-                The board carries it and nothing drew it, so a ticket back
-                from a session said what it had spent and never how long. */}
-            <Fact label={t("took")}>
-              {typeof ticket.duration === "number" && ticket.duration
-                ? lasted(ticket.duration)
-                : "—"}
-            </Fact>
-            <Fact label={t("created")}>{ago(ticket.created) || "—"}</Fact>
-            <Fact label={t("scheduled")}>{when(ticket.scheduled) || "—"}</Fact>
+            {ticket.priority ? <Fact label={t("priority")}>{ticket.priority}</Fact> : null}
+            {ticket.model ? <Fact label={t("model")}>{ticket.model}</Fact> : null}
+            {typeof ticket.cost === "number" && ticket.cost ? (
+              <Fact label={t("spent")}>${ticket.cost.toFixed(2)}</Fact>
+            ) : null}
+            {/* What the run cost in time, next to what it cost in money — from
+                the board's column, or from the session's log where the board
+                has none (see `Api.ticket`). */}
+            {typeof ticket.duration === "number" && ticket.duration ? (
+              <Fact label={t("took")}>{lasted(ticket.duration)}</Fact>
+            ) : null}
+            {ago(ticket.created) ? <Fact label={t("created")}>{ago(ticket.created)}</Fact> : null}
+            {ticket.scheduled ? <Fact label={t("scheduled")}>{when(ticket.scheduled)}</Fact> : null}
             {/* Which machine has it, for the days two of them share a board
                 — and the other half of the answer to "why has nothing
                 happened": nobody claimed it. */}
-            <Fact label={t("taken by")}>
-              <span className={ticket.runner ? "font-mono text-xs" : undefined} title={ticket.runner || undefined}>
-                {ticket.runner || "—"}
-              </span>
-            </Fact>
+            {ticket.runner ? (
+              <Fact label={t("taken by")}>
+                <span className="font-mono text-xs" title={ticket.runner}>
+                  {ticket.runner}
+                </span>
+              </Fact>
+            ) : null}
           </Facts>
 
           <Tabs
@@ -264,16 +264,69 @@ function useBrief(page: TicketDetail | undefined) {
   }
 }
 
-/** Notion, the pull request, the session: the right of the layout's header. */
-export function TicketHeadLinks() {
+/* The layout's header, written here rather than told to it.
+ *
+ * The package's own says the record's identity under the title — for a ticket,
+ * the whole Notion id, `#3eb451680af481ab9ab5dca1a49e1a7b`, where the board, the
+ * palette and the tab all call it `#a49e1a7b` — and cuts the title with "…"
+ * and nothing to read the rest in. It lets a view replace the title and the
+ * actions, but the line under them only with the whole header: so this is the
+ * whole header, the same shapes, the short id with a button that copies the
+ * long one, and a title that takes a second line before it gives up.
+ */
+export function TicketHead() {
   const page = useCurrentViewResourceContext().data as TicketDetail | undefined
   const { ticket: open } = useConsole()
-  if (!page) return null
+  const t = useT()
   // The pull request is opened while the page is on screen: the stream has it first.
-  const ticket = open && open.id === page.id ? { ...page, ...open } : page
+  const ticket = page ? (open && open.id === page.id ? { ...page, ...open } : page) : null
+  const copy = () => {
+    if (!ticket) return
+    void navigator.clipboard
+      ?.writeText(ticket.id)
+      .then(() => toast.success(t("Copied"), { description: ticket.id }))
+      .catch(() => {})
+  }
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <TicketLinks ticket={ticket} />
-    </div>
+    <header data-slot="admin-header" className="w-full">
+      <div className="border-border flex flex-wrap items-end gap-x-6 gap-y-4 border-b pb-5">
+        <div className="min-w-0 flex-1">
+          <Link
+            to={boardHref()}
+            className="text-muted-foreground hover:text-foreground mb-1.5 inline-flex items-center gap-1 text-sm transition-colors"
+          >
+            <ArrowLeft className="size-4" />
+            {t("Board")}
+          </Link>
+          <h2
+            className="line-clamp-2 text-2xl font-semibold tracking-tight break-words"
+            title={ticket?.title}
+          >
+            {ticket ? ticket.title : t("Ticket")}
+          </h2>
+          {ticket ? (
+            <p className="text-muted-foreground mt-1 flex items-center gap-1 text-sm">
+              {t("Ticket")} · <span className="font-mono">#{ticket.short}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={copy}
+                title={t("Copy the full id")}
+                aria-label={t("Copy the full id")}
+              >
+                <CopyIcon />
+              </Button>
+            </p>
+          ) : null}
+        </div>
+        {/* Notion, the pull request, the session: where else the ticket is. */}
+        {ticket ? (
+          <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 md:w-auto">
+            <TicketLinks ticket={ticket} />
+          </div>
+        ) : null}
+      </div>
+    </header>
   )
 }

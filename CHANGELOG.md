@@ -415,6 +415,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   projects have a repository". The drawer a project opens in is 640px wide
   instead of 384px (still the whole screen on a phone), its first line wraps
   before the close button, and the example in "Where it is" is translated.
+- **A ticket's page only says what the ticket has.** The grid under the
+  status draws a fact when the ticket has a value for it: a board without a
+  duration, due-date or agent column no longer shows "Took —", "Scheduled —",
+  "Taken by —" on every ticket. How long a session took is read from its log
+  when the board has no duration column, so a finished ticket says it. The
+  priority is said once, in the grid, not again as a tag above it. The status
+  reads as the board heads its column — its dot and its name with a capital —
+  rather than as a coloured lower-case word that looked like a link. The header
+  calls the ticket by its short id, `#a49e1a7b`, as the board does, with a
+  button that copies the full one, and a long title takes a second line, its
+  whole text on hover.
 - **The site says what Ponos is, and that Notion is optional.** Under the
   headline, one line: a harness around Claude Code that runs your tasks on your
   machine — code, writing, actions, posts. A new *What it does* section shows the

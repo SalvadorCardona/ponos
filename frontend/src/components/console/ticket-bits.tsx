@@ -36,6 +36,9 @@ export const LABEL: Record<string, string> = {
   other: "No status",
 }
 
+/** A column's name as the board heads it: the board's word, with a capital — Notion's may have none. */
+export const capital = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1)
+
 /** The colour of a column, on the left edge of a card. */
 export const EDGE: Record<string, string> = {
   ready: "border-l-tr-green",

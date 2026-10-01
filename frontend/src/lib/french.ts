@@ -334,6 +334,7 @@ export const FRENCH: Record<string, string> = {
   "Copy the command that resumes this conversation in a terminal":
     "Copier la commande qui reprend cette conversation dans un terminal",
   Copied: "Copié",
+  "Copy the full id": "Copier l’id complet",
   "Drop to attach to your message": "Déposez pour joindre à votre message",
   "Photos, videos and documents, up to {{limit}} MB each":
     "Photos, vidéos et documents, jusqu'à {{limit}} Mo chacun",

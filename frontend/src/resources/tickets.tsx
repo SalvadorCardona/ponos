@@ -32,6 +32,7 @@ import {
   TicketSync,
   TicketTags,
   ago,
+  capital,
   lasted,
   when,
 } from "@/components/console/ticket-bits"
@@ -39,7 +40,7 @@ import { EmptyState } from "@/components/console/empty-state"
 import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip } from "@/components/console/runner-strip"
 import { CardLive } from "@/components/console/session-log"
-import { TicketHeadLinks, TicketPage } from "@/components/console/ticket-page"
+import { TicketHead, TicketPage } from "@/components/console/ticket-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api, why } from "@/lib/api"
@@ -411,7 +412,7 @@ function NoTicket() {
  * a column of thirty: the count is the column's own, drawn here, and the
  * package's is hidden (see `BoardColumn`). */
 function heading(key: string, name: string, count?: number) {
-  const said = name.charAt(0).toUpperCase() + name.slice(1)
+  const said = capital(name)
   return (
     <span className="flex items-center gap-2">
       <span className={cn("size-1.5 shrink-0 rounded-full", SEED[key] ?? "bg-muted-foreground")} />
@@ -853,10 +854,10 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     [ActionList.read]: {
       name: "Ticket",
       viewComponent: TicketPage,
-      // The layout's header, told where else the ticket is: the page has no
-      // header of its own. `top` said again, as on the list: without it the
-      // page no longer rereads the ticket the stream moves.
-      components: { top: BoardTop, actions: TicketHeadLinks },
+      // The layout's header, in the same shapes but written for a ticket: its
+      // short id, its whole title. `top` said again, as on the list: without
+      // it the page no longer rereads the ticket the stream moves.
+      components: { top: BoardTop, navigation: TicketHead },
     },
   },
 })
