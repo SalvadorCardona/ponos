@@ -478,6 +478,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   board that did not move sends nothing; only the cards that moved are drawn
   again; and a tab that missed a change, or reconnects after one, is given the
   whole board again rather than a board that drifted.
+- **No click on a card starts a paid session without asking.** Sending a ticket
+  back to Ready — which the next pass turns into a session — now asks first from
+  every column, as "run again" already did in review: on a Validated ticket the
+  dialog also says its validation is withdrawn. On Done, where almost every card
+  lives, the gesture moved behind a "…" menu instead of a button on each card.
+  On a Ready card, "hold → Blocked" is now **set aside**, whose tooltip says the
+  runner no longer touches it.
 - **The site says what Ponos is, and that Notion is optional.** Under the
   headline, one line: a harness around Claude Code that runs your tasks on your
   machine — code, writing, actions, posts. A new *What it does* section shows the
