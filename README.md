@@ -2859,6 +2859,22 @@ checkout and drives headless Chrome (`$CHROME`, or `google-chrome`) over the boa
 projects and the schedules — how long each page takes to be drawn, and the longest the
 browser is held on the way. `--throttle` slows the CPU down by that factor.
 
+The film the landing page shows under its hero is the console too, and it is
+regenerated the same way:
+
+```sh
+node scripts/film-console.mjs
+```
+
+writes the demonstration board of the screenshots, serves it from this checkout and films
+headless Chrome through one ticket — *New ticket*, *In progress* with its live line,
+*In review* with its cost, *validate* — in light and in dark, into
+`docs/media/console-loop-{light,dark}.mp4` and their posters (ffmpeg makes the videos). No
+Claude Code session runs: a stand-in holds the run lock, writes the session log and moves
+the ticket with the runner's own pieces, so the console shows what it shows of a real run.
+The script also writes, into `docs/index.html`, the second at which each of the four
+gestures begins, for the legend under the film to follow it.
+
 `.github/workflows/ci.yml` runs both suites on every pull request and on every push to
 `main`, on Python 3.11 — the oldest the runner promises — and 3.13 — the runner opens its
 own PRs, and none of them was checked before merge until this ran. A second job builds and

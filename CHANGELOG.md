@@ -453,6 +453,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   Notion* badge, served from the site, says it works with Notion. The band is a
   third of the old height.
 
+- **The site shows the real console right after its promise.** The section
+  under the hero is *The whole loop, in four gestures*, and it is a film of the
+  console itself rather than a board drawn for the page: a ticket written in
+  *New ticket*, taken by Ponos with its card saying each step live, back in
+  *In review* with what it cost, then validated. Light or dark as the page is,
+  fetched only as the section comes near, still under its poster with a play
+  button when motion is unwelcome; the four gestures under it light up as the
+  film reaches them, and on a phone the film is shown larger and follows the
+  card. `node scripts/film-console.mjs` films it again, on a demonstration
+  board, without a Claude Code session.
 - **A project's repository reads at a glance, and its brief has room.** On the
   Projects page, a card says its repository as `owner/repo` — a link to it on
   GitHub — rather than a clone URL cut after `https://github.c…`, and its
