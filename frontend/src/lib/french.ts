@@ -108,6 +108,9 @@ export const FRENCH: Record<string, string> = {
   Settings: "Réglages",
   // On a phone, the entry the bottom bar keeps the other pages behind.
   More: "Plus",
+  // A card's own menu, named apart from the bottom bar's « Plus » so a
+  // screen reader (and a test) tells the two apart.
+  "More actions": "Autres actions",
   Light: "Clair",
   Dark: "Sombre",
   "go light": "passer au clair",

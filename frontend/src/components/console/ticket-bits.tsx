@@ -354,7 +354,7 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
         <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" aria-label={t("More")} title={t("More")}>
+              <Button variant="outline" size="sm" aria-label={t("More actions")} title={t("More actions")}>
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
