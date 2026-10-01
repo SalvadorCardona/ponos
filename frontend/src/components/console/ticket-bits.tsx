@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, MoreHorizontal } from "lucide-react"
 
 import {
   AlertDialog,
@@ -13,6 +13,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useConsole } from "@/hooks/use-console"
 import { titleOf } from "@/lib/board-store"
 import { currentLanguage, t, useT } from "@/lib/i18n"
@@ -249,7 +255,8 @@ export function TicketFoot({ ticket }: { ticket: Ticket }) {
 /* A gesture that costs something once it is made — a pull request merged, a
  * paid session started — asked for twice: once on the card, once in a dialog
  * that says what is about to happen. The others are one click, because moving
- * a card back is one click too. */
+ * a card back is one click too. Without a label, it draws no button of its
+ * own: something else — an entry in a menu — opens it. */
 function Confirmed({
   label,
   title,
@@ -257,22 +264,28 @@ function Confirmed({
   confirm,
   onConfirm,
   className,
+  open,
+  onOpenChange,
 }: {
-  label: string
+  label?: string
   title: string
   body: string
   confirm: string
   onConfirm: () => void
   className?: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const t = useT()
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" className={className}>
-          {label}
-        </Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {label ? (
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm" className={className}>
+            {label}
+          </Button>
+        </AlertDialogTrigger>
+      ) : null}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -291,35 +304,67 @@ function Confirmed({
  *
  * Drawn as buttons — an outline, 32 pixels high — rather than as grey words:
  * a card's gestures are the one thing on it you act on, and they read as text
- * you could not click. Where a gesture moves the ticket, it names the column
- * it moves it to in the board's own word, and the toast that follows says the
- * same: "hold" used to drop a card into Blocked, off the screen, unsaid.
+ * you could not click. Where a gesture moves the ticket, the toast that
+ * follows names the column it lands in, in the board's own word.
+ *
+ * Every way back to Ready is confirmed, because Ready is where the next pass
+ * starts a paid session: "make ready" on a Done card used to be one stray click
+ * away from one. On Done — the column that holds almost every card — the
+ * gesture is rare, so it waits behind a "…" rather than sitting on each card.
  */
 export function TicketActions({ ticket, className }: { ticket: Ticket; className?: string }) {
   const { move, board } = useConsole()
   const t = useT()
+  const [asked, setAsked] = React.useState(false)
   // A ticket the runner has in hand is not one you move: drawing an empty row
   // for it would leave a gap on the card where the gestures would have been.
   if (ticket.column === "running") return null
   const named = (key: string) =>
     columnTitle(key, board.columns.find((column) => column.key === key)?.name)
+  const again = ticket.column === "review" || ticket.column === "done" || ticket.column === "failed"
+  const ready = {
+    title: again
+      ? t("Run “{{title}}” again?", { title: titleOf(ticket) })
+      : t("Make “{{title}}” ready?", { title: titleOf(ticket) }),
+    body: [
+      ticket.column === "validated"
+        ? t("Its validation is withdrawn: the runner will not merge or publish it.")
+        : "",
+      again
+        ? t(
+            "The ticket goes back to {{column}} and the next pass starts a new session on it — a session that is paid for, like the first one.",
+            { column: named("ready") }
+          )
+        : t(
+            "The ticket goes to {{column}} and the next pass starts a session on it — a session that is paid for.",
+            { column: named("ready") }
+          ),
+    ]
+      .filter(Boolean)
+      .join(" "),
+    confirm: again ? t("Run it again") : t("Make it ready"),
+    onConfirm: () => void move(ticket, "ready"),
+  }
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {ticket.column === "review" ? (
-        <Confirmed
-          label={t("run again")}
-          title={t("Run “{{title}}” again?", { title: titleOf(ticket) })}
-          body={t(
-            "The ticket goes back to {{column}} and the next pass starts a new session on it — a session that is paid for, like the first one.",
-            { column: named("ready") }
-          )}
-          confirm={t("Run it again")}
-          onConfirm={() => void move(ticket, "ready")}
-        />
+        <Confirmed label={t("run again")} {...ready} />
+      ) : ticket.column === "done" ? (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" aria-label={t("More")} title={t("More")}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => setAsked(true)}>{t("run again")}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Confirmed open={asked} onOpenChange={setAsked} {...ready} />
+        </>
       ) : ticket.column !== "ready" ? (
-        <Button variant="outline" size="sm" onClick={() => void move(ticket, "ready")}>
-          {t("make ready")}
-        </Button>
+        <Confirmed label={again ? t("run again") : t("make ready")} {...ready} />
       ) : null}
       {/* Validating is the gesture the runner acts on — it merges the pull
           request, or publishes what the ticket holds — where "done" only files
@@ -347,10 +392,10 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
         <Button
           variant="outline"
           size="sm"
-          title={t("The runner leaves it alone until it is made ready again.")}
+          title={t("The runner no longer touches it, until it is made ready again.")}
           onClick={() => void move(ticket, "blocked")}
         >
-          {t("hold → {{column}}", { column: named("blocked") })}
+          {t("set aside")}
         </Button>
       ) : null}
     </div>

@@ -12,7 +12,8 @@ console you run for yourself.
 One ticket is written long on purpose: a brief several screens tall, which is
 the page that stopped scrolling. One is blocked on a question a run asked, for
 the discussion its page opens on and the mark its card wears. Two projects, for the list that opens one in a
-drawer. And a check that found a newer version than this checkout, for the
+drawer. Three tickets for the gestures a card offers — one Done, one
+Validated, one Ready to be set aside and made ready again. And a check that found a newer version than this checkout, for the
 version at the top right to offer it — a commit that exists nowhere, so that a
 click on "Update now" could only ever fail.
 
@@ -42,6 +43,11 @@ TOKEN = "e2e"
 LONG = "000000000000000000000000000abcde"
 ASKING = "00000000000000000000000000000a5c"
 NEWER = "f" * 40
+GESTURES = {
+    "0000000000000000000000000000d0e0": ("A finished ticket", "Done"),
+    "0000000000000000000000000000fa11": ("A validated ticket", "Validated"),
+    "0000000000000000000000000000a51d": ("A ticket to set aside", "Ready"),
+}
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 
 
@@ -67,6 +73,11 @@ def board(root: Path) -> None:
     for number in range(1, 13):
         page = {"id": f"{number:032d}", "title": f"Ticket {number}", "Status": "Backlog"}
         (tickets / f"ticket-{number}-{page['id'][-8:]}.md").write_text(
+            files.render(page, "A short brief."), encoding="utf-8"
+        )
+    for id, (title, status) in GESTURES.items():
+        page = {"id": id, "title": title, "Status": status}
+        (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
             files.render(page, "A short brief."), encoding="utf-8"
         )
     projects = root / "projects"

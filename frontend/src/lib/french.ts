@@ -275,13 +275,20 @@ export const FRENCH: Record<string, string> = {
   "Ticket created": "Ticket créé",
   "could not move “{{title}}”": "impossible de déplacer « {{title}} »",
   "“{{title}}” moved to {{column}}": "« {{title}} » déplacé dans {{column}}",
-  "hold → {{column}}": "en attente → {{column}}",
-  "The runner leaves it alone until it is made ready again.":
-    "Le runner n'y touche plus tant qu'il n'est pas remis prêt.",
+  "set aside": "mettre de côté",
+  "The runner no longer touches it, until it is made ready again.":
+    "Le runner n'y touche plus, jusqu'à ce qu'il soit remis prêt.",
+  More: "Plus",
   "Run “{{title}}” again?": "Relancer « {{title}} » ?",
   "The ticket goes back to {{column}} and the next pass starts a new session on it — a session that is paid for, like the first one.":
     "Le ticket retourne dans {{column}} et la prochaine passe lance une nouvelle session dessus — une session payante, comme la première.",
   "Run it again": "Relancer",
+  "Make “{{title}}” ready?": "Rendre « {{title}} » prêt ?",
+  "The ticket goes to {{column}} and the next pass starts a session on it — a session that is paid for.":
+    "Le ticket passe dans {{column}} et la prochaine passe lance une session dessus — une session payante.",
+  "Its validation is withdrawn: the runner will not merge or publish it.":
+    "Sa validation est annulée : le runner ne le fusionnera ni ne le publiera.",
+  "Make it ready": "Rendre prêt",
   "Validate “{{title}}”?": "Valider « {{title}} » ?",
   "The runner merges its pull request on its next pass. A merge is not taken back from here.":
     "Le runner fusionne sa pull request à sa prochaine passe. Une fusion ne se défait pas d'ici.",
