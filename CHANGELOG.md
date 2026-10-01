@@ -470,6 +470,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A tab closed mid-request no longer fills the console's journal.** Closing
+  or reloading the console while it was answering left two Python tracebacks
+  in `journalctl` each time — the broken pipe, then the 500 the console tried
+  to write on the same closed connection — and they hid the real errors. A
+  client that has gone is now let go in silence; a route that fails still
+  answers 500 with its message.
+
 - **Tickets abandoned on a board without a Runner column come back.** The
   runner signs a ticket it claims in that column, and only put back the ones
   it had signed — so on a board without it, a ticket left *in progress* by a
