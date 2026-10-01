@@ -349,7 +349,7 @@ class Delivery(Base):
         )
         return {"ticket": ticket.title, "id": ticket.id, "status": "done", "merged": url}
 
-    def _force_merge(self, job: Job, url: str) -> str:
+    def _force_merge(self, job: Job, url: str) -> tuple[str, bool]:
         """Merge a pull request just opened, for a type whose validation is forced.
 
         What `_merge` does for a ticket you validated, minus what a pull request
@@ -363,24 +363,49 @@ class Delivery(Base):
         compared with the base, so that neither a flaky test nor a red `main`
         keeps a forced ticket out.
 
-        Returns why it was not merged, or "" once it is. A refusal is not a
-        failure of the ticket: the work is done and the pull request is open, so
-        it waits in review, where you would have found it without the option.
+        Returns why it was not merged, or "" once it is — and whether that is
+        only *not yet*. Nothing to catch up with is true when the pull request
+        opens, not when the merge is asked: with two tickets on one repository,
+        the other lands while this one waits for its CI, and the branch is behind
+        or conflicting by the time it is its turn. That refusal is about the
+        branch, not the work, and the validated column is where it is answered —
+        `_merge` replays it, hands a conflict to a session, asks again — on the
+        next pass and without holding a place here. So is CI still running when
+        the wait runs out. Behind or conflicting already, GitHub is not even
+        asked. What is left — checks red here and only here, a review or a
+        rule of the branch — is a question, and waits in review, where you would
+        have found it without the option: the work is done and the pull request
+        is open. On a board with no validated column, everything waits there.
         """
         accounts = self.config.github
+        rebase = self.config.runner.rebase
         checks, _ = self._checked(url, job.workdir, job.base)
+        later = False
         if checks == "failed":
             refusal = self.voice.say("forced-checks-red")
+        elif (
+            rebase
+            and self.validated_column()
+            and (blocker := git.merge_blocker(url, accounts))
+        ):
+            refusal, later = self.voice.say(f"forced-{blocker.lower()}"), True
         else:
             try:
                 git.merge_pull_request(url, self.config.runner.merge_method, accounts)
             except git.GitError as error:
                 refusal = voice_module.line(error)
+                behind = rebase and git.is_behind(error)
+                if checks == "pending" and not behind:
+                    refusal = f"{self.voice.say('checks-pending')} {refusal}"
+                later = (behind or checks == "pending") and self.validated_column()
             else:
                 state.forget_rebases(job.ticket.id)
-                return ""
-        self.say(f"    ! {url} not merged: {refusal}")
-        return refusal
+                return "", False
+        self.say(
+            f"    ! {url} not merged: {refusal}"
+            + (" — left validated for the next pass" if later else "")
+        )
+        return refusal, later
 
     def _checked(self, url: str, workdir: Path, base: str) -> tuple[str, str]:
         """The pull request's CI, read for what it says about *this* pull request.
