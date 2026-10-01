@@ -7037,6 +7037,65 @@ def a_write_refused_before_its_body_is_read_closes_the_connection():
 
 
 @case
+def a_client_that_hangs_up_mid_answer_leaves_no_trace():
+    """A tab closed while its board was on the way is not an error.
+
+    The journal of `ticket-runner-web.service` held 38 tracebacks by 1 October
+    2026, two per closed tab: the `BrokenPipeError` of the write, then the 500
+    the route's `except Exception` tried to send on the same dead socket.
+    """
+    import io
+    import socket as sockets
+
+    from ticket_runner.web import server as web_server
+
+    done = threading.Event()
+
+    class Handler(web_server.Handler):
+        def finish(self) -> None:
+            try:
+                super().finish()
+            finally:
+                done.set()
+
+    api = _bare_api(_TalkClient([]))
+    console = web_server.Console(("127.0.0.1", 0), Handler, api, "tok")
+    threading.Thread(target=console.serve_forever, daemon=True).start()
+    port = console.server_address[1]
+    request = (
+        b"GET /api/board HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer tok\r\n\r\n"
+    )
+    stderr, sys.stderr = sys.stderr, io.StringIO()
+    try:
+        # Far more than the socket buffers hold, so the write meets the hang-up.
+        api.board = lambda: {"tickets": ["x" * 1024] * 8192}
+        with sockets.create_connection(("127.0.0.1", port), timeout=5) as connection:
+            connection.sendall(request)
+            connection.recv(100)
+        assert done.wait(5), "the request never finished"
+        journal = sys.stderr.getvalue()
+
+        def broken():
+            raise RuntimeError("the board is upside down\nand more")
+
+        api.board = broken
+        done.clear()
+        with sockets.create_connection(("127.0.0.1", port), timeout=5) as connection:
+            connection.sendall(request.replace(b"\r\n\r\n", b"\r\nConnection: close\r\n\r\n"))
+            answer = b""
+            while chunk := connection.recv(65536):
+                answer += chunk
+    finally:
+        sys.stderr = stderr
+        console.shutdown()
+        console.server_close()
+    assert journal == "", journal
+    said = answer.decode("utf-8", "replace")
+    assert said.startswith("HTTP/1.1 500"), said[:80]
+    assert said.endswith('{"error": "the board is upside down"}'), said[-80:]
+
+
+@case
 def an_example_token_is_not_a_token_the_settings_call_set():
     """The `ntn_xxxx…` the example file ships with is where a token goes, not one."""
     assert web_settings._preview(C.PLACEHOLDER) == ""

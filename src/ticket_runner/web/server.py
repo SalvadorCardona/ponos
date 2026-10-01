@@ -35,6 +35,7 @@ import queue
 import re
 import secrets
 import socket
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -173,6 +174,13 @@ class Console(ThreadingHTTPServer):
         self.secret = secret
         self.entry = entry
 
+    def handle_error(self, request, client_address) -> None:
+        # A tab closed or reloaded mid-request is how a browser says goodbye,
+        # not an error: its traceback in the journal hid the real ones.
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "ticket-runner"
@@ -194,22 +202,28 @@ class Handler(BaseHTTPRequestHandler):
     def _send(
         self, code: int, body: bytes, kind: str, extra: dict | None = None, cache: str = "no-store"
     ) -> None:
-        self.send_response(code)
-        self.send_header("Content-Type", kind)
-        self.send_header("Content-Length", str(len(body)))
-        # Nothing here is meant to be cached, framed, sniffed or embedded —
-        # but a picture, whose address changes with it, and is kept a day.
-        self.send_header("Cache-Control", cache)
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Referrer-Policy", "no-referrer")
-        for name, value in (extra or {}).items():
-            self.send_header(name, value)
-        if self.close_connection:
-            self.send_header("Connection", "close")
-        self.end_headers()
-        if self.command != "HEAD":
-            self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(body)))
+            # Nothing here is meant to be cached, framed, sniffed or embedded —
+            # but a picture, whose address changes with it, and is kept a day.
+            self.send_header("Cache-Control", cache)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            for name, value in (extra or {}).items():
+                self.send_header(name, value)
+            if self.close_connection:
+                self.send_header("Connection", "close")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+        except ConnectionError:
+            # The client is gone — a tab closed or reloaded. Nobody is left to
+            # answer, and a 500 written on the same socket would only fail
+            # again, inside the `except` of the route that called this.
+            self.close_connection = True
 
     def _json(self, payload: dict, code: int = 200) -> None:
         self._send(code, json.dumps(payload, ensure_ascii=False).encode(), "application/json")
