@@ -444,6 +444,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **Notion takes one band on the site, not four rows.** *Your board in
+  Notion* is now a sentence and the `init` command beside a single window that
+  chains the three films — his report on the ticket, a text written into it, the
+  card dragged to *Validated* — under three steps you can click, each with its
+  line of caption. The window opens as the band comes on screen; with reduced
+  motion it waits on the board, with its play button. Notion's own *Made for
+  Notion* badge, served from the site, says it works with Notion. The band is a
+  third of the old height.
+
 - **A project's repository reads at a glance, and its brief has room.** On the
   Projects page, a card says its repository as `owner/repo` — a link to it on
   GitHub — rather than a clone URL cut after `https://github.c…`, and its
