@@ -14,6 +14,12 @@ the page that stopped scrolling. Two projects, for the list that opens one in a
 drawer. And a check that found a newer version than this checkout, for the
 version at the top right to offer it — a commit that exists nowhere, so that a
 click on "Update now" could only ever fail.
+
+And a `claude` of its own, first in the PATH, for the conversation with the
+workspace: it reads a file, runs a command that fails, and answers — or, told
+to take its time, starts a command that would run for ten minutes, for Stop to
+end. It files its session where Claude Code would, under a HOME of its own, so
+a stopped conversation is one that can be resumed.
 """
 
 from __future__ import annotations
@@ -60,6 +66,39 @@ def board(root: Path) -> None:
         )
 
 
+# The session a message to the workspace starts: what it does, said the way
+# Claude Code's stream-json says it.
+CLAUDE = """#!{python}
+import json, os, pathlib, sys, time
+
+args = sys.argv[1:]
+resumed = "--resume" in args
+session = args[args.index("--resume" if resumed else "--session-id") + 1]
+filed = pathlib.Path.home() / ".claude" / "projects" / "-e2e" / f"{{session}}.jsonl"
+filed.parent.mkdir(parents=True, exist_ok=True)
+filed.touch()
+prompt = args[-1]
+
+def say(event):
+    print(json.dumps(event), flush=True)
+    time.sleep(0.6)
+
+def use(name, **given):
+    say({{"type": "assistant", "message": {{"content": [{{"type": "tool_use", "name": name, "input": given}}]}}}})
+
+say({{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "Let me look."}}]}}}})
+use("Read", file_path="/home/me/app/src/api.py")
+use("Bash", command="python3 -m app.check")
+say({{"type": "user", "message": {{"content": [{{"type": "tool_result", "is_error": True,
+    "content": "Exit code 1\\nTraceback (most recent call last): boom"}}]}}}})
+if "slowly" in prompt:
+    use("Bash", command="sleep 600")
+    time.sleep(600)
+answer = ("Resumed, and done." if resumed else "Done.") + " The board has 13 tickets."
+say({{"type": "result", "result": answer, "session_id": session, "total_cost_usd": 0.0123, "num_turns": 3}})
+"""
+
+
 def main() -> None:
     port = sys.argv[1] if len(sys.argv) > 1 else "8790"
     here = Path(tempfile.mkdtemp(prefix="ticket-runner-e2e-"))
@@ -75,7 +114,14 @@ def main() -> None:
     stamp = here / "state" / "ticket-runner" / "update.json"
     stamp.parent.mkdir(parents=True)
     stamp.write_text(json.dumps({"checked_at": 0, "current": head, "latest": NEWER, "tag": ""}))
+    bin = here / "bin"
+    bin.mkdir()
+    (bin / "claude").write_text(CLAUDE.format(python=sys.executable), encoding="utf-8")
+    (bin / "claude").chmod(0o755)
+    (here / "home").mkdir()
     os.environ.update(
+        PATH=f"{bin}{os.pathsep}{os.environ.get('PATH', '')}",
+        HOME=str(here / "home"),
         TICKET_RUNNER_CONFIG=str(config),
         XDG_STATE_HOME=str(here / "state"),
         PYTHONPATH=str(ROOT / "src"),

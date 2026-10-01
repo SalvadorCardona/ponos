@@ -186,6 +186,7 @@ export const api = {
       audio
     ),
   resetChat: () => request<unknown>("/api/chat/reset", {}),
+  stopChat: () => request<unknown>("/api/chat/stop", {}),
   saveSettings: (payload: {
     settings: Record<string, SettingValue>
     projects?: Pair[]

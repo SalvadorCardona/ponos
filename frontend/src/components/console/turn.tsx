@@ -14,6 +14,7 @@ const WHO: Record<Role, string> = {
   workspace: "workspace",
   error: "problem",
   command: "command",
+  stopped: "stopped by you",
 }
 
 /** The surface a turn is said on, in shadcn's own palette. */
@@ -22,6 +23,7 @@ const SURFACE: Record<Role, "tinted" | "outline" | "destructive"> = {
   workspace: "outline",
   error: "destructive",
   command: "outline",
+  stopped: "outline",
 }
 
 /* One thing that was said, by you or by the other side.

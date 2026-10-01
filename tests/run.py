@@ -5940,6 +5940,122 @@ def a_new_conversation_takes_its_files_with_it():
 
 
 @case
+def a_stopped_session_takes_what_it_had_started_with_it():
+    """Stop ends the CLI *and* the command it was running: nothing runs after it."""
+    with tempfile.TemporaryDirectory() as directory:
+        home = Path(directory)
+        ticks = home / "ticks"
+        (home / "claude").write_text(
+            "#!" + sys.executable + "\n"
+            "import json, subprocess, sys, time\n"
+            "print(json.dumps({'type': 'assistant', 'message': {'content': ["
+            "{'type': 'text', 'text': 'Looking.'}]}}), flush=True)\n"
+            # A long command, the way a session runs one: a child that writes.
+            f"subprocess.Popen(['/bin/sh', '-c', 'while true; do echo x >> {ticks}; sleep 0.05; done'])\n"
+            "time.sleep(60)\n"
+        )
+        (home / "claude").chmod(0o755)
+        previous = os.environ["PATH"]
+        os.environ["PATH"] = f"{home}{os.pathsep}{previous}"
+        stop = threading.Event()
+        try:
+            def press() -> None:
+                while not ticks.exists():
+                    time.sleep(0.02)
+                stop.set()
+
+            threading.Thread(target=press, daemon=True).start()
+            began = time.monotonic()
+            outcome = session.run(
+                "look", cwd=home, log=home / "stopped.jsonl", timeout_minutes=1, stop=stop
+            )
+        finally:
+            os.environ["PATH"] = previous
+        assert time.monotonic() - began < 10, "stopped, not timed out"
+        assert outcome.stopped and not outcome.ok and not outcome.blocked
+        assert outcome.answer == "Looking.", "what it had said is kept"
+        size = ticks.stat().st_size
+        time.sleep(0.3)
+        assert ticks.stat().st_size == size, "the command it had started still runs"
+
+
+def _halting(chat, exists: bool = True):
+    """The `_chat` session, made to wait for Stop and say what it had done."""
+    calls: list[dict] = []
+
+    def run(prompt, **rest):
+        calls.append(rest)
+        chat.prompts.append(prompt)
+        if rest["stop"].wait(5):
+            return session.Outcome(
+                False, False, rest["session_id"], "", Path("/dev/null"),
+                answer="halfway", error="stopped", stopped=True,
+            )
+        return session.Outcome(True, False, rest["session_id"], "", Path("/dev/null"), answer="done")
+
+    session.run = run
+    session.exists = lambda identifier: exists
+    return calls
+
+
+def _settled(chat) -> None:
+    for _ in range(300):
+        if not chat.busy:
+            return
+        time.sleep(0.01)
+    raise AssertionError("the turn never ended")
+
+
+@case
+def a_stopped_turn_is_kept_and_the_conversation_carries_on():
+    original = session.exists
+    try:
+        with _chat() as chat:
+            calls = _halting(chat)
+            assert chat.stop()["busy"] is False, "nothing to stop is not an error"
+            chat.send("rewrite everything")
+            identifier = chat.session_id
+            chat.stop()
+            chat.stop()  # the double click
+            _settled(chat)
+            stages = [said["stage"] for kind, said in chat.events if kind == "chat"]
+            assert stages.count("stopping") == 1, stages
+            assert stages[-1] == "stopped"
+            assert chat.history()[-1] == {**chat.history()[-1], "role": "stopped", "text": "halfway"}
+            assert chat.session_id == identifier and chat.turns == 1
+            chat.send("only the README, then")
+            chat.stop()
+            _settled(chat)
+            assert calls[-1]["resume"] is True and calls[-1]["session_id"] == identifier
+            # Read back from the disk, a stopped turn with nothing said stays.
+            chat.messages.append(web_console.Message("stopped", ""))
+            chat._save()
+            again = web_console.Chat(chat.config, lambda *a, **k: None)
+            assert [message.role for message in again.messages][-1] == "stopped"
+    finally:
+        session.exists = original
+
+
+@case
+def a_first_turn_stopped_before_it_was_filed_starts_afresh():
+    original = session.exists
+    try:
+        with _chat() as chat:
+            calls = _halting(chat, exists=False)
+            chat.send("hello")
+            chat.stop()
+            _settled(chat)
+            assert chat.session_id == "", "nothing to resume"
+            chat.send("hello again")
+            chat.stop()
+            _settled(chat)
+            assert calls[-1]["resume"] is False, "a fresh session, not a stranger resumed"
+            assert chat.prompts[-1] != "hello again", "with the brief, as a first turn is"
+    finally:
+        session.exists = original
+
+
+@case
 def files_nobody_closed_the_conversation_on_go_after_their_days():
     with _state_home():
         root = web_console.attachments_dir()

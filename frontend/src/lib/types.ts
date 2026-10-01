@@ -174,6 +174,8 @@ export interface ChatState {
   session_id: string
   turns: number
   resume_command: string
+  /** Stop was pressed and the turn in flight has not ended yet. */
+  stopping?: boolean
   /** What a message may carry: the extensions the server keeps, and how heavy. */
   attachments?: { max_mb: number; accepted: string[]; ffmpeg: boolean }
   /** Whether the microphone can be offered, and why not when it cannot. */
@@ -255,7 +257,8 @@ export interface Step {
   said?: boolean
 }
 
-export type Role = "you" | "workspace" | "error" | "command"
+/** `stopped`: a turn of the workspace you ended, and what it had said by then. */
+export type Role = "you" | "workspace" | "error" | "command" | "stopped"
 
 export interface Message {
   role: Role
@@ -300,6 +303,8 @@ export type ChatEvent =
   | { stage: "reset" }
   | { stage: "sent"; text: string; attachments?: Attached[]; session_id: string }
   | ({ stage: "step" } & Step)
+  | { stage: "stopping" }
+  | { stage: "stopped"; text: string; seconds?: number; session_id?: string }
   | {
       stage: "answer" | "failed"
       text: string

@@ -1814,9 +1814,26 @@ The line under the drawer's title says how many turns it has had and copies that
 when clicked. *New conversation* — the pen at the top of the drawer — starts a fresh one;
 the old one stays resumable by its identifier.
 
+**While it answers**, the conversation shows Ponos thinking — the flame swaying, the eyes
+searching — and one line about what the session is on, said in words rather than in tool
+names (*reading api.py…*, *running the tests…*, *fixing an error…*), with the time spent.
+Under `prefers-reduced-motion` Ponos holds still and the line says it all. The steps
+themselves — every Bash, every Traceback — are folded under *Show the steps*, closed by
+default, during the turn and after it: once answered, the fold's line says how many steps,
+how long and what it cost, and a red dot counts the ones that failed, without opening it.
+
+**Stop.** While a turn runs, the arrow of the bar becomes a square: a click — or Escape,
+from an empty field — ends the session's whole process group, the command it was running
+included, so nothing it started carries on. The conversation says *stopped by you*, keeps
+what had been said and the folded steps, and puts you back in the field: the next message
+resumes the same session, which remembers what it was doing. A second click, or a turn
+that ends at the very moment you press, changes nothing — the answer that had arrived is
+kept. (A first turn stopped before Claude Code wrote anything leaves nothing to resume; the
+next message starts the session afresh.)
+
 **The message bar** is one rounded block with everything it can carry inside it: the files
 above the words, a **+** on its lower left, and on its right the microphone and a round
-arrow that sends — greyed while there is nothing to send, turning into a spinner while the
+arrow that sends — greyed while there is nothing to send, turning into *Stop* while the
 workspace answers. The field grows with what you write, up to about eight lines. Typing
 `>` switches it to the command gesture: the text goes monospace, a small *command* label
 appears, and a menu above the bar offers the verbs above as you type (arrows, then Tab or

@@ -26,6 +26,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   the focus back to where it was when it closes. Both work from inside a field;
   a magnifying glass in the bar opens the palette for the mouse, and its tooltip
   and the bubble's say the keys.
+- **Ponos thinks, the steps fold, and a turn can be stopped.** In the console's
+  conversation with the workspace, a turn in flight shows Ponos thinking and one line
+  about what the session is on — *reading api.py…*, *running the tests…*, *fixing an
+  error…* — with the time spent, still under `prefers-reduced-motion`. The Bash lines and
+  the Tracebacks no longer fill the conversation: they are folded under *Show the steps*,
+  closed by default, whose line keeps the count, the time, the cost and a red dot for the
+  steps that failed. While it answers, the arrow of the bar becomes *Stop* (or Escape from
+  an empty field): the session and every command it started are ended, the conversation
+  says *stopped by you* with what had been done, and the next message carries on in the
+  same session.
 - **Force validated, one type of ticket at a time.** Four boxes in *Settings ›
   Automatic validation* — Code, Writing, External action, Publication — or
   `force_validated_<type> = true` under `[runner]`, all off by default. Ticked,
