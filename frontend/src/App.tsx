@@ -22,6 +22,7 @@ import { useLanguage, useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 import { consoleRouter, useRoute } from "@/lib/router"
 import { consoleScope, scopes } from "@/resources/scope"
+import { SETTINGS, settingsHref } from "@/resources/settings"
 import { TICKETS, boardHref } from "@/resources/tickets"
 
 /* The shape of the page.
@@ -55,6 +56,10 @@ function Page({ params }: { params: ViewResourceContextParams }) {
   // `/?view=console/live/list` among them, now that sessions are read on their
   // tickets.
   if (!resource) return <Navigate to={boardHref()} replace />
+  // The settings are one file, so they have no list: the package still links
+  // to one — the breadcrumb in the bar does — and a list asked for is the file.
+  if (resourceId === SETTINGS && action === ActionList.list)
+    return <Navigate to={settingsHref()} replace />
   return (
     // The language is part of the key: what the package draws — the view's
     // name, a column header, the words on a form — it reads from the

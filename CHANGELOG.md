@@ -646,6 +646,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   drawn as a table, with its head, and scrolls sideways when it is wider than
   the screen; a bold or an italic may hold a bit of code or a link without its
   asterisks showing. In a ticket's brief and in the workspace's chat alike.
+- **The way back to the settings leads to the settings.** "Settings" in the
+  bar's breadcrumb, and an address such as `/?view=console/settings` typed by
+  hand, opened a page that said "Something went wrong" and nothing else; they
+  now open the settings. The top of the page says what it is once — no more
+  "← Settings", a second title and "#config" over "Configure the runner."
 - **Tickets abandoned on a board without a Runner column come back.** The
   runner signs a ticket it claims in that column, and only put back the ones
   it had signed — so on a board without it, a ticket left *in progress* by a
