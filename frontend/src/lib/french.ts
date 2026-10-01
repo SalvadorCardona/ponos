@@ -775,6 +775,22 @@ export const FRENCH: Record<string, string> = {
   "Keep session logs (days)": "Garder les journaux de session (jours)",
   "How long each session's log stays on this machine. 0 keeps them forever.":
     "Combien de temps le journal de chaque session reste sur cette machine. 0 les garde pour toujours.",
+  "Clean up after done tickets": "Faire le ménage après les tickets terminés",
+  "Disk space: {{total}}": "Place sur le disque : {{total}}",
+  "worktrees {{worktrees}} · logs {{logs}} · scratch {{scratch}}":
+    "worktrees {{worktrees}} · journaux {{logs}} · scratch {{scratch}}",
+  "Nothing is tidied on its own: logs are kept forever.":
+    "Rien n'est nettoyé tout seul : les journaux sont gardés pour toujours.",
+  "Tidied once a day: logs, and done tickets’ folders, older than {{days}} day(s).":
+    "Nettoyé une fois par jour : journaux et dossiers des tickets terminés de plus de {{days}} jour(s).",
+  "Logs older than {{days}} day(s) are dropped once a day.":
+    "Les journaux de plus de {{days}} jour(s) sont supprimés une fois par jour.",
+  "Clean up": "Faire le ménage",
+  "Cleaning up…": "Ménage en cours…",
+  "{{removed}} folder(s) and {{logs}} log(s) removed, {{freed}} freed.":
+    "{{removed}} dossier(s) et {{logs}} journal(aux) supprimés, {{freed}} libérés.",
+  "Once a day, delete the working copies of tickets done for as many days as the logs are kept. A blocked or in-review ticket keeps its own.":
+    "Une fois par jour, supprimer les copies de travail des tickets terminés depuis autant de jours que les journaux sont gardés. Un ticket bloqué ou en relecture garde la sienne.",
 
   "Models and usage": "Modèles et consommation",
   "Which Claude model works the tickets, and how much of your subscription the runner may spend.":

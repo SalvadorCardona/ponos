@@ -17,6 +17,7 @@ import {
   MessageSquareText,
   NotebookText,
   RefreshCw,
+  Trash2,
   Settings2,
   Shapes,
   TableProperties,
@@ -42,6 +43,7 @@ import {
 } from "@/components/console/settings-bits"
 import { Rich } from "@/components/console/text"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
@@ -53,7 +55,7 @@ import {
   somethingIsEdited,
   useSettingsRevision,
 } from "@/lib/settings-store"
-import type { SettingSection, Settings } from "@/lib/types"
+import type { Disk, SettingSection, Settings } from "@/lib/types"
 
 import { pairResources, type PairTable } from "./pairs"
 
@@ -247,6 +249,98 @@ function tabs(): SubViewResourceInterface[] {
 
 /* -- the page itself ------------------------------------------------------- */
 
+/** A size the way the runner's `doctor` says it: 25 GB, 764 MB, 12 kB. */
+function bytes(size: number): string {
+  const units = ["B", "kB", "MB", "GB"]
+  let unit = 0
+  while (size >= 1000 && unit < units.length - 1) {
+    size /= 1000
+    unit += 1
+  }
+  return `${unit === 0 || size >= 10 ? Math.round(size) : size.toFixed(1)} ${units[unit]}`
+}
+
+/* The room the runner takes, and the button that applies its retention now.
+ *
+ * Above the tabs because it is no one section's: the retention is two keys of
+ * "Running tickets", but what fills the disk is every ticket. A run tidies once
+ * a day on its own — the button is for the day you would rather not wait. */
+function DiskLine() {
+  const t = useT()
+  const [disk, setDisk] = React.useState<Disk | null>(null)
+  const [cleaning, setCleaning] = React.useState(false)
+  const [said, setSaid] = React.useState<{ text: string; bad: boolean } | null>(null)
+
+  React.useEffect(() => {
+    let live = true
+    api.disk().then(
+      (read) => live && setDisk(read),
+      () => undefined
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+
+  if (!disk) return null
+
+  const clean = async () => {
+    setCleaning(true)
+    setSaid(null)
+    try {
+      const done = await api.clean()
+      setDisk(done)
+      setSaid({
+        text: t("{{removed}} folder(s) and {{logs}} log(s) removed, {{freed}} freed.", {
+          removed: String(done.removed),
+          logs: String(done.logs),
+          freed: bytes(done.freed),
+        }),
+        bad: false,
+      })
+    } catch (error) {
+      setSaid({ text: error instanceof Error ? error.message : String(error), bad: true })
+    } finally {
+      setCleaning(false)
+    }
+  }
+
+  const rule =
+    disk.retention_days <= 0
+      ? t("Nothing is tidied on its own: logs are kept forever.")
+      : disk.clean_done_worktrees
+        ? t("Tidied once a day: logs, and done tickets’ folders, older than {{days}} day(s).", {
+            days: String(disk.retention_days),
+          })
+        : t("Logs older than {{days}} day(s) are dropped once a day.", {
+            days: String(disk.retention_days),
+          })
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" data-testid="disk">
+      <span>
+        <span className="font-medium">{t("Disk space: {{total}}", { total: bytes(disk.total) })}</span>
+        <span className="text-muted-foreground">
+          {" — "}
+          {t("worktrees {{worktrees}} · logs {{logs}} · scratch {{scratch}}", {
+            worktrees: bytes(disk.sizes.worktrees),
+            logs: bytes(disk.sizes.logs),
+            scratch: bytes(disk.sizes.scratch),
+          })}
+        </span>
+      </span>
+      <span className="text-muted-foreground">{rule}</span>
+      <Button size="xs" variant="outline" onClick={() => void clean()} disabled={cleaning}>
+        <Trash2 />
+        {cleaning ? t("Cleaning up…") : t("Clean up")}
+      </Button>
+      {said ? (
+        <span className={said.bad ? "text-destructive" : "text-muted-foreground"}>{said.text}</span>
+      ) : null}
+    </div>
+  )
+}
+
 /* What sits above the tabs: where you are, what the page is for, which file it
  * is writing, and whatever `doctor` would refuse to start over. */
 function SettingsHead() {
@@ -280,6 +374,7 @@ function SettingsHead() {
         )}
         action={<span className="text-muted-foreground font-mono text-xs break-all">{drawn.path}</span>}
       />
+      <DiskLine />
       {drawn.problem ? (
         <Alert variant="destructive" className="mb-3">
           <AlertDescription>{drawn.problem}</AlertDescription>

@@ -387,6 +387,23 @@ export interface Settings {
   github: Pair[]
 }
 
+/** The room the runner takes on this machine — see cleanup.py. */
+export interface Disk {
+  sizes: { worktrees: number; logs: number; scratch: number }
+  total: number
+  measured_at: string
+  tidied_at: string
+  retention_days: number
+  clean_done_worktrees: boolean
+}
+
+/** What a tidy asked from the console removed, and the room left after it. */
+export interface Cleaned extends Disk {
+  removed: number
+  logs: number
+  freed: number
+}
+
 export interface Saved {
   saved: string[]
   after: string[]

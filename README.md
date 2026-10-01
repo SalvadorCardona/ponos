@@ -403,7 +403,8 @@ for reading rather than for filling in.
 | `runner.auto_update` | `true` | a run keeps the installation on the latest version |
 | `runner.update_channel` | `"release"` | what "latest" means: the newest `vX.Y.Z` tag, or `"main"` for every commit. No tag, no update; anything unknown reads as `"release"` |
 | `runner.update_interval_seconds` | `3600` | how often a run asks; one minute is the floor |
-| `runner.log_retention_days` | `14` | drop older session logs; `0` keeps everything |
+| `runner.log_retention_days` | `14` | drop older session logs, once a day; `0` keeps everything |
+| `runner.clean_done_worktrees` | `true` | once a day, also remove the worktrees and scratch directories of tickets done for `log_retention_days` — see [What `clean` removes](#what-clean-removes-and-what-it-refuses-to) |
 | `runner.attach_sessions` | `true` | file each session under its project, so `claude --resume` there lists it |
 | `runner.prompt_file` | `""` | your own prompt template, for repository tickets |
 | `runner.document_prompt_file` | `""` | the same, for tickets with no repository |
@@ -2348,6 +2349,17 @@ a directory counts as a worktree when it carries git's `.git` *file* and the rep
 that file names lists it among its worktrees. Anything else — a scratch directory, a clone
 a session made inside one — is removed as a directory, and git is never asked from inside
 it, where it would have climbed to whatever repository the state directory sits in.
+
+Nobody has to remember it, though. Once a day a run tidies on its own — the
+retention is `log_retention_days`: session logs older than that, and, with
+`clean_done_worktrees` on, the worktrees and scratch directories of tickets the
+board says have been **done** for that long, plus the scratch directories of
+tickets no longer on the board. A ticket in progress, blocked, failed or in
+review keeps its directory however old it is; a done ticket's worktree with
+uncommitted changes is kept and named; branches are never touched. The
+settings page of the console shows the space the three directories take, with
+a **Clean up** button that applies the same retention straight away, and
+`ticket-runner doctor` says both.
 
 ---
 

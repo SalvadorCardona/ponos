@@ -1,6 +1,8 @@
 import type {
   Attached,
   Board,
+  Cleaned,
+  Disk,
   LogEntry,
   ChatState,
   Context,
@@ -207,6 +209,8 @@ export const api = {
   createSchedule: (values: Record<string, unknown>) =>
     request<{ id: string; name: string }>("/api/schedules", values),
   refresh: () => request<unknown>("/api/refresh", {}),
+  disk: () => request<Disk>("/api/disk"),
+  clean: () => request<Cleaned>("/api/disk/clean", {}),
   /* Nothing in the body: which version, and how it is installed, is the
    * server's to know. */
   upgrade: () => request<UpgradeProgress>("/api/update", {}),

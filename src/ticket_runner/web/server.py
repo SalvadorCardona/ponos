@@ -414,6 +414,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.schedule(match.group(1)))
             if route == "/api/history":
                 return self._json(self.api.history())
+            if route == "/api/disk":
+                return self._json(self.api.disk())
             if route == "/api/statistics":
                 try:
                     figures = self.api.statistics(
@@ -547,6 +549,8 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if match := re.fullmatch(r"/api/schedules/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.save_schedule(match.group(1), payload))
+            if route == "/api/disk/clean":
+                return self._json(self.api.clean())
             if route == "/api/refresh":
                 self.api.resynchronise()
                 return self._json({"ok": True})

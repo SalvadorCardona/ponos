@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config as config_module
-from .. import conversation, credits, images, session, state, store, sync, systemd, voice
+from .. import cleanup, conversation, credits, images, session, state, store, sync, systemd, voice
 from .. import schedules as schedules_module
 from .. import update as update_module
 from ..config import Config
@@ -51,6 +51,11 @@ SCHEMA_TTL = 600
 # opening a ticket read it again every time. Enough for every ticket somebody
 # opens in a day; the oldest goes first.
 BRIEFS = 200
+
+# Measuring the state directory walks every file of every worktree — 25 GB of
+# them on the day the console started showing it. Once in a while is plenty: it
+# grows by the ticket, not by the second.
+DISK_TTL = 600
 
 # The columns, in the order they are meant to be read. Anything the board
 # carries that is none of them lands in "other" rather than being hidden. The
@@ -780,6 +785,42 @@ class Api:
         first, last = statistics.period(start, end, datetime.now().date())
         tickets = self.board()["tickets"]
         return statistics.figures(tickets, state.history(1_000_000), first, last)
+
+    def disk(self, *, fresh: bool = False) -> dict:
+        """The room the runner takes on this machine, and what keeps it in check."""
+        held = getattr(self, "_disk", None)
+        if fresh or held is None or time.time() - held[0] > DISK_TTL:
+            held = (time.time(), cleanup.sizes())
+            self._disk = held
+        measured, sizes = held
+        settings = self.config.runner
+        return {
+            "sizes": sizes,
+            "total": sum(sizes.values()),
+            "measured_at": datetime.fromtimestamp(measured, timezone.utc).isoformat(),
+            "tidied_at": (
+                datetime.fromtimestamp(cleanup.tidied_at(), timezone.utc).isoformat()
+                if cleanup.tidied_at()
+                else ""
+            ),
+            "retention_days": settings.log_retention_days,
+            "clean_done_worktrees": settings.clean_done_worktrees,
+        }
+
+    def clean(self) -> dict:
+        """The daily tidy, now. Under the run lock, or refused while a run holds
+        it — the worktrees a session stands in are the ones it would weigh."""
+        try:
+            with state.lock():
+                tidied = self.runner.tidy(now=True)
+        except state.Busy as error:
+            raise RuntimeError("a run is in progress — try again once it has finished") from error
+        return {
+            "removed": len(tidied.removed) if tidied else 0,
+            "logs": tidied.logs if tidied else 0,
+            "freed": tidied.freed if tidied else 0,
+            **self.disk(fresh=True),
+        }
 
     def history(self, limit: int = 30) -> dict:
         return {"entries": list(reversed(state.history(limit)))}
