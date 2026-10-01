@@ -549,6 +549,7 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **The e2e of a ticket's discussion no longer fails when it runs while the gestures e2e has a ticket set aside**: it looks for the mark on the card of the ticket that asked a question, instead of counting every Blocked card on the shared board.
 - **The console's browser tests pass again, in parallel, and two at a time.**
   For anyone changing the console: `npm run test:e2e` gives the chat tests a
   server of their own, so a turn they leave running no longer meets the
