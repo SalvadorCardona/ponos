@@ -85,7 +85,7 @@ export interface ProjectWrite {
 const FILE = "config:"
 
 /** How a row is addressed: its page, or its name where there is no page. */
-const idOf = (project: Project): string => project.id || `${FILE}${project.name}`
+export const idOf = (project: Project): string => project.id || `${FILE}${project.name}`
 
 /** Whether that address is a page — the only kind this console writes to. */
 export const isAPage = (id: string): boolean => Boolean(id) && !id.startsWith(FILE)

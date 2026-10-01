@@ -18,6 +18,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Keyboard shortcuts in the console.** **Ctrl+K** (⌘K on a Mac) opens a
+  command palette from any page: the pages, the projects, the tickets on the
+  board, and three actions — a new ticket, the console, a resynchronisation —
+  found by typing and opened with Enter; Escape closes it. **Ctrl+J** (⌘J) opens
+  and closes the console, with the cursor already in its message bar, and hands
+  the focus back to where it was when it closes. Both work from inside a field;
+  a magnifying glass in the bar opens the palette for the mouse, and its tooltip
+  and the bubble's say the keys.
 - **Force validated, one type of ticket at a time.** Four boxes in *Settings ›
   Force validated* — Code, Writing, External action, Publication — or
   `force_validated_<type> = true` under `[runner]`, all off by default. Ticked,

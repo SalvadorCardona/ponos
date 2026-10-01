@@ -1,10 +1,11 @@
 import * as React from "react"
-import { Moon, RefreshCw, Sun } from "lucide-react"
+import { Moon, RefreshCw, Search, Sun } from "lucide-react"
 import { Link, type MenuItemInterface } from "react-resource-view"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useConsole, useStatus, useSync } from "@/hooks/use-console"
+import { hotkeyLabel } from "@/hooks/use-hotkeys"
 import { useRunnerMood } from "@/hooks/use-mood"
 import { useTheme } from "@/hooks/use-theme"
 import { useT } from "@/lib/i18n"
@@ -12,6 +13,7 @@ import { useRoute } from "@/lib/router"
 import { cn } from "@/lib/utils"
 import { TICKETS } from "@/resources/tickets"
 
+import { openPalette } from "./command-palette"
 import { Robot } from "./robot"
 import { VersionBadge } from "./version-badge"
 
@@ -172,6 +174,7 @@ export function TopBarEnd() {
   const { connection } = useStatus()
   const { theme, toggle } = useTheme()
   const t = useT()
+  const palette = hotkeyLabel("palette")
 
   return (
     <>
@@ -206,6 +209,22 @@ export function TopBarEnd() {
       <VersionBadge />
 
       <SyncLine />
+
+      {/* The palette's way in for a mouse, and where its shortcut is learnt. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={openPalette}
+            aria-label={t("Search")}
+            aria-keyshortcuts={palette.aria}
+          >
+            <Search />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{`${t("search a page, a project, a ticket")} · ${palette.label}`}</TooltipContent>
+      </Tooltip>
 
       <Tooltip>
         <TooltipTrigger asChild>
