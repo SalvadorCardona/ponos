@@ -11,7 +11,7 @@ import { expect, test } from "@playwright/test"
 test.use({ viewport: { width: 1440, height: 900 } })
 
 test("a newer version turns the version into a button that asks before updating", async ({ page }) => {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: "http://127.0.0.1:8790" }])
+  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto("/")
 
   const badge = page.getByRole("button", { name: /→ ffffffff, click to update/ })

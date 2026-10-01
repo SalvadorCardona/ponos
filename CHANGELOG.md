@@ -499,6 +499,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **The console's browser tests pass again, in parallel, and two at a time.**
+  For anyone changing the console: `npm run test:e2e` gives the chat tests a
+  server of their own, so a turn they leave running no longer meets the
+  shortcut tests' Escape, and both servers take free ports
+  (`TICKET_RUNNER_E2E_PORT` pins them) — two worktrees no longer fight over
+  8790. CI also runs them when only the console's server changed.
 - **A session no longer kills itself with `pkill -f`.** The prompt went on
   `claude`'s command line, and it holds the ticket's page — the last run's
   trace included. A ticket that quoted `vite --port 5199` had its session run

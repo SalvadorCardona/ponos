@@ -9,8 +9,11 @@
 # runner promet (3.11) et sur la plus récente, parce qu'une installation prend
 # le `python3` de la machine, quel qu'il soit.
 #
-# Le job frontend ne tourne que si `frontend/**` a changé, pour ne pas payer npm
-# sur des tickets qui n'y touchent pas. Et il vérifie que `web/static/`, que le
+# Le job frontend ne tourne que si `frontend/**` (ses tests e2e compris) ou
+# `src/ticket_runner/web/**` a changé, pour ne pas payer npm sur des tickets qui
+# n'y touchent pas : le serveur de la console fait partie de ce que les tests
+# e2e ouvrent — le chat, par exemple, c'est d'abord son API —, et un main dont
+# seul le Python de la console a bougé restait vert sans avoir lancé ses e2e. Et il vérifie que `web/static/`, que le
 # runner sert tel qu'il est commité, est bien ce que le build produit : une
 # console modifiée sans son build commité serait une console que personne ne
 # reçoit. Le même build copie les jetons de la console dans `docs/tokens.css`,
@@ -65,6 +68,7 @@ jobs:
           filters: |
             frontend:
               - 'frontend/**'
+              - 'src/ticket_runner/web/**'
 
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.frontend == 'true'

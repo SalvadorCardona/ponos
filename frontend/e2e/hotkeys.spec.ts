@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test"
  */
 
 async function open(page: Page, path = "/") {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: "http://127.0.0.1:8790" }])
+  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto(path)
   await expect(page.getByText("A long ticket").filter({ visible: true }).first()).toBeVisible()
 }
