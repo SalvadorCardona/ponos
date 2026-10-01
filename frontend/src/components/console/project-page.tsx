@@ -3,7 +3,7 @@ import { Link, ResourceViewButton, useCurrentViewResourceContext } from "react-r
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/lib/i18n"
-import { isAPage, useTicketCount, whyNotRead, type ProjectItem } from "@/resources/projects"
+import { Repository, Where, isAPage, useTicketCount, whyNotRead, type ProjectItem } from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
@@ -69,14 +69,10 @@ export function ProjectPage() {
 
           <Facts className="mt-4 first:mt-0">
             <Fact label={t("repository")}>
-              <span className="font-mono text-xs" title={project.repository || undefined}>
-                {project.repository || "—"}
-              </span>
+              <Repository declared={project.repository} />
             </Fact>
             <Fact label={t("on this machine")}>
-              <span className="font-mono text-xs" title={project.where || undefined}>
-                {project.where || t("wherever the clone is")}
-              </span>
+              <Where path={project.where} />
             </Fact>
           </Facts>
 

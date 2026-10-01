@@ -406,6 +406,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A project's repository reads at a glance, and its brief has room.** On the
+  Projects page, a card says its repository as `owner/repo` — a link to it on
+  GitHub — rather than a clone URL cut after `https://github.c…`, and its
+  folder by its last two parts (`…/workspace/opoil`), whole in the tooltip; the
+  two facts sit one under the other so they line up. The table and a project's
+  page say the repository the same way. The count at the top reads "14 of 17
+  projects have a repository". The drawer a project opens in is 640px wide
+  instead of 384px (still the whole screen on a phone), its first line wraps
+  before the close button, and the example in "Where it is" is translated.
 - **The site says what Ponos is, and that Notion is optional.** Under the
   headline, one line: a harness around Claude Code that runs your tasks on your
   machine — code, writing, actions, posts. A new *What it does* section shows the
