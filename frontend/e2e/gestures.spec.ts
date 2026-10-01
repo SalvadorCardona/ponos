@@ -11,7 +11,7 @@ import { expect, test, type Page } from "@playwright/test"
 const page_of = (id: string) => `/?view=console/tickets/read/${id}`
 
 async function open(page: Page, id: string, title: string) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: "http://127.0.0.1:8790" }])
+  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto(page_of(id))
   await expect(page.getByRole("heading", { name: title }).first()).toBeVisible()
 }
