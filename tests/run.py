@@ -7107,6 +7107,27 @@ def a_session_is_running_until_its_log_says_its_last_word():
 
 
 @case
+def how_long_a_session_took_is_read_from_its_log_where_the_board_has_no_column():
+    """The `result` line carries the duration; a run still writing does not count."""
+    finished = json.dumps({"type": "result", "result": "done", "duration_ms": 540_000}) + "\n"
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        assert web_live.lasted("1a2b3c4d", folder) is None, "no log, no duration"
+        (folder / "20260830-110000-1a2b3c4d.jsonl").write_text(
+            _session_line() + finished, encoding="utf-8"
+        )
+        (folder / "20260830-120000-1a2b3c4d.jsonl").write_text(_session_line(), encoding="utf-8")
+        (folder / "20260830-130000-1a2b3c4d-talk.jsonl").write_text(
+            _session_line() + json.dumps({"type": "result", "duration_ms": 60_000}) + "\n",
+            encoding="utf-8",
+        )
+        assert web_live.lasted("1a2b3c4d", folder) == 9.0, (
+            "the newest finished session of the ticket — not a run in progress, not a reply"
+        )
+        assert web_live.lasted("9f8e7d6c", folder) is None
+
+
+@case
 def the_sessions_running_are_announced_when_they_change_and_kept_for_the_next_tab():
     hub = web_live.Hub()
     with tempfile.TemporaryDirectory() as directory:

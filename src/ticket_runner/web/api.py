@@ -293,6 +293,11 @@ class Api:
             self.outbox.marks().get(page_id.replace("-", "")),
             lambda status: names.get(status, "other"),
         )
+        # A board without the duration column still ran the session: its log
+        # says how long. Only here, where one ticket is read — on the board it
+        # would be a log opened per card.
+        if not card.get("duration"):
+            card["duration"] = live.lasted(card["short"]) or card.get("duration")
         return {**card, "content": content}
 
     def attachment(self, block_id: str) -> str:

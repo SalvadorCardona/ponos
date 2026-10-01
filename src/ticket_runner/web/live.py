@@ -243,6 +243,29 @@ def answered(path: Path) -> bool:
         return re.search(rb'^\s*\{\s*"type"\s*:\s*"result"', last[:256]) is not None
 
 
+def lasted(ticket: str, directory: Path | None = None) -> float | None:
+    """How long a ticket's last finished session took, in minutes — or None.
+
+    The board says it where it has a duration column, and most boards made by
+    hand have none: 475 tickets on one of them, not one duration, while every
+    session's log ends on a `result` line that carries it. Read from the newest
+    log that has said its last word, so a run in progress shows the one before.
+    """
+    directory = directory or state.logs_dir()
+    for path in sorted(directory.glob(f"*-{ticket}.jsonl"), reverse=True):
+        try:
+            with path.open("rb") as handle:
+                event = json.loads(_last_line(handle))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(event, dict) or event.get("type") != "result":
+            continue
+        milliseconds = event.get("duration_ms")
+        if isinstance(milliseconds, (int, float)) and milliseconds > 0:
+            return round(milliseconds / 60_000, 1)
+    return None
+
+
 def _last_line(handle: BinaryIO) -> bytes:
     """The last line of a file, read backwards a block at a time.
 
