@@ -226,6 +226,17 @@ export const FRENCH: Record<string, string> = {
     "Un projet avec un dépôt donne une pull request ; aucun projet donne un document.",
   "Off, and the ticket is a draft the runner leaves alone.":
     "Décoché, le ticket est un brouillon auquel le runner ne touche pas.",
+  "Ticked, a session starts at the next pass (within {{every}}).":
+    "Coché, une session démarre au prochain passage (d'ici {{every}}).",
+  "Ticked, a session starts at the next pass.": "Coché, une session démarre au prochain passage.",
+  "no priority": "aucune priorité",
+  "Which ready ticket goes first. Empty, it waits its turn.":
+    "Quel ticket prêt passe en premier. Vide, il attend son tour.",
+  "deduced by the runner": "déduit par le runner",
+  "The road the ticket takes. Empty, the runner deduces it before the ticket runs.":
+    "Le chemin que prend le ticket. Vide, le runner le déduit avant de le lancer.",
+  "the runner's model": "le modèle du runner",
+  "Empty, the model the runner is set to.": "Vide, le modèle réglé pour le runner.",
   "no project — a document": "aucun projet — un document",
   "no project": "aucun projet",
   "open in Notion": "ouvrir dans Notion",

@@ -7038,6 +7038,9 @@ class _ColumnsClient(_TalkClient):
             for index, status in enumerate(self._statuses)
         ]
 
+    def schema(self, database: str) -> dict[str, str]:
+        return {"Name": "title", "Status": "status"}
+
     def options(self, database: str, prop: str) -> list[str]:
         return ["Ready", "In progress", "In review", "Blocked", "Failed", "Done"]
 
@@ -10713,6 +10716,50 @@ def the_console_reads_and_rewrites_the_standing_context():
             assert "Context" in str(error)
         else:
             raise AssertionError("a context with no page must not pretend to save")
+
+
+@case
+def a_ticket_created_from_the_console_carries_its_priority_type_and_model():
+    """Three selects in the form, written as the board spells them.
+
+    They used to be set in Notion afterwards, by hand. Offered only for the
+    columns the board has — a value for a missing one would be dropped on the
+    way in — and a type left empty stays empty, for the runner to classify.
+    """
+    with _board() as board:
+        api = _markdown_api(board)
+        api._schema_at = time.time()
+        api._reader = web_board.Reader(journal=lambda report: None)
+        api._outbox = web_board.Outbox(journal=lambda report: None)
+        api.watch = _Nudged()
+        choices = api.board()["choices"]
+        assert [option["value"] for option in choices["priority"]] == list(C.PRIORITIES)
+        assert [option["value"] for option in choices["model"]] == ["opus", "sonnet", "haiku"]
+        assert {option["value"]: option["label"] for option in choices["type"]}["writing"] == "Writing"
+
+        made = api.create_ticket("Écrire l'annonce", ready=False, priority="High", kind="writing", model="haiku")
+        page = board.page(made["id"])
+        settings = api.config.notion
+        assert store.read(page, settings.prop("priority")) == "High"
+        assert store.read(page, settings.prop("type")) == "Writing"
+        assert store.read(page, settings.prop("model")) == "haiku"
+        assert not store.read(page, settings.prop("status")), "not ready is a draft"
+
+        bare = board.page(api.create_ticket("Sans rien")["id"])
+        assert not store.read(bare, settings.prop("type")), "an empty type is the runner's to deduce"
+        assert not store.read(bare, settings.prop("priority"))
+        try:
+            api.create_ticket("Mauvais type", kind="poem")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a type that is none of the four must be refused")
+
+    # A board without those columns is offered none of them.
+    api = _bare_api(_ColumnsClient(["Ready"]))
+    api._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
+    api._schema_at = time.time()
+    assert api.board()["choices"] == {}
 
 
 @case

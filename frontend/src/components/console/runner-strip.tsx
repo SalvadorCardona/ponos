@@ -41,7 +41,7 @@ function timerNote(state: string | undefined): string {
 }
 
 /** An interval, as somebody would say it out loud. */
-function every(seconds: number): string {
+export function every(seconds: number): string {
   if (!seconds) return "—"
   return seconds < 120 ? `${seconds}s` : `${Math.round(seconds / 60)} min`
 }

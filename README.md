@@ -1754,7 +1754,10 @@ the columns the board has — *Ready*, *In progress*, *In review*, *Validated* w
 board offers it, *Blocked*, *Failed*, *Done* — under the board's own names. Nothing here
 is a second database: **drag a card into a column and the ticket moves**, and the ticket
 you write behind *New ticket* is a page in the same database, with its brief as real
-Notion blocks. What the console adds is the part Notion cannot do — the running session's
+Notion blocks — and, where the board has those columns, its *Priority*, *Type* and *Model*
+(an empty type is deduced by the runner, as for a ticket written in Notion). *Ready to
+run* is ticked by default, and the form says what that means: a session, at the next
+pass. **Ctrl+Enter** (⌘+Enter) creates the ticket from any of its fields. What the console adds is the part Notion cannot do — the running session's
 steps, live, read straight from the session log on disk rather than from the `Progress`
 column. A card in progress has a pulsing dot, how many steps its session has taken, and
 what it is on in one line — what the agent last said, or else the last tool it ran. Over

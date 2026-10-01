@@ -39,6 +39,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   shows the space taken by worktrees, logs and scratch, with a **Clean up**
   button that applies the same retention now (refused while a run is in
   progress), and `ticket-runner doctor` says both in a new *Disk* section.
+- **Priority, type and model from the *New ticket* form.** Three optional
+  selects, shown only for the columns the board has — Markdown boards have all
+  three: the priority and the model the runner acts on, then whatever else the
+  board offers, and the four types as the board spells them. An empty type is
+  still deduced by the runner before the ticket runs. Under *Ready to run*, the
+  form now says that ticked, a session starts at the next pass, and within how
+  long; **Ctrl+Enter** (⌘+Enter) creates the ticket from any field, the brief
+  included.
 - **Keyboard shortcuts in the console.** **Ctrl+K** (⌘K on a Mac) opens a
   command palette from any page: the pages, the projects, the tickets on the
   board, and three actions — a new ticket, the console, a resynchronisation —
