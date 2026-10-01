@@ -27,7 +27,7 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   a magnifying glass in the bar opens the palette for the mouse, and its tooltip
   and the bubble's say the keys.
 - **Force validated, one type of ticket at a time.** Four boxes in *Settings ›
-  Force validated* — Code, Writing, External action, Publication — or
+  Automatic validation* — Code, Writing, External action, Publication — or
   `force_validated_<type> = true` under `[runner]`, all off by default. Ticked,
   a ticket of that type no longer waits in *In review*: once its session has
   succeeded, a Code ticket's pull request is opened, its CI waited for and
@@ -408,6 +408,22 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   first: the installer still asks for a Notion token, and Enter skips it. The
   page's description, its Open Graph card, `llms.txt` and the top of the README
   say the same.
+
+- **The settings say what they do.** Every label, every sentence under a field
+  and every section of *Settings* was rewritten in plain words, English and
+  French, with its unit: *Tickets in parallel*, *Time limit per ticket
+  (minutes)*, *Share kept for your own use (%)*. The sections follow what you
+  are trying to do — *Running tickets*, *Models and usage*, *Repositories and
+  pull requests*, *Automatic validation*, *Notifications*, *Answers in
+  comments*… — instead of where a key sits in the file: the models are no
+  longer spread over four of them, and the old desktop switch moved to
+  *Notifications*. A choice shows what each value does (*One commit (squash)*,
+  *Read only (plan)*), the key a field writes is printed under it, and the
+  settings few people need fold away behind *Show the advanced settings*. No key
+  changed: `config.toml` reads as it did. Two sentences that said something
+  false are gone — `attach_sessions` files a session under its project for
+  `claude --resume`, it does not make a link, and the board's storage mode said
+  it took effect once “restart”, untranslated.
 
 - **Ponos dresses Greek.** The antenna and its bulb are a small orange flame
   set on his head, the `>_` on his chest and the pink cheeks are gone, and he

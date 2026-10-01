@@ -346,6 +346,10 @@ export interface SettingField {
   label: string
   help: string
   choices: string[]
+  /** A choice's value and the words it is shown in — the file keeps the value. */
+  options?: Record<string, string>
+  /** Folded under "advanced settings" until somebody asks for them. */
+  advanced?: boolean
   fallback: unknown
   after: string
   stated: boolean

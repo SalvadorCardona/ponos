@@ -39,6 +39,15 @@ from ..store import CONFLICTS, MODES
 # ask permission at three in the morning is a session that times out.
 PERMISSION_MODES = ("bypassPermissions", "acceptEdits", "default", "plan")
 
+# The same four, said as what they let a session do. The file's own word stays
+# in brackets: it is what somebody reading `config.toml` will find there.
+PERMISSION_OPTIONS = (
+    ("bypassPermissions", "Everything, without asking (bypassPermissions)"),
+    ("acceptEdits", "Edit files, no commands (acceptEdits)"),
+    ("default", "Ask each time (default)"),
+    ("plan", "Read only (plan)"),
+)
+
 
 @dataclass(frozen=True)
 class Field:
@@ -58,6 +67,13 @@ class Field:
     # next run and needs nothing; the exceptions say so rather than looking like
     # they worked.
     after: str = ""
+    # A value of `choices` and the words it is shown in. The file keeps saying
+    # `squash`; the page says what squash does to your history.
+    options: tuple[tuple[str, str], ...] = ()
+    # Folded under "advanced settings" until asked for. Not less true, only
+    # less often needed: a field somebody setting up their first board has to
+    # read past is a field that hides the three that matter.
+    advanced: bool = False
 
     @property
     def name(self) -> str:
@@ -76,529 +92,615 @@ class Section:
     pairs: str = ""
 
 
-def _naming(table: str, blurbs: dict[str, str]) -> tuple[Field, ...]:
+def _naming(
+    table: str, words: dict[str, tuple[str, str]], advanced: bool = False
+) -> tuple[Field, ...]:
     """A field per key of one of the four naming tables.
 
     Generated from the defaults rather than listed again: a property the runner
-    learns to read is a field the console offers the same day.
+    learns to read is a field the console offers the same day — under its key,
+    until somebody gives it a label of its own here.
     """
     return tuple(
         Field(
             table=f"notion.{table}",
             key=key,
             kind="text",
-            label=key.replace("_", " "),
-            help=blurbs.get(key, ""),
+            label=words.get(key, (key.replace("_", " "), ""))[0],
+            help=words.get(key, ("", ""))[1],
+            advanced=advanced,
         )
         for key in config_module.defaults(table)
     )
 
 
+# The order is the order of need: what connects the runner to a board, what
+# decides how a ticket is worked, what reaches you, and — last — the names a
+# board that was not built by `init` may spell differently. A field moved from
+# one section to another keeps its key: the section is the page's idea, the
+# table is the file's.
 SECTIONS: tuple[Section, ...] = (
     Section(
         key="notion",
-        title="Notion",
+        title="Notion connection",
         blurb=(
-            "The board, and the integration that reads it. `ticket-runner init <page-url>` "
-            "fills these in by building the databases for you; this is where you look when "
-            "it has to be done by hand."
+            "The Notion integration that reads and writes your board. `ticket-runner init "
+            "<page-url>` fills all of this in for you: come here only to fix it by hand."
         ),
         fields=(
             Field(
                 "notion", "token", "secret", "Integration token",
-                "The `ntn_…` secret of your internal integration. The board has to be "
-                "shared with it — a token alone sees nothing.",
+                "The secret starting with `ntn_`, from notion.so/profile/integrations. "
+                "Share your workspace page with the integration too: a token alone sees "
+                "nothing.",
             ),
             Field(
                 "notion", "workspace", "text", "Workspace page",
-                "The page that holds Tickets, Projects, Agents and Context. A Notion URL "
-                "does: only the identifier in it is kept.",
+                "The Notion page that holds the Tickets, Projects, Agents and Context "
+                "databases. Paste its URL: only the identifier is kept.",
             ),
             Field(
-                "notion", "tickets_database", "text", "Tickets database",
-                "Only if you name no workspace page — the ticket database on its own.",
+                "notion", "mention", "text", "Word that asks for an answer",
+                "Write it in a ticket's comment — `@claude what is blocking?` — and the "
+                "runner answers in the thread instead of working. The integration's own "
+                "name works too.",
             ),
             Field(
-                "notion", "mention", "text", "How you call it",
-                "The word that asks it to answer in a comment rather than to work. Its own "
-                "integration name always works too.",
+                "notion", "tickets_database", "text", "Tickets database (without a workspace page)",
+                "Only if the workspace page is empty: the tickets database on its own, by "
+                "URL or identifier.",
+                advanced=True,
             ),
         ),
     ),
     Section(
         key="storage",
-        title="Where the board lives",
+        title="Board storage",
         blurb=(
-            "Notion is the default and changes nothing. Markdown is the same board as "
-            "files on disk, and never asks Notion anything — no token, no sharing, no "
-            "network. Both keeps the two in step."
+            "Where your tickets live: in Notion (the default), as Markdown files on this "
+            "machine, or in both, kept in sync."
         ),
         fields=(
             Field(
-                "storage", "mode", "choice", "The board",
-                "`notion` reads and writes Notion, as it always has. `markdown` reads and "
-                "writes files. `both` does the two, and reconciles them.",
+                "storage", "mode", "choice", "Board kept in",
+                "Markdown files need no Notion token and no network. Both writes to the two "
+                "and reconciles them.",
                 choices=MODES,
-                after="restart",
+                options=(
+                    ("notion", "Notion"),
+                    ("markdown", "Markdown files"),
+                    ("both", "Both, kept in sync"),
+                ),
+                after="the console has to be restarted",
             ),
             Field(
-                "storage", "path", "path", "Where the files are",
-                "One directory, with `tickets/`, `projects/`, `agents/`, `schedules/` and "
-                "`context.md` in it. A directory you can put under git, which is most of "
-                "the point.",
-                after="restart",
+                "storage", "path", "path", "Markdown folder",
+                "The folder holding `tickets/`, `projects/`, `agents/`, `schedules/` and "
+                "`context.md`. You can put it under git.",
+                after="the console has to be restarted",
             ),
             Field(
-                "storage", "conflict", "choice", "When the two disagree",
-                "A page changed on both sides since the last reconciliation. `newest` "
-                "keeps the later of the two — and writes the other into the journal, so "
-                "nothing is lost quietly.",
+                "storage", "conflict", "choice", "When both sides changed",
+                "A page edited in Notion and in the files since the last sync: the most "
+                "recent edit wins, the other is kept in the sync journal.",
                 choices=CONFLICTS,
+                options=(("newest", "Keep the most recent"),),
+                advanced=True,
             ),
             Field(
-                "storage", "on_every_pass", "bool", "Reconcile before every pass",
-                "Off, and the two boards only meet when you run `ticket-runner sync`.",
+                "storage", "on_every_pass", "bool", "Sync before every check of the board",
+                "Only for Both. Off: the two only sync when you run `ticket-runner sync`.",
+                advanced=True,
             ),
         ),
     ),
     Section(
         key="runner",
-        title="The run",
+        title="Running tickets",
         blurb=(
-            "How often the board is read, how many tickets may run at once, and how long "
-            "one of them is allowed to take."
+            "How often the board is checked, how many tickets run at once, and how long "
+            "each one may take."
         ),
         fields=(
             Field(
-                "runner", "workspace_root", "path", "Workspace root",
-                "Where your repositories live. Worktrees are made beside them, never in them.",
+                "runner", "workspace_root", "path", "Repositories folder",
+                "Where your git repositories are, e.g. `~/workspace`. A project's repository "
+                "is looked for here — and cloned here when it is missing.",
             ),
             Field(
-                "runner", "interval_seconds", "int", "Between two runs (seconds)",
-                "How long the timer waits before looking at the board again.",
+                "runner", "interval_seconds", "int", "Check the board every (seconds)",
+                "The delay between two looks for Ready tickets. 10 starts a ticket within "
+                "ten seconds; a look that finds nothing costs one request.",
                 minimum=1,
                 after="`ticket-runner enable` writes it into the systemd timer",
             ),
             Field(
-                "runner", "max_concurrent", "int", "Tickets at once",
-                "Two sessions on one laptop is already a lot of machine.",
+                "runner", "max_concurrent", "int", "Tickets in parallel",
+                "How many Claude sessions run at the same time. Each is a full session: 2 "
+                "suits a laptop.",
                 minimum=1,
             ),
             Field(
-                "runner", "timeout_minutes", "int", "A ticket may take (minutes)",
-                "Past this, the session is killed and the ticket is put back with the reason.",
+                "runner", "timeout_minutes", "int", "Time limit per ticket (minutes)",
+                "Past it, the session is stopped and the ticket fails, with the reason.",
                 minimum=1,
             ),
             Field(
-                "runner", "wait_for_credits", "bool", "Wait when the credits run out",
-                "A subscription is metered in windows. When one is spent, the ticket goes "
-                "back where it came from and nothing is run until the window rolls over — "
-                "off, an exhausted quota fails every ticket it touches.",
-            ),
-            Field(
-                "runner", "credit_reserve_percent", "int", "Keep for yourself (%)",
-                "The share of each window the runner refuses to touch. At 5 it starts "
-                "nothing past 95 % of the session or the week — what is already running "
-                "finishes, and the tickets it did not start stay where they are, ticked "
-                "as waiting for credit. 0 spends the lot.",
-                minimum=0,
-                maximum=config_module.MOST_RESERVED,
-            ),
-            Field(
-                "runner", "model", "text", "Model",
-                "Empty: whatever Claude Code is set to. A ticket's own Model column wins "
-                "over this one.",
-            ),
-            Field(
-                "runner", "language", "choice", "Answer in",
-                "The language the runner writes its reports in, and the one a session is "
-                "asked to answer in. Empty: it reports in English, and each session keeps "
-                "writing in the language it was written to.",
+                "runner", "language", "choice", "Language of the reports",
+                "What the runner writes on tickets and sends to your phone, and the language "
+                "sessions are asked to answer in. Not set: reports in English, and each "
+                "session answers in the ticket's language.",
                 choices=voice.LANGUAGES,
+                options=(("en", "English"), ("fr", "French")),
             ),
             Field(
-                "runner", "permission_mode", "choice", "Permission mode",
-                "How much a ticket's session may do without asking. Nobody is watching it: "
-                "anything but `bypassPermissions` is a session that will sit waiting.",
+                "runner", "dry_run", "bool", "Test mode (changes nothing)",
+                "The runner says what it would do and does none of it: no branch, no commit, "
+                "no write to the board. Useful while you set things up.",
+            ),
+            Field(
+                "runner", "permission_mode", "choice", "What a session may do without asking",
+                "Nobody is there to approve: anything but “Everything” leaves a session "
+                "waiting until it times out.",
                 choices=PERMISSION_MODES,
-            ),
-            Field(
-                "runner", "dry_run", "bool", "Dry run",
-                "Say what would happen and touch nothing — no branch, no commit, no Notion "
-                "write. The one switch to leave on while you are still deciding.",
+                options=PERMISSION_OPTIONS,
+                advanced=True,
             ),
             Field(
                 "runner", "log_retention_days", "int", "Keep session logs (days)",
-                "0 keeps them forever.",
+                "How long each session's log stays on this machine. 0 keeps them forever.",
+                advanced=True,
             ),
         ),
     ),
     Section(
-        key="openrouter",
-        title="Every other model",
+        key="models",
+        title="Models and usage",
         blurb=(
-            "One key in front of every provider there is. It goes into each session's "
-            "environment as `OPENROUTER_API_KEY`, so the work itself can call whatever model "
-            "it needs — a GPT, an image, a transcription, a video — and pay for it. Running "
-            "the sessions themselves on it is the second switch, and it changes who answers "
-            "them."
+            "Which Claude model works the tickets, and how much of your subscription the "
+            "runner may spend."
         ),
         fields=(
             Field(
-                "openrouter", "key", "secret", "OpenRouter key",
-                "The `sk-or-…` one, from openrouter.ai/keys. On its own it only makes the "
-                "key reachable from a session; nothing about the runner changes.",
+                "runner", "model", "text", "Default model",
+                "`opus`, `sonnet` or `haiku`, for instance. Empty: Claude Code's own default. "
+                "A ticket's Model column wins over it.",
             ),
             Field(
-                "openrouter", "route_sessions", "bool", "Run the sessions on it",
-                "Claude Code then talks to OpenRouter rather than to Anthropic, and every "
-                "model named — a ticket's Model column, an agent's, the one above — becomes "
-                "an OpenRouter slug: `openai/gpt-5`, `anthropic/claude-sonnet-4.5`. Two "
-                "things go with it: the CLI is no longer signed in as you, so Claude in "
-                "Chrome does not load, and the bill is OpenRouter's rather than your "
-                "subscription's — there is no window left to wait for.",
+                "runner", "wait_for_credits", "bool", "Pause when the subscription limit is reached",
+                "On: the ticket waits, ticked Waiting for credit, and starts again when the "
+                "usage window resets. Off: every ticket fails until then.",
             ),
             Field(
-                "openrouter", "transcription_model", "text", "Transcribe dictation with",
-                "The model a message dictated in the console is turned into text by.",
-            ),
-            Field(
-                "openrouter", "base_url", "text", "Endpoint",
-                "Where that key is spent. Only worth touching for a gateway of your own "
-                "that speaks the same API.",
+                "runner", "credit_reserve_percent", "int", "Share kept for your own use (%)",
+                "At 5, no new ticket starts past 95 % of the session or weekly limit, so you "
+                "still have Claude for yourself. Running tickets finish. From 0 (use it all) "
+                "to 50.",
+                minimum=0,
+                maximum=config_module.MOST_RESERVED,
             ),
         ),
     ),
     Section(
         key="git",
-        title="Git and pull requests",
-        blurb="What a ticket with a repository turns into, and how it is accepted.",
+        title="Repositories and pull requests",
+        blurb=(
+            "What a Code ticket turns into: a branch, a pull request, and the merge once "
+            "you validate it."
+        ),
         fields=(
-            Field("runner", "branch_prefix", "text", "Branch prefix",
-                  "`ticket/` gives `ticket/1a2b3c4d-remove-the-header`."),
-            Field("runner", "base_branch", "text", "Base branch",
-                  "Empty: whatever the repository's HEAD points at."),
-            Field("runner", "fetch", "bool", "Fetch before branching",
-                  "So a ticket does not start from last week."),
-            Field("runner", "push", "bool", "Push the branch"),
             Field("runner", "open_pull_request", "bool", "Open a pull request",
-                  "Needs `gh` to be installed and logged in."),
-            Field("runner", "rebase", "bool", "Replay the branch before the pull request",
-                  "A session takes an hour and the base branch does not wait for it. The "
-                  "branch is put back on top of it before the push, and a validated merge "
-                  "refused for being behind is retried once after the same gesture."),
-            Field("runner", "merge_method", "choice", "Merge a validated ticket by",
-                  "What `gh pr merge` is told when you move a ticket to Validated.",
-                  choices=MERGE_METHODS),
-            Field("runner", "resolve_conflicts", "bool", "Resolve a validated merge's conflicts",
-                  "A replay that stops on a conflict is handed to a session: both sides kept, "
-                  "the project's checks run, pushed with a lease, then merged. A conflict that "
-                  "is a decision blocks the ticket with the question."),
+                  "Once the session succeeds, on GitHub — needs `gh` installed and signed in. "
+                  "Opening one merges nothing."),
+            Field("runner", "push", "bool", "Push the branch",
+                  "Send the ticket's branch to the remote once it has commits. Off: the work "
+                  "stays on this machine."),
+            Field("runner", "merge_method", "choice", "Merge a validated pull request as",
+                  "Applied when you move a ticket to Validated.",
+                  choices=MERGE_METHODS,
+                  options=(
+                      ("squash", "One commit (squash)"),
+                      ("merge", "A merge commit (merge)"),
+                      ("rebase", "Commits replayed (rebase)"),
+                  )),
+            Field("runner", "base_branch", "text", "Base branch",
+                  "The branch a ticket's branch starts from, e.g. `main`. Empty: the "
+                  "repository's default branch."),
+            Field("runner", "resolve_conflicts", "bool", "Resolve merge conflicts automatically",
+                  "When a validated pull request conflicts, a session resolves it, runs the "
+                  "project's checks, then merges. A conflict that needs a decision blocks the "
+                  "ticket with the question."),
+            Field("runner", "branch_prefix", "text", "Branch name prefix",
+                  "`ticket/` gives `ticket/1a2b3c4d-remove-the-header`.",
+                  advanced=True),
+            Field("runner", "fetch", "bool", "Fetch the remote before branching",
+                  "So a ticket starts from the latest code rather than last week's.",
+                  advanced=True),
+            Field("runner", "rebase", "bool", "Rebase on the base branch before pushing",
+                  "The base branch moves while a session works: the branch is replayed on top "
+                  "of it before the push, and a merge refused for being behind is retried once.",
+                  advanced=True),
             Field("runner", "resolve_conflicts_except", "text", "Projects whose conflicts are left to you",
-                  "Their names, separated by commas: a conflict there blocks the ticket, as before."),
-            Field("runner", "resolve_model", "text", "Model that resolves",
-                  "Empty: the model the ticket was worked with."),
-            Field("runner", "checks_timeout_minutes", "int", "Wait for CI after a resolution (minutes)",
-                  "Zero does not wait: GitHub still refuses a merge that a required check has "
-                  "not passed. A merge forced by Force validated waits the same way."),
-            Field("runner", "keep_worktree_on_failure", "bool", "Keep the worktree on failure",
-                  "The state a failed session died in, for you to look at. "
-                  "`ticket-runner clean --force` sweeps them."),
-        ),
-    ),
-    Section(
-        key="validation",
-        title="Force validated",
-        blurb=(
-            "Skip the review, one type of ticket at a time. Once its session has "
-            "succeeded, the runner does at once what moving it to Validated would have "
-            "set off, then moves it to Done — and its report says the validation was "
-            "forced. A ticket that failed, was blocked or ran out of credit is never "
-            "validated, and one already in review stays there. All off: every ticket "
-            "waits for you, as before."
-        ),
-        fields=(
-            Field("runner", "force_validated_code", "bool", "Code",
-                  "The pull request is opened, its CI waited for, then merged the way a "
-                  "validated one is. A merge GitHub refuses leaves the ticket in review, "
-                  "with the reason on its card."),
-            Field("runner", "force_validated_writing", "bool", "Writing",
-                  "A text already ends in Done, with nothing to validate: this changes "
-                  "nothing today."),
-            Field("runner", "force_validated_external", "bool", "External action",
-                  "An external action already ends in Done, with nothing to validate: this "
-                  "changes nothing today."),
-            Field("runner", "force_validated_publication", "bool", "Publication",
-                  "What was prepared is published straight away, without waiting in review."),
-        ),
-    ),
-    Section(
-        key="schedules",
-        title="What comes back on its own",
-        blurb=(
-            "The Schedules database, read in the same pass that reads the board. A row "
-            "there describes a ticket and how often it is born; everything after that is "
-            "an ordinary ticket. Catching up creates one occurrence, never the twelve a "
-            "machine that was off has missed."
-        ),
-        fields=(
-            Field("runner", "schedule", "bool", "Let schedules make tickets",
-                  "Off: the database is read by nobody, and no row has to be unticked. "
-                  "A workspace with no schedules page never had any of this anyway."),
-        ),
-    ),
-    Section(
-        key="live",
-        title="While it runs",
-        blurb=(
-            "The parts that report as the work happens: the Progress column, the session "
-            "links, and the answers written under a ticket's comments."
-        ),
-        fields=(
-            Field("runner", "progress", "bool", "Write progress into the ticket",
-                  "The board's live column: what the session is doing, as it does it."),
-            Field("runner", "progress_interval_seconds", "int", "Progress cadence (seconds)",
-                  "The floor is five: below it, two tickets at once spend the integration's "
-                  "rate limit on saying what they are about to do.",
-                  minimum=5),
-            Field("runner", "attach_sessions", "bool", "Link the session on the ticket",
-                  "A `ticket-runner://` link that reopens the very session in a terminal."),
-            Field("runner", "session_host", "text", "Session host",
-                  "Set it when the runner is not on the machine you click from — the link "
-                  "then says which machine to open it on."),
-            Field("runner", "reply", "bool", "Answer in the comments",
-                  "A comment under one of its reports is answered, in the thread, by "
-                  "something that has read the ticket and the repository."),
-            Field("runner", "reply_interval_seconds", "int", "Look for comments every (seconds)",
-                  minimum=10),
-            Field("runner", "reply_scan", "int", "Tickets scanned for comments", minimum=1),
-            Field("runner", "reply_timeout_minutes", "int", "An answer may take (minutes)",
-                  minimum=1),
-            Field("runner", "reply_permission_mode", "choice", "Permission mode for answers",
-                  "`plan` is the guardrail: a conversation that quietly edited a repository "
-                  "is the one thing nobody would expect of it.",
-                  choices=PERMISSION_MODES),
-        ),
-    ),
-    Section(
-        key="prompts",
-        title="Prompts",
-        blurb=(
-            "The three briefs the runner writes, each replaceable by a file of your own. "
-            "Leave them empty to keep the ones built in."
-        ),
-        fields=(
-            Field("runner", "prompt_file", "path", "A ticket with a repository"),
-            Field("runner", "document_prompt_file", "path", "A ticket without one"),
-            Field("runner", "delivery_prompt_file", "path", "A validated ticket, being published"),
-        ),
-    ),
-    Section(
-        key="notify",
-        title="Being told",
-        blurb=(
-            "Where the runner reaches you, and whether it listens for an answer. What you "
-            "reply on Telegram or Slack becomes a comment on the ticket, which is already "
-            "what wakes a blocked one."
-        ),
-        fields=(
-            Field("notify", "desktop", "bool", "Notify this machine's screen"),
-            Field("notify", "replies", "bool", "Read what you write back",
-                  "Off: it still tells you things, it just never listens."),
-            Field("notify", "events", "events", "Worth a message",
-                  "`blocked` is the one that expects something back from you; `done` is the "
-                  "pull request waiting; `failed` is a log to read.",
-                  choices=EVENTS),
-            Field("notify.telegram", "token", "secret", "Telegram bot token",
-                  "From @BotFather. `ticket-runner notify --pair` then finds the chat id."),
-            Field("notify.telegram", "chat", "text", "Telegram chat id",
-                  "Only that chat is ever read: a bot token is a public address."),
-            Field("notify.slack", "token", "secret", "Slack bot token",
-                  "The `xoxb-…` one. Scopes: `chat:write`, and `channels:history` "
-                  "(`groups:history`, `im:history`) to read your replies."),
-            Field("notify.slack", "channel", "text", "Slack channel id",
-                  "··· → View channel details, at the bottom. And `/invite @your-bot` in "
-                  "the channel — the step everyone forgets."),
-        ),
-    ),
-    Section(
-        key="web",
-        title="This console",
-        blurb=(
-            "Behind this port sits a runner that starts Claude Code sessions with "
-            "`bypassPermissions`. Anything that can reach it can run code on this machine, "
-            "as you — which is why the bind is loopback and why widening it is a decision "
-            "you have to take on purpose, token included."
-        ),
-        fields=(
-            Field("web", "host", "text", "Bind address",
-                  "Anything but `127.0.0.1` is refused unless a token, or a sign-in, is set "
-                  "below. The answer that does not depend on a secret never leaking is an "
-                  "ssh tunnel: `ssh -L 8787:127.0.0.1:8787 <this machine>`.",
-                  after="the console has to be restarted"),
-            Field("web", "port", "int", "Port", minimum=1,
-                  after="the console has to be restarted"),
-            Field("web", "token", "secret", "Console token",
-                  "Empty: one is drawn once and kept in "
-                  "`~/.local/state/ticket-runner/web/token`. Setting one here is what "
-                  "allows a non-loopback bind.",
-                  after="the console has to be restarted, and this page reopened with the new token"),
-            Field("web", "email", "text", "Sign in with this email",
-                  "Set it with a password and the console asks for the two instead of for "
-                  "the token — a page you open from a bookmark rather than from a secret. "
-                  "`TICKET_RUNNER_WEB_EMAIL` says the same thing and wins over this.",
-                  after="the console has to be restarted"),
-            Field("web", "password", "secret", "And this password",
-                  "Kept in the file beside the other secrets, or in "
-                  "`TICKET_RUNNER_WEB_PASSWORD`, which wins over it. Changing it signs out "
-                  "every browser at once; the token keeps working, for scripts.",
-                  after="the console has to be restarted"),
-            Field("web", "poll_seconds", "int", "Reread the board every (seconds)",
-                  "Only while a browser is connected.", minimum=5),
-            Field("web", "chat_timeout_minutes", "int", "A chat turn may take (minutes)",
-                  minimum=1),
-            Field("web", "attachment_max_mb", "int", "A file sent to the workspace may weigh (MB)",
-                  "Per file. Past it, the console refuses the file and says why.", minimum=1),
-            Field("web", "attachment_days", "int", "Keep the conversation's files (days)",
-                  "They also go with “new conversation”. Copies of what you dropped, not "
-                  "the originals.", minimum=1),
-            Field("web", "send_after_transcription", "bool", "Send a dictated message as soon as it is transcribed",
-                  "Off: the transcription waits in the field, to be read over and corrected "
-                  "before it goes. Dictation needs the OpenRouter key."),
-        ),
-    ),
-    Section(
-        key="update",
-        title="Staying up to date",
-        blurb="A run asks the remote whether the installed code is still the newest.",
-        fields=(
-            Field("runner", "auto_update", "bool", "Update itself between two runs"),
-            Field("runner", "update_channel", "choice", "What it follows",
-                  "`release`: the newest `vX.Y.Z` tag, and nothing pushed in between. "
-                  "`main`: every commit of the branch it was installed from, as it lands.",
-                  choices=UPDATE_CHANNELS),
-            Field("runner", "update_interval_seconds", "int", "Ask at most every (seconds)",
-                  minimum=60),
-            Field("runner", "notify", "bool", "One desktop notification per ticket",
-                  "The old switch, kept: “Notify this machine's screen” above defaults to it."),
+                  "Project names, separated by commas. A conflict there blocks the ticket "
+                  "instead of being resolved.",
+                  advanced=True),
+            Field("runner", "resolve_model", "text", "Model that resolves conflicts",
+                  "Empty: the model the ticket was worked with.",
+                  advanced=True),
+            Field("runner", "checks_timeout_minutes", "int", "Wait for CI before merging (minutes)",
+                  "After a resolved conflict, or with automatic validation. 0 does not wait — "
+                  "GitHub still refuses a merge a required check has not passed.",
+                  advanced=True),
+            Field("runner", "keep_worktree_on_failure", "bool", "Keep a failed ticket's work folder",
+                  "Its worktree stays as the session left it, for you to look at. "
+                  "`ticket-runner clean --force` removes them.",
+                  advanced=True),
         ),
     ),
     Section(
         key="projects",
-        title="Projects",
+        title="Project folders",
         blurb=(
-            "A Notion project, and the repository it means on this machine. Only needed "
-            "when the project page says nothing: a `path` or a `github` property on the "
-            "page keeps the mapping on the board, where every machine can read it."
+            "Which folder on this machine holds a Notion project's repository. Only needed "
+            "when it is not found on its own: a `path` or `github` property on the project "
+            "page does the same, for every machine."
         ),
         pairs="projects",
     ),
     Section(
         key="github",
-        title="Your GitHub accounts",
+        title="GitHub accounts",
         blurb=(
-            "One machine often answers to two GitHubs — your own and a client's — and "
-            "`gh` only ever has one of them active, so a pull request on the other is "
-            "refused for reasons that read like a bug. On the left the owner, as GitHub "
-            "spells it in a repository's URL; on the right the account, as `gh auth "
-            "status` lists it. Log each one in once with `gh auth login` and they stay "
-            "signed in side by side. An owner nobody names here is worked under whichever "
-            "account `gh` is active as, which is what one GitHub has always done."
+            "Which `gh` account works for each GitHub owner, when this machine uses several "
+            "— yours and a client's. Left, the owner as in the repository's URL; right, the "
+            "account as `gh auth status` lists it. Sign each one in once with `gh auth "
+            "login`. An owner not listed here is worked under the active account."
         ),
         pairs="github",
     ),
     Section(
-        key="status",
-        title="The columns of your board",
+        key="validation",
+        title="Automatic validation",
         blurb=(
-            "What each moment is called in your Notion. Empty means the default, and the "
-            "defaults are not arbitrary: leaving `blocked` unset while naming `failed` is "
-            "how you say your board has one column for both."
+            "Skip your review for some types of ticket. Once the session succeeds, the "
+            "runner does what moving the ticket to Validated would do, then moves it to "
+            "Done, and its report says so. A failed, blocked or out-of-credit ticket is "
+            "never validated. All off: every ticket waits for you."
+        ),
+        fields=(
+            Field("runner", "force_validated_code", "bool", "Code tickets",
+                  "The pull request is opened, its CI waited for, then merged. A merge GitHub "
+                  "refuses leaves the ticket in review, with the reason."),
+            Field("runner", "force_validated_publication", "bool", "Publication tickets",
+                  "What was prepared is published straight away, without waiting for your "
+                  "review."),
+            Field("runner", "force_validated_writing", "bool", "Writing tickets",
+                  "No effect today: a Writing ticket already ends in Done."),
+            Field("runner", "force_validated_external", "bool", "External action tickets",
+                  "No effect today: an External action ticket already ends in Done."),
+        ),
+    ),
+    Section(
+        key="types",
+        title="Ticket types",
+        blurb=(
+            "A ticket's type decides how it is worked: Code (a repository and a pull "
+            "request), Writing (the answer in the page), External action (in a browser or a "
+            "service), Publication (prepared, then published once validated). An empty type "
+            "is guessed before the ticket runs; a type you chose is never changed."
+        ),
+        fields=(
+            Field("runner", "classify", "bool", "Guess the type when it is empty",
+                  "A short session reads the ticket, writes the type in its column and the "
+                  "reason in a comment. Off: a ticket without a type is worked as before, "
+                  "from what its project holds."),
+            Field("runner", "classify_confidence", "choice", "Least confidence to act on a guess",
+                  "Below it, the ticket is blocked and asks you for its type. A doubt "
+                  "involving Publication or External action always blocks.",
+                  choices=CONFIDENCES,
+                  options=(("low", "Low"), ("medium", "Medium"), ("high", "High"))),
+            Field("runner", "classify_model", "text", "Model that guesses the type",
+                  "A light one is enough, e.g. `haiku`. Empty: Claude Code's own default.",
+                  advanced=True),
+            *_naming(
+                "types",
+                {
+                    "code": ("Name of the Code type", "As written in your Type column."),
+                    "writing": ("Name of the Writing type", "As written in your Type column."),
+                    "external": (
+                        "Name of the External action type",
+                        "As written in your Type column.",
+                    ),
+                    "publication": (
+                        "Name of the Publication type",
+                        "As written in your Type column.",
+                    ),
+                },
+                advanced=True,
+            ),
+        ),
+    ),
+    Section(
+        key="schedules",
+        title="Recurring tickets",
+        blurb=(
+            "Tickets created on their own from the Schedules database — hourly, daily, "
+            "weekly or monthly. After the machine was off, one occurrence is created, never "
+            "every one it missed."
+        ),
+        fields=(
+            Field("runner", "schedule", "bool", "Create recurring tickets",
+                  "Off: the Schedules database is ignored, and none of its rows is touched."),
+        ),
+    ),
+    Section(
+        key="notify",
+        title="Notifications",
+        blurb=(
+            "How the runner reaches you: this computer's screen, Telegram or Slack. A reply "
+            "on Telegram or Slack becomes a comment on the ticket — which is what restarts "
+            "a blocked one."
+        ),
+        fields=(
+            Field("notify", "events", "events", "Send a message when a ticket is",
+                  "Blocked: it asks you a question. Done: its work waits for your review. "
+                  "Failed: there is a log to read.",
+                  choices=EVENTS,
+                  options=(("blocked", "Blocked"), ("failed", "Failed"), ("done", "Done"))),
+            Field("notify", "desktop", "bool", "Notify on this computer's screen",
+                  "A desktop notification when a ticket finishes."),
+            Field("notify", "replies", "bool", "Read your replies",
+                  "Your replies on Telegram or Slack become comments on the ticket. Off: "
+                  "messages are sent, replies are ignored."),
+            Field("notify.telegram", "token", "secret", "Telegram bot token",
+                  "From @BotFather (/newbot). `ticket-runner notify --pair` then finds the "
+                  "chat ID."),
+            Field("notify.telegram", "chat", "text", "Telegram chat ID",
+                  "Only this chat is read: anybody can write to a bot."),
+            Field("notify.slack", "token", "secret", "Slack bot token",
+                  "The `xoxb-…` one. Scopes: `chat:write`, and `channels:history` "
+                  "(`groups:history`, `im:history`) to read your replies."),
+            Field("notify.slack", "channel", "text", "Slack channel ID",
+                  "In Slack, ··· → View channel details, at the bottom. Then `/invite "
+                  "@your-bot` in the channel — the step everyone forgets."),
+            Field("runner", "notify", "bool", "Desktop notification (older setting)",
+                  "Kept for older files: “Notify on this computer's screen” follows it when "
+                  "it is not set itself.",
+                  advanced=True),
+        ),
+    ),
+    Section(
+        key="live",
+        title="Live progress",
+        blurb="What a ticket shows while its session is running, and where the session goes after.",
+        fields=(
+            Field("runner", "progress", "bool", "Show progress on the ticket",
+                  "The session's steps are written on the ticket's page, the latest one in "
+                  "its Progress column."),
+            Field("runner", "attach_sessions", "bool", "File sessions under their project",
+                  "A finished session is moved under the project's folder, so `claude "
+                  "--resume` there finds it. Off: it can only be resumed by its ID."),
+            Field("runner", "progress_interval_seconds", "int", "Update progress every (seconds)",
+                  "10 reads as live. 5 at the least, so two tickets at once do not spend "
+                  "Notion's rate limit on it.",
+                  minimum=5,
+                  advanced=True),
+            Field("runner", "session_host", "text", "Machine the sessions run on (ssh)",
+                  "Only when the runner lives on a server, e.g. `me@server.example.com`: the "
+                  "ticket's Session link then opens the session over ssh.",
+                  advanced=True),
+        ),
+    ),
+    Section(
+        key="replies",
+        title="Answers in comments",
+        blurb=(
+            "Reply under one of the runner's reports, or name it, and it answers in the "
+            "thread — having read the ticket and the repository, and changing nothing."
+        ),
+        fields=(
+            Field("runner", "reply", "bool", "Answer comments",
+                  "Off: comments get no answer. Answering a blocked ticket's question still "
+                  "starts it again."),
+            Field("runner", "reply_interval_seconds", "int", "Look for new comments every (seconds)",
+                  "10 at the least.",
+                  minimum=10,
+                  advanced=True),
+            Field("runner", "reply_scan", "int", "Tickets looked at each time",
+                  "One request each; the next ones are looked at the time after.",
+                  minimum=1,
+                  advanced=True),
+            Field("runner", "reply_timeout_minutes", "int", "Time limit per answer (minutes)",
+                  "Somebody is waiting for it: keep it short.",
+                  minimum=1,
+                  advanced=True),
+            Field("runner", "reply_permission_mode", "choice", "What an answer may do",
+                  "“Read only” is the guardrail: an answer that quietly changed a repository "
+                  "is the last thing anybody expects.",
+                  choices=PERMISSION_MODES,
+                  options=PERMISSION_OPTIONS,
+                  advanced=True),
+        ),
+    ),
+    Section(
+        key="openrouter",
+        title="OpenRouter (other models)",
+        blurb=(
+            "One key for every other AI provider — a GPT, images, transcription. Sessions "
+            "get it as `OPENROUTER_API_KEY`, and this console dictates with it."
+        ),
+        fields=(
+            Field(
+                "openrouter", "key", "secret", "OpenRouter key",
+                "Starts with `sk-or-`, from openrouter.ai/keys. On its own it is only handed "
+                "to the sessions; nothing about the runner changes.",
+            ),
+            Field(
+                "openrouter", "route_sessions", "bool", "Run the sessions through OpenRouter",
+                "Claude Code then talks to OpenRouter instead of Anthropic: models are named "
+                "the OpenRouter way (`openai/gpt-5`), the bill is OpenRouter's rather than "
+                "your subscription's, and Claude in Chrome no longer loads.",
+            ),
+            Field(
+                "openrouter", "transcription_model", "text", "Dictation model",
+                "Turns a message dictated in the console into text.",
+            ),
+            Field(
+                "openrouter", "base_url", "text", "API address",
+                "Only for a gateway of your own that speaks the same API.",
+                advanced=True,
+            ),
+        ),
+    ),
+    Section(
+        key="web",
+        title="Web console",
+        blurb=(
+            "The server behind this page. It can run code on this machine as you, so it "
+            "only listens to this machine unless you set a token or a sign-in."
+        ),
+        fields=(
+            Field("web", "host", "text", "Listen address",
+                  "`127.0.0.1`: this machine only. Any other address needs a token, or an "
+                  "email and a password, below. Safer still: an ssh tunnel, `ssh -L "
+                  "8787:127.0.0.1:8787 <this machine>`.",
+                  after="the console has to be restarted"),
+            Field("web", "port", "int", "Port",
+                  "The console is then at `http://127.0.0.1:<port>`.",
+                  minimum=1,
+                  after="the console has to be restarted"),
+            Field("web", "token", "secret", "Console token",
+                  "Empty: one is drawn once and kept in "
+                  "`~/.local/state/ticket-runner/web/token`. Needed to listen beyond this "
+                  "machine.",
+                  after="the console has to be restarted, and this page reopened with the new token"),
+            Field("web", "email", "text", "Sign-in email",
+                  "With a password, the console asks for the two instead of the token. "
+                  "`TICKET_RUNNER_WEB_EMAIL` wins over it.",
+                  after="the console has to be restarted"),
+            Field("web", "password", "secret", "Sign-in password",
+                  "`TICKET_RUNNER_WEB_PASSWORD` wins over it. Changing it signs every browser "
+                  "out; the token keeps working, for scripts.",
+                  after="the console has to be restarted"),
+            Field("web", "send_after_transcription", "bool", "Send a dictated message right away",
+                  "Off: the transcription waits in the field, to be read over first. "
+                  "Dictation needs the OpenRouter key."),
+            Field("web", "poll_seconds", "int", "Refresh the board every (seconds)",
+                  "Only while this page is open. 5 at the least.",
+                  minimum=5,
+                  advanced=True),
+            Field("web", "chat_timeout_minutes", "int", "Time limit per discussion reply (minutes)",
+                  "For the discussion with the workspace, in this console.",
+                  minimum=1,
+                  advanced=True),
+            Field("web", "attachment_max_mb", "int", "Largest attached file (MB)",
+                  "Per file sent in the discussion. A larger one is refused, with the reason.",
+                  minimum=1,
+                  advanced=True),
+            Field("web", "attachment_days", "int", "Keep attached files (days)",
+                  "Copies of what you sent in the discussion, deleted after this or with "
+                  "“new conversation”.",
+                  minimum=1,
+                  advanced=True),
+        ),
+    ),
+    Section(
+        key="update",
+        title="Updates",
+        blurb="The runner can update itself between two checks of the board.",
+        fields=(
+            Field("runner", "auto_update", "bool", "Update automatically",
+                  "Installs the newest version as soon as there is one."),
+            Field("runner", "update_channel", "choice", "Follow",
+                  "Releases are versions that were tested; the branch brings every change as "
+                  "soon as it lands.",
+                  choices=UPDATE_CHANNELS,
+                  options=(
+                      ("release", "Releases (vX.Y.Z tags)"),
+                      ("main", "Every commit of the installed branch"),
+                  )),
+            Field("runner", "update_interval_seconds", "int", "Look for an update every (seconds)",
+                  "3600 is an hour. 60 at the least.",
+                  minimum=60,
+                  advanced=True),
+        ),
+    ),
+    Section(
+        key="prompts",
+        title="Custom instructions",
+        blurb=(
+            "The instructions each session is given, each replaceable by a file of your "
+            "own. Empty: the built-in ones."
+        ),
+        fields=(
+            Field("runner", "prompt_file", "path", "Instructions for a ticket with a repository",
+                  "The path to a Markdown or text file."),
+            Field("runner", "document_prompt_file", "path", "Instructions for a ticket without one",
+                  "The path to a Markdown or text file."),
+            Field("runner", "delivery_prompt_file", "path", "Instructions for publishing a validated ticket",
+                  "The path to a Markdown or text file."),
+        ),
+    ),
+    Section(
+        key="status",
+        title="Names of the board's columns",
+        blurb=(
+            "Change these only if your board's columns are named differently. Leaving "
+            "Blocked empty while renaming Failed means one column for both."
         ),
         fields=_naming(
             "status",
             {
-                "ready": "the column the runner claims from",
-                "running": "where it puts a ticket it has taken",
-                "review": "a pull request is waiting for you",
-                "validated": "you accepted it — the runner merges, or publishes",
-                "done": "in, and closed",
-                "failed": "something broke; there is a log to read",
-                "blocked": "it asked you something and is waiting",
+                "ready": ("Ready", "The tickets the runner picks up."),
+                "running": ("In progress", "Where a ticket goes while it is worked on."),
+                "review": ("In review", "Work done, waiting for your review."),
+                "validated": ("Validated", "You accepted it: the runner merges, or publishes."),
+                "done": ("Done", "Finished and closed."),
+                "failed": ("Failed", "Something broke; a log says what."),
+                "blocked": ("Blocked", "The runner asked you a question and is waiting."),
             },
         ),
     ),
     Section(
         key="properties",
-        title="The columns of the ticket database",
+        title="Names of the ticket properties",
         blurb=(
-            "What each property is called. The optional ones change nothing by their "
-            "absence: a database without a Cost column is a database that is not told "
-            "what a ticket cost."
+            "Change these only if your Notion properties are named differently. An optional "
+            "one may be missing: what it would hold is simply not written."
         ),
         fields=_naming(
             "properties",
             {
-                "status": "required",
-                "project": "relation to the projects database",
-                "agent": "which machine took the ticket",
-                "pull_request": "written back when one is opened",
-                "session": "the link that reopens the session",
-                "model": "per-ticket model, overriding the one above",
-                "priority": "which ready ticket goes first",
-                "cost": "written back, in dollars",
-                "duration": "written back, in minutes",
-                "progress": "what the session is doing right now",
-                "due": "a date here holds the ticket until that moment",
-                "waiting": "ticked while the credit is out — it comes back on its own",
-                "role": "relation to the agents database",
-                "type": "Code, Writing, External action or Publication — empty, it is worked out",
-                "cadence": "schedules: Hourly, Daily, Weekly or Monthly",
-                "at": "schedules: the hour, written 09:00",
-                "day": "schedules: Monday, or 1 to 31",
-                "active": "schedules: unticked stops it, deleting nothing",
-                "next_run": "schedules: written back — the next birth",
-                "last_run": "schedules: written back — the last one",
-                "last_ticket": "schedules: written back — what the last occurrence made",
+                "status": ("Status", "Required."),
+                "project": ("Project", "Relation to the Projects database."),
+                "agent": ("Machine", "Written by the runner: which machine took the ticket."),
+                "pull_request": ("Pull request", "Written by the runner when one is opened."),
+                "session": ("Session", "Written by the runner: the link that reopens the session."),
+                "model": ("Model", "This ticket's model, over the default one."),
+                "priority": ("Priority", "Which Ready ticket goes first."),
+                "cost": ("Cost", "Written by the runner, in dollars."),
+                "duration": ("Duration", "Written by the runner, in minutes."),
+                "progress": ("Progress", "Written by the runner: what the session is doing."),
+                "due": ("Scheduled for", "A date here holds the ticket until then."),
+                "waiting": ("Waiting for credit", "Ticked while the subscription limit is reached."),
+                "role": ("Agent", "Relation to the Agents database: who handles the ticket."),
+                "type": ("Type", "Code, Writing, External action or Publication; empty, it is guessed."),
+                "cadence": ("Schedule: cadence", "Hourly, Daily, Weekly or Monthly."),
+                "at": ("Schedule: time", "The hour, written 09:00."),
+                "day": ("Schedule: day", "Monday… or 1 to 31."),
+                "active": ("Schedule: active", "Unticked: paused, nothing deleted."),
+                "next_run": ("Schedule: next run", "Written by the runner."),
+                "last_run": ("Schedule: last run", "Written by the runner."),
+                "last_ticket": (
+                    "Schedule: last ticket",
+                    "Written by the runner: what the last occurrence created.",
+                ),
             },
         ),
     ),
     Section(
-        key="types",
-        title="The types of ticket",
-        blurb=(
-            "The road a ticket takes, told by how the work is done rather than by what it "
-            "is about. A ticket whose Type is empty is classified before it runs, by a short "
-            "session on a light model: the type goes into the column, the reason into a "
-            "comment. A type you chose is never overwritten, and a doubt blocks the ticket "
-            "with the question rather than running it."
-        ),
-        fields=(
-            Field("runner", "classify", "bool", "Work out an empty type",
-                  "Off: a ticket with no type runs by what its project holds, as before."),
-            Field("runner", "classify_model", "text", "Model that classifies",
-                  "The lightest will do: it reads one page and answers one line. Empty: "
-                  "whatever Claude Code is set to."),
-            Field("runner", "classify_confidence", "choice", "Act on a guess from",
-                  "Below this confidence the ticket is blocked with the question. A guess "
-                  "that hesitated with Publication or External action is blocked whatever "
-                  "this says.",
-                  choices=CONFIDENCES),
-            *_naming(
-                "types",
-                {
-                    "code": "a repository, a branch, a pull request",
-                    "writing": "no repository — the answer is written into the page",
-                    "external": "done in the browser or a service's settings; stops at the "
-                    "first doubt",
-                    "publication": "prepared, sent to review, published once validated",
-                },
-            ),
-        ),
-    ),
-    Section(
         key="pages",
-        title="The rows of the workspace page",
+        title="Names of the Notion databases",
         blurb=(
             "The titles the runner looks for under your workspace page. Only Tickets is "
             "required; the others change nothing by their absence."
@@ -606,11 +708,11 @@ SECTIONS: tuple[Section, ...] = (
         fields=_naming(
             "pages",
             {
-                "tickets": "required",
-                "projects": "a ticket's repository is found through it",
-                "agents": "the crafts a ticket can be handled by",
-                "context": "who the work is for, read into every prompt",
-                "schedules": "what repeats — absent means nothing does",
+                "tickets": ("Tickets database", "Required."),
+                "projects": ("Projects database", "Where a ticket's repository is found."),
+                "agents": ("Agents database", "The roles a ticket can be handled by."),
+                "context": ("Context page", "Who the work is for, read by every session."),
+                "schedules": ("Schedules database", "Recurring tickets; absent, nothing recurs."),
             },
         ),
     ),
@@ -704,6 +806,8 @@ def describe(config: Config) -> dict:
                 "label": entry.label,
                 "help": entry.help,
                 "choices": list(entry.choices),
+                "options": dict(entry.options),
+                "advanced": entry.advanced,
                 "fallback": _fallback(config, entry),
                 "after": entry.after,
                 "stated": stated is not None,
