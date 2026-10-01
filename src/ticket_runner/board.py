@@ -386,16 +386,31 @@ class Board(Base):
 
         A two-minute grace covers clock skew, and a ticket claimed by another
         machine is left alone: only this host can know its own runs are over.
+        Which machine took it is the agent column — and a board without that
+        column cannot say. Skipping everything there was the old answer, and it
+        left fourteen tickets in progress for a whole afternoon with no session
+        behind any of them. So there, every ticket in progress is taken to be
+        this host's, which is true of a board one machine runs, and the only
+        thing that can be known: doctor says what it costs with two.
+
+        Never one this run holds, whichever: a ticket claimed by the pass under
+        way is work, not a leftover.
         """
         status_property = self.config.notion.prop("status")
-        kind = self.client.schema(self.database).get(status_property, "status")
+        agent = self.config.notion.prop("agent")
+        schema = self.client.schema(self.database)
+        kind = schema.get(status_property, "status")
+        signed = agent in schema
         running = self.client.query(
             self.database,
             {"property": status_property, kind: {"equals": self.config.notion.state("running")}},
         )
         recovered = 0
         for page in running:
-            if store.read(page, self.config.notion.prop("agent")) != self.agent_label:
+            ticket = Ticket(page)
+            if ticket.id in self._claimed:
+                continue
+            if signed and store.read(page, agent) != self.agent_label:
                 continue
             edited = page.raw.get("last_edited_time", "")
             try:
@@ -404,7 +419,6 @@ class Board(Base):
                 age = timedelta(days=1)
             if age < timedelta(minutes=2):
                 continue
-            ticket = Ticket(page)
             origin = state.claims().get(ticket.id, "")
             said = self.voice
             stopped = said.say("abandoned", minutes=said.minutes(age.total_seconds()))

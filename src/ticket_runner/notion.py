@@ -22,7 +22,7 @@ import os
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 from .config import PLACEHOLDER
 from .store import SLOTS, Comment, Page, Picture, StoreError, read
@@ -86,9 +86,18 @@ class NotionError(StoreError):
 
 
 class Client:
-    def __init__(self, token: str, timeout: int = 30) -> None:
+    def __init__(
+        self,
+        token: str,
+        timeout: int = 30,
+        *,
+        dropped: Callable[[str, str], None] | None = None,
+    ) -> None:
         self._token = token
         self._timeout = timeout
+        # Told of every property a write leaves out for want of a column — see
+        # `_encoded`. Nobody listening is the old silence.
+        self._dropped = dropped
         self._databases: dict[str, dict] = {}
         self._me: dict | None = None
 
@@ -355,7 +364,12 @@ class Client:
     # -- writing -------------------------------------------------------------
 
     def update(self, database_id: str, page_id: str, values: dict[str, Any]) -> None:
-        """Write properties by name; those absent from the schema are ignored.
+        """Write properties by name; those absent from the schema are left out.
+
+        Left out, and said: whoever opened this client with `dropped` hears of
+        each one. A column nobody created is not something Notion complains
+        about — it is a write that never lands, and the runner went a whole
+        day not signing its claims for want of one.
 
         The schema is cached for the run, and a run can last half an hour — long
         enough for someone to change a column's type in Notion meanwhile. Values
@@ -363,15 +377,7 @@ class Client:
         answers `400 X is expected to be url`. So a rejection on those grounds
         refreshes the schema and tries once more, rather than losing the write.
         """
-        def encode(schema: dict[str, str]) -> dict[str, Any]:
-            properties: dict[str, Any] = {}
-            for name, value in values.items():
-                encoded = _encode(schema.get(name), value)
-                if encoded is not None:
-                    properties[name] = encoded
-            return properties
-
-        properties = encode(self.schema(database_id))
+        properties = self._encoded(database_id, values)
         if not properties:
             return
         try:
@@ -380,9 +386,23 @@ class Client:
             if "expected to be" not in str(error):
                 raise
             self._databases.pop(database_id, None)
-            retry = encode(self.schema(database_id))
+            retry = self._encoded(database_id, values)
             if retry:
                 self._request("PATCH", f"/pages/{page_id}", {"properties": retry})
+
+    def _encoded(self, database_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        """The values the database has a column for, in the shape Notion wants."""
+        schema = self.schema(database_id)
+        properties: dict[str, Any] = {}
+        for name, value in values.items():
+            if name not in schema:
+                if self._dropped is not None:
+                    self._dropped(database_id, name)
+                continue
+            encoded = _encode(schema[name], value)
+            if encoded is not None:
+                properties[name] = encoded
+        return properties
 
     def append_markdown(self, page_id: str, markdown: str) -> int:
         """Append markdown to a page, as real Notion blocks. Returns the count.
@@ -624,14 +644,10 @@ class Client:
 
     def create_row(self, database_id: str, title: str, values: dict | None = None) -> str:
         """Create a page in a database, titled, and return its ID."""
-        schema = self.schema(database_id)
         properties: dict[str, Any] = {
-            self.title_property(database_id): _encode("title", title)
+            self.title_property(database_id): _encode("title", title),
+            **self._encoded(database_id, values or {}),
         }
-        for key, value in (values or {}).items():
-            encoded = _encode(schema.get(key), value)
-            if encoded is not None:
-                properties[key] = encoded
         payload = self._request(
             "POST",
             "/pages",
