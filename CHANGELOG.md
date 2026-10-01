@@ -18,6 +18,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Drafts have a column of their own.** A board that already keeps an option
+  for tickets still being written — Master Tickets says `draft` — can name it
+  under `[notion.status]` as `draft = "draft"`: the console draws those tickets
+  in a *Drafts* column (*Brouillons* in French) instead of *No status*, and
+  *New ticket* with *Ready to run* off writes that status rather than none. The
+  runner never picks a draft up. Optional, with no default: left out, nothing
+  changes, and no status is ever created in Notion. `ticket-runner doctor`
+  checks the option exists and is none of the runner's own, and the Settings
+  page offers the key.
 - **Keyboard shortcuts in the console.** **Ctrl+K** (⌘K on a Mac) opens a
   command palette from any page: the pages, the projects, the tickets on the
   board, and three actions — a new ticket, the console, a resynchronisation —

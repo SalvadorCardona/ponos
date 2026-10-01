@@ -25,7 +25,7 @@ import {
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
   EDGE,
-  LABEL,
+  columnTitle,
   SEED,
   TicketActions,
   TicketFoot,
@@ -144,9 +144,7 @@ const item = (ticket: Ticket | TicketDetail): TicketItem => ({
 
 /** The column's name, as the board spells it. */
 export function columnName(key: string): string {
-  return (
-    currentBoard()?.columns.find((column) => column.key === key)?.name || t(LABEL[key] ?? "") || key
-  )
+  return columnTitle(key, currentBoard()?.columns.find((column) => column.key === key)?.name)
 }
 
 /* -- the forms ------------------------------------------------------------ */
@@ -649,7 +647,7 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
           className="scroll-thin flex snap-x snap-mandatory items-start gap-3 overflow-x-auto scroll-smooth pb-2"
         >
           {columns.map((column) => {
-            const name = column.name || t(LABEL[column.key] ?? "")
+            const name = columnTitle(column.key, column.name)
             if (!emptyShown && empty.has(column.key)) {
               return dragging ? (
                 <DropZone
@@ -765,13 +763,17 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     })
     const projects = await api.projects().catch(() => ({ projects: [] }))
     const project = projects.projects.find((candidate) => candidate.id === fresh.project)
+    // A draft lands where the server put it: among the drafts on a board that
+    // keeps some, with no status on one that does not.
+    const drafts = currentBoard()?.columns.find((candidate) => candidate.key === "draft")
+    const column = fresh.ready === false ? (drafts ? "draft" : "other") : "ready"
     const card: Ticket = {
       id: made.id.replace(/-/g, ""),
       short: made.id.replace(/-/g, "").slice(-8),
       title: made.title,
       url: "",
-      status: "",
-      column: fresh.ready === false ? "other" : "ready",
+      status: column === "draft" ? drafts?.name ?? "" : "",
+      column,
       project: project?.name ?? "",
       kind: project?.kind ?? "",
       priority: "",

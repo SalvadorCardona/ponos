@@ -53,7 +53,8 @@ SCHEMA_TTL = 600
 BRIEFS = 200
 
 # The columns, in the order they are meant to be read. Anything the board
-# carries that is none of them lands in "other" rather than being hidden.
+# carries that is none of them lands in "other" rather than being hidden. The
+# drafts come before them, on a board that names its own — see `_keys`.
 COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done")
 
 
@@ -187,6 +188,7 @@ class Api:
         except store.StoreError:
             self.forget()
             raise
+        keys = _keys(settings)
         names = _columns(settings)
         projects = self.projects()
         host = self.config.runner.session_host
@@ -220,14 +222,14 @@ class Api:
         except store.StoreError:
             offers = False
 
-        order = {key: index for index, key in enumerate(COLUMNS)}
-        tickets.sort(key=lambda item: (order.get(item["column"], len(COLUMNS)), item["title"].lower()))
+        order = {key: index for index, key in enumerate(keys)}
+        tickets.sort(key=lambda item: (order.get(item["column"], len(keys)), item["title"].lower()))
         columns = [
             {"key": key, "name": settings.state(key)}
-            for key in COLUMNS
+            for key in keys
             # A board whose `blocked` and `failed` are one column must not
             # be drawn twice under two headings.
-            if settings.state(key) not in [settings.state(other) for other in COLUMNS[: COLUMNS.index(key)]]
+            if settings.state(key) not in [settings.state(other) for other in keys[: keys.index(key)]]
         ]
         # A ticket with no status, or with one nobody configured, is a ticket
         # somebody wrote and the runner will never claim. Dropping it from the
@@ -852,11 +854,15 @@ class Api:
         settings = self.config.notion
         values: dict[str, Any] = {}
         # Ready means "start it now"; anything else means the ticket is being
-        # written. A draft is left with no status rather than parked in a column
-        # nobody named: the runner claims what it was told to claim, and a
-        # console that invented a sixth column would be inventing a workflow.
+        # written. A draft goes where the board keeps its drafts, when the
+        # configuration names that option, and is otherwise left with no
+        # status rather than parked in a column nobody named: the runner claims
+        # what it was told to claim, and a console that invented a column would
+        # be inventing a workflow.
         if ready:
             values[settings.prop("status")] = settings.state("ready")
+        elif "draft" in _keys(settings):
+            values[settings.prop("status")] = settings.state("draft")
         if project:
             values[settings.prop("project")] = [project]
         page_id = self.runner.client.create_row(self.runner.database, title, values)
@@ -873,7 +879,7 @@ class Api:
         meanwhile, and is left as it is — see `board.send`. A caller that does
         not say is taken to mean the status the console last read.
         """
-        if key not in COLUMNS:
+        if key not in _keys(self.config.notion):
             raise ValueError(f"unknown column “{key}”")
         settings = self.config.notion
         held = self.reader.get(page_id)
@@ -1075,9 +1081,23 @@ def _columns(settings) -> dict[str, str]:
     as blocked, and a console that showed none.
     """
     names: dict[str, str] = {}
-    for key in COLUMNS:
+    for key in _keys(settings):
         names.setdefault(settings.state(key), key)
     return names
+
+
+def _keys(settings) -> tuple[str, ...]:
+    """The columns this board draws, drafts first when it keeps any.
+
+    `draft` is an option the board already had — see `Notion.state` — and is
+    a column only when it is named, and named apart from every status the
+    runner moves a ticket through: a draft that is also `ready` is a ticket
+    the runner takes, and calling its column "Drafts" would be lying.
+    """
+    draft = settings.state("draft")
+    if draft and draft not in [settings.state(key) for key in COLUMNS]:
+        return ("draft", *COLUMNS)
+    return COLUMNS
 
 
 def outbox_path() -> Path:

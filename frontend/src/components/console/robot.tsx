@@ -66,6 +66,7 @@ export function Robot({
  * typing is the one that should catch the eye. The others hold the pose of
  * their column, which says as much and costs nothing. */
 export const MOOD: Record<ColumnKey, RobotState> = {
+  draft: "sleep",
   ready: "idle",
   running: "working",
   review: "waiting",

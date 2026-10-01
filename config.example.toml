@@ -233,6 +233,13 @@ last_ticket = "Last ticket"
 #   blocked  the agent could not settle the ticket and asked a question instead
 #            of guessing — or the project could not be located. Its own column:
 #            "waiting for you" and "something is wrong" are different days
+#   draft    optional, and with no default: the option your board already has
+#            for a ticket still being written. The console draws those tickets
+#            in a "Drafts" column, and "New ticket" with "Ready to run" off puts
+#            the ticket there; the runner never picks one up. Left out, a draft
+#            has no status at all and shows under "No status", as before. It
+#            names an option, it never creates one — and it must not be one of
+#            the statuses above
 [notion.status]
 ready = "Ready"
 running = "In progress"
@@ -241,6 +248,7 @@ validated = "Validated"
 done = "Done"
 failed = "Failed"
 blocked = "Blocked"
+# draft = "Draft"
 
 # The four types a ticket can be, as the options of its Type column spell them.
 # Told apart by the road the work takes, not by what it is about:

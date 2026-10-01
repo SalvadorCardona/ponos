@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils"
  * here, and translated where it is drawn: the board's own words come from
  * Notion and are repeated as they are. */
 export const LABEL: Record<string, string> = {
+  draft: "Drafts",
   ready: "Ready",
   running: "In progress",
   review: "In review",
@@ -38,6 +39,15 @@ export const LABEL: Record<string, string> = {
 
 /** A column's name as the board heads it: the board's word, with a capital — Notion's may have none. */
 export const capital = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1)
+
+/* The heading over a column: the board's own word for it, except over the
+ * drafts. There the word is the option a draft is written with — often a bare
+ * "draft" — rather than a name anybody gave a column, and the column says
+ * "Drafts" in whichever language the console is in. */
+export function columnTitle(key: string, name?: string): string {
+  if (key === "draft") return t(LABEL.draft)
+  return name || t(LABEL[key] ?? "") || key
+}
 
 /** The colour of a column, on the left edge of a card. */
 export const EDGE: Record<string, string> = {
@@ -291,7 +301,7 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
   // for it would leave a gap on the card where the gestures would have been.
   if (ticket.column === "running") return null
   const named = (key: string) =>
-    board.columns.find((column) => column.key === key)?.name || t(LABEL[key] ?? key)
+    columnTitle(key, board.columns.find((column) => column.key === key)?.name)
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {ticket.column === "review" ? (

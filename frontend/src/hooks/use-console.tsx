@@ -532,7 +532,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
    * off the screen, and a card that simply vanished reads as a card lost. */
   const move = React.useCallback(async (target: Ticket, column: ColumnKey) => {
     const name =
-      currentBoard()?.columns.find((item) => item.key === column)?.name || column
+      (column === "draft" ? t("Drafts") : "") ||
+      currentBoard()?.columns.find((item) => item.key === column)?.name ||
+      column
     try {
       if (await moveTicket(target.id, column))
         toast.success(t("“{{title}}” moved to {{column}}", { title: target.title, column: name }))

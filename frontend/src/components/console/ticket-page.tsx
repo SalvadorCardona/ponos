@@ -25,8 +25,8 @@ import { Markdown } from "./markdown"
 import { MOOD, Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
 import {
-  LABEL,
   SEED,
+  columnTitle,
   TicketActions,
   TicketLinks,
   ago,
@@ -76,11 +76,7 @@ export function TicketPage() {
   // the table is what you were reading the board in, is losing your place.
   const back = boardHref()
   const column = ticket
-    ? capital(
-        board.columns.find((item) => item.key === ticket.column)?.name ||
-          t(LABEL[ticket.column] ?? "") ||
-          ticket.column
-      )
+    ? capital(columnTitle(ticket.column, board.columns.find((item) => item.key === ticket.column)?.name))
     : ""
 
   return (

@@ -7066,6 +7066,71 @@ def a_ticket_under_no_known_status_is_drawn_in_a_column_of_its_own():
     )
 
 
+class _DraftClient(_ColumnsClient):
+    """The same database, offering a draft option, and keeping what is created."""
+
+    def __init__(self, statuses: list[str]) -> None:
+        super().__init__(statuses)
+        self.created: list[tuple[str, dict]] = []
+
+    def options(self, database: str, prop: str) -> list[str]:
+        return ["draft", *super().options(database, prop)]
+
+    def create_row(self, database_id, title, values=None):
+        self.created.append((title, dict(values or {})))
+        return "f" * 32
+
+
+@case
+def a_board_that_names_its_drafts_draws_them_apart_from_no_status():
+    """Master Tickets has a `draft` option; the console put those under "No status".
+
+    Named in `[notion.status]`, it is a column of its own, first, and "New
+    ticket" with "Ready to run" off writes it. A ticket that truly has no
+    status still lands in "other". Left unnamed, nothing changes: the draft is
+    one of the "other" cards and a new draft is written with no status — and
+    one named the same as `ready` is the runner's, so never called a draft.
+    """
+    quiet = type("W", (), {"nudge": lambda self: None})()
+
+    api = _bare_api(_DraftClient(["draft", "Ready", ""]))
+    api._config.notion.status = {"draft": "draft"}
+    api._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
+    api._schema_at = time.time()
+    api.watch = quiet
+    board = api.board()
+    keys = [column["key"] for column in board["columns"]]
+    assert keys[0] == "draft" and keys[-1] == "other", keys
+    assert board["columns"][0]["name"] == "draft", "the status a move writes, as Notion spells it"
+    assert [item["column"] for item in board["tickets"]] == ["draft", "ready", "other"]
+    api.create_ticket("Écrire l'audit", ready=False)
+    api.create_ticket("Lancer l'audit", ready=True)
+    assert [values.get("Status") for _, values in api._runner.client.created] == ["draft", "Ready"]
+    assert api.set_status("1" * 32, "draft")["status"] == "draft"
+
+    plain = _bare_api(_DraftClient(["draft", "Ready", ""]))
+    plain._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
+    plain._schema_at = time.time()
+    plain.watch = quiet
+    board = plain.board()
+    assert "draft" not in [column["key"] for column in board["columns"]]
+    assert [item["column"] for item in board["tickets"]] == ["ready", "other", "other"]
+    plain.create_ticket("Écrire l'audit", ready=False)
+    assert plain._runner.client.created == [("Écrire l'audit", {})], "no key, no status, as before"
+    try:
+        plain.set_status("1" * 32, "draft")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a board with no drafts has no draft column to move to")
+
+    assert C.Notion().state("draft") == "", "nothing is defaulted"
+    assert C.Notion(status={"draft": "Ready"}).state("draft") == "Ready"
+    assert web_api._keys(C.Notion(status={"draft": "Ready"}))[0] == "ready", (
+        "a draft that is the runner's ready is no draft"
+    )
+
+
 def _session_line(kind: str = "assistant") -> str:
     if kind == "result":
         return json.dumps({"type": "result", "result": "done", "session_id": "s"}) + "\n"
@@ -7496,6 +7561,8 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
         expected.add(f"notion.{name}")
     for table in ("pages", "properties", "status", "types"):
         expected |= {f"notion.{table}.{key}" for key in C.defaults(table)}
+    # The one naming key with no default: a board names its drafts or has none.
+    expected.add("notion.status.draft")
     expected |= {"notify.telegram.token", "notify.telegram.chat"}
     expected |= {"notify.slack.token", "notify.slack.channel"}
 

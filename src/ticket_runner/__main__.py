@@ -924,6 +924,24 @@ def command_doctor(args: argparse.Namespace) -> int:
             else:
                 bad(f"{key:<9} → “{wanted}” is not offered by the database")
                 problems += 1
+        # The one status the runner never writes nor reads, and that nothing
+        # defaults: named, it has to be an option the board already offers, and
+        # one apart from the runner's own — a draft that is `ready` is taken.
+        draft = configuration.notion.state("draft")
+        moved = [
+            configuration.notion.state(key)
+            for key in ("ready", "running", "review", "validated", "done", "failed", "blocked")
+        ]
+        if not draft:
+            print(f"  {DIM}draft     → none named — a ticket being written has no status{RESET}")
+        elif draft in moved:
+            bad(f"draft     → “{draft}” is also a status the runner moves tickets through")
+            problems += 1
+        elif draft in options:
+            ok(f"draft     → “{draft}” — never picked up")
+        else:
+            bad(f"draft     → “{draft}” is not offered by the database")
+            problems += 1
         print(f"  {DIM}available: {', '.join(options)}{RESET}")
 
     type_column = configuration.notion.prop("type")
