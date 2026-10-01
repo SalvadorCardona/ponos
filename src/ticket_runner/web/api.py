@@ -744,6 +744,7 @@ class Api:
         Left in the order Notion hands them over — that order is somebody's, and
         a console that sorted it would be rearranging their page for them.
         """
+        next_at = schedules_module.upcoming(schedule, datetime.now().astimezone())
         return {
             "id": schedule.page.id.replace("-", ""),
             "name": schedule.name,
@@ -752,7 +753,10 @@ class Api:
             "at": schedule.at,
             "day": schedule.day,
             "active": schedule.active,
-            "next": schedule.next.isoformat(timespec="minutes") if schedule.next else "",
+            # When the next ticket is born, not where the pass left its
+            # bookmark: a schedule turned off has none, and one that is due has
+            # it now. See `schedules.upcoming`.
+            "next": next_at.isoformat(timespec="minutes") if next_at else "",
             "last": schedule.last.isoformat(timespec="minutes") if schedule.last else "",
             # The ticket the last occurrence made, addressed the way the board
             # addresses one: the console links to its page, not to Notion's.

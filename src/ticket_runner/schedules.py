@@ -192,6 +192,20 @@ def next_occurrence(
     return moment.astimezone() if after.tzinfo else moment
 
 
+def upcoming(schedule: Schedule, now: datetime) -> datetime | None:
+    """When the next ticket is born, as somebody reading the list understands it.
+
+    `next` is the runner's bookmark, not an answer: it stays where the last pass
+    left it. A schedule turned off keeps the date it had then — weeks old by the
+    time anybody looks — and nothing is born from it at all, so it has none. A
+    schedule nobody can read is the same. One that is on and already due fires
+    on the very next pass: *now*, never a moment in the past.
+    """
+    if not schedule.active or schedule.problem or schedule.next is None:
+        return None
+    return max(schedule.next, now)
+
+
 def _in_month(year: int, month: int, day: int, hour: int, minute: int) -> datetime:
     """That day of that month, or the last one the month has.
 

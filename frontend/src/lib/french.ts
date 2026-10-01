@@ -463,7 +463,14 @@ export const FRENCH: Record<string, string> = {
   calendar: "calendrier",
   "A row says what to make and how often; when the moment comes the runner writes the ticket into the ready column and steps back.":
     "Une ligne dit quoi faire et à quelle fréquence ; le moment venu, le runner écrit le ticket dans la colonne prête et se retire.",
-  "{{count}} of {{total}} on": "{{count}} sur {{total}} en service",
+  "{{count}} of {{total}} on": "{{count}} active sur {{total}}",
+  // The four cadences, as the list and the select draw them: the board keeps
+  // the English word, which is the one `schedules.py` reads.
+  Hourly: "Toutes les heures",
+  Daily: "Quotidienne",
+  Weekly: "Hebdomadaire",
+  Monthly: "Mensuelle",
+  paused: "en pause",
   "nothing yet": "rien pour l'instant",
   "Nothing repeats here": "Rien ne se répète ici",
   "This workspace has no “{{page}}” page.":

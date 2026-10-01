@@ -13,9 +13,10 @@ One ticket is written long on purpose: a brief several screens tall, which is
 the page that stopped scrolling. One is blocked on a question a run asked, for
 the discussion its page opens on and the mark its card wears. Two projects, for the list that opens one in a
 drawer. Three tickets for the gestures a card offers — one Done, one
-Validated, one Ready to be set aside and made ready again. And a check that found a newer version than this checkout, for the
-version at the top right to offer it — a commit that exists nowhere, so that a
-click on "Update now" could only ever fail.
+Validated, one Ready to be set aside and made ready again. Two schedules a pass
+last read weeks ago, one of them turned off. And a check that found a newer
+version than this checkout, for the version at the top right to offer it — a
+commit that exists nowhere, so that a click on "Update now" could only ever fail.
 
 And a `claude` of its own, first in the PATH, for the conversation with the
 workspace: it reads a file, runs a command that fails, and answers — or, told
@@ -48,6 +49,8 @@ GESTURES = {
     "0000000000000000000000000000fa11": ("A validated ticket", "Validated"),
     "0000000000000000000000000000a51d": ("A ticket to set aside", "Ready"),
 }
+PAUSED = "00000000000000000000000000005ed1"
+DUE = "00000000000000000000000000005ed2"
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 
 
@@ -86,6 +89,17 @@ def board(root: Path) -> None:
         page = {"id": id, "title": name, "Repository": f"example/{name.lower()}"}
         (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
             files.render(page, f"The brief of {name}."), encoding="utf-8"
+        )
+    # Two schedules whose `Next` is weeks behind: one turned off since, which
+    # will not fire, and one on, which fires on the next pass. Neither may show
+    # a date in the past.
+    schedules = root / "schedules"
+    schedules.mkdir()
+    for id, name, active in ((PAUSED, "Test email", False), (DUE, "Weekly digest", True)):
+        page = {"id": id, "title": name, "Cadence": "Hourly", "At": "00:00",
+                "Active": active, "Next": "2026-09-09T21:00:00+02:00"}
+        (schedules / f"{name.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
+            files.render(page, "Send it."), encoding="utf-8"
         )
 
 

@@ -6984,12 +6984,13 @@ def the_console_draws_what_comes_back_on_its_own():
     """
     import time as clock
 
+    ahead = (datetime.now().astimezone() + timedelta(days=5)).replace(second=0, microsecond=0)
     api = _bare_api(_TalkClient([]))
     api._runner = _recurring(
         [
             _schedule_page(
                 "s-1",
-                next="2026-09-14T09:00:00+02:00",
+                next=ahead.isoformat(),
                 last_ticket="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             ),
             _schedule_page("s-2", name="Le rapport", cadence="Fortnightly", active=False),
@@ -7008,7 +7009,7 @@ def the_console_draws_what_comes_back_on_its_own():
     first, second = payload["schedules"]
     assert first["name"] == "Revue des dépendances"
     assert (first["cadence"], first["at"], first["active"]) == ("Daily", "09:00", True)
-    assert first["next"].startswith("2026-09-14T09:00")
+    assert schedules.scheduled_for(first["next"]) == ahead
     assert first["project"] == "Animalink", "the relation is resolved, as it is on a card"
     assert first["project_id"] == "panimalink", "and the page, for a name not known yet"
     assert first["ticket"] == "aaaaaaaabbbbccccddddeeeeeeeeeeee", "addressed as the board does"
@@ -7025,6 +7026,34 @@ def the_console_draws_what_comes_back_on_its_own():
     api.projects = lambda: (_ for _ in ()).throw(AssertionError("the projects were read"))
     first = api.schedules()["schedules"][0]
     assert first["project"] == "" and first["project_id"] == "panimalink"
+
+
+@case
+def the_console_never_shows_a_next_occurrence_already_behind_us():
+    """`Next` is the pass's bookmark; the list says when a ticket is born.
+
+    Turned off three weeks ago, a schedule keeps the date it had then — and
+    nothing will be born from it. Turned on and due, it fires on the very next
+    pass, which is now and not a moment in the past.
+    """
+    stale = "2026-09-09T21:00:00+02:00"
+    api = _bare_api(_TalkClient([]))
+    api._runner = _recurring(
+        [
+            _schedule_page("s-1", name="Test email", cadence="Hourly", next=stale,
+                           active=False),
+            _schedule_page("s-2", cadence="Hourly", next=stale),
+        ]
+    )
+    api._config = api._runner.config
+    api._projects = {}
+    api.projects = lambda: {"projects": []}
+
+    before = datetime.now().astimezone().replace(second=0, microsecond=0)
+    paused, due = api.schedules()["schedules"]
+    assert paused["active"] is False and paused["next"] == "", "a paused schedule has no next"
+    assert paused["cadence"] == "Hourly", "the word the board holds, translated by the page"
+    assert schedules.scheduled_for(due["next"]) >= before, f"an occurrence in the past: {due['next']}"
 
 
 class _PageClient(_TalkClient):
