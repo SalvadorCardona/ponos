@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, why } from "@/lib/api"
 import { currentLanguage, useT } from "@/lib/i18n"
+import { money, number } from "@/lib/numbers"
 import type { Statistics, StatisticsDay } from "@/lib/types"
 import { columnName } from "@/resources/tickets"
 
@@ -56,7 +57,7 @@ const short = (point: StatisticsDay) =>
   date(point.day).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" })
 const long = (point: StatisticsDay) =>
   date(point.day).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "long" })
-const dollars = (value: number) => `$${value.toFixed(value >= 100 ? 0 : 2)}`
+const dollars = (value: number) => money(value, value >= 100 ? 0 : 2)
 
 export function StatisticsPane() {
   const t = useT()
@@ -159,9 +160,9 @@ function Figures({ figures }: { figures: Statistics }) {
   const t = useT()
   const { totals, days } = figures
   const cards = [
-    { label: "Open", value: String(totals.open), note: t("on the evening of the last day") },
-    { label: "Closed", value: String(totals.closed), note: t("moved to done in the period") },
-    { label: "Created", value: String(totals.created), note: t("added to the board in the period") },
+    { label: "Open", value: number(totals.open), note: t("on the evening of the last day") },
+    { label: "Closed", value: number(totals.closed), note: t("moved to done in the period") },
+    { label: "Created", value: number(totals.created), note: t("added to the board in the period") },
     { label: "Spent", value: dollars(totals.cost), note: t("by the runner's sessions in the period") },
   ]
   const busiest = Math.max(1, ...figures.statuses.map((item) => item.count))
@@ -277,7 +278,7 @@ function Bars({ rows, most }: { rows: { label: string; count: number }[]; most: 
               style={{ width: `${(row.count / most) * 100}%`, background: "var(--series-1)" }}
             />
           </span>
-          <span className="font-mono text-xs font-semibold tabular-nums">{row.count}</span>
+          <span className="font-mono text-xs font-semibold tabular-nums">{number(row.count)}</span>
         </li>
       ))}
     </ul>

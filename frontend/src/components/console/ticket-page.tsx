@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConsole } from "@/hooks/use-console"
 import { why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
+import { money } from "@/lib/numbers"
 import type { TicketDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import {
@@ -119,7 +120,7 @@ export function TicketPage() {
             {ticket.priority ? <Fact label={t("priority")}>{ticket.priority}</Fact> : null}
             {ticket.model ? <Fact label={t("model")}>{ticket.model}</Fact> : null}
             {typeof ticket.cost === "number" && ticket.cost ? (
-              <Fact label={t("spent")}>${ticket.cost.toFixed(2)}</Fact>
+              <Fact label={t("spent")}>{money(ticket.cost)}</Fact>
             ) : null}
             {/* What the run cost in time, next to what it cost in money — from
                 the board's column, or from the session's log where the board

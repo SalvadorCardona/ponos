@@ -41,7 +41,7 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
 
   await expect(page.getByText("Done. The board has 13 tickets.")).toBeVisible()
   await expect(thinking).toHaveCount(0)
-  const fold = page.getByRole("button", { name: /Show the steps · 3 step\(s\)/ }).last()
+  const fold = page.getByRole("button", { name: /Show the steps · 3 steps/ }).last()
   await expect(fold).toBeVisible()
   await expect(fold).toContainText("$0.0123")
   await expect(fold.getByText("1", { exact: true })).toBeVisible()
@@ -69,7 +69,7 @@ test("Stop ends the turn, says so, and the conversation carries on", async ({ pa
   await expect(page.getByText("stopped by you")).toBeVisible()
   await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)
   await expect(page.getByRole("textbox", { name: FIELD })).toBeFocused()
-  await expect(page.getByRole("button", { name: /Show the steps · 4 step\(s\)/ }).last()).toBeVisible()
+  await expect(page.getByRole("button", { name: /Show the steps · 4 steps/ }).last()).toBeVisible()
 
   await ask(page, "just the count, then")
   await expect(page.getByText("Resumed, and done. The board has 13 tickets.")).toBeVisible()

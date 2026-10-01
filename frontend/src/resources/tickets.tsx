@@ -55,7 +55,8 @@ import {
   titleOf,
   useBoard,
 } from "@/lib/board-store"
-import { t } from "@/lib/i18n"
+import { counted, t } from "@/lib/i18n"
+import { money } from "@/lib/numbers"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { ColumnKey, Ticket, TicketDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -152,7 +153,7 @@ const item = (ticket: Ticket | TicketDetail): TicketItem => ({
   "@type": TICKETS,
   // The card, the table and the page's header all read the title from here.
   title: titleOf(ticket),
-  spent: typeof ticket.cost === "number" && ticket.cost ? `$${ticket.cost.toFixed(2)}` : "",
+  spent: typeof ticket.cost === "number" && ticket.cost ? money(ticket.cost) : "",
   took: typeof ticket.duration === "number" && ticket.duration ? lasted(ticket.duration) : "",
   due: when(ticket.scheduled),
 })
@@ -735,7 +736,7 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
         <p className="text-muted-foreground flex items-center justify-end gap-1 text-xs">
           {emptyShown
             ? null
-            : t("{{count}} empty column(s) hidden", { count: String(empty.size) })}
+            : counted(empty.size, "{{count}} empty column hidden", "{{count}} empty columns hidden")}
           <Button variant="ghost" size="xs" onClick={() => setEmptyShown(!emptyShown)}>
             {emptyShown ? t("Hide empty columns") : t("Show them")}
           </Button>

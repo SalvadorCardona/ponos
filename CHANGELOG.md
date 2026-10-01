@@ -592,6 +592,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   version, and the previous one stays on disk for going back. `install.sh`
   installs the same way; an existing installation is moved to it by its next
   update.
+- **Amounts, numbers and plurals are written in the console's language.** The
+  same cost read "$1.36" on a card, "2724.82 $" in the strip at the top and
+  "$2627" in the statistics, and a count had no thousands separator or said
+  "6 ticket(s)". In French the console now writes « 2 734,75 $ », « 1 178 »
+  and « 1 ticket » / « 6 tickets » ; in English "$2,734.75", "1,178" and
+  "6 tickets" — no "(s)" left anywhere.
 - **A tab closed mid-request no longer fills the console's journal.** Closing
   or reloading the console while it was answering left two Python tracebacks
   in `journalctl` each time — the broken pipe, then the 500 the console tried

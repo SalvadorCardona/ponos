@@ -2,7 +2,7 @@ import { ActionList } from "react-data-form"
 import { Link, ResourceViewButton, useCurrentViewResourceContext } from "react-resource-view"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { useT } from "@/lib/i18n"
+import { counted, useT } from "@/lib/i18n"
 import { Repository, Where, isAPage, useTicketCount, whyNotRead, type ProjectItem } from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
 
@@ -140,7 +140,7 @@ export function ProjectTitle() {
 export function ProjectActions() {
   const context = useCurrentViewResourceContext()
   const project = context.data as ProjectItem | undefined
-  const t = useT()
+  useT()
   const count = useTicketCount(project?.name ?? "")
   if (!project) return null
   /** Where the project is really written, when that is somewhere a browser can go. */
@@ -151,7 +151,7 @@ export function ProjectActions() {
       {count === null ? (
         <Skeleton className="h-5 w-16 rounded-full" />
       ) : count ? (
-        <Chip>{t("{{count}} ticket(s)", { count: String(count) })}</Chip>
+        <Chip>{counted(count, "{{count}} ticket", "{{count}} tickets")}</Chip>
       ) : null}
       {isAPage(project.id) ? (
         <ResourceViewButton

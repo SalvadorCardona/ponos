@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSteps } from "@/hooks/use-console"
 import { api } from "@/lib/api"
-import { useT } from "@/lib/i18n"
+import { counted, useT } from "@/lib/i18n"
 import type { Step, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -208,7 +208,7 @@ export function TicketLive({ ticket }: { ticket: Ticket }) {
         {live ? <Pulse /> : null}
         {live ? t("writing now") : t("the last session, read-only")}
         <span>·</span>
-        {t("{{count}} step(s)", { count: String(session?.count || steps.length) })}
+        {counted(session?.count || steps.length, "{{count}} step", "{{count}} steps")}
       </p>
       <SessionLog steps={steps} live={live} />
     </div>
@@ -246,7 +246,7 @@ export function CardLive({ ticket }: { ticket: Ticket }) {
         <span className="sr-only">{t("writing now")}</span>
         {session?.count ? (
           <span className="tabular-nums">
-            {t("{{count}} step(s)", { count: String(session.count) })}
+            {counted(session.count, "{{count}} step", "{{count}} steps")}
           </span>
         ) : null}
       </div>
