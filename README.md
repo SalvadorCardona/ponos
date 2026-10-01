@@ -2013,9 +2013,11 @@ The page is a **React** application — TypeScript, [Vite](https://vite.dev),
 [shadcn/ui](https://ui.shadcn.com) on Tailwind v4, and react-resource-view's admin layout
 over TanStack Router — and it lives in `frontend/`. What ships in
 the package is the *build*: `src/ticket_runner/web/static/` holds `index.html` and the
-files under `assets/` — `console.js` and `console.css`, and the chunks loaded only when a
-page asks for them (the Markdown editor is the largest) — and those are committed. Names
-carry no hash of the build's own; a chunk a dependency ships already named keeps its name.
+files under `assets/` — the console's script and stylesheet, and the chunks loaded only when a
+page asks for them (the Markdown editor is the largest) — and those are committed. Every
+name under `assets/` carries a hash of the file, so `serve` lets a browser keep them for a
+year and gzips them on the way out; `index.html`, which names the current ones, is never
+kept, and that is how an update reaches a browser that cached the last build.
 
 That is the whole arrangement, and it is deliberate. `install.sh` clones this repository
 onto a machine that has `python3` and `git`, and `ticket-runner serve` is `http.server` and
