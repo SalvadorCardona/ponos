@@ -11,13 +11,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useConsole } from "@/hooks/use-console"
 import { hotkeyLabel, useHotkeys } from "@/hooks/use-hotkeys"
 import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 import { ConsolePane } from "./console-pane"
-import { TicketTalk } from "./ticket-talk"
 
 /* The discussion, behind a bubble.
  *
@@ -27,9 +25,11 @@ import { TicketTalk } from "./ticket-talk"
  * bubble in the bottom corner is the gesture everybody already knows, and the
  * page keeps its full width until you ask for the conversation.
  *
- * What it opens is what you are looking at: on a ticket, that ticket's
- * discussion; anywhere else, the workspace's own. Same rule as the column it
- * replaces, and the same two panes — only the way in changed.
+ * What it opens is the workspace, wherever you are. It used to open a ticket's
+ * discussion on that ticket's page, and said so nowhere: a question waiting on
+ * you sat behind a bubble that looked the same on every page. The discussion
+ * is a tab of the ticket's page now, counted — see `TicketPage` — and the
+ * bubble has one role left.
  */
 
 /* Opened from elsewhere: a section of the settings runs `> doctor` and the
@@ -92,7 +92,6 @@ const isFullKey = (event: React.KeyboardEvent) =>
   event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === "KeyF"
 
 export function TalkDrawer() {
-  const { ticket } = useConsole()
   const t = useT()
   const [open, setOpen] = React.useState(false)
   const [width, setWidth] = React.useState<number | null>(keptWidth)
@@ -136,7 +135,7 @@ export function TalkDrawer() {
   useHotkeys({ console: () => change((current) => !current) })
   const shortcut = hotkeyLabel("console")
 
-  const label = ticket ? t("the discussion") : t("the console")
+  const label = t("the console")
   const fullLabel = full ? t("Leave full screen") : t("Full screen")
 
   return (
@@ -195,15 +194,13 @@ export function TalkDrawer() {
           back.focus()
         }}
       >
-        {/* The pane under it opens with its own heading — which ticket, or
-            which machine you are talking to — so the sheet's is for the
-            readers who are told the page rather than shown it. */}
+        {/* The pane under it opens with its own heading — which machine you
+            are talking to — so the sheet's is for the readers who are told
+            the page rather than shown it. */}
         <SheetHeader className="sr-only">
           <SheetTitle>{label}</SheetTitle>
           <SheetDescription>
-            {ticket
-              ? t("Everything said on the ticket, oldest first. What you type is a comment on it.")
-              : t("A sentence talks to your workspace; a line that starts with > runs a command.")}
+            {t("A sentence talks to your workspace; a line that starts with > runs a command.")}
           </SheetDescription>
         </SheetHeader>
         {/* The edge the drawer is pulled by. A separator, in the ARIA sense,
@@ -266,7 +263,7 @@ export function TalkDrawer() {
           </TooltipTrigger>
           <TooltipContent side="bottom">{`${fullLabel} · Alt+Shift+F`}</TooltipContent>
         </Tooltip>
-        {ticket ? <TicketTalk /> : <ConsolePane />}
+        <ConsolePane />
       </SheetContent>
     </Sheet>
   )

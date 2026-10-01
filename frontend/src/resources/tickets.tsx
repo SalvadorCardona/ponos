@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react"
+import { ChevronLeft, ChevronRight, LayoutGrid, MessageCircleQuestion } from "lucide-react"
 import {
   ActionList,
   BooleanInputController,
@@ -418,6 +418,20 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         <Link to={href} className="shrink-0 font-medium tracking-wide hover:underline">
           #{ticket.short}
         </Link>
+        {/* Waiting on you: a run that asks a question lands in the blocked
+            column, and so does a ticket held by hand — both wait for a word
+            from you. The board reads no discussion, so the column is what it
+            goes by; the page it opens is on the discussion. */}
+        {ticket.column === "blocked" ? (
+          <Link
+            to={href}
+            data-slot="ticket-waiting"
+            className="bg-tr-amber/15 text-tr-amber inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 font-sans font-semibold hover:underline"
+          >
+            <MessageCircleQuestion className="size-3" />
+            {t("waiting for you")}
+          </Link>
+        ) : null}
         <span className="flex-1" />
         <span className="text-muted-foreground min-w-0 truncate">{ago(ticket.created)}</span>
       </div>

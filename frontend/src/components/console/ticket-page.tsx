@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArrowLeft, CopyIcon, RotateCw } from "lucide-react"
+import { ArrowLeft, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
 import { toast } from "sonner"
 
@@ -24,6 +24,7 @@ import { Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
 import { MOOD, Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
+import { TicketTalk } from "./ticket-talk"
 import {
   SEED,
   columnTitle,
@@ -41,16 +42,18 @@ import {
  * the time this draws is the card, as the board has it — so the page is drawn
  * at once — and the page under it, the brief, the report a run appended, the
  * notes between, is read here from `/api/tickets/<id>`, once per opening (see
- * `readTicket`). The ticket's discussion is a bubble away, in the drawer:
- * opening this page is what loads it.
+ * `readTicket`). Opening this page is also what loads the ticket's discussion.
  *
  * It opens the way the board's cards do and then says more: the column as a
  * banner, and the metadata as a ruled grid — because six facts in a row of pills is six pills, where six
  * facts in a grid is a thing you can read down.
  *
- * Under them, two tabs: the brief, and the session — live while the ticket is
- * in progress, which is when somebody opens it to see what it is doing, so it
- * is the tab a running ticket opens on.
+ * Under them, three tabs: the brief, the session, and the discussion. The
+ * session is live while the ticket is in progress, which is when somebody
+ * opens it to see what it is doing, so it is the tab a running ticket opens on.
+ * The discussion is counted, and it is the tab a ticket waiting on you opens
+ * on — blocked, or with a question nobody has answered — because that is the
+ * one thing on the page you came to do something about.
  *
  * The way back to the board and the title are the header's, as on every page
  * of the console; the page drew its own under it, and said both twice. The
@@ -138,54 +141,14 @@ export function TicketPage() {
             ) : null}
           </Facts>
 
-          <Tabs
-            // Chosen once per ticket, not every time the column moves: a
-            // tab that switched itself under the reader would lose them.
+          {/* Chosen once per ticket, not every time the column moves: a
+              tab that switched itself under the reader would lose them. */}
+          <TicketTabs
             key={ticket.id}
-            defaultValue={ticket.column === "running" ? "live" : "brief"}
-            className="mt-6"
-          >
-            <TabsList>
-              <TabsTrigger value="brief">{t("the brief")}</TabsTrigger>
-              <TabsTrigger value="live" className="gap-1.5">
-                {ticket.column === "running" ? <Pulse /> : null}
-                {t("live")}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="brief" className="mt-2">
-              {brief.content === undefined ? (
-                brief.problem !== undefined ? (
-                  <EmptyState
-                    robot="error"
-                    title={t("This ticket could not be read.")}
-                    action={
-                      <Button variant="outline" size="sm" onClick={brief.again}>
-                        <RotateCw />
-                        {t("Try again")}
-                      </Button>
-                    }
-                  >
-                    {brief.problem || t("The server gave no reason.")}
-                  </EmptyState>
-                ) : (
-                  <div className="flex flex-col gap-2" aria-busy="true">
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-5/6" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </div>
-                )
-              ) : brief.content ? (
-                <Markdown text={brief.content} />
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  {t("The page is empty: the title is the whole brief.")}
-                </p>
-              )}
-            </TabsContent>
-            <TabsContent value="live" className="mt-2">
-              <TicketLive ticket={ticket} />
-            </TabsContent>
-          </Tabs>
+            ticket={ticket}
+            brief={brief}
+            talking={open?.id === ticket.id}
+          />
         </>
       ) : context.error ? (
         // Why, as the server said it, and the two ways on from here: a
@@ -258,6 +221,102 @@ function useBrief(page: TicketDetail | undefined) {
       setAttempt((count) => count + 1)
     },
   }
+}
+
+/* The brief, the session, the discussion.
+ *
+ * The discussion arrives after the page — it is a second question to the board
+ * — so a ticket whose question is still unanswered is known to be waiting only
+ * once it has. The tab follows it then, unless the reader has already picked
+ * one; and it never leaves the discussion by itself, since an answer sent from
+ * it is exactly what makes the ticket stop waiting. `talking` says the
+ * discussion held is this ticket's, and not still the last one's.
+ */
+function TicketTabs({
+  ticket,
+  brief,
+  talking,
+}: {
+  ticket: TicketDetail
+  brief: ReturnType<typeof useBrief>
+  talking: boolean
+}) {
+  const { talk, talkWaiting } = useConsole()
+  const t = useT()
+  const waiting = ticket.column === "blocked" || (talking && talkWaiting)
+  const [tab, setTab] = React.useState(
+    waiting ? "talk" : ticket.column === "running" ? "live" : "brief"
+  )
+  const picked = React.useRef(false)
+  React.useEffect(() => {
+    if (waiting && !picked.current) setTab("talk")
+  }, [waiting])
+  // What was said, not a line saying the discussion could not be read.
+  const count = talking ? talk.filter((message) => message.role !== "error").length : 0
+
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        picked.current = true
+        setTab(value)
+      }}
+      className="mt-6"
+    >
+      <TabsList>
+        <TabsTrigger value="brief">{t("the brief")}</TabsTrigger>
+        <TabsTrigger value="live" className="gap-1.5">
+          {ticket.column === "running" ? <Pulse /> : null}
+          {t("live")}
+        </TabsTrigger>
+        <TabsTrigger value="talk" data-slot="ticket-talk-tab" className="gap-1.5">
+          {waiting ? <MessageCircleQuestion className="text-tr-amber" /> : null}
+          {t("discussion")}
+          {count ? (
+            <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[0.7rem] tabular-nums">
+              {count}
+            </span>
+          ) : null}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="brief" className="mt-2">
+        {brief.content === undefined ? (
+          brief.problem !== undefined ? (
+            <EmptyState
+              robot="error"
+              title={t("This ticket could not be read.")}
+              action={
+                <Button variant="outline" size="sm" onClick={brief.again}>
+                  <RotateCw />
+                  {t("Try again")}
+                </Button>
+              }
+            >
+              {brief.problem || t("The server gave no reason.")}
+            </EmptyState>
+          ) : (
+            <div className="flex flex-col gap-2" aria-busy="true">
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-5/6" />
+              <Skeleton className="h-3 w-2/3" />
+            </div>
+          )
+        ) : brief.content ? (
+          <Markdown text={brief.content} />
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {t("The page is empty: the title is the whole brief.")}
+          </p>
+        )}
+      </TabsContent>
+      <TabsContent value="live" className="mt-2">
+        <TicketLive ticket={ticket} />
+      </TabsContent>
+      <TabsContent value="talk" className="mt-2">
+        <TicketTalk />
+      </TabsContent>
+    </Tabs>
+  )
 }
 
 /* The layout's header, written here rather than told to it.

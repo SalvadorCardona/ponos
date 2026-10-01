@@ -908,20 +908,32 @@ class Api:
         relayed from a phone — or from this console — wears the runner's token
         and is nonetheless yours, so it is shown under your name and without the
         line that says which device it came through.
+
+        `waiting` says whether the ticket is waiting on you: the last word on
+        the page is a question a run asked, and nobody has answered it yet. The
+        page opens on the discussion when it is, rather than leave the reader to
+        guess that there is one.
         """
         me = self.runner.myself()
         comments = self.runner.client.comments(page_id)
+        messages = [
+            {
+                "role": _voice(comment, me),
+                "text": conversation.said(comment.text),
+                "at": comment.created_time,
+            }
+            for comment in comments
+        ]
+        last = messages[-1] if messages else None
         return {
             "id": page_id,
             "mention": self.config.notion.mention or conversation.MENTION,
-            "messages": [
-                {
-                    "role": _voice(comment, me),
-                    "text": conversation.said(comment.text),
-                    "at": comment.created_time,
-                }
-                for comment in comments
-            ],
+            "messages": messages,
+            "waiting": bool(
+                last
+                and last["role"] == "runner"
+                and last["text"].lstrip().startswith(voice.MARKS["blocked"])
+            ),
         }
 
     # -- writing --------------------------------------------------------------

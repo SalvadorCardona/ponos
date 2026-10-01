@@ -6842,6 +6842,22 @@ def the_discussion_of_a_ticket_reads_as_a_conversation():
 
 
 @case
+def a_question_left_unanswered_is_a_ticket_waiting_on_you():
+    """The page opens on the discussion when the last word is a run's question."""
+    question = notion.Comment(
+        f"{voice.MARKS['blocked']} Question\nWhich header?",
+        discussion_id="d-report",
+        created_by="runner-id",
+    )
+    assert _bare_api(_TalkClient([question])).talk("p-ticket")["waiting"] is True
+    answered = _TalkClient([question, notion.Comment("Celui du dashboard.", discussion_id="d-report", created_by="salva")])
+    assert _bare_api(answered).talk("p-ticket")["waiting"] is False, "an answered question waits on nobody"
+    report = notion.Comment(f"{voice.MARKS['review']} To review — PR #38", created_by="runner-id")
+    assert _bare_api(_TalkClient([report])).talk("p-ticket")["waiting"] is False, "a report is not a question"
+    assert _bare_api(_TalkClient([])).talk("p-ticket")["waiting"] is False
+
+
+@case
 def a_message_written_to_a_ticket_reaches_every_open_console():
     """A click posts and says nothing: what appears is what came back on the stream."""
     api = _bare_api(_TalkClient([]))
@@ -9764,9 +9780,12 @@ def the_discussion_opens_from_a_bubble_rather_than_from_a_column():
     # own, and the one the sidebar already opens on a phone is this one.
     assert "SheetContent" in drawer, "the drawer is hand-rolled again"
     assert 'side="right"' in drawer, "the drawer no longer comes in from the right"
-    assert "ConsolePane" in drawer and "TicketTalk" in drawer, (
-        "the drawer holds neither discussion"
-    )
+    assert "ConsolePane" in drawer, "the drawer no longer holds the console"
+    # A ticket's discussion is a tab of its page: a bubble that changed role on
+    # a ticket said so nowhere, and a question waiting on you sat behind it.
+    assert "TicketTalk" not in drawer, "the bubble turns into a ticket's discussion again"
+    page = (FRONTEND / "src/components/console/ticket-page.tsx").read_text(encoding="utf-8")
+    assert "<TicketTalk />" in page, "a ticket's page no longer holds its discussion"
     app = (FRONTEND / "src/App.tsx").read_text(encoding="utf-8")
     assert "TalkDrawer" in app, "nothing opens the discussion"
     assert "ConsolePane" not in app, "the console has a column of its own again"
