@@ -396,6 +396,19 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The site says what Ponos is, and that Notion is optional.** Under the
+  headline, one line: a harness around Claude Code that runs your tasks on your
+  machine — code, writing, actions, posts. A new *What it does* section shows the
+  four kinds of task, an example ticket each, then the tickets that come back on
+  their own, the console's chat with your machine and projects that are only a
+  name and a brief. The console is presented as Ponos's own board, over a folder
+  of Markdown files. Notion, GitHub, Telegram · Slack and OpenRouter each get a
+  card in *Integrations*, all optional, and Notion's films and its `init`
+  command live there now. The installation shows the board as Markdown files
+  first: the installer still asks for a Notion token, and Enter skips it. The
+  page's description, its Open Graph card, `llms.txt` and the top of the README
+  say the same.
+
 - **Ponos dresses Greek.** The antenna and its bulb are a small orange flame
   set on his head, the `>_` on his chest and the pink cheeks are gone, and he
   wears an ivory tunic with a terracotta sash and a gold brooch — on the site,

@@ -8,7 +8,12 @@
 
 *(En français : écris le ticket. Il revient fait.)*
 
-Ponos is a robot named after the Greek god of toil: he does the tedious part of a ticket in
+Ponos is a harness around [Claude Code](https://claude.com/claude-code) that runs your
+tasks on your machine — code, writing, external actions, publications. It has a board of
+its own: the web console, over a folder of Markdown files. Notion, GitHub, Telegram, Slack
+and OpenRouter plug in when you want them; none of them is required.
+
+The name is a robot's, after the Greek god of toil: he does the tedious part of a ticket in
 your place, and you keep the decisions. The product took his name; the repository, the
 `ticket-runner` command and the `ticket_runner` Python package keep theirs, so nothing you
 installed or scripted has to change.
@@ -38,9 +43,10 @@ installed or scripted has to change.
   Slack**, and *oui* is the whole answer — the reply lands on the ticket and the next run
   carries on. See [Being told, and answering with one word](#being-told-and-answering-with-one-word).
 
-The board is Notion and the agent is [Claude Code](https://claude.com/claude-code) by
-default — or a folder of [Markdown files](#without-notion-the-board-as-markdown-files), and
-[any other model](#every-other-model) through OpenRouter.
+The agent is [Claude Code](https://claude.com/claude-code), or [any other
+model](#every-other-model) through OpenRouter. The board is the console and a folder of
+[Markdown files](#without-notion-the-board-as-markdown-files), or [Notion](#the-notion-side)
+if that is where you already write — or both, kept in step.
 
 ## Install it
 
@@ -49,8 +55,10 @@ curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ticket-runner/main/
 ```
 
 Linux with systemd, `python3` ≥ 3.11, `git`, Claude Code, and `gh` for pull requests —
-nothing else to install. The rest, from the Notion side to the console's address, is in
-[Installation](#installation) below.
+nothing else to install, and no account beyond Claude Code's. The installer asks for a
+Notion token first: Enter skips it, and `mode = "markdown"` under `[storage]` makes the
+board a folder of files — see [Without Notion](#without-notion-the-board-as-markdown-files).
+The rest is in [Installation](#installation) below.
 
 ---
 
@@ -160,7 +168,8 @@ curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ticket-runner/main/
 ```
 
 The script checks the dependencies, installs the `ticket-runner` command into
-`~/.local/bin`, asks for your Notion token, and arms a systemd timer that picks up ready
+`~/.local/bin`, asks for a Notion token — Enter skips it, a [board of Markdown
+files](#without-notion-the-board-as-markdown-files) needs none — and arms a systemd timer that picks up ready
 tickets **every 30 minutes** — `interval_seconds` in the configuration changes that, down
 to a few seconds if you want a ticket picked up as soon as you move it. It also starts
 the [web console](#the-web-console) on `http://127.0.0.1:8787` and prints the address to
@@ -254,6 +263,10 @@ there is no moment in which the umask decides who reads them. What the runner ke
 between two runs (`claims.json`, the reconciliation stamps, the channels' cursors) is
 written to a copy and renamed over the old file, so a run killed mid-write leaves the old
 file whole rather than an empty one.
+
+Steps 1 to 3 are for a board in Notion. A board of Markdown files needs none of them —
+one line, under [Without Notion](#without-notion-the-board-as-markdown-files) — and goes
+straight to step 4.
 
 ### 1. Create a Notion integration
 
@@ -532,9 +545,10 @@ GitHub accounts*.
 
 ## Without Notion: the board as Markdown files
 
-Notion is the default and stays it. What this adds is that it is now **a choice**: the
-runner talks to a board through one interface (`src/ticket_runner/store.py`), and which
-board answers is one line.
+Notion is not required. The runner talks to a board through one interface
+(`src/ticket_runner/store.py`), and which board answers is one line. A fresh configuration
+still says `notion`, because that is what every installation before this one ran on — a
+default kept for them, not a requirement.
 
 ```toml
 [storage]
@@ -1667,8 +1681,8 @@ cannot answer, which is the half that matters least. A channel is four methods
 
 ## The web console
 
-Notion is where tickets are written and read; it is a poor place to *steer* from. So there
-is a second window on the same workspace, served from your own machine — and it is running
+A folder of files, or Notion, is where tickets are kept; neither is a place to *steer*
+from. So there is a window on the same workspace, served from your own machine — and it is running
 already: the installer starts it and prints the address, token included. On an installation
 nobody has set up yet there is no token to paste either — the address alone opens
 [the first connection](#the-first-connection), which is where the rest of this page's

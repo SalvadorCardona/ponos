@@ -8903,9 +8903,9 @@ def the_landing_page_opens_on_ponos_and_tells_the_loop_in_seven_sections():
     """Seven sections at most, the first one Ponos and the promise.
 
     Seventeen sections at the same level is a manual, and the manual is the
-    README: the site says the promise, the loop, three proofs, the board as
-    Notion shows it, the console, the install and who made it, and links the
-    rest.
+    README: the site says the promise, the four kinds of task, the loop and
+    three proofs, the console, the integrations — Notion among them, not
+    before them —, the install and who made it, and links the rest.
     """
     page = LANDING.read_text(encoding="utf-8")
     sections = re.findall(r"<section\b[^>]*>", page)
