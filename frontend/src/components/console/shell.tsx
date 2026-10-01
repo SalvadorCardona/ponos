@@ -8,7 +8,7 @@ import { useConsole, useStatus, useSync } from "@/hooks/use-console"
 import { hotkeyLabel } from "@/hooks/use-hotkeys"
 import { useRunnerMood } from "@/hooks/use-mood"
 import { useTheme } from "@/hooks/use-theme"
-import { useT } from "@/lib/i18n"
+import { counted, useT } from "@/lib/i18n"
 import { useRoute } from "@/lib/router"
 import { cn } from "@/lib/utils"
 import { TICKETS } from "@/resources/tickets"
@@ -128,11 +128,11 @@ function SyncLine() {
   const said = [
     t("last read of Notion: {{at}}", { at: clock(synced.synced_at) }),
     t("whole board compared: {{at}}", { at: clock(synced.reconciled_at) }),
-    synced.drift ? t("{{count}} gap(s) found and corrected", { count: String(synced.drift) }) : "",
-    synced.pending ? t("{{count}} move(s) waiting for Notion", { count: String(synced.pending) }) : "",
-    synced.failed ? t("{{count}} move(s) Notion refused", { count: String(synced.failed) }) : "",
+    synced.drift ? counted(synced.drift, "{{count}} gap found and corrected", "{{count}} gaps found and corrected") : "",
+    synced.pending ? counted(synced.pending, "{{count}} move waiting for Notion", "{{count}} moves waiting for Notion") : "",
+    synced.failed ? counted(synced.failed, "{{count}} move Notion refused", "{{count}} moves Notion refused") : "",
     synced.conflicts
-      ? t("{{count}} ticket(s) changed in Notion meanwhile", { count: String(synced.conflicts) })
+      ? counted(synced.conflicts, "{{count}} ticket changed in Notion meanwhile", "{{count}} tickets changed in Notion meanwhile")
       : "",
     synced.error ? t("the last read failed: {{why}}", { why: synced.error }) : "",
   ].filter(Boolean)

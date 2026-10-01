@@ -119,11 +119,15 @@ export const FRENCH: Record<string, string> = {
   "{{count}} s ago": "il y a {{count}} s",
   "last read of Notion: {{at}}": "dernière lecture de Notion : {{at}}",
   "whole board compared: {{at}}": "tableau entier comparé : {{at}}",
-  "{{count}} gap(s) found and corrected": "{{count}} écart(s) trouvé(s) et corrigé(s)",
-  "{{count}} move(s) waiting for Notion": "{{count}} déplacement(s) en attente d’envoi à Notion",
-  "{{count}} move(s) Notion refused": "{{count}} déplacement(s) refusé(s) par Notion",
-  "{{count}} ticket(s) changed in Notion meanwhile":
-    "{{count}} ticket(s) modifié(s) dans Notion entre-temps",
+  "{{count}} gap found and corrected": "{{count}} écart trouvé et corrigé",
+  "{{count}} gaps found and corrected": "{{count}} écarts trouvés et corrigés",
+  "{{count}} move waiting for Notion": "{{count}} déplacement en attente d’envoi à Notion",
+  "{{count}} moves waiting for Notion": "{{count}} déplacements en attente d’envoi à Notion",
+  "{{count}} move Notion refused": "{{count}} déplacement refusé par Notion",
+  "{{count}} moves Notion refused": "{{count}} déplacements refusés par Notion",
+  "{{count}} ticket changed in Notion meanwhile": "{{count}} ticket modifié dans Notion entre-temps",
+  "{{count}} tickets changed in Notion meanwhile":
+    "{{count}} tickets modifiés dans Notion entre-temps",
   "the last read failed: {{why}}": "la dernière lecture a échoué : {{why}}",
   // On a card moved from the console, until Notion has it — and on the toast
   // that says it once when it will not.
@@ -137,7 +141,8 @@ export const FRENCH: Record<string, string> = {
   "reconnecting…": "reconnexion…",
   // The menu is a name and a count; the sentences that used to sit under each
   // name are gone, and the words they were made of with them.
-  "{{count}} turn(s)": "{{count}} tour(s)",
+  "{{count}} turn": "{{count}} tour",
+  "{{count}} turns": "{{count}} tours",
   // At the foot of the menu, where the stream's own dot is: the version, and
   // the one day it matters, that a newer one is waiting. The row of pills it
   // used to be said this beside four other things nobody was reading.
@@ -302,7 +307,8 @@ export const FRENCH: Record<string, string> = {
   "Remove the banner from the dashboard": "Retirer le bandeau du dashboard",
   "Earlier columns": "Colonnes précédentes",
   "More columns": "Colonnes suivantes",
-  "{{count}} empty column(s) hidden": "{{count}} colonne(s) vide(s) masquée(s)",
+  "{{count}} empty column hidden": "{{count}} colonne vide masquée",
+  "{{count}} empty columns hidden": "{{count}} colonnes vides masquées",
   "Hide empty columns": "Masquer les colonnes vides",
   "Show them": "Les afficher",
   "Show more ({{count}} left)": "Voir plus ({{count}} restants)",
@@ -405,7 +411,8 @@ export const FRENCH: Record<string, string> = {
   // The steps, folded under the turn they belong to.
   "Show the steps": "Voir les étapes",
   "Hide the steps": "Masquer les étapes",
-  "{{count}} step(s) went wrong": "{{count}} étape(s) en erreur",
+  "{{count}} step went wrong": "{{count}} étape en erreur",
+  "{{count}} steps went wrong": "{{count}} étapes en erreur",
   "Dictation is not available": "La dictée n'est pas disponible",
   "Dictation is transcribed by OpenRouter: add an OpenRouter key in the settings":
     "La dictée est transcrite par OpenRouter : ajoutez une clé OpenRouter dans les paramètres",
@@ -426,15 +433,17 @@ export const FRENCH: Record<string, string> = {
   "No journal is left for this ticket: its session log is gone, or it never ran.":
     "Il ne reste aucun journal pour ce ticket : son journal de session a disparu, ou il n'a jamais tourné.",
   sessions: "sessions",
-  "{{count}} ticket(s) in progress": "{{count}} ticket(s) en cours",
+  "{{count}} ticket in progress": "{{count}} ticket en cours",
+  "{{count}} tickets in progress": "{{count}} tickets en cours",
   "nothing in progress": "rien en cours",
   timer: "minuterie",
   "timer {{state}}": "minuterie {{state}}",
   off: "arrêtée",
   "between two runs": "entre deux passes",
   handled: "traités",
-  "${{amount}} spent so far": "{{amount}} $ dépensés jusqu'ici",
-  "{{count}} step(s)": "{{count}} étape(s)",
+  "{{amount}} spent so far": "{{amount}} dépensés jusqu'ici",
+  "{{count}} step": "{{count}} étape",
+  "{{count}} steps": "{{count}} étapes",
   "Out of credit until {{at}}. The subscription's window is spent: tickets stay where they are, and the first run after that takes them again.":
     "Crédits épuisés jusqu'à {{at}}. La fenêtre de l'abonnement est consommée : les tickets restent où ils sont, et la première passe après ce moment les reprend.",
   "`claude` was not found on this machine: no session can start.":
@@ -447,7 +456,7 @@ export const FRENCH: Record<string, string> = {
   calendar: "calendrier",
   "A row says what to make and how often; when the moment comes the runner writes the ticket into the ready column and steps back.":
     "Une ligne dit quoi faire et à quelle fréquence ; le moment venu, le runner écrit le ticket dans la colonne prête et se retire.",
-  "{{count}} of {{total}} on": "{{count}} sur {{total}} active(s)",
+  "{{count}} of {{total}} on": "{{count}} sur {{total}} en service",
   "nothing yet": "rien pour l'instant",
   "Nothing repeats here": "Rien ne se répète ici",
   "This workspace has no “{{page}}” page.":
@@ -522,7 +531,8 @@ export const FRENCH: Record<string, string> = {
   Tickets: "Tickets",
   "code work": "travail de code",
   "document work": "travail de rédaction",
-  "{{count}} ticket(s)": "{{count}} ticket(s)",
+  "{{count}} ticket": "{{count}} ticket",
+  "{{count}} tickets": "{{count}} tickets",
   repository: "dépôt",
   "on this machine": "sur cette machine",
   "wherever the clone is": "là où se trouve le clone",

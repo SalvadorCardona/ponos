@@ -29,7 +29,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
 import { useTicketCounts } from "@/lib/board-store"
-import { t } from "@/lib/i18n"
+import { counted, t } from "@/lib/i18n"
 import { repositoryName, shortPath } from "@/lib/places"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
@@ -383,7 +383,7 @@ function ProjectCard({ row }: RowComponentPropsInterface) {
           <Skeleton className="h-3 w-14" />
         ) : count ? (
           <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
-            {t("{{count}} ticket(s)", { count: String(count) })}
+            {counted(count, "{{count}} ticket", "{{count}} tickets")}
           </span>
         ) : null}
       </div>

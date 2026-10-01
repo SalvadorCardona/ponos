@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useConsole, type Entry } from "@/hooks/use-console"
 import { api } from "@/lib/api"
-import { currentLanguage, useT } from "@/lib/i18n"
+import { counted, currentLanguage, useT } from "@/lib/i18n"
 
 import { Composer, type ComposerHandle } from "./composer"
 import { Eyebrow } from "./frame"
@@ -116,7 +116,7 @@ export function ConsolePane() {
               className="text-muted-foreground/80 hover:text-foreground mt-1 flex max-w-full items-center gap-1 font-mono text-[0.68rem]"
             >
               <span className="truncate">
-                {`${t("{{count}} turn(s)", { count: String(chat.turns) })} · ${chat.resume_command}`}
+                {`${counted(chat.turns, "{{count}} turn", "{{count}} turns")} · ${chat.resume_command}`}
               </span>
               <CopyIcon className="size-3 shrink-0" />
             </button>

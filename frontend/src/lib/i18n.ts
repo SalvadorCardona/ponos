@@ -5,6 +5,7 @@ import { setTranslation, translate } from "react-mini-i18n"
 import { configurePorts as configureViews } from "react-resource-view"
 
 import { FRENCH } from "./french"
+import { count, setNumberLocale } from "./numbers"
 
 /* Which language the console speaks.
  *
@@ -133,6 +134,8 @@ function apply(next: Language) {
    * else, and a date that changed shape between two panes would be a date
    * nobody could read twice. */
   configureViews({ dateLocale: next === "fr" ? fr : enGB })
+  // And a number is not one either: « 2 734,75 $ » is `Intl`'s, not French's.
+  setNumberLocale(next === "fr" ? "fr-FR" : "en-GB")
   configureForms({
     dateLocale: next === "fr" ? fr : enGB,
     intlLocale: next === "fr" ? "fr-FR" : "en-GB",
@@ -188,6 +191,13 @@ export function useLanguage(): Language {
 
 /** Outside a render — a toast, an event handler, a string built on the way to one. */
 export const t = translate
+
+/** A sentence about `value` things, in the form the language gives that many:
+ *  `counted(6, "{{count}} ticket", "{{count}} tickets")` is « 6 tickets ». */
+export function counted(value: number, one: string, other: string): string {
+  const said = count(value, one, other)
+  return translate(said.key, said.params)
+}
 
 /* Inside one. The function is the same; what the hook adds is the redraw, so a
  * pane that says anything at all asks for it here rather than importing `t`. */

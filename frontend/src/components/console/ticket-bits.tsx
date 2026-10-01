@@ -22,6 +22,7 @@ import {
 import { useConsole } from "@/hooks/use-console"
 import { titleOf } from "@/lib/board-store"
 import { currentLanguage, t, useT } from "@/lib/i18n"
+import { money } from "@/lib/numbers"
 import type { Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -234,7 +235,7 @@ export function TicketFoot({ ticket }: { ticket: Ticket }) {
         {ticket.project || t("no project")}
       </span>
       {typeof ticket.cost === "number" && ticket.cost ? (
-        <span className="tabular-nums">${ticket.cost.toFixed(2)}</span>
+        <span className="tabular-nums">{money(ticket.cost)}</span>
       ) : null}
       {reachable(ticket.url) ? (
         <a

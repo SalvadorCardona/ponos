@@ -2,7 +2,8 @@ import * as React from "react"
 import { ChevronRightIcon } from "lucide-react"
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { useT } from "@/lib/i18n"
+import { counted, useT } from "@/lib/i18n"
+import { money } from "@/lib/numbers"
 import { clock } from "@/lib/composer"
 import { doing, tally } from "@/lib/thinking"
 import type { Step } from "@/lib/types"
@@ -47,10 +48,10 @@ export function Thinking({
   if (done && !count.steps && seconds === undefined) return null
 
   const summary = [
-    count.steps ? t("{{count}} step(s)", { count: String(count.steps) }) : "",
+    count.steps ? counted(count.steps, "{{count}} step", "{{count}} steps") : "",
     // While it runs, the clock is beside Ponos already.
     done && seconds !== undefined ? clock(seconds) : "",
-    cost ? `$${cost}` : "",
+    cost ? money(cost, 4) : "",
   ].filter(Boolean)
 
   const line = stopping ? { key: "stopping…" } : doing(steps)
@@ -103,10 +104,10 @@ function Fold({ steps, summary, errors }: { steps: Step[]; summary: string[]; er
         {errors ? (
           <span
             className="text-tr-red ml-0.5 inline-flex shrink-0 items-center gap-1"
-            title={t("{{count}} step(s) went wrong", { count: String(errors) })}
+            title={counted(errors, "{{count}} step went wrong", "{{count}} steps went wrong")}
           >
             <span aria-hidden="true" className="bg-tr-red size-1.5 rounded-full" />
-            <span className="sr-only">{t("{{count}} step(s) went wrong", { count: String(errors) })}</span>
+            <span className="sr-only">{counted(errors, "{{count}} step went wrong", "{{count}} steps went wrong")}</span>
             <span aria-hidden="true">{errors}</span>
           </span>
         ) : null}

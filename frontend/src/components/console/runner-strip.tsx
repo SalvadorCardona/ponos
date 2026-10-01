@@ -2,7 +2,8 @@ import { Activity, Gauge, Timer } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useConsole, useStatus } from "@/hooks/use-console"
-import { t as translate, useT } from "@/lib/i18n"
+import { counted, t as translate, useT } from "@/lib/i18n"
+import { money, number } from "@/lib/numbers"
 import { cn } from "@/lib/utils"
 
 import { Rich } from "./text"
@@ -103,7 +104,7 @@ export function RunnerStrip() {
           value={String(sessions.length)}
           note={
             running
-              ? t("{{count}} ticket(s) in progress", { count: String(running) })
+              ? counted(running, "{{count}} ticket in progress", "{{count}} tickets in progress")
               : t("nothing in progress")
           }
           tone={sessions.length ? "text-tr-green" : undefined}
@@ -118,8 +119,8 @@ export function RunnerStrip() {
         <Figure
           icon={Gauge}
           label={t("handled")}
-          value={String(runner?.handled ?? 0)}
-          note={t("${{amount}} spent so far", { amount: String(runner?.spend ?? 0) })}
+          value={number(runner?.handled ?? 0)}
+          note={t("{{amount}} spent so far", { amount: money(runner?.spend ?? 0) })}
         />
       </div>
     </div>

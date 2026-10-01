@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { number } from "@/lib/numbers"
 import { cn } from "@/lib/utils"
 
 /* A line over days, and nothing a chart library would add.
@@ -43,7 +44,7 @@ export function LineChart<T>({
   label,
   day,
   longDay,
-  format = (value) => String(value),
+  format = number,
   whole = true,
   area = false,
   className,
