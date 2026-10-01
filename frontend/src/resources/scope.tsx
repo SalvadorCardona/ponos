@@ -1,7 +1,13 @@
+import { Ellipsis } from "lucide-react"
 import { ActionList } from "react-data-form"
-import { createAdminLayout, type ScopeConfig, type ScopeInterface } from "react-resource-view"
+import {
+  createAdminLayout,
+  type MenuItemInterface,
+  type ScopeConfig,
+  type ScopeInterface,
+} from "react-resource-view"
 
-import { MenuEntry, Mark, TopBarEnd, type ConsoleMenuItem } from "@/components/console/shell"
+import { MenuEntry, Mark, TopBarEnd, onPhone, type ConsoleMenuItem } from "@/components/console/shell"
 import { t } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 
@@ -44,20 +50,58 @@ const entry = (
   },
 })
 
+/* The bar along the bottom of a phone.
+ *
+ * The package draws one button per top-level entry, side by side, and lets the
+ * row scroll when they do not fit: six entries made a bar 540px wide on a
+ * 390px screen, with Statistics cut in two and Settings past the edge, and
+ * nothing to say the bar went on. So on a phone the three pages you go to
+ * every day stay in the bar, and the rest go behind a fourth entry, More,
+ * which the package opens as a drawer — its own way with an entry that has
+ * entries under it. Beside a phone the menu is a column with room for all
+ * six, and More is not in it.
+ *
+ * `hidden` is read every time the menu is drawn, and the layout draws it again
+ * the moment the width crosses the line between a sidebar and a bottom bar. */
+const ON_THE_BAR = new Set([TICKETS, PROJECTS, SCHEDULES])
+
+const onTheBar = (item: ConsoleMenuItem): ConsoleMenuItem =>
+  ON_THE_BAR.has(item.resource)
+    ? item
+    : Object.defineProperty(item, "hidden", { get: onPhone, enumerable: true })
+
+const more = (items: ConsoleMenuItem[]): MenuItemInterface => ({
+  icon: Ellipsis,
+  items,
+  get name() {
+    return t("More")
+  },
+  get hidden() {
+    return !onPhone()
+  },
+})
+
+const entries = () => [
+  entry(TICKETS, tickets.icon, "Board", boardHref, "board"),
+  entry(PROJECTS, projects.icon, "Projects", projectsHref),
+  // No count, here as under Projects: the only way to know is to ask the
+  // board, and this menu is redrawn every time the board moves.
+  entry(SCHEDULES, schedules.icon, "Schedules", schedulesHref),
+  entry(CONTEXT, context.icon, "Context", contextHref),
+  entry(STATISTICS, statistics.icon, "Statistics", statisticsHref),
+  entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
+]
+
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "Ponos",
   resources: [tickets, projects, schedules, context, statistics, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [
-    entry(TICKETS, tickets.icon, "Board", boardHref, "board"),
-    entry(PROJECTS, projects.icon, "Projects", projectsHref),
-    // No count, here as under Projects: the only way to know is to ask the
-    // board, and this menu is redrawn every time the board moves.
-    entry(SCHEDULES, schedules.icon, "Schedules", schedulesHref),
-    entry(CONTEXT, context.icon, "Context", contextHref),
-    entry(STATISTICS, statistics.icon, "Statistics", statisticsHref),
-    entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
+    ...entries().map(onTheBar),
+    // The drawer's entries are a copy of their own: the ones above hide on a
+    // phone, and the package leaves a hidden entry out of a drawer too.
+    more(entries().filter((item) => !ON_THE_BAR.has(item.resource))),
   ],
   // An address that names nothing is the board.
   defaultViewResourceContextParams: {

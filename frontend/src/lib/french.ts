@@ -106,6 +106,11 @@ export const FRENCH: Record<string, string> = {
   Board: "Tableau",
   Schedules: "Récurrences",
   Settings: "Réglages",
+  // On a phone, the entry the bottom bar keeps the other pages behind.
+  More: "Plus",
+  // A card's own menu, named apart from the bottom bar's « Plus » so a
+  // screen reader (and a test) tells the two apart.
+  "More actions": "Autres actions",
   Light: "Clair",
   Dark: "Sombre",
   "go light": "passer au clair",
@@ -139,6 +144,9 @@ export const FRENCH: Record<string, string> = {
   "event stream": "flux d'événements",
   "connecting…": "connexion…",
   "reconnecting…": "reconnexion…",
+  // The one pill a phone's bar says the stream, the last read and the version in.
+  "State of the console": "État de la console",
+  "event stream: {{state}}": "flux d'événements : {{state}}",
   // The menu is a name and a count; the sentences that used to sit under each
   // name are gone, and the words they were made of with them.
   "{{count}} turn": "{{count}} tour",
@@ -283,7 +291,6 @@ export const FRENCH: Record<string, string> = {
   "set aside": "mettre de côté",
   "The runner no longer touches it, until it is made ready again.":
     "Le runner n'y touche plus, jusqu'à ce qu'il soit remis prêt.",
-  More: "Plus",
   "Run “{{title}}” again?": "Relancer « {{title}} » ?",
   "The ticket goes back to {{column}} and the next pass starts a new session on it — a session that is paid for, like the first one.":
     "Le ticket retourne dans {{column}} et la prochaine passe lance une nouvelle session dessus — une session payante, comme la première.",

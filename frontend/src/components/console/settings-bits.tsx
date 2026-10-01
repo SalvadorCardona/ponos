@@ -331,7 +331,8 @@ export const FoldContext = React.createContext<{
  * off a second copy kept in a parent.
  *
  * The room at its right end is the discussion's bubble, which floats over the
- * bottom corner of every page: without it, Save sat under the bubble. */
+ * bottom corner of every page: without it, Save sat under the bubble. On a
+ * phone it sticks to the top of the bottom bar rather than behind it. */
 function SaveBar({ sectionKey }: { sectionKey: string }) {
   const { form, onSubmit, updateData, isLoading } = useFormContext()
   const { runCommand } = useConsole()
@@ -344,7 +345,7 @@ function SaveBar({ sectionKey }: { sectionKey: string }) {
   const check = CHECKS[sectionKey]
 
   return (
-    <div className="bg-card sticky bottom-0 col-span-full mt-5 flex flex-wrap items-center gap-2 border-t py-2.5 pr-16">
+    <div className="bg-card sticky bottom-(--bottom-nav) col-span-full mt-5 flex flex-wrap items-center gap-2 border-t py-2.5 pr-16">
       <span className="text-muted-foreground text-xs">
         {changed === 0
           ? t("nothing typed here")

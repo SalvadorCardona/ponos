@@ -599,6 +599,19 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   "6 ticket(s)". In French the console now writes « 2 734,75 $ », « 1 178 »
   and « 1 ticket » / « 6 tickets » ; in English "$2,734.75", "1,178" and
   "6 tickets" — no "(s)" left anywhere.
+
+- **The console fits a phone.** The bar along the bottom held six pages in a
+  row wider than the screen, scrolling sideways without saying so —
+  *Statistics* cut in two, *Settings* out of sight. It now holds the board,
+  the projects, the schedules and **More**, which opens the other three, and
+  fits a 360px screen. At the top, the two green dots without a word and the
+  missing version are one pill, *live*, that a tap opens on the stream, the
+  last read of Notion and the version. The bubble no longer sits over the end
+  of a page — a card's link, a token's *forget*, the top of a chart — and a
+  section's *Save* is no longer hidden behind the bottom bar. The settings
+  lose the blank band over their tabs, which also covered the section's name,
+  and a list's icon lines up with its name rather than with its sentence.
+
 - **A tab closed mid-request no longer fills the console's journal.** Closing
   or reloading the console while it was answering left two Python tracebacks
   in `journalctl` each time — the broken pipe, then the 500 the console tried

@@ -105,6 +105,15 @@
      and the caret with it. */
   :root { color-scheme: light; }
   .dark { color-scheme: dark; }
+
+  /* How tall the bar along the bottom of a phone is — the package's, drawn
+     under the admin layout's own line between a phone and the rest. What
+     floats over the page's bottom edge (the discussion's bubble, a section's
+     save bar) stands on it rather than under it. */
+  :root { --bottom-nav: 0px; }
+  @media (width < 48rem) {
+    :root { --bottom-nav: 3.375rem; }
+  }
 }
 
 @layer utilities {
@@ -200,6 +209,56 @@
      sideways instead of the board. */
   [data-slot="sidebar-inset"]:has(> [data-full-width]) {
     min-width: 0;
+  }
+
+  /* The end of a page clear of the discussion's bubble on a phone. The
+     package leaves room under the content for its bottom bar, and the bubble
+     floats over the corner above that bar: the last card's cost and link, a
+     token's "forget", the top of a chart sat under it, with no more page to
+     scroll them out. Room for the bar, the bubble, and a gap either side. */
+  @media (width < 48rem) {
+    [data-slot="admin-content"] {
+      padding-bottom: calc(var(--bottom-nav) + 5rem);
+    }
+  }
+
+  /* The bottom bar's entries share its width. The package lays them out from
+     the left at the width of their names, which left the right end of a phone
+     empty once the bar was down to four (see `resources/scope`); a quarter
+     each, the padding the room between them rather than inside, and the
+     longest name — Récurrences — still fits at 360px. The bar has no
+     `data-slot` of its own, so it is found by where the layout puts it. */
+  @media (width < 48rem) {
+    [data-slot="sidebar-wrapper"] > .fixed.bottom-0 > div > button {
+      flex: 1 1 0;
+      min-width: 0;
+      padding-inline: 0.25rem;
+    }
+  }
+
+  /* The path in the bar cut at the room it has, rather than written under
+     what the bar's end says. Its first steps never shrink, and on a phone the
+     settings' "Settings ›" ran under the status pill; the page's own heading
+     says the same thing a line below. */
+  nav[aria-label="Breadcrumb"] {
+    overflow: hidden;
+  }
+
+  /* A row of tabs that sticks under the bar — as the package means it to.
+     Base UI writes `position: relative` on the scroll area it is drawn in, on
+     the element itself, which beats the package's `sticky`; `top-16` then
+     moved the row 64px down from where it sat instead of holding it there,
+     opening a blank band above the settings' sections and laying the row over
+     the section's own name. */
+  [data-slot="tabs"] > [data-slot="scroll-area"].sticky {
+    position: sticky !important;
+  }
+
+  /* A list's icon beside its name, not beside its name and its sentence: the
+     package centres the two, and a sentence of two lines on a phone took the
+     icon down to the middle of it. */
+  [data-slot="list-header"] > div:first-child {
+    align-items: flex-start;
   }
 
   /* A dialog no taller than the screen. The package caps what scrolls inside

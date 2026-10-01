@@ -23,13 +23,13 @@ test.use({ viewport: { width: 1440, height: 900 } })
 test("a Done ticket runs again from its menu, and only once confirmed", async ({ page }) => {
   await open(page, "0000000000000000000000000000d0e0", "A finished ticket")
   await expect(page.getByRole("button", { name: /make ready|run again/ })).toHaveCount(0)
-  await page.getByRole("button", { name: "More" }).click()
+  await page.getByRole("button", { name: "More actions" }).click()
   await page.getByRole("menuitem", { name: "run again" }).click()
   await expect(dialog(page)).toContainText("a session that is paid for")
   await dialog(page).getByRole("button", { name: "Cancel" }).click()
   await expect(dialog(page)).toBeHidden()
   await page.reload()
-  await expect(page.getByRole("button", { name: "More" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "More actions" })).toBeVisible()
 })
 
 test("making a Validated ticket ready says the validation goes", async ({ page }) => {
