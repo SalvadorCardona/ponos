@@ -251,6 +251,12 @@ SECTIONS: tuple[Section, ...] = (
                 "How long each session's log stays on this machine. 0 keeps them forever.",
                 advanced=True,
             ),
+            Field(
+                "runner", "clean_done_worktrees", "bool", "Clean up after done tickets",
+                "Once a day, delete the working copies of tickets done for as many days as "
+                "the logs are kept. A blocked or in-review ticket keeps its own.",
+                advanced=True,
+            ),
         ),
     ),
     Section(

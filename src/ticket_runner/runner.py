@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 
-from . import base, board, credits, delivery, execution, preparation
+from . import base, board, cleanup, credits, delivery, execution, preparation
 from . import recurrence, replies, reports, state
 from . import update as update_module
 from .projects import Project
@@ -44,6 +44,7 @@ from .ticket import Ticket
 
 class Runner(
     board.Board,
+    cleanup.Cleanup,
     delivery.Delivery,
     execution.Execution,
     preparation.Preparation,
@@ -97,6 +98,9 @@ class Runner(
             if not self.dry_run:
                 self.sweep()
                 self.close_merged()
+                # Here rather than after the work: a pass with nothing ready
+                # returns before it gets there, and that is most passes.
+                self.tidy()
             # Both before the queue, and both recorded as they happen: see
             # `delivered` and `born`.
             delivered = self.delivered() + self.born()
@@ -143,7 +147,6 @@ class Runner(
         # No refilling for a named ticket — the pass is about that one — nor for
         # a dry run, which claims nothing and would read the same column back.
         results = self._work(tickets, limit, refill=not reference and not self.dry_run)
-        state.prune_logs(self.config.runner.log_retention_days)
         return delivered + replies + results
 
     def _work(self, ready: list[Ticket], ceiling: int | None, *, refill: bool) -> list[dict]:

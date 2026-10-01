@@ -17,7 +17,7 @@ from pathlib import Path
 
 from datetime import datetime
 
-from . import __version__, channels, config as config_module, conversation, credits, git, notion
+from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
 from . import kinds, store
 from . import provision
 from . import schedules as schedules_module
@@ -836,6 +836,30 @@ def command_doctor(args: argparse.Namespace) -> int:
     else:
         bad(f"{root} does not exist (runner.workspace_root)")
         problems += 1
+
+    title("Disk")
+    held = cleanup.sizes()
+    print(
+        f"  {config_module.state_dir()} — "
+        + ", ".join(f"{place} {cleanup.human(size)}" for place, size in held.items())
+    )
+    days = configuration.runner.log_retention_days
+    if days <= 0:
+        warn("runner.log_retention_days = 0 — nothing is ever tidied on its own")
+    elif configuration.runner.clean_done_worktrees:
+        ok(
+            f"tidied once a day: logs, and the worktrees of tickets done, "
+            f"older than {days} day(s)"
+        )
+    else:
+        ok(f"logs older than {days} day(s) dropped once a day")
+        print(
+            f"  {DIM}runner.clean_done_worktrees = false — worktrees stay until "
+            f"ticket-runner clean --force{RESET}"
+        )
+    last = cleanup.tidied_at()
+    if last:
+        print(f"  {DIM}last tidied {datetime.fromtimestamp(last):%Y-%m-%d %H:%M}{RESET}")
 
     if problems:
         print(f"\n{RED}{problems} problem(s) to fix.{RESET}")

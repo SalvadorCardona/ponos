@@ -8483,6 +8483,164 @@ def _one(commands: list[list[str]], prefix: list[str]) -> list[str]:
     return found[0]
 
 
+def _aged_page(page_id: str, status: str, edited_days_ago: float) -> notion.Page:
+    edited = datetime.now(timezone.utc) - timedelta(days=edited_days_ago)
+    return notion.Page(
+        id=page_id,
+        url="",
+        title=page_id,
+        properties={"Status": {"type": "status", "status": {"name": status}}},
+        raw={"last_edited_time": edited.isoformat()},
+    )
+
+
+class _BoardOf:
+    """A board that answers one query — every ticket — and nothing else."""
+
+    def __init__(self, pages: list[notion.Page], error: str = "") -> None:
+        self._pages = pages
+        self._error = error
+
+    def query(self, database_id: str, filter_=None) -> list[notion.Page]:
+        if self._error:
+            raise notion.NotionError(self._error)
+        return self._pages
+
+
+def _tidying(pages: list[notion.Page], body: str = "", error: str = "") -> Runner:
+    runner = _bare_runner(_BoardOf(pages, error))
+    runner.config = _config(body)
+    runner._workspace = workspace.Workspace(tickets="db")
+    return runner
+
+
+def _aged(path: Path, days: float, *, directory: bool = True) -> Path:
+    if directory:
+        path.mkdir(parents=True)
+        (path / "work.txt").write_text("x" * 1000)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("log")
+    moment = time.time() - days * 86400
+    os.utime(path, (moment, moment))
+    return path
+
+
+@case
+def a_pass_tidies_what_done_tickets_left_and_nothing_else():
+    """The ticket: 44 worktrees, 25 GB, because `clean` only ran when somebody
+    typed it. A pass now applies the retention once a day — and the board says
+    what may go: done for long enough, or a scratch directory nobody can reach."""
+    tail = {name: f"{index:08x}" for index, name in enumerate(
+        ["done", "fresh", "blocked", "review", "claimed", "gone", "gone2"], start=0x1a2b3c40
+    )}
+    pages = [
+        _aged_page(f"page-{tail['done']}", "Done", 30),
+        _aged_page(f"page-{tail['fresh']}", "Done", 2),
+        _aged_page(f"page-{tail['blocked']}", "Blocked", 30),
+        _aged_page(f"page-{tail['review']}", "In review", 30),
+        _aged_page(f"page-{tail['claimed']}", "Done", 30),
+    ]
+    with _state_home() as root:
+        worktrees, scratch = root / "worktrees", root / "scratch"
+        done = _aged(worktrees / f"app-{tail['done']}", 30)
+        done_scratch = _aged(scratch / f"deliver-{tail['done']}", 30)
+        fresh = _aged(worktrees / f"app-{tail['fresh']}", 30)
+        blocked = _aged(worktrees / f"app-{tail['blocked']}", 30)
+        blocked_scratch = _aged(scratch / f"notes-{tail['blocked']}", 30)
+        review = _aged(worktrees / f"app-{tail['review']}", 30)
+        claimed = _aged(worktrees / f"app-{tail['claimed']}", 30)
+        orphan = _aged(scratch / f"notes-{tail['gone']}", 30)
+        orphan_worktree = _aged(worktrees / f"app-{tail['gone2']}", 30)
+        young_orphan = _aged(scratch / f"kind-{tail['gone2']}", 1)
+        old_log = _aged(root / "logs" / "old.jsonl", 30, directory=False)
+        new_log = _aged(root / "logs" / "new.jsonl", 1, directory=False)
+        state.claim(f"page-{tail['claimed']}", "Validated")
+
+        runner = _tidying(pages)
+        tidied = runner.tidy()
+        assert tidied is not None
+        assert not done.exists() and not done_scratch.exists(), "done for a month: gone"
+        assert not orphan.exists(), "a scratch directory whose ticket left the board: gone"
+        assert not old_log.exists() and new_log.exists()
+        for kept in (fresh, blocked, blocked_scratch, review, claimed, orphan_worktree, young_orphan):
+            assert kept.exists(), f"{kept.name} was removed"
+        assert tidied.logs == 1 and tidied.freed >= 3000, tidied
+        assert runner.tidy() is None, "once a day, not every pass"
+
+
+@case
+def a_done_tickets_worktree_with_uncommitted_work_is_kept():
+    with _state_home() as root:
+        worktree = _aged(root / "worktrees" / "app-1a2b3c4d", 30)
+        removed: list[Path] = []
+        with _git_answering(
+            repository_of=lambda _path: root,
+            is_dirty=lambda _path: True,
+            remove_worktree=lambda _repo, path: removed.append(path),
+        ):
+            _tidying([_aged_page("page-1a2b3c4d", "Done", 30)]).tidy()
+        assert worktree.exists() and not removed
+        with _git_answering(
+            repository_of=lambda _path: root,
+            is_dirty=lambda _path: False,
+            remove_worktree=lambda _repo, path: (removed.append(path), shutil.rmtree(path)),
+        ):
+            _tidying([_aged_page("page-1a2b3c4d", "Done", 30)]).tidy(now=True)
+        assert removed == [worktree] and not worktree.exists()
+
+
+@case
+def a_board_that_cannot_be_read_tidies_the_logs_and_nothing_else():
+    """No board, no verdict: an unreadable one — or an empty one, which is more
+    likely a board not read than a board whose every ticket was deleted —
+    removes no directory at all."""
+    with _state_home() as root:
+        scratch = _aged(root / "scratch" / "notes-1a2b3c4d", 30)
+        log = _aged(root / "logs" / "old.jsonl", 30, directory=False)
+        _tidying([], error="502 bad gateway").tidy()
+        assert scratch.exists() and not log.exists()
+        _tidying([]).tidy(now=True)
+        assert scratch.exists(), "an empty board orphaned everything"
+
+
+@case
+def the_retention_can_be_turned_off():
+    with _state_home() as root:
+        scratch = _aged(root / "scratch" / "notes-1a2b3c4d", 30)
+        page = _aged_page("page-1a2b3c4d", "Done", 30)
+        _tidying([page], "[runner]\nclean_done_worktrees = false\n").tidy()
+        assert scratch.exists()
+        _tidying([page], "[runner]\nlog_retention_days = 0\n").tidy(now=True)
+        assert scratch.exists()
+        example = (ROOT / "config.example.toml").read_text(encoding="utf-8")
+        assert "clean_done_worktrees = true" in example
+
+
+@case
+def the_console_measures_the_disk_and_cleans_only_between_runs():
+    from ticket_runner.web import api as web_api
+
+    with _state_home() as root:
+        _aged(root / "scratch" / "notes-1a2b3c4d", 30)
+        console = web_api.Api.__new__(web_api.Api)
+        console._config = _config("")
+        console._stamp = web_api._mtime(console._config.path)
+        console._runner = _tidying([_aged_page("page-1a2b3c4d", "Done", 30)])
+        measured = console.disk()
+        assert measured["sizes"]["scratch"] >= 1000 and measured["retention_days"] == 14
+        with state.lock():
+            try:
+                console.clean()
+            except RuntimeError as error:
+                assert "run is in progress" in str(error)
+            else:
+                raise AssertionError("a tidy ran under a pass")
+        cleaned = console.clean()
+        assert cleaned["removed"] == 1 and cleaned["sizes"]["scratch"] == 0, cleaned
+
+
+
 @case
 def a_ticket_that_never_ran_gets_its_branch_drawn_fresh():
     made, commands = _worktree_for()

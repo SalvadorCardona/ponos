@@ -27,6 +27,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   changes, and no status is ever created in Notion. `ticket-runner doctor`
   checks the option exists and is none of the runner's own, and the Settings
   page offers the key.
+- **The runner cleans up after itself.** Once a day, a pass applies the
+  retention on its own — no more `ticket-runner clean` to remember: session
+  logs older than `runner.log_retention_days` (they were only dropped by a pass
+  that had a ticket to run), and, with the new `runner.clean_done_worktrees`
+  (on by default), the worktrees and scratch directories of tickets the board
+  says have been **done** for that long, plus the scratch directories of tickets
+  no longer on the board. A ticket in progress, blocked, failed or in review
+  keeps its directory however old; a done ticket's worktree with uncommitted
+  changes is kept; no branch is ever deleted. The settings page of the console
+  shows the space taken by worktrees, logs and scratch, with a **Clean up**
+  button that applies the same retention now (refused while a run is in
+  progress), and `ticket-runner doctor` says both in a new *Disk* section.
 - **Keyboard shortcuts in the console.** **Ctrl+K** (⌘K on a Mac) opens a
   command palette from any page: the pages, the projects, the tickets on the
   board, and three actions — a new ticket, the console, a resynchronisation —

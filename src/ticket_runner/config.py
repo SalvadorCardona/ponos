@@ -240,6 +240,9 @@ class Runner:
     update_channel: str = "release"
     update_interval_seconds: int = 3600
     log_retention_days: int = 14
+    # Once a day, the worktrees and scratch directories of tickets done for
+    # `log_retention_days` go too — see cleanup.py.
+    clean_done_worktrees: bool = True
     dry_run: bool = False
     prompt_file: str = ""
     document_prompt_file: str = ""
@@ -943,6 +946,9 @@ def load(path: Path | None = None) -> Config:
         ),
         log_retention_days=max(
             0, int(runner_raw.get("log_retention_days", defaults.log_retention_days))
+        ),
+        clean_done_worktrees=bool(
+            runner_raw.get("clean_done_worktrees", defaults.clean_done_worktrees)
         ),
         dry_run=bool(runner_raw.get("dry_run", defaults.dry_run)),
         prompt_file=str(runner_raw.get("prompt_file", defaults.prompt_file)).strip(),

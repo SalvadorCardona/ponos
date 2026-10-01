@@ -514,7 +514,16 @@ update_interval_seconds = 3600   # one hour; a minute is the floor
 
 # Drop session logs older than this. 0 keeps everything. The Notion comment
 # keeps the summary either way, and the transcript lives in ~/.claude/projects.
+# Applied once a day by a run, whether or not a ticket is ready.
 log_retention_days = 14
+
+# Once a day, also remove the worktrees and scratch directories of tickets that
+# have been done for log_retention_days, and the scratch directories of tickets
+# no longer on the board. Never a ticket in progress, blocked, failed or in
+# review; never a worktree with uncommitted changes; never a branch. false keeps
+# them until `ticket-runner clean --force`. The console's settings page shows
+# the space taken and a "Clean up" button.
+clean_done_worktrees = true
 
 dry_run = false
 
