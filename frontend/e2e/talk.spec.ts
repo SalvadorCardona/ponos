@@ -20,7 +20,9 @@ test.use({ viewport: { width: 1440, height: 900 } })
 
 test("a ticket waiting on you is marked on the board", async ({ page }) => {
   await open(page, "/")
-  const card = page.locator('[data-slot="ticket-waiting"]')
+  // Its own card, and not "the one card that waits": gestures.spec.ts sets a
+  // Ready ticket aside, which is Blocked too for as long as that test runs.
+  const card = page.locator(`[data-slot="ticket-waiting"][href$="${ASKING.split("/").pop()}"]`)
   await expect(card).toHaveCount(1)
   await expect(card).toHaveText("waiting for you")
 })
