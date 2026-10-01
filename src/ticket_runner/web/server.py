@@ -490,6 +490,8 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if match := re.fullmatch(r"/api/chat/attachments/([0-9a-f]{12})/remove", route):
                 return self._json(self.api.chat.detach(match.group(1)))
+            if route == "/api/chat/stop":
+                return self._json(self.api.chat.stop())
             if route == "/api/chat/reset":
                 return self._json(self.api.chat.reset())
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):

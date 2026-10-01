@@ -11,7 +11,7 @@ import { currentLanguage, useT } from "@/lib/i18n"
 import { Composer, type ComposerHandle } from "./composer"
 import { Eyebrow } from "./frame"
 import { Flow, Rich } from "./text"
-import { Steps } from "./steps"
+import { Thinking } from "./thinking"
 import { Line, Transcript } from "./transcript"
 import { Turn } from "./turn"
 
@@ -33,11 +33,27 @@ const transcribe = async (audio: Blob) => (await api.transcribe(audio, currentLa
 const carriesFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files")
 
 export function ConsolePane() {
-  const { transcript, busy, submit, resetChat, runner } = useConsole()
+  const { transcript, busy, stopping, submit, resetChat, stopChat, runner } = useConsole()
   const t = useT()
   const composer = React.useRef<ComposerHandle>(null)
   const [dragging, setDragging] = React.useState(false)
   const chat = runner?.chat
+  // A turn of the workspace, and not a `>command`, is what Stop stops: the
+  // last open block of steps is that turn.
+  const answering = busy && transcript.some((entry) => entry.kind === "steps" && !entry.done)
+
+  /* Back to the field once a stop has landed — in the tab that pressed it:
+   * whoever pressed Stop was about to say what they meant instead. */
+  const stoppedHere = React.useRef(false)
+  const stop = React.useCallback(() => {
+    stoppedHere.current = true
+    void stopChat()
+  }, [stopChat])
+  React.useEffect(() => {
+    if (busy || !stoppedHere.current) return
+    stoppedHere.current = false
+    composer.current?.focus()
+  }, [busy])
 
   const copyResume = () => {
     if (!chat?.resume_command) return
@@ -134,6 +150,8 @@ export function ConsolePane() {
           ref={composer}
           busy={busy}
           onSend={submit}
+          onStop={answering ? stop : undefined}
+          stopping={stopping}
           placeholder={t("Ask the workspace, or type >status")}
           commands={runner?.commands ?? []}
           upload={upload}
@@ -181,13 +199,14 @@ const Said = React.memo(function Said({ entry }: { entry: Entry }) {
   if (entry.kind === "steps")
     return (
       <Line id={id}>
-        <Steps steps={entry.steps} done={entry.done} />
-      </Line>
-    )
-  if (entry.kind === "note")
-    return (
-      <Line id={id}>
-        <p className="text-muted-foreground text-xs">{entry.text}</p>
+        <Thinking
+          steps={entry.steps}
+          done={entry.done}
+          started={entry.started}
+          seconds={entry.seconds}
+          cost={entry.cost}
+          stopping={entry.stopping}
+        />
       </Line>
     )
   return (

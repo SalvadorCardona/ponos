@@ -133,6 +133,9 @@ class Chat:
         self.path = web_dir() / "chat.json"
         self._lock = threading.Lock()
         self._busy = False
+        # Set by Stop, read by the session of the turn in flight: one per turn,
+        # so a stop that arrives late cannot reach the next one.
+        self._stop: threading.Event | None = None
         self.session_id = ""
         self.turns = 0
         self.messages: list[Message] = []
@@ -160,7 +163,10 @@ class Chat:
                 [entry for entry in item.get("attachments") or [] if isinstance(entry, dict)],
             )
             for item in raw.get("messages", [])
-            if item.get("role") and (item.get("text") or item.get("attachments"))
+            # A turn you stopped before it said anything is still a turn: the
+            # transcript says it was stopped, with nothing under it.
+            if item.get("role")
+            and (item.get("text") or item.get("attachments") or item.get("role") == "stopped")
         ]
 
     def _save(self) -> None:
@@ -189,6 +195,7 @@ class Chat:
             "session_id": self.session_id,
             "turns": self.turns,
             "busy": self._busy,
+            "stopping": bool(self._stop and self._stop.is_set()),
             "resume_command": f"claude --resume {self.session_id}" if self.session_id else "",
             "attachments": {
                 "max_mb": self.config.web.attachment_max_mb,
@@ -272,6 +279,7 @@ class Chat:
             if self._busy:
                 raise RuntimeError("the workspace is still answering the previous message")
             self._busy = True
+            self._stop = threading.Event()
             first = not self.session_id
             if first:
                 self.session_id = session.new_id()
@@ -279,12 +287,33 @@ class Chat:
             self._save()
         self.publish("chat", stage="sent", text=text, attachments=said, session_id=self.session_id)
         thread = threading.Thread(
-            target=self._turn, args=(text, first, carried), name="tr-chat", daemon=True
+            target=self._turn, args=(text, first, carried, self._stop), name="tr-chat", daemon=True
         )
         thread.start()
         return self.state()
 
-    def _turn(self, text: str, first: bool, carried: list[files.Attachment] | None = None) -> None:
+    def stop(self) -> dict:
+        """Interrupt the turn in flight; the conversation carries on after it.
+
+        Asking twice, or after the turn has ended on its own, is not an error:
+        the button is pressed by somebody who saw a turn running, and the turn
+        does not wait for the click to arrive before it finishes.
+        """
+        with self._lock:
+            asked = self._stop
+            if not self._busy or asked is None or asked.is_set():
+                return self.state()
+            asked.set()
+        self.publish("chat", stage="stopping")
+        return self.state()
+
+    def _turn(
+        self,
+        text: str,
+        first: bool,
+        carried: list[files.Attachment] | None = None,
+        stop: threading.Event | None = None,
+    ) -> None:
         started = time.monotonic()
         log = web_dir() / f"chat-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
         # Drawn here and not in `send`: taking frames from a video is seconds of
@@ -303,18 +332,25 @@ class Chat:
                 resume=not first,
                 environment=openrouter.environment(self.config.openrouter),
                 on_event=self._on_event,
+                stop=stop,
             )
         except Exception as error:  # noqa: BLE001
             with self._lock:
                 self._busy = False
+                self._stop = None
                 self.messages.append(Message("error", str(error)))
                 self._save()
             self.publish("chat", stage="failed", text=str(error))
             return
 
+        if outcome.stopped:
+            self._stopped(outcome, first, started)
+            return
+
         answer = outcome.answer or outcome.error or "(no answer)"
         with self._lock:
             self._busy = False
+            self._stop = None
             self.turns += 1
             self.messages.append(Message("workspace" if outcome.ok else "error", answer))
             self._save()
@@ -328,9 +364,34 @@ class Chat:
             session_id=self.session_id,
         )
 
+    def _stopped(self, outcome: session.Outcome, first: bool, started: float) -> None:
+        """A turn you ended: what it had said is kept, and so is the session.
+
+        Unless there was none to keep — a first turn stopped before Claude Code
+        wrote its first line leaves an identifier nothing answers to, and the
+        next message would be a `--resume` of a stranger. It starts afresh
+        instead, brief included.
+        """
+        with self._lock:
+            self._busy = False
+            self._stop = None
+            if first and not session.exists(self.session_id):
+                self.session_id = ""
+            else:
+                self.turns += 1
+            self.messages.append(Message("stopped", outcome.answer))
+            self._save()
+        self.publish(
+            "chat",
+            stage="stopped",
+            text=outcome.answer,
+            seconds=round(time.monotonic() - started, 1),
+            session_id=self.session_id,
+        )
+
     def _on_event(self, event: dict) -> None:
         for step in progress.describe(event):
-            self.publish("chat", stage="step", label=step.label, detail=step.detail)
+            self.publish("chat", stage="step", label=step.label, detail=step.detail, said=step.said)
 
     def _cwd(self) -> Path:
         root = self.config.runner.workspace_root

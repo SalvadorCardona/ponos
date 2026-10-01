@@ -29,6 +29,7 @@ import {
   pastedFiles,
   screen,
   settled,
+  stopsOnEscape,
   withAdded,
   without,
   type Pending,
@@ -66,6 +67,8 @@ const TALLEST = 200
 export interface ComposerHandle {
   /** Files handed in from outside the bar — dropped on the drawer around it. */
   add: (files: File[]) => void
+  /** Back to the field — after a stop, say. */
+  focus: () => void
 }
 
 export interface Dictation {
@@ -80,6 +83,8 @@ let counter = 0
 export function Composer({
   ref,
   onSend,
+  onStop,
+  stopping = false,
   busy,
   placeholder,
   commands,
@@ -93,6 +98,10 @@ export function Composer({
   ref?: React.Ref<ComposerHandle>
   /** Says whether the message was taken, so the bar is emptied only then. */
   onSend: (text: string, attachments: Attached[]) => Promise<boolean>
+  /** Given while there is something to stop: the arrow becomes Stop, and Escape presses it. */
+  onStop?: () => void
+  /** Stop was pressed; the end of the turn is on its way. */
+  stopping?: boolean
   busy: boolean
   placeholder: string
   commands?: string[]
@@ -187,7 +196,7 @@ export function Composer({
     [upload, discard, limitMb, t]
   )
 
-  React.useImperativeHandle(ref, () => ({ add }), [add])
+  React.useImperativeHandle(ref, () => ({ add, focus: () => field.current?.focus() }), [add])
 
   const remove = (item: Pending) => {
     if (item.preview) URL.revokeObjectURL(item.preview)
@@ -289,6 +298,25 @@ export function Composer({
     window.addEventListener("keydown", listener, true)
     return () => window.removeEventListener("keydown", listener, true)
   }, [transcribe])
+
+  /* Escape from an empty field stops the turn. Caught on the window before
+   * anything else, like the recording's Escape: the drawer listens for it on
+   * the document, and would close itself on a key that meant "stop". */
+  const stopper = React.useRef({ onStop, text, pending, busy })
+  stopper.current = { onStop, text, pending, busy }
+  React.useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.target !== field.current) return
+      const now = stopper.current
+      const stop = now.onStop
+      if (!stop || !stopsOnEscape({ ...now, attachments: now.pending, stoppable: true })) return
+      event.preventDefault()
+      event.stopPropagation()
+      stop()
+    }
+    window.addEventListener("keydown", listener, true)
+    return () => window.removeEventListener("keydown", listener, true)
+  }, [])
 
   /* -- drawing -------------------------------------------------------------- */
 
@@ -514,23 +542,53 @@ export function Composer({
                   </TooltipContent>
                 </Tooltip>
               ) : null}
-              <Button
-                type="button"
-                size="icon-sm"
-                data-slot="composer-send"
-                data-busy={busy || undefined}
-                className="rounded-full"
-                aria-label={busy ? t("The workspace is answering") : t("Send")}
-                title={busy ? t("The workspace is answering") : t("Send")}
-                disabled={!ready}
-                onClick={() => void send()}
-              >
-                {busy || sending ? (
-                  <Loader2Icon className="animate-spin" />
-                ) : (
-                  <ArrowUpIcon className="size-4.5" />
-                )}
-              </Button>
+              {busy && onStop ? (
+                /* What the arrow is while a turn runs. Pressed twice, it was
+                   pressed once: the second click lands on a button already
+                   saying it is stopping. */
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      data-slot="composer-stop"
+                      data-stopping={stopping || undefined}
+                      className="rounded-full"
+                      aria-label={stopping ? t("Stopping…") : t("Stop")}
+                      aria-keyshortcuts="Escape"
+                      disabled={stopping}
+                      onClick={onStop}
+                    >
+                      {stopping ? (
+                        <Loader2Icon className="animate-spin" />
+                      ) : (
+                        <SquareIcon className="size-3.5 fill-current" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {stopping ? t("Stopping…") : `${t("Stop")} · Esc`}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  data-slot="composer-send"
+                  data-busy={busy || undefined}
+                  className="rounded-full"
+                  aria-label={busy ? t("The workspace is answering") : t("Send")}
+                  title={busy ? t("The workspace is answering") : t("Send")}
+                  disabled={!ready}
+                  onClick={() => void send()}
+                >
+                  {busy || sending ? (
+                    <Loader2Icon className="animate-spin" />
+                  ) : (
+                    <ArrowUpIcon className="size-4.5" />
+                  )}
+                </Button>
+              )}
             </>
           )}
         </div>

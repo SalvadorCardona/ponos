@@ -50,6 +50,9 @@ class Outcome:
     # since the epoch. See credits.py, and what the runner does with it.
     exhausted: bool = False
     resets_at: float = 0.0
+    # Ended by whoever started it, on purpose: not a failure, and not an answer.
+    # `answer` is what it had said by then; the conversation is still on disk.
+    stopped: bool = False
 
     @property
     def resume_command(self) -> str:
@@ -110,6 +113,7 @@ def run(
     resume: bool = False,
     environment: dict[str, str] | None = None,
     on_event: Callable[[dict], None] | None = None,
+    stop: threading.Event | None = None,
 ) -> Outcome:
     binary = available()
     if not binary:
@@ -180,7 +184,7 @@ def run(
 
         timed_out = threading.Event()
 
-        def stop() -> None:
+        def expire() -> None:
             timed_out.set()
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGTERM)
@@ -189,8 +193,27 @@ def run(
             except (ProcessLookupError, PermissionError):
                 pass
 
-        watchdog = threading.Timer(timeout_minutes * 60, stop)
+        watchdog = threading.Timer(timeout_minutes * 60, expire)
         watchdog.start()
+
+        # Asked to stop by the caller: the console's Stop. The whole group goes,
+        # and not the CLI alone — a `pytest` or a `npm install` it had started
+        # would otherwise carry on with nobody to read it. Claude Code writes
+        # its conversation as it goes, so what was said before the signal is
+        # still there for the next `--resume`.
+        interrupted = threading.Event()
+
+        def interrupt(asked: threading.Event) -> None:
+            while process.poll() is None:
+                if asked.wait(0.2):
+                    interrupted.set()
+                    halt(process)
+                    return
+
+        if stop is not None:
+            threading.Thread(
+                target=interrupt, args=(stop,), name="tr-stop", daemon=True
+            ).start()
 
         final: dict = {}
         texts: list[str] = []
@@ -222,6 +245,20 @@ def run(
             watchdog.cancel()
 
     seconds = time.monotonic() - started
+    # A stop that crossed the session's last word is no stop: the answer had
+    # arrived, and it is what is kept.
+    if interrupted.is_set() and not final:
+        return Outcome(
+            ok=False,
+            blocked=False,
+            session_id=session_id,
+            summary="",
+            log=log,
+            answer="\n".join(texts).strip(),
+            error="stopped",
+            seconds=seconds,
+            stopped=True,
+        )
     if timed_out.is_set():
         return Outcome(
             ok=False,
@@ -235,7 +272,7 @@ def run(
         )
 
     answer = str(final.get("result") or "\n".join(texts)).strip()
-    failed = bool(final.get("is_error")) or process.returncode != 0
+    failed = bool(final.get("is_error")) or (process.returncode != 0 and not interrupted.is_set())
     blocked = _verdict(answer) == "blocked"
     error = ""
     resets_at = 0.0
@@ -263,7 +300,44 @@ def run(
     )
 
 
+# How long a stopped session is given to end on SIGTERM before its group is killed.
+GRACE_SECONDS = 5
+
+
+def halt(process: subprocess.Popen) -> None:
+    """End a session's whole process group: asked first, then made to.
+
+    By the group id, which with `start_new_session` is the leader's pid and
+    outlives it: a command the session started is still in it once the CLI
+    itself has exited, and it is the one that has to go.
+    """
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        return
+    try:
+        process.wait(timeout=GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 PROJECTS = Path.home() / ".claude" / "projects"
+
+
+def exists(session_id: str) -> bool:
+    """Has Claude Code filed this conversation anywhere — can it be resumed?
+
+    A session stopped in its first second may not have written a line yet, and
+    `--resume` on an identifier it never kept fails before saying a word.
+    """
+    try:
+        return any(PROJECTS.glob(f"*/{session_id}.jsonl"))
+    except OSError:
+        return False
 
 
 def project_key(path: Path) -> str:

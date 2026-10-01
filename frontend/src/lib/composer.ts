@@ -145,6 +145,23 @@ export function canSend({
   return text.trim().length > 0 || attachments.some((item) => item.state === "done")
 }
 
+/* Escape stops the turn in flight — but only from an empty field. With words
+ * in it, Escape is a key somebody pressed while writing the next message, and
+ * a stop nobody meant cannot be taken back. */
+export function stopsOnEscape({
+  text,
+  attachments,
+  busy,
+  stoppable,
+}: {
+  text: string
+  attachments: Pending[]
+  busy: boolean
+  stoppable: boolean
+}): boolean {
+  return busy && stoppable && !text.trim() && !attachments.length
+}
+
 /* The verb being typed after `>`, while it is still the only word: past the
  * first space the menu has nothing left to offer. */
 export function typedVerb(text: string): string | null {

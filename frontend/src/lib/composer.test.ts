@@ -18,6 +18,7 @@ import {
   nameFor,
   pastedFiles,
   screen,
+  stopsOnEscape,
   settled,
   withAdded,
   without,
@@ -115,4 +116,14 @@ test("a transcription lands after what is already typed", () => {
   assert.equal(inserted("", " bonjour "), "bonjour")
   assert.equal(inserted("Regarde ça :", "le bouton est cassé"), "Regarde ça : le bouton est cassé")
   assert.equal(inserted("déjà là", "   "), "déjà là")
+})
+
+test("Escape stops a turn only from an empty bar, and only where Stop is offered", () => {
+  const empty = { text: "", attachments: [], busy: true, stoppable: true }
+  assert.equal(stopsOnEscape(empty), true)
+  assert.equal(stopsOnEscape({ ...empty, text: "next question" }), false)
+  assert.equal(stopsOnEscape({ ...empty, text: "   " }), true)
+  assert.equal(stopsOnEscape({ ...empty, attachments: [image("a.png")] }), false)
+  assert.equal(stopsOnEscape({ ...empty, busy: false }), false)
+  assert.equal(stopsOnEscape({ ...empty, stoppable: false }), false)
 })

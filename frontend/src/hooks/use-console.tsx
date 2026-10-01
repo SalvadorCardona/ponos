@@ -52,9 +52,21 @@ const KEPT = 200
 
 export type Entry =
   | { id: number; kind: "turn"; role: Role; text: string; attachments?: Attached[] }
-  | { id: number; kind: "steps"; steps: Step[]; done: boolean }
+  | {
+      id: number
+      kind: "steps"
+      steps: Step[]
+      done: boolean
+      /** When the turn began, by this page's clock: what its timer counts from. */
+      started: number
+      /** Once it has ended: how long it took and what it cost, as the server says. */
+      seconds?: number
+      cost?: number
+      /** Stop was pressed, and the turn has not ended yet. */
+      stopping?: boolean
+      stopped?: boolean
+    }
   | { id: number; kind: "command"; argv: string[]; lines: string[]; code: number | null }
-  | { id: number; kind: "note"; text: string }
 
 export interface Session {
   source: string
@@ -77,6 +89,8 @@ interface ConsoleValue {
   projects: Project[]
   transcript: Entry[]
   busy: boolean
+  /** The workspace's turn is being stopped: Stop was pressed, the end is on its way. */
+  stopping: boolean
   ticket: Ticket | null
   talk: Message[]
   mention: string
@@ -87,6 +101,7 @@ interface ConsoleValue {
   tell: (text: string) => Promise<void>
   submit: (text: string, attachments?: Attached[]) => Promise<boolean>
   resetChat: () => Promise<void>
+  stopChat: () => Promise<void>
   move: (ticket: Ticket, column: ColumnKey) => Promise<void>
   createTicket: (ticket: {
     title: string
@@ -149,6 +164,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = React.useState<Project[]>([])
   const [transcript, setTranscript] = React.useState<Entry[]>([])
   const [busy, setBusy] = React.useState(false)
+  const [stopping, setStopping] = React.useState(false)
   const [running, setRunning] = React.useState<Running[]>([])
   const [synced, setSynced] = React.useState<SyncEvent | null>(null)
   const [steps, setSteps] = React.useState<Record<string, Step[]>>({})
@@ -317,6 +333,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       if (event.stage === "reset") {
         setTranscript([{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }])
         setBusy(false)
+        setStopping(false)
         return
       }
       if (event.stage === "sent") {
@@ -329,40 +346,54 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
             text: event.text,
             attachments: event.attachments,
           },
-          { id: nextId(), kind: "steps", steps: [], done: false },
+          { id: nextId(), kind: "steps", steps: [], done: false, started: Date.now() },
         ])
         setBusy(true)
+        setStopping(false)
         return
       }
       if (event.stage === "step") {
-        const line: Step = { label: event.label, detail: event.detail }
+        const line: Step = { label: event.label, detail: event.detail, said: event.said }
         setTranscript((entries) => {
           const last = entries[entries.length - 1]
           if (last?.kind === "steps" && !last.done)
             return [...entries.slice(0, -1), { ...last, steps: [...last.steps, line] }]
-          return [...entries, { id: nextId(), kind: "steps", steps: [line], done: false }]
+          return [
+            ...entries,
+            { id: nextId(), kind: "steps", steps: [line], done: false, started: Date.now() },
+          ]
         })
         return
       }
-      // "answer" or "failed".
-      const answered = event.stage === "answer" && event.ok !== false
-      setTranscript((entries) => {
-        const closed = entries.map((entry) =>
-          entry.kind === "steps" && !entry.done ? { ...entry, done: true } : entry
+      if (event.stage === "stopping") {
+        setStopping(true)
+        setTranscript((entries) =>
+          entries.map((entry) =>
+            entry.kind === "steps" && !entry.done ? { ...entry, stopping: true } : entry
+          )
         )
-        const grown: Entry[] = [
-          ...closed,
-          { id: nextId(), kind: "turn", role: answered ? "workspace" : "error", text: event.text },
-        ]
-        if (event.cost_usd)
-          grown.push({
-            id: nextId(),
-            kind: "note",
-            text: `${event.seconds}s · $${event.cost_usd}`,
-          })
-        return grown
-      })
+        return
+      }
+      // "answer", "failed" or "stopped": the steps fold away under what was
+      // said, and keep how long the turn took and what it cost.
+      const stopped = event.stage === "stopped"
+      const role: Role = stopped
+        ? "stopped"
+        : event.stage === "answer" && event.ok !== false
+          ? "workspace"
+          : "error"
+      const seconds = "seconds" in event ? event.seconds : undefined
+      const cost = "cost_usd" in event ? event.cost_usd : undefined
+      setTranscript((entries) => [
+        ...entries.map((entry) =>
+          entry.kind === "steps" && !entry.done
+            ? { ...entry, done: true, stopping: false, stopped, seconds, cost }
+            : entry
+        ),
+        { id: nextId(), kind: "turn", role, text: event.text },
+      ])
       setBusy(false)
+      setStopping(false)
       void reloadState()
     },
 
@@ -470,6 +501,16 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     [say]
   )
 
+  /* Stop says nothing here either: "stopping" and then "stopped" come back on
+   * the stream, to this tab and to the phone that is watching the same turn. */
+  const stopChat = React.useCallback(async () => {
+    try {
+      await api.stopChat()
+    } catch (error) {
+      say("error", why(error))
+    }
+  }, [say])
+
   const resetChat = React.useCallback(async () => {
     try {
       await api.resetChat()
@@ -528,18 +569,29 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     void api
       .chat()
       .then((payload) => {
-        setTranscript(
-          payload.messages.length
-            ? payload.messages.map((message) => ({
-                id: nextId(),
-                kind: "turn" as const,
-                role: message.role,
-                text: message.text,
-                attachments: message.attachments,
-              }))
-            : [{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }]
-        )
+        const said: Entry[] = payload.messages.length
+          ? payload.messages.map((message) => ({
+              id: nextId(),
+              kind: "turn" as const,
+              role: message.role,
+              text: message.text,
+              attachments: message.attachments,
+            }))
+          : [{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }]
+        // A turn already running when the page opened: Ponos thinks from now
+        // on, its earlier steps were said to a page that was not there.
+        if (payload.busy)
+          said.push({
+            id: nextId(),
+            kind: "steps",
+            steps: [],
+            done: false,
+            started: Date.now(),
+            stopping: Boolean(payload.stopping),
+          })
+        setTranscript(said)
         if (payload.busy) setBusy(true)
+        if (payload.stopping) setStopping(true)
       })
       .catch((error) => say("error", why(error)))
 
@@ -557,6 +609,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       projects,
       transcript,
       busy,
+      stopping,
       ticket,
       talk,
       mention,
@@ -567,6 +620,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       tell,
       submit,
       resetChat,
+      stopChat,
       move,
       createTicket,
       refresh,
@@ -580,6 +634,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       projects,
       transcript,
       busy,
+      stopping,
       ticket,
       talk,
       mention,
@@ -590,6 +645,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       tell,
       submit,
       resetChat,
+      stopChat,
       move,
       createTicket,
       refresh,
