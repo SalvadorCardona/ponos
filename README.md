@@ -1783,30 +1783,30 @@ as rows, one column per property.
 **A card is a way in.** Click one and the ticket becomes a page: the brief you wrote, the
 report a run appended, the notes in between — the page under the card, as the runner
 reads it — with its links out (Notion, the pull request, the session) and the gestures it
-offers where it stands. Under the facts, two tabs: the brief, and **live** — the one a
-ticket in progress opens on. It is the session's journal, growing as it is written and
+offers where it stands. Under the facts, three tabs: the brief, **live** — the one a
+ticket in progress opens on — and **discussion**. It is the session's journal, growing as it is written and
 following its end until you scroll up to read something; what the agent says is drawn as
 prose, each tool call is one folded line — the tool and the start of its command, the
 worktree's path written `./` — that a click unfolds. Once the ticket has left *In
 progress*, the same tab reads its last session back from the log, read-only, for as long as
-the log is on disk. The bubble in the bottom corner then opens *that ticket's* own
-terminal rather than the workspace's: everything said on it, oldest first — the runner's
-reports, your answers, the answers you gave from Telegram — and a field to say the next
-thing. What you type is a
+the log is on disk. The **discussion** tab is the ticket's own terminal, counted on the
+tab itself: everything said on it, oldest first — the runner's reports, your answers, the
+answers you gave from Telegram — and the console's own message bar to say the next thing
+(Enter sends, the microphone dictates; no files, since a comment carries text). A ticket
+**waiting on you** — in *Blocked*, or with a question a run asked and nobody has answered
+yet — opens on that tab, and its card on the board says *waiting for you*. What you type is a
 *comment on the ticket*, written into the thread the runner last spoke in, which is the
 gesture the runner already knows: an answer under the question a run asked puts the ticket
 back in the queue, and one that names it — `@claude`, or whatever `notion.mention` says —
 asks it for words instead. Nothing is kept on the side; the same sentence typed into Notion
-does the same thing. While the ticket is running, its session's steps scroll underneath,
-so reading a ticket and watching it work are one place rather than two. The drawer is the
-same at every width, phone included.
+does the same thing.
 
 The comment is written with the runner's own Notion token, because that is the only token
 the console has — and it opens the same way an answer relayed from Telegram does, so the
 next run reads it as yours rather than as its own voice.
 
-**The console** is behind the bubble in the bottom corner — one press opens it as a drawer
-over the page, another closes it, and no page is given up for it. It is one message bar and
+**The console** is behind the bubble in the bottom corner, on every page, a ticket's
+included — one press opens it as a drawer over the page, another closes it, and no page is given up for it. It is one message bar and
 two gestures, and they are not made to look alike.
 
 Two keys reach it without the mouse. **Ctrl+J** (⌘J on a Mac) opens and closes the
@@ -2094,8 +2094,8 @@ none is configured and `list_items_in_registries` refuses to look.
 `AdminLayout`: the sidebar built from the scope's menu, the bar over the page, the page's
 heading, and a navigation bar along the bottom edge on a phone. The console adds its mark,
 the end of the bar (the stream's dot, the version, *Refresh*, the light) and an entry
-component that puts a count beside a name; the discussion stays outside the frame, in the
-drawer the bubble opens.
+component that puts a count beside a name; the conversation with the workspace stays
+outside the frame, in the drawer the bubble opens.
 
 The resources are `frontend/src/resources/*.tsx`. The board, the ticket page and the
 *New ticket* form are one declaration — `tickets.tsx` — which the package renders as the

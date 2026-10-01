@@ -94,6 +94,8 @@ interface ConsoleValue {
   ticket: Ticket | null
   talk: Message[]
   mention: string
+  /** The open ticket asked a question nobody has answered yet. */
+  talkWaiting: boolean
   talkLoading: boolean
   openTicket: (ticket: Ticket) => void
   closeTicket: () => void
@@ -174,6 +176,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [ticket, setTicket] = React.useState<Ticket | null>(null)
   const [talk, setTalk] = React.useState<Message[]>([])
   const [mention, setMention] = React.useState("")
+  const [talkWaiting, setTalkWaiting] = React.useState(false)
   const [talkLoading, setTalkLoading] = React.useState(false)
 
   // What the stream handlers need to read without being rebuilt for it.
@@ -245,6 +248,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       if (openId.current !== open.id) return
       setTalk(payload.messages)
       setMention(payload.mention)
+      setTalkWaiting(Boolean(payload.waiting))
     } catch (error) {
       if (openId.current !== open.id) return
       setTalk([
@@ -263,6 +267,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       setTicket(open)
       if (another) {
         setTalk([])
+        setTalkWaiting(false)
         void loadTalk(open)
       }
     },
@@ -274,6 +279,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     openColumn.current = ""
     setTicket(null)
     setTalk([])
+    setTalkWaiting(false)
   }, [])
 
   const rereadTalk = React.useCallback(() => {
@@ -429,6 +435,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       // Somebody wrote to a ticket — here, or in the other tab, or on a phone.
       if (event.ticket !== openId.current) return
       setTalk((messages) => [...messages, { role: event.role, text: event.text, at: event.at }])
+      // An answer, from wherever it was typed, is the question answered.
+      if (event.role === "you") setTalkWaiting(false)
     },
 
     settings: () => {
@@ -615,6 +623,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       ticket,
       talk,
       mention,
+      talkWaiting,
       talkLoading,
       openTicket,
       closeTicket,
@@ -640,6 +649,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       ticket,
       talk,
       mention,
+      talkWaiting,
       talkLoading,
       openTicket,
       closeTicket,

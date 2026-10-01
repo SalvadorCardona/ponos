@@ -10,7 +10,8 @@ console you run for yourself.
     python3 e2e/console.py 8790
 
 One ticket is written long on purpose: a brief several screens tall, which is
-the page that stopped scrolling. Two projects, for the list that opens one in a
+the page that stopped scrolling. One is blocked on a question a run asked, for
+the discussion its page opens on and the mark its card wears. Two projects, for the list that opens one in a
 drawer. And a check that found a newer version than this checkout, for the
 version at the top right to offer it — a commit that exists nowhere, so that a
 click on "Update now" could only ever fail.
@@ -39,6 +40,7 @@ from ticket_runner import files  # noqa: E402
 # The token the tests open the console with: a board of fixtures has nothing to guard.
 TOKEN = "e2e"
 LONG = "000000000000000000000000000abcde"
+ASKING = "00000000000000000000000000000a5c"
 NEWER = "f" * 40
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 
@@ -52,6 +54,16 @@ def board(root: Path) -> None:
     )
     long = {"id": LONG, "title": "A long ticket", "Status": "Ready"}
     (tickets / f"a-long-ticket-{LONG[-8:]}.md").write_text(files.render(long, brief), encoding="utf-8")
+    asking = {"id": ASKING, "title": "A ticket with a question", "Status": "Blocked"}
+    (tickets / f"a-ticket-with-a-question-{ASKING[-8:]}.md").write_text(
+        files.render(asking, "Put the logo in the header."), encoding="utf-8"
+    )
+    comments = root / "comments"
+    comments.mkdir()
+    question = {"id": "q1", "at": "2026-09-30T10:00:00+00:00", "by": "ticket-runner", "discussion": "q1"}
+    (comments / f"{ASKING}.md").write_text(
+        files.render(question, "🙋 Question\nWhich header, the dashboard's or the site's?"), encoding="utf-8"
+    )
     for number in range(1, 13):
         page = {"id": f"{number:032d}", "title": f"Ticket {number}", "Status": "Backlog"}
         (tickets / f"ticket-{number}-{page['id'][-8:]}.md").write_text(

@@ -80,7 +80,6 @@ export const FRENCH: Record<string, string> = {
   schedules: "récurrences",
   settings: "réglages",
   "the console": "la console",
-  "the discussion": "la discussion",
   "the workspace": "l'espace de travail",
   "the ticket": "le ticket",
   "the console's language": "la langue de la console",
@@ -314,11 +313,8 @@ export const FRENCH: Record<string, string> = {
   "timer state unknown": "état de la minuterie inconnu",
 
   /* -- a ticket's terminal -------------------------------------------------- */
-  "Talking to": "Discussion avec",
-  "No ticket open": "Aucun ticket ouvert",
-  "Everything said on the ticket, oldest first. What you type is a comment on it.":
-    "Tout ce qui s'est dit sur le ticket, du plus ancien au plus récent. Ce que vous écrivez est un commentaire sur celui-ci.",
-  "Open a ticket from the board.": "Ouvrez un ticket depuis le tableau.",
+  discussion: "discussion",
+  "waiting for you": "vous attend",
   "Nothing has been said on this ticket yet.": "Rien n'a encore été dit sur ce ticket.",
   "reading the discussion…": "lecture de la discussion…",
   "an answer to its question runs it again": "une réponse à sa question le relance",
@@ -327,7 +323,6 @@ export const FRENCH: Record<string, string> = {
   "read the discussion again": "relire la discussion",
   "reading…": "lecture…",
   reread: "relire",
-  "sending…": "envoi…",
   "not written: {{why}}": "non écrit : {{why}}",
   "could not read the discussion: {{why}}": "impossible de lire la discussion : {{why}}",
   you: "vous",

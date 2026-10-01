@@ -47,6 +47,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   form now says that ticked, a session starts at the next pass, and within how
   long; **Ctrl+Enter** (⌘+Enter) creates the ticket from any field, the brief
   included.
+- **A ticket's discussion is on its page.** The ticket page has a third tab,
+  *discussion*, beside *the brief* and *live*, with the number of messages on
+  it: the runner's reports and questions, your answers, oldest first. You answer
+  in the same message bar as the console — Enter sends, the microphone dictates.
+  A ticket waiting on you — in *Blocked*, or with a question a run asked that
+  nobody has answered — opens on that tab, and its card on the board says
+  *waiting for you*. The bubble in the corner now opens the console on every
+  page, a ticket's included, instead of quietly becoming that ticket's
+  discussion.
 - **Keyboard shortcuts in the console.** **Ctrl+K** (⌘K on a Mac) opens a
   command palette from any page: the pages, the projects, the tickets on the
   board, and three actions — a new ticket, the console, a resynchronisation —

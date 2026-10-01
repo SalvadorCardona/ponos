@@ -275,6 +275,8 @@ export interface Talk {
   id: string
   mention: string
   messages: Message[]
+  /** The last word on the page is a question a run asked, still unanswered. */
+  waiting: boolean
 }
 
 /** A session in flight: the ticket it belongs to (its short id), and its log. */
