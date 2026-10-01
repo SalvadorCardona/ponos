@@ -509,7 +509,9 @@ export const FRENCH: Record<string, string> = {
     "Rien ne déclare de dépôt : ses tickets produisent un document plutôt qu'une pull request.",
   "from the configuration": "depuis la configuration",
   "path set in the configuration": "chemin fixé dans la configuration",
-  "{{count}} of {{total}} on a repository": "{{count}} sur {{total}} sur un dépôt",
+  "{{count}} of {{total}} projects have a repository": "{{count}} projets sur {{total}} ont un dépôt",
+  "{{count}} of {{total}} projects has a repository": "{{count}} projet sur {{total}} a un dépôt",
+  "~/workspace/that-repository": "~/workspace/ce-depot",
   "Reading the projects…": "Lecture des projets…",
   "No project yet — a ticket without one comes back as a document.":
     "Aucun projet pour l'instant — un ticket sans projet revient sous forme de document.",

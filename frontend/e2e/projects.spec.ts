@@ -67,6 +67,28 @@ test.describe("at 1440px", () => {
     expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)).toBe(true)
   })
 
+  test("the drawer is wide enough to write a brief in, and its first line clears the cross", async ({ page }) => {
+    await open(page)
+    await openWebsite(page)
+    await expect.poll(async () => Math.round((await drawer(page).boundingBox())?.width ?? 0)).toBe(640)
+    // Where the words of the line can reach, padding left out: they wrap before
+    // the cross however long the line is.
+    const reach = await drawer(page)
+      .getByRole("link", { name: "Open the project's page" })
+      .locator("..")
+      .evaluate((line) => line.getBoundingClientRect().right - parseFloat(getComputedStyle(line).paddingRight))
+    const cross = await drawer(page).locator('[data-slot="drawer-close"]').boundingBox()
+    expect(cross && reach <= cross.x).toBe(true)
+  })
+
+  test("a card says its repository by owner and name, as a link of its own", async ({ page }) => {
+    await open(page)
+    const repository = page.getByRole("link", { name: "example/website" })
+    await expect(repository).toBeVisible()
+    await expect(repository).toHaveAttribute("href", "https://github.com/example/website")
+    await expect(repository).toHaveAttribute("target", "_blank")
+  })
+
   test("the table opens the same drawer from a project's name", async ({ page }) => {
     await open(page, `${LIST}&variant=table`)
     await openWebsite(page)

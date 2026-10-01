@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
 import { useTicketCounts } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
+import { repositoryName, shortPath } from "@/lib/places"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
 import type { Project, Projects } from "@/lib/types"
@@ -224,7 +225,9 @@ const editForm: FormInterface = {
           "Only needed where the repository cannot be found on its own. Worktrees are made beside it, never in it."
         )
       },
-      placeholder: "~/workspace/that-repository",
+      get placeholder() {
+        return t("~/workspace/that-repository")
+      },
     },
     content: {
       label: "The brief",
@@ -289,6 +292,12 @@ function OpenProject({ project, children }: { project: ProjectItem; children: Re
   )
 }
 
+/** The repository in the table, said and linked as on a card. */
+const RepositoryCell: InputControllerComponentInterface = () => {
+  const { form } = useFormContext()
+  return <Repository declared={(form?.data as ProjectItem | undefined)?.repository} />
+}
+
 /** The name in the table, behind the project's thumbnail — and the way into its form. */
 const NameCell: InputControllerComponentInterface = () => {
   const { form } = useFormContext()
@@ -319,7 +328,8 @@ function ToThePage() {
   return (
     <div data-project-form>
       {id && !here ? (
-        <p className="text-muted-foreground mb-4 text-xs">
+        // Clear of the drawer's close button, drawn over the top right corner.
+        <p className="text-muted-foreground mb-4 pr-10 text-xs">
           <Link
             to={generateLinkByResource({ resource: context.resource, resourceAction: ActionList.read, id })}
             className="underline underline-offset-2"
@@ -338,7 +348,7 @@ const rowForm: FormInterface = {
   inputs: {
     name: { label: "Project", readonly: true, controller: NameCell },
     work: { label: "Kind", readonly: true },
-    repository: { label: "Repository", readonly: true },
+    repository: { label: "Repository", readonly: true, controller: RepositoryCell },
     where: { label: "On this machine", readonly: true },
     tickets: { label: "Tickets", readonly: true, controller: TicketsCell },
   },
@@ -361,59 +371,91 @@ function ProjectCard({ row }: RowComponentPropsInterface) {
   if (!project) return null
 
   return (
-    <OpenProject project={project}>
-      <div className="group flex min-w-0 flex-col gap-2.5">
-        <div className="flex items-baseline gap-2">
-          <Eyebrow>{project.work}</Eyebrow>
-          <span className="flex-1" />
-          {count === null ? (
-            <Skeleton className="h-3 w-14" />
-          ) : count ? (
-            <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
-              {t("{{count}} ticket(s)", { count: String(count) })}
-            </span>
-          ) : null}
-        </div>
+    // The card is the way into the form, but its repository is a link of its
+    // own, and a link is not drawn inside another: the name's link is stretched
+    // over the whole card instead, and the repository sits above it.
+    <div className="group relative flex min-w-0 flex-col gap-2.5">
+      <div className="flex items-baseline gap-2">
+        <Eyebrow>{project.work}</Eyebrow>
+        <span className="flex-1" />
+        {count === null ? (
+          <Skeleton className="h-3 w-14" />
+        ) : count ? (
+          <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
+            {t("{{count}} ticket(s)", { count: String(count) })}
+          </span>
+        ) : null}
+      </div>
 
-        <div className="flex min-w-0 items-center gap-3">
-          <ProjectThumb project={project} />
-          <span className="min-w-0 text-[0.95rem] leading-snug font-semibold [overflow-wrap:anywhere] group-hover:underline">
+      <div className="flex min-w-0 items-center gap-3">
+        <ProjectThumb project={project} />
+        <OpenProject project={project}>
+          <span className="min-w-0 text-[0.95rem] leading-snug font-semibold [overflow-wrap:anywhere] group-hover:underline after:absolute after:inset-0">
             {project.name}
           </span>
-        </div>
-
-        {project.repository || project.where ? (
-          <Facts>
-            {/* A fact is one line and these two are longer than it — three cards
-                across, a path is cut about where it stops being a path. The title
-                is what makes the cut recoverable without opening the project. */}
-            <Fact label={t("repository")}>
-              <span className="font-mono text-xs" title={project.repository || undefined}>
-                {project.repository || "—"}
-              </span>
-            </Fact>
-            <Fact label={t("on this machine")}>
-              <span className="font-mono text-xs" title={project.where || undefined}>
-                {project.where || t("wherever the clone is")}
-              </span>
-            </Fact>
-          </Facts>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            {t(
-              "Nothing declares a repository, so its tickets produce a document rather than a pull request."
-            )}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
-          {project.configured && project.source === "board" ? (
-            <Chip>{t("path set in the configuration")}</Chip>
-          ) : null}
-        </div>
+        </OpenProject>
       </div>
-    </OpenProject>
+
+      {project.repository || project.where ? (
+        // One fact under the other: side by side, a third of a screen each,
+        // "on this machine" took two lines where "repository" took one and the
+        // two values no longer lined up.
+        <Facts className="grid-cols-1 [&>*:nth-child(even)]:border-l-0 [&>*:nth-child(n+2)]:border-t">
+          <Fact label={t("repository")}>
+            <Repository declared={project.repository} />
+          </Fact>
+          <Fact label={t("on this machine")}>
+            <Where path={project.where} short />
+          </Fact>
+        </Facts>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          {t(
+            "Nothing declares a repository, so its tickets produce a document rather than a pull request."
+          )}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
+        {project.configured && project.source === "board" ? (
+          <Chip>{t("path set in the configuration")}</Chip>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/** A project's repository, by its owner and name, and a link to it where it has an address. */
+export function Repository({ declared }: { declared?: string }) {
+  const repository = repositoryName(declared ?? "")
+  if (!repository) return <span className="font-mono text-xs">—</span>
+  const name = (
+    <span className="font-mono text-xs" title={declared}>
+      {repository.name}
+    </span>
+  )
+  if (!repository.href) return name
+  return (
+    <a
+      href={repository.href}
+      target="_blank"
+      rel="noreferrer"
+      // Above the card's own link, which is stretched over everything else.
+      className="relative z-10 underline-offset-2 hover:underline"
+    >
+      {name}
+    </a>
+  )
+}
+
+/** Where this machine finds a project: whole, or cut from the left with the whole in its title. */
+export function Where({ path, short = false }: { path?: string; short?: boolean }) {
+  if (!path) return <span className="font-mono text-xs">{t("wherever the clone is")}</span>
+  return (
+    <span className="font-mono text-xs" title={path}>
+      {short ? shortPath(path) : path}
+    </span>
   )
 }
 
@@ -425,14 +467,14 @@ function ProjectsTop() {
   useLayoutInTheAddress(PROJECTS)
   if (!read) return null
   const code = read.projects.filter((project) => project.kind === "code").length
+  const counted = { count: String(code), total: String(read.projects.length) }
   return (
     <p className="text-muted-foreground mb-2 inline-flex items-center gap-1.5 font-mono text-[0.7rem]">
       <FolderGit2 className="size-3.5" />
       {read.projects.length
-        ? t("{{count}} of {{total}} on a repository", {
-            count: String(code),
-            total: String(read.projects.length),
-          })
+        ? code > 1
+          ? t("{{count}} of {{total}} projects have a repository", counted)
+          : t("{{count}} of {{total}} projects has a repository", counted)
         : t("nothing yet")}
     </p>
   )

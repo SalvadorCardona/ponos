@@ -217,6 +217,15 @@
      around it — room for the list to show above, which a phone has none of,
      and the brief is a page of text. Only the drawer that holds a project's
      form, which says so by the attribute over it (see `resources/projects`). */
+  /* And beside the list on a wider screen, at the width the package asks for.
+     It says 40rem from `md` up, but its drawer's own `sm:` 24rem is written
+     with the swipe axis in front of it and wins: a brief edited in 384px of a
+     2200px screen, twenty-five characters to a line. */
+  @media (width >= 48rem) {
+    [data-slot="drawer-popup"][data-swipe-axis="x"]:has([data-project-form]) {
+      --drawer-content-width: min(40rem, calc(100vw - 2rem));
+    }
+  }
   @media (width < 48rem) {
     [data-slot="drawer-popup"][data-swipe-axis="y"]:has([data-project-form]) {
       --drawer-height: 100dvh;
