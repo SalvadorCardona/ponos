@@ -11,7 +11,8 @@ full-time reader of your workspace: the configuration (reloaded when its file
 changes), the project index, and the tickets database ID. The tickets
 themselves are held too, and brought up to date by what changed — how, and why
 a move from the console waits in a queue rather than in the browser, is
-`board.py`'s to say.
+`board.py`'s to say. So is a ticket's page, while Notion says it has not been
+edited — see `Api._brief`.
 """
 
 from __future__ import annotations
@@ -45,6 +46,12 @@ PROJECT_TTL = 600
 # without anyone restarting anything.
 SCHEMA_TTL = 600
 
+# How many ticket pages are kept, read, while their `last_edited_time` holds.
+# A ticket's page is a dozen block requests away — one to three seconds — and
+# opening a ticket read it again every time. Enough for every ticket somebody
+# opens in a day; the oldest goes first.
+BRIEFS = 200
+
 # The columns, in the order they are meant to be read. Anything the board
 # carries that is none of them lands in "other" rather than being hidden.
 COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done")
@@ -67,6 +74,7 @@ class Api:
         )
         self._reader = board_module.Reader()
         self._synced: dict = {}
+        self._briefs: dict[str, tuple[str, str]] = {}
         # Started here and nowhere else: a move made from the console is sent
         # whether or not a browser is still open to watch it go.
         self._outbox = board_module.Outbox(outbox_path())
@@ -273,9 +281,10 @@ class Api:
         """
         settings = self.config.notion
         names = _columns(settings)
+        started = time.time()
         try:
             page = self.runner.client.page(page_id)
-            content = self.runner.client.blocks_text(page_id)
+            content = self._brief(page_id, page, started)
         except store.StoreError:
             self.forget()
             raise
@@ -296,6 +305,35 @@ class Api:
         address is one call — where an address kept an hour is a 403.
         """
         return self.runner.client.attachment(block_id.replace("-", ""))
+
+    def _brief(self, page_id: str, page: store.Page, started: float) -> str:
+        """What a ticket's page says, read again only once Notion says it changed.
+
+        The row costs one request and says when the page was last touched; the
+        blocks cost one per block that has children. So the row is read every
+        time, and the blocks only when its `last_edited_time` moved — an edit
+        anywhere in the page moves it.
+
+        Notion gives that time to the minute. A page read during the minute it
+        was edited in could be edited again in the same minute without its time
+        moving, so what is read then is not kept: only a read begun after the
+        edit's minute is over is. A Markdown board is not kept at all — its
+        page is a file read, and a file changed by hand says nothing in its
+        `edited`.
+        """
+        key = page_id.replace("-", "")
+        edited = str(page.raw.get("last_edited_time") or "")
+        held = self._briefs.get(key)
+        if held and held[0] == edited:
+            return held[1]
+        content = self.runner.client.blocks_text(page_id)
+        stamp = _instant(edited)
+        if self.config.storage.mode != "markdown" and stamp is not None and started >= stamp + 60:
+            self._briefs.pop(key, None)
+            self._briefs[key] = (edited, content)
+            while len(self._briefs) > BRIEFS:
+                self._briefs.pop(next(iter(self._briefs)))
+        return content
 
     def projects(self) -> dict[str, dict]:
         """{page id: {name, kind, …}} — one query, kept for a few minutes.
@@ -1046,6 +1084,17 @@ def _mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
+
+
+def _instant(stamp: str) -> float | None:
+    """An ISO time as Notion writes it, in seconds — or None for one it did not write."""
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.timestamp()
 
 
 def _version() -> str:

@@ -6747,6 +6747,7 @@ def _bare_api(client, me: str = "runner-id") -> web_api.Api:
     api._stamp = 0.0
     api._projects = {}
     api._projects_at = 0.0
+    api._briefs = {}
     # The pictures kept in a directory of the test's own: the real one is under
     # the state directory of whoever runs the suite.
     api._images = images.Cache(Path(tempfile.mkdtemp()))
@@ -6934,6 +6935,61 @@ def a_ticket_read_on_its_own_is_the_card_and_the_page_under_it():
     elsewhere = _bare_api(_PageClient("", status="Parked"))
     elsewhere._runner._workspace = type("W", (), {"projects": ""})()
     assert elsewhere.ticket("1a2b3c4d000000000000000000000000")["column"] == "other"
+
+
+class _EditedPageClient(_PageClient):
+    """A ticket page that says when it was last edited, and counts its block reads."""
+
+    def __init__(self, content: str, edited: str) -> None:
+        super().__init__(content)
+        self.edited = edited
+        self.reads = 0
+
+    def page(self, page_id: str) -> notion.Page:
+        page = super().page(page_id)
+        page.raw["last_edited_time"] = self.edited
+        return page
+
+    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+        self.reads += 1
+        return self._content
+
+
+@case
+def a_ticket_page_is_read_again_only_when_notion_says_it_changed():
+    """Opening a ticket read every block of its page, one to three seconds a time.
+
+    The row is still read each time — it is what says the page moved — and the
+    blocks only when its `last_edited_time` did. A read made in the very minute
+    of the edit is not kept: Notion counts in minutes, and a second edit in that
+    minute would not move the time. A Markdown board is never kept.
+    """
+    client = _EditedPageClient("first brief", "2026-09-01T09:00:00.000Z")
+    api = _bare_api(client)
+    api._runner._workspace = type("W", (), {"projects": ""})()
+    ticket = "1a2b3c4d000000000000000000000000"
+    assert api.ticket(ticket)["content"] == "first brief"
+    assert api.ticket(ticket)["content"] == "first brief"
+    assert client.reads == 1, "an unchanged page is not read twice"
+
+    client._content, client.edited = "second brief", "2026-09-01T09:30:00.000Z"
+    assert api.ticket(ticket)["content"] == "second brief", "an edit is read at the next opening"
+    assert client.reads == 2
+
+    # Edited just now: the minute is not over, so nothing is kept.
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    client.edited = now.isoformat().replace("+00:00", ".000Z")
+    api.ticket(ticket)
+    client._content = "third brief"
+    assert api.ticket(ticket)["content"] == "third brief", "an edit in the same minute is still read"
+
+    files = _EditedPageClient("on disk", "2026-09-01T09:00:00.000Z")
+    board = _bare_api(files)
+    board._runner._workspace = type("W", (), {"projects": ""})()
+    board._config.storage = C.Storage(mode="markdown")
+    board.ticket(ticket)
+    board.ticket(ticket)
+    assert files.reads == 2, "a file changed by hand says nothing in its edited time"
 
 
 @case

@@ -470,6 +470,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A ticket opens at once.** Its page stayed empty two to five seconds while
+  the console read the whole ticket from Notion — and read it two or three
+  times per opening. The title, the column, the project and the cost are drawn
+  straight from the board, and only the brief waits, read once per opening.
+  The console also keeps a ticket's page while its `last_edited_time` holds:
+  opening it again costs one Notion request instead of one per block, and a
+  brief edited in Notion is read again at the next opening.
 - **A red CI no longer blocks a ticket for what is not its fault.** Once a
   pull request's conflicts were resolved, the slightest red check sent the
   ticket to *Blocked* with nothing but “CI: red.” — a flaky end-to-end test or
