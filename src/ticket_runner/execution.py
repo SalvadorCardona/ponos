@@ -326,12 +326,15 @@ class Execution(Base):
         # Force validated: the merge that moving the ticket to validated would
         # have asked for, asked now — before the worktree goes, since the CI it
         # waits for is read from it. Only this far down: every road out of a
-        # session that did not succeed has already been taken above.
+        # session that did not succeed has already been taken above. A merge
+        # that is only *not yet* — a branch overtaken while its CI ran, a CI
+        # still running — is left in validated, for `_merge` to finish.
         forced = refused = ""
+        later = False
         if pull_request and self.config.runner.forces_validation("code"):
             forced = said.say("forced-validation", kind=self.kind_name("code"))
             self.say(f"    · {forced}")
-            refused = self._force_merge(job, pull_request)
+            refused, later = self._force_merge(job, pull_request)
         merged = bool(forced and not refused)
 
         git.remove_worktree(project.path, job.workdir)
@@ -340,17 +343,21 @@ class Execution(Base):
         # it goes to "in review", and `close_merged` takes it to done once you
         # have merged. Without one there is nothing to wait for — and on a board
         # with no review column, `review` is `done` and nothing changes. A merge
-        # forced and refused waits there too, with the refusal on its card.
+        # forced and refused waits there too, with the refusal on its card; one
+        # postponed waits in validated, with the reason on its card.
+        column = "validated" if later else "review" if pull_request and not merged else "done"
         values: dict[str, object] = {
-            self.config.notion.prop("status"): self.config.notion.state(
-                "review" if pull_request and not merged else "done"
-            ),
+            self.config.notion.prop("status"): self.config.notion.state(column),
             self.config.notion.prop("agent"): self.agent_label,
         }
         if pull_request:
             values[self.config.notion.prop("pull_request")] = pull_request
         if refused:
-            refusal = said.say("forced-merge-refused", error=refused)
+            refusal = (
+                said.say("forced-merge-postponed", reason=refused)
+                if later
+                else said.say("forced-merge-refused", error=refused)
+            )
             values[self.config.notion.prop("progress")] = said.brief(refusal)
         values[self.config.notion.prop("session")] = self._session_value(
             outcome.session_id, job.session_home or project.path
@@ -368,7 +375,7 @@ class Execution(Base):
         if merged:
             facts = (*facts[:1], said.say("merged-with", method=self.config.runner.merge_method),
                      *facts[1:])
-        verdict = "merged" if merged else "review"
+        verdict = "merged" if merged else "waiting" if later else "review"
         brief = said.brief(outcome.summary)
         # Said on the ticket whichever way it went: a pull request nobody read
         # was merged, or would have been, and that is not the board's usual day.
@@ -386,6 +393,7 @@ class Execution(Base):
         self.say(
             f"    ✓ {ticket.title} — {pull_request or job.branch}"
             + (" merged, moved to done" if merged else "")
+            + (" not merged yet, moved to validated" if later else "")
         )
         self._tell(
             "done",
@@ -402,6 +410,7 @@ class Execution(Base):
             "pull_request": pull_request,
             **({"merged": pull_request} if merged else {}),
             **({"forced": "code", "refused": refused} if forced else {}),
+            **({"postponed": True} if later else {}),
             "session": outcome.session_id,
             "commits": commits,
             "seconds": round(outcome.seconds, 1),

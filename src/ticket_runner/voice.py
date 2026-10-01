@@ -328,6 +328,18 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "Not merged, left in review: {error}",
         "fr": "Pas fusionnée, laissée en relecture : {error}",
     },
+    "forced-merge-postponed": {
+        "en": "Merge postponed to the next pass, left validated: {reason}",
+        "fr": "Fusion reportée au passage suivant, laissée validée : {reason}",
+    },
+    "forced-behind": {
+        "en": "its branch is behind its base",
+        "fr": "sa branche est en retard sur sa base",
+    },
+    "forced-conflicting": {
+        "en": "its branch conflicts with its base",
+        "fr": "sa branche est en conflit avec sa base",
+    },
     "forced-checks-red": {
         "en": "its checks fail",
         "fr": "ses vérifications échouent",

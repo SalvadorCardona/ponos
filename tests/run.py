@@ -9356,6 +9356,61 @@ def a_check_red_only_here_still_stops_the_merge_and_is_named():
     assert asked == ["wait", "rerun"], asked
 
 
+def _forcing(checks: str, refuses: str = "", blocker: str = "", options=None):
+    """`_force_merge` after a CI that said `checks`: what it answered, and the merges asked."""
+    from types import SimpleNamespace
+
+    from ticket_runner import git as git_module
+
+    url = "https://github.com/x/y/pull/1"
+    runner = _board_runner([], {}, options)
+    runner._checked = lambda url, workdir, base: (checks, "")
+    job = SimpleNamespace(ticket=SimpleNamespace(id="p-forced"), workdir=Path("/work"), base="main")
+    merges: list[str] = []
+
+    def merge(url: str, method: str = "squash", accounts=None) -> str:
+        merges.append(url)
+        if refuses:
+            raise git_module.GitError(f"gh pr merge: {refuses}")
+        return "merged"
+
+    with _state_home(), _github({}, merge=merge, blockers={url: blocker} if blocker else {}):
+        return runner._force_merge(job, url), merges
+
+
+@case
+def a_forced_merge_that_is_only_not_yet_is_left_to_the_validated_column():
+    """Behind, conflicting, CI still running: postponed, never a question in review."""
+    (why, later), merges = _forcing("passed", refuses="Head branch is out of date")
+    assert later and "out of date" in why and len(merges) == 1, (why, later, merges)
+
+    (why, later), merges = _forcing("pending", refuses="the base branch policy prohibits the merge")
+    assert later and "still running" in why, (why, later)
+
+    # GitHub already says so: not even asked.
+    (why, later), merges = _forcing("passed", blocker="CONFLICTING")
+    assert later and merges == [] and "conflicts with its base" in why, (why, later, merges)
+
+    (why, later), _ = _forcing("passed")
+    assert (why, later) == ("", False), "a merge that went through is not postponed"
+
+
+@case
+def a_forced_merge_that_is_a_question_still_waits_in_review():
+    """Red here and only here, a rule of the branch, or no validated column to wait in."""
+    (why, later), merges = _forcing("failed", blocker="BEHIND")
+    assert not later and merges == [] and why == "its checks fail", (why, later, merges)
+
+    (why, later), _ = _forcing("passed", refuses="the base branch policy prohibits the merge")
+    assert not later and "policy" in why, (why, later)
+
+    (why, later), merges = _forcing(
+        "pending", refuses="Head branch is out of date", blocker="BEHIND",
+        options=["In review", "Done"],
+    )
+    assert not later and len(merges) == 1, "without the column, nothing changes"
+
+
 @case
 def the_checks_gh_lists_are_read_into_names_and_runs_to_start_again():
     """`gh pr checks --json` and `gh run rerun`, as the runner asks them."""

@@ -1226,6 +1226,90 @@ def a_forced_merge_github_refuses_leaves_the_ticket_in_review_with_the_reason():
 
 
 @case
+def a_forced_merge_refused_for_being_behind_waits_in_validated_and_lands_next_pass():
+    """Two tickets on one repository: the other one landed while this one's CI ran.
+
+    GitHub refuses the merge for a branch that is out of date. That is not a
+    question about the work, so the ticket waits in validated rather than in
+    review — and the next pass, which reads that column as it always does,
+    replays the branch onto what `main` holds and merges it. Nobody moved it.
+    """
+    with bench(force_validated_code=True) as machine:
+        machine.board.databases[machine.database]["properties"] = {
+            **machine.board.databases[machine.database]["properties"],
+            "Progress": {"type": "rich_text", "rich_text": {}},
+        }
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        with _environ({"FAKE_GH_REFUSE": "Head branch is out of date with the base branch"}):
+            first = machine.run()
+
+        assert machine.status(ticket) == "Validated", machine.status(ticket)
+        assert first[0].get("postponed"), first
+        said = machine.board.said(ticket)[-1]
+        assert said.startswith("⏸️"), said
+        assert "postponed to the next pass" in said and "out of date" in said, said
+        assert "refused" not in said.lower(), said
+        card = str(machine.board.value(ticket, "Progress") or "")
+        assert "postponed to the next pass" in card, card
+
+        machine.land(repository, "OTHER.md")
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        landed = machine.files_on(repository, "main")
+        assert "OTHER.md" in landed and "FAKE.md" in landed, landed
+        assert "replayed onto" in machine.board.said(ticket)[-1]
+
+
+@case
+def a_forced_merge_in_conflict_waits_in_validated_and_its_conflict_is_resolved():
+    """Behind on the very file it writes: validated, then the usual resolution."""
+    with bench(force_validated_code=True) as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        with _environ({"FAKE_GH_REFUSE": "Pull Request has merge conflicts"}):
+            machine.run()
+        assert machine.status(ticket) == "Validated", machine.status(ticket)
+
+        machine.land(repository, "FAKE.md", "ce que l'autre ticket a écrit\n")
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        landed = machine.content(repository, "main", "FAKE.md")
+        assert "ce que l'autre ticket a écrit" in landed and "the session was here" in landed
+        assert [one for one in machine.sessions() if "resolving that conflict" in one["prompt"]]
+
+
+@case
+def a_forced_merge_with_no_validated_column_still_waits_in_review():
+    """The column is opt-in: a board without it keeps the refusal in review."""
+    with bench(force_validated_code=True) as machine:
+        # A copy, as `typed` makes one: the schema every scenario starts from is shared.
+        database = machine.board.databases[machine.database]
+        options = database["properties"]["Status"]["status"]["options"]
+        database["properties"] = {
+            **database["properties"],
+            "Status": {"type": "status", "status": {
+                "options": [one for one in options if one["name"] != "Validated"]
+            }},
+        }
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        with _environ({"FAKE_GH_REFUSE": "Head branch is out of date with the base branch"}):
+            machine.run()
+
+        assert machine.status(ticket) == "In review", machine.status(ticket)
+        said = machine.board.said(ticket)[-1]
+        assert "Not merged, left in review" in said, said
+
+
+@case
 def force_validated_never_touches_a_failed_session_nor_a_ticket_already_in_review():
     """The two guards: only a success is validated, only a ticket run from now on."""
     with bench(force_validated_code=True) as machine:

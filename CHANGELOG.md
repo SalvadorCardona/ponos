@@ -568,6 +568,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A forced merge that is only late no longer sticks in review.** With
+  `force_validated_code`, a pull request overtaken while its CI ran — behind
+  its base or in conflict with it, as two tickets on one repository do to each
+  other — or whose CI is still running when `checks_timeout_minutes` runs out
+  now goes to *Validated* instead of *In review*: the next pass replays it,
+  resolves its conflict if it has one, and merges it, with nobody moving it and
+  no session's place held while it waits. Its report and card say the merge was
+  postponed and why (⏸️ *Waiting*). A check red on this pull request only, or a
+  refusal about a review or the branch's rules, still waits in review; so does
+  everything on a board with no *Validated* column.
 - **The e2e of a ticket's discussion no longer fails when it runs while the gestures e2e has a ticket set aside**: it looks for the mark on the card of the ticket that asked a question, instead of counting every Blocked card on the shared board.
 - **The console's browser tests pass again, in parallel, and two at a time.**
   For anyone changing the console: `npm run test:e2e` gives the chat tests a

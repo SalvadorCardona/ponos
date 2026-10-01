@@ -1464,9 +1464,16 @@ to *Done*. Its report says so — *Validated automatically (Force validated: Cod
 - **Code** — the pull request is opened, its CI waited for (at most
   `checks_timeout_minutes`, only on a repository with workflows; a red check is run again
   once, and one the base fails too does not hold the merge back), then merged with
-  `merge_method`, as a validated one is. When GitHub refuses the merge — a conflict, a red
-  check, missing rights — the ticket is **not** done: it stays in *In review*, with the
-  refusal in its report and on its card, and you take it from there as before;
+  `merge_method`, as a validated one is. A merge that is only *not yet* goes to
+  *Validated* instead: a branch another ticket overtook while its CI ran (behind its base,
+  or in conflict with it — GitHub is not even asked when it already says so), or a CI
+  still running when `checks_timeout_minutes` runs out. The next pass merges it the way it
+  merges any validated ticket — replaying the branch, resolving the conflict — without
+  holding a session's place meanwhile, and the report says the merge was postponed and
+  why. A merge that is a question — a check red on this pull request only, a review or a
+  rule of the branch — is **not** done: it stays in *In review*, with the refusal in its
+  report and on its card, and you take it from there as before. So does every refusal on
+  a board with no *Validated* column;
 - **Publication** — what the session prepared is published straight away by the
   publishing session, in the same pass. Under the credit reserve it goes to *Validated*
   instead, and the first pass with credit again publishes it;
