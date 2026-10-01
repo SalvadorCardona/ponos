@@ -28,8 +28,11 @@ A merge whose rebase stops on a conflict crosses over to the second kind: the
 conflict is resolved by a session, so it takes a place like a publication and
 is claimed like one — see `_resolve`. Everything it does is a question the
 moment it is not sure: a conflict that is a decision, checks that stay red, a
-branch somebody else pushed to, a base that keeps moving. The branch it pushes
-is the pull request's own, on a lease; the base is never touched.
+branch somebody else pushed to, a base that keeps moving. Checks that stay red
+means red twice and red only here — a flaky test is run again before anything
+is concluded, and a check `main` fails too is not the pull request's to answer
+for: see `_checked`. The branch it pushes is the pull request's own, on a
+lease; the base is never touched.
 A ticket typed as a publication comes here the same way, whatever its project
 holds: it was prepared in its page, and its page is what goes out.
 
@@ -44,6 +47,7 @@ from __future__ import annotations
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 
 from . import agents, git, kinds, session, state, store
 from . import prompt as prompt_module
@@ -77,6 +81,11 @@ def _report_of(answer: str) -> str:
             break
     report = "\n".join(lines).strip()
     return report if len(report) <= 3000 else report[:3000].rsplit("\n", 1)[0] + "\n…"
+
+
+def _named(checks: list[str]) -> str:
+    """Check names, the way a report quotes them."""
+    return ", ".join(f"`{name}`" for name in checks)
 
 
 class Delivery(Base):
@@ -350,14 +359,16 @@ class Delivery(Base):
         it is waited for, `checks_timeout_minutes` at the most, from the worktree
         it was pushed from. Then the merge, with `merge_method`, as always.
 
+        Red checks are read the way `_checked` reads them: run again once, and
+        compared with the base, so that neither a flaky test nor a red `main`
+        keeps a forced ticket out.
+
         Returns why it was not merged, or "" once it is. A refusal is not a
         failure of the ticket: the work is done and the pull request is open, so
         it waits in review, where you would have found it without the option.
         """
         accounts = self.config.github
-        checks = git.wait_for_checks(
-            url, job.workdir, self.config.runner.checks_timeout_minutes, accounts
-        )
+        checks, _ = self._checked(url, job.workdir, job.base)
         if checks == "failed":
             refusal = self.voice.say("forced-checks-red")
         else:
@@ -370,6 +381,46 @@ class Delivery(Base):
                 return ""
         self.say(f"    ! {url} not merged: {refusal}")
         return refusal
+
+    def _checked(self, url: str, workdir: Path, base: str) -> tuple[str, str]:
+        """The pull request's CI, read for what it says about *this* pull request.
+
+        Red is not one thing, and only one of its kinds is a question. A flaky
+        test goes green when it is run again, so the failed jobs are run again,
+        once, before anything is concluded — the gesture you would make by hand.
+        A check still red that is red on the newest commit of `base` too was
+        inherited, not caused: the pull request makes nothing worse, and is
+        merged like one whose CI passed, saying so. What is left is red here and
+        only here, and that is the one answer that still stops the merge — with
+        the checks named, rather than “CI: red”.
+
+        Returns `passed`, `pending`, `none`, `inherited` or `failed`, and the
+        sentence that says it.
+        """
+        accounts = self.config.github
+        said = self.voice
+        checks = git.wait_for_checks(
+            url, workdir, self.config.runner.checks_timeout_minutes, accounts
+        )
+        if checks != "failed":
+            return checks, said.say(f"checks-{checks}")
+        failing = git.failing_checks(url, accounts)
+        if git.rerun_failed_checks(url, accounts):
+            self.say(f"    · checks red ({', '.join(failing) or '?'}) — run again once")
+            checks = git.wait_for_checks(
+                url, workdir, self.config.runner.checks_timeout_minutes, accounts
+            )
+            if checks == "passed":
+                return checks, said.say("checks-flaky", names=_named(failing) or "?")
+            if checks != "failed":
+                return checks, said.say(f"checks-{checks}")
+            failing = git.failing_checks(url, accounts) or failing
+        if not failing:
+            return "failed", said.say("checks-failed")
+        if set(failing) <= set(git.failing_on(url, base, accounts)):
+            self.say(f"    · {', '.join(failing)} red on {base} too — not this pull request's")
+            return "inherited", said.say("checks-inherited", names=_named(failing), base=base)
+        return "failed", said.say("checks-failed-on", names=_named(failing), base=base)
 
     def _refused(self, ticket: Ticket, url: str, refusal: object, *notes: str) -> dict:
         """A merge GitHub would not make, and nothing more the runner can do about it."""
@@ -610,10 +661,7 @@ class Delivery(Base):
         count = state.rebased(ticket.id)
         record = said.paragraphs(facts, told)
         git.comment_pull_request(url, f"Ponos — {record}", accounts)
-        checks = git.wait_for_checks(
-            url, job.workdir, self.config.runner.checks_timeout_minutes, accounts
-        )
-        checked = said.say(f"checks-{checks}")
+        checks, checked = self._checked(url, job.workdir, job.base)
         if checks == "failed":
             state.forget_rebases(ticket.id)
             return self._fail(

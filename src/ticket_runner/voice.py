@@ -415,6 +415,24 @@ _SAID: dict[str, dict[str, str]] = {
     },
     "checks-passed": {"en": "CI: green.", "fr": "CI : verte."},
     "checks-failed": {"en": "CI: red.", "fr": "CI : rouge."},
+    "checks-flaky": {
+        "en": "CI: red on {names}, green once run again — a flaky test, not this pull request.",
+        "fr": "CI : rouge sur {names}, verte une fois relancée — un test instable, pas cette pull request.",
+    },
+    "checks-inherited": {
+        "en": (
+            "CI: red on {names}, which `{base}` fails too — inherited, not caused by this "
+            "pull request, so it is merged all the same."
+        ),
+        "fr": (
+            "CI : rouge sur {names}, que `{base}` échoue aussi — héritée, pas causée par "
+            "cette pull request, qui est donc fusionnée quand même."
+        ),
+    },
+    "checks-failed-on": {
+        "en": "CI: red on {names}, where `{base}` is not.",
+        "fr": "CI : rouge sur {names}, là où `{base}` ne l'est pas.",
+    },
     "checks-pending": {
         "en": "CI: still running when the merge was asked.",
         "fr": "CI : encore en cours au moment de la fusion.",

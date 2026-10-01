@@ -1319,7 +1319,11 @@ and the second no longer replays cleanly — “Pull Request has merge conflicts
    the base underneath — then pushes with `--force-with-lease` on the very commit it
    replayed. Never `--force`, and never the base branch.
 4. When the repository has a CI (`.github/workflows`), its checks are waited for, up to
-   `checks_timeout_minutes`; then the merge is asked again.
+   `checks_timeout_minutes`; then the merge is asked again. A red check is not taken at
+   its word: the failed GitHub Actions jobs are run again once (a flaky test goes green
+   and the pull request is merged), and a check still red is compared with the newest
+   commit of the base — red there too, it was inherited rather than caused, and the pull
+   request is merged all the same, its report naming the check and saying so.
 5. The pull request gets a comment, and the ticket gets its report: the commit it was
    rebased onto, the files in conflict, how each was resolved, what the checks said. The
    session's cost is added to the ticket's *Cost*.
@@ -1327,7 +1331,8 @@ and the second no longer replays cleanly — “Pull Request has merge conflicts
 It stops and asks instead — *Blocked*, as before, but with the conflict and the question
 rather than GitHub's refusal — when the session judges a conflict to be a decision (two
 behaviours that cannot both hold, code deleted on one side and changed on the other, a
-schema or a migration changed on both), when the checks still fail, when somebody else
+schema or a migration changed on both), when checks fail here and not on the base (the
+report names them), when somebody else
 pushed to the branch in the meantime (the lease refuses to overwrite their commits, and
 the ticket says so), and when the base keeps moving: a ticket's branch is replayed twice
 at most before it asks. Whatever resolution was reached is pushed on a branch of its
@@ -1440,7 +1445,8 @@ succeeded, the runner does what moving it to *Validated* would have set off, the
 to *Done*. Its report says so — *Validated automatically (Force validated: Code)*.
 
 - **Code** — the pull request is opened, its CI waited for (at most
-  `checks_timeout_minutes`, only on a repository with workflows), then merged with
+  `checks_timeout_minutes`, only on a repository with workflows; a red check is run again
+  once, and one the base fails too does not hold the merge back), then merged with
   `merge_method`, as a validated one is. When GitHub refuses the merge — a conflict, a red
   check, missing rights — the ticket is **not** done: it stays in *In review*, with the
   refusal in its report and on its card, and you take it from there as before;

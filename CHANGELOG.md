@@ -470,6 +470,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A red CI no longer blocks a ticket for what is not its fault.** Once a
+  pull request's conflicts were resolved, the slightest red check sent the
+  ticket to *Blocked* with nothing but “CI: red.” — a flaky end-to-end test or
+  a `main` already red was enough, and every ticket merged at that moment
+  stopped on it. The failed GitHub Actions jobs are now run again once before
+  anything is concluded, and a check still red is compared with the newest
+  commit of the base branch: red there too, it was inherited, and the pull
+  request is merged all the same, its report saying which check and why. Only
+  a check red here and not on the base still blocks — and the report names it.
+  The same reading applies to a type whose validation is forced.
 - **A tab closed mid-request no longer fills the console's journal.** Closing
   or reloading the console while it was answering left two Python tracebacks
   in `journalctl` each time — the broken pipe, then the 500 the console tried

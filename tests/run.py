@@ -8780,6 +8780,112 @@ def a_base_that_keeps_moving_is_replayed_twice_then_asked_about():
     assert "2 times" in said and "`main`" in said, said
 
 
+def _reading_checks(verdicts: list[str], failing: list[list[str]], on_base: list[str], rerun: bool = True):
+    """`_checked` against a CI that answers `verdicts` in turn, and what it was asked."""
+    url = "https://github.com/x/y/pull/1"
+    runner = _board_runner([], {})
+    asked: list[str] = []
+    verdicts, failing = list(verdicts), list(failing)
+
+    def wait(url, worktree, minutes, accounts=None):
+        asked.append("wait")
+        return verdicts.pop(0)
+
+    def again(url, accounts=None):
+        asked.append("rerun")
+        return rerun
+
+    with _git_answering(
+        wait_for_checks=wait,
+        failing_checks=lambda url, accounts=None: failing.pop(0) if failing else [],
+        rerun_failed_checks=again,
+        failing_on=lambda url, base, accounts=None: asked.append(f"base {base}") or on_base,
+    ):
+        checks, said = runner._checked(url, Path("/work"), "main")
+    return checks, said, asked
+
+
+@case
+def a_check_that_goes_green_once_run_again_is_a_flake_not_a_question():
+    """The failed jobs are run again once, and the second verdict is the one kept."""
+    checks, said, asked = _reading_checks(["failed", "passed"], [["frontend"]], [])
+    assert checks == "passed", checks
+    assert asked == ["wait", "rerun", "wait"], asked
+    assert "`frontend`" in said and "flaky" in said, said
+
+    checks, said, asked = _reading_checks(["passed"], [], [])
+    assert (checks, asked) == ("passed", ["wait"]), "a green CI is not run again"
+
+
+@case
+def a_check_main_fails_too_is_inherited_and_merged_all_the_same():
+    """Red twice, but red on the base as well: not the pull request's doing."""
+    checks, said, asked = _reading_checks(
+        ["failed", "failed"], [["frontend"], ["frontend"]], ["frontend", "core (3.11)"]
+    )
+    assert checks == "inherited", checks
+    assert asked == ["wait", "rerun", "wait", "base main"], asked
+    assert "`frontend`" in said and "`main`" in said, said
+
+
+@case
+def a_check_red_only_here_still_stops_the_merge_and_is_named():
+    """The one red that is a question — and it says which checks, not “CI: red”."""
+    checks, said, _ = _reading_checks(
+        ["failed", "failed"], [["frontend"], ["core (3.11)", "frontend"]], ["frontend"]
+    )
+    assert checks == "failed", "one check red on main does not excuse another"
+    assert "`core (3.11)`" in said and "`main`" in said, said
+
+    # Nothing to run again (a check another app posts) and nothing gh can name:
+    # red, as before — never green for want of knowing.
+    checks, said, asked = _reading_checks(["failed"], [[]], ["frontend"], rerun=False)
+    assert checks == "failed" and said == "CI: red.", (checks, said)
+    assert asked == ["wait", "rerun"], asked
+
+
+@case
+def the_checks_gh_lists_are_read_into_names_and_runs_to_start_again():
+    """`gh pr checks --json` and `gh run rerun`, as the runner asks them."""
+    from ticket_runner import git as git_module
+
+    listed = [
+        {"name": "frontend", "bucket": "fail",
+         "link": "https://github.com/x/y/actions/runs/36840080436/job/110296847197"},
+        {"name": "core (3.11)", "bucket": "pass",
+         "link": "https://github.com/x/y/actions/runs/36840080436/job/110296847663"},
+        {"name": "GitGuardian", "bucket": "fail", "link": "https://dashboard.gitguardian.com"},
+    ]
+    asked: list[list[str]] = []
+
+    def run(args, *rest, **kept):
+        asked.append(args)
+        if args[:3] == ["gh", "pr", "checks"]:
+            # Exit 1, as gh answers with a check red — and the list printed all the same.
+            return git_module.Result(1, json.dumps(listed), "")
+        if args[:2] == ["gh", "api"]:
+            return git_module.Result(0, "frontend\nfrontend\n", "")
+        return git_module.Result(0, "", "")
+
+    original_which, original_sleep = shutil.which, git_module.time.sleep
+    git_module.shutil.which = lambda name, *rest, **kept: f"/usr/bin/{name}"
+    git_module.time.sleep = lambda seconds: None
+    try:
+        with _git_answering(run=run, token_for=lambda reference, accounts=None: ""):
+            url = "https://github.com/x/y/pull/1"
+            assert git_module.failing_checks(url) == ["GitGuardian", "frontend"]
+            assert git_module.rerun_failed_checks(url)
+            assert ["gh", "run", "rerun", "36840080436", "--failed", "-R", "github.com/x/y"] in asked
+            assert len([one for one in asked if one[:3] == ["gh", "run", "rerun"]]) == 1
+            assert git_module.failing_on(url, "main") == ["frontend"]
+            assert any("repos/x/y/commits/main/check-runs" in part for one in asked for part in one)
+        with _git_answering(run=lambda *args, **kept: git_module.Result(1, "unknown flag: --json", "")):
+            assert git_module.failing_checks("https://github.com/x/y/pull/1") == []
+    finally:
+        git_module.shutil.which = original_which
+        git_module.time.sleep = original_sleep
+
+
 @case
 def a_resolution_report_is_what_the_session_wrote_above_its_verdict():
     from ticket_runner import delivery
