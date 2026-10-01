@@ -6,7 +6,9 @@ import { expect, test, type Page } from "@playwright/test"
  * The session is `e2e/console.py`'s own `claude`, which reads a file, runs a
  * command that fails and answers — or, asked to go slowly, starts a command
  * that would run for ten minutes. One conversation for the whole server, so the
- * tests here take their turns one after another.
+ * tests here take their turns one after another — on a server of their own
+ * (the "chat" project of `playwright.config.ts`), so that no other test opens a
+ * console with one of these turns still running in it.
  */
 
 test.describe.configure({ mode: "serial" })
@@ -14,7 +16,7 @@ test.describe.configure({ mode: "serial" })
 const FIELD = "Ask the workspace, or type >status"
 
 async function openConsole(page: Page) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: "http://127.0.0.1:8790" }])
+  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto("/")
   await page.getByRole("button", { name: "open the console" }).click()
   await expect(page.getByRole("textbox", { name: FIELD })).toBeVisible()

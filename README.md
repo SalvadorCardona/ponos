@@ -2037,6 +2037,10 @@ browser of its own: `e2e/console.py` starts a real `ticket-runner serve` on a th
 Markdown board, so the tests read the build that `npm run build` last wrote and nothing of
 yours. They hold what neither Python suite can see — that a page taller than the screen
 scrolls, by the wheel and by the keyboard, and still does once a dialog has come and gone.
+Two servers are started, on free ports: one for the conversation with the workspace, whose
+tests run one after another, and one for everything else, in parallel — a console holds a
+single conversation, and a turn left running there would be in every other test's way. Set
+`TICKET_RUNNER_E2E_PORT` to pin them (the chat takes the next port).
 
 **One set of tokens for the console and the site.** The colours of both themes, the two
 faces (DM Sans, JetBrains Mono), the radius, the `--tr-*` status colours and the chart
@@ -2824,7 +2828,8 @@ browser is held on the way. `--throttle` slows the CPU down by that factor.
 `.github/workflows/ci.yml` runs both suites on every pull request and on every push to
 `main`, on Python 3.11 — the oldest the runner promises — and 3.13 — the runner opens its
 own PRs, and none of them was checked before merge until this ran. A second job builds and
-lints `frontend/` the same way, but only when `frontend/**` changed, and then fails if
+lints `frontend/` the same way, but only when `frontend/**` or `src/ticket_runner/web/**`
+changed — the browser tests open the console's server as much as its page — and then fails if
 `src/ticket_runner/web/static` is not exactly what that build produces: the console is
 served from the committed build, so a change to the console without its build is a change
 nobody receives. The workflow only ever reads the repository (`permissions: contents:

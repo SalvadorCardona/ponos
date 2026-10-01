@@ -51,7 +51,8 @@ npm run dev     # serveur de dev avec hot reload, proxy /api vers un console dé
 `.github/workflows/ci.yml` tourne sur chaque pull request et sur chaque push
 vers `main` : le job cœur relance `python3 tests/run.py` puis
 `python3 tests/functional.py` sous Python 3.11 et 3.13, sans installer quoi que
-ce soit ; le job frontend ne se déclenche que si `frontend/**` a changé, et y
+ce soit ; le job frontend ne se déclenche que si `frontend/**` ou
+`src/ticket_runner/web/**` a changé, et y
 fait `npm ci`, `npm run lint`, `npm test`, `npm run build` (sous Node 24),
 échoue si `src/ticket_runner/web/static` diffère de ce que le build vient
 d'écrire, puis lance `npm run test:e2e`.
