@@ -435,6 +435,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   calls the ticket by its short id, `#a49e1a7b`, as the board does, with a
   button that copies the full one, and a long title takes a second line, its
   whole text on hover.
+- **The console opens without downloading itself again.** Its files used to be
+  sent whole and uncompressed on every load — 1.3 MB each time a tab was opened
+  or reloaded. They are now named after what they hold, kept by the browser for
+  a year and gzipped on the way out: the first load is about 410 kB, a second
+  one fetches only the page, and an update is still seen on the next load, with
+  no cache to clear.
 - **The site says what Ponos is, and that Notion is optional.** Under the
   headline, one line: a harness around Claude Code that runs your tasks on your
   machine — code, writing, actions, posts. A new *What it does* section shows the

@@ -26,6 +26,7 @@ is why:
 from __future__ import annotations
 
 import errno
+import gzip
 import hashlib
 import hmac
 import html
@@ -53,6 +54,18 @@ from .api import Api
 STATIC = Path(__file__).resolve().parent / "static"
 COOKIE = "ticket_runner_token"
 
+# The build names every file under `assets/` after a hash of what it holds, so
+# a file there never changes under its name: a browser keeps it for a year and
+# asks again only when `index.html` — never cached — points somewhere new.
+IMMUTABLE = "public, max-age=31536000, immutable"
+
+# The bundle is text, a megabyte and more of it, sent on every first load and
+# over a tunnel as often as over loopback. Compressed once per file, on the first
+# request that accepts it, and kept: the files only change when the code does,
+# and the code changing is a restart.
+COMPRESSIBLE = ("text/", "application/javascript", "application/json", "image/svg+xml")
+_compressed: dict[tuple[Path, int], bytes] = {}
+
 # A header no cross-origin form, image or script tag can set. Its presence is
 # what tells "the console asked this" from "some page you had open asked this".
 GUARD_HEADER = "X-Ticket-Runner"
@@ -74,6 +87,17 @@ MAX_PICTURE = 20 * 1024 * 1024
 PICTURE_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 
 LOOPBACK = ("127.0.0.1", "::1", "localhost", "[::1]")
+
+
+def accepts_gzip(header: str) -> bool:
+    """`Accept-Encoding` names gzip, and not with `q=0` — which means "never"."""
+    for part in header.split(","):
+        coding, _, params = part.strip().partition(";")
+        if coding.strip().lower() != "gzip":
+            continue
+        quality = params.strip().lower().replace(" ", "")
+        return not (quality.startswith("q=") and quality[2:].strip("0.") == "")
+    return False
 
 
 def token_path() -> Path:
@@ -207,7 +231,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", kind)
             self.send_header("Content-Length", str(len(body)))
             # Nothing here is meant to be cached, framed, sniffed or embedded —
-            # but a picture, whose address changes with it, and is kept a day.
+            # but a picture, whose address changes with it, and is kept a day,
+            # and the build's own files, whose names change with them.
             self.send_header("Cache-Control", cache)
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
@@ -679,9 +704,20 @@ class Handler(BaseHTTPRequestHandler):
         if not str(target).startswith(str(STATIC)) or not target.is_file():
             return self._fail(404, f"no such file: {name}")
         kind = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        body = target.read_bytes()
+        extra: dict[str, str] = {}
+        if kind.startswith(COMPRESSIBLE):
+            extra["Vary"] = "Accept-Encoding"
+            if accepts_gzip(self.headers.get("Accept-Encoding") or ""):
+                key = (target, target.stat().st_mtime_ns)
+                if key not in _compressed:
+                    _compressed[key] = gzip.compress(body, compresslevel=9, mtime=0)
+                body = _compressed[key]
+                extra["Content-Encoding"] = "gzip"
         if kind.startswith("text/") or kind == "application/javascript":
             kind = f"{kind}; charset=utf-8"
-        self._send(200, target.read_bytes(), kind)
+        cache = IMMUTABLE if name.startswith("assets/") else "no-store"
+        self._send(200, body, kind, extra, cache=cache)
 
     def _sign_in(self, payload: dict) -> None:
         """An email and a password against the configured ones. Nothing else."""

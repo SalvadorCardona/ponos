@@ -15,6 +15,7 @@ reaches Notion as a wall of text, a summary that keeps its verdict.
 
 from __future__ import annotations
 
+import gzip
 import http.client
 import io
 import json
@@ -9280,6 +9281,13 @@ def _shipped() -> list[Path]:
     return [STATIC / "index.html", *sorted((STATIC / "assets").glob("*"))]
 
 
+def _built(extension: str) -> Path:
+    """The console's own file of that kind, whatever hash the build gave it."""
+    found = sorted((STATIC / "assets").glob(f"console-*.{extension}"))
+    assert len(found) == 1, f"one console.{extension} expected, the build left {found}"
+    return found[0]
+
+
 @case
 def the_console_ships_its_built_bundle():
     """A clone of this repository is a console that opens, with nothing built.
@@ -9289,15 +9297,70 @@ def the_console_ships_its_built_bundle():
     need Node — which is exactly the dependency this tool exists without.
     """
     page = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert (STATIC / "assets/console.js").is_file(), "the console was never built"
-    assert (STATIC / "assets/console.css").is_file(), "the console has no stylesheet"
-    # Vite is told to write these names rather than hashed ones, so the page and
-    # the files it names cannot drift apart, and a commit does not rename two
-    # build artefacts every time.
-    assert "/static/assets/console.js" in page, "the page does not load the bundle"
-    assert "/static/assets/console.css" in page, "the page does not load the stylesheet"
+    bundle, style = _built("js"), _built("css")
+    # The names are hashed, so the page is what says which build it is: a file
+    # it names that is not in the package is a console that opens blank.
+    assert f"/static/assets/{bundle.name}" in page, "the page does not load the bundle"
+    assert f"/static/assets/{style.name}" in page, "the page does not load the stylesheet"
+    for named in re.findall(r'"/static/(assets/[^"]+)"', page):
+        assert (STATIC / named).is_file(), f"the page names a file the build did not write: {named}"
     assert (FRONTEND / "package.json").is_file(), "the source the bundle is built from is gone"
     assert (FRONTEND / "components.json").is_file(), "shadcn/ui is no longer configured"
+
+
+@case
+def the_console_is_downloaded_once_and_compressed():
+    """A second load fetches the page and nothing else; the first, gzipped.
+
+    On 1 October 2026 every load of the console downloaded 1.3 MB again: every
+    file was `no-store`, nothing was compressed, and the names were fixed, so
+    nothing could have been kept safely either. The names now change with what
+    the files hold, so `assets/` is kept for a year and `index.html` — the one
+    file that says which names are current — is never kept at all.
+    """
+    import urllib.request
+
+    from ticket_runner.web import server as web_server
+
+    api = _bare_api(_TalkClient([]))
+    console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+    threading.Thread(target=console.serve_forever, daemon=True).start()
+    port = console.server_address[1]
+
+    def get(path: str, **headers: str):
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}", headers={"Authorization": "Bearer tok", **headers}
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.headers, response.read()
+
+    bundle = _built("js")
+    try:
+        headers, _ = get("/")
+        assert headers["Cache-Control"] == "no-store", "the page that names the build was kept"
+        headers, body = get(f"/static/assets/{bundle.name}", **{"Accept-Encoding": "gzip, br"})
+        assert "immutable" in headers["Cache-Control"] and "max-age=31536000" in headers["Cache-Control"]
+        assert headers["Content-Encoding"] == "gzip" and headers["Vary"] == "Accept-Encoding"
+        assert gzip.decompress(body) == bundle.read_bytes(), "gzipped is not the same file"
+        assert int(headers["Content-Length"]) == len(body) < bundle.stat().st_size / 2
+        headers, body = get(f"/static/assets/{bundle.name}")
+        assert headers["Content-Encoding"] is None and body == bundle.read_bytes(), (
+            "a client that never asked for gzip got it"
+        )
+        headers, _ = get(f"/static/assets/{bundle.name}", **{"Accept-Encoding": "gzip;q=0"})
+        assert headers["Content-Encoding"] is None, "q=0 means never"
+    finally:
+        console.shutdown()
+        console.server_close()
+
+    # What the first load fetches — the page, the bundle and what it preloads,
+    # the stylesheet and the icon — under the 500 kB the ticket set, gzipped.
+    page = (STATIC / "index.html").read_text(encoding="utf-8")
+    first = [STATIC / "index.html"] + [
+        STATIC / named for named in re.findall(r'"/static/(assets/[^"]+)"', page)
+    ]
+    weight = sum(len(gzip.compress(path.read_bytes(), compresslevel=9)) for path in first)
+    assert weight < 500_000, f"the first load is {weight // 1000} kB compressed"
 
 
 @case
@@ -9706,7 +9769,7 @@ def the_console_scrolls_in_its_own_colours():
     spellings have to stay: the pseudo-elements for Chrome and WebKit, the two
     standard properties for Firefox, which has nothing else.
     """
-    for style in ((FRONTEND / "src/index.css"), (STATIC / "assets/console.css")):
+    for style in ((FRONTEND / "src/index.css"), _built("css")):
         text = style.read_text(encoding="utf-8")
         assert "color-scheme" in text, "the browser is left to guess at the page's colours"
         assert "::-webkit-scrollbar-thumb" in text, "Chrome and WebKit keep the browser's bar"

@@ -50,16 +50,16 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "../src/ticket_runner/web/static"),
     emptyOutDir: true,
-    // One file each, named without a hash: `Cache-Control: no-store` on every
-    // response already settles staleness, and a diff that does not rename two
-    // build artefacts on every commit is a diff you can read.
-    // Chunks are named without a hash too — a dependency that ships a chunk
-    // already named, like the forms' editor, keeps the name it came with.
+    // Every name carries a hash of what it holds, so the server can tell a
+    // browser to keep `assets/` for a year: a build that changes a file
+    // changes its name, and `index.html` — the one file never cached — is what
+    // points at the new one. An update is seen on the next load, nothing to
+    // clear; a second load downloads nothing but that page.
     rollupOptions: {
       output: {
-        entryFileNames: "assets/console.js",
-        chunkFileNames: "assets/[name].js",
-        assetFileNames: "assets/console.[ext]",
+        entryFileNames: "assets/console-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/console-[hash].[ext]",
         // The libraries every page needs, apart from the console's own code:
         // one file of 800 kB became three, and a change to the console no
         // longer rewrites the part of the bundle that did not change. Only
