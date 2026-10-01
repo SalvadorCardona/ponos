@@ -27,6 +27,7 @@ import tempfile
 import threading
 import time
 import traceback
+import uuid
 import contextlib
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -606,6 +607,7 @@ def what_the_runner_adds_wins_over_the_shell_it_was_started_from():
     seen: dict[str, str] = {}
 
     class _Process:
+        stdin = io.StringIO()
         stdout: list[str] = []
         returncode = 0
 
@@ -1920,39 +1922,49 @@ def a_deep_link_survives_a_round_trip():
 
 
 @case
-def a_prompt_too_long_for_an_argument_reaches_the_session_on_stdin():
-    """Linux refuses one argument over 128 KiB before the process exists, and a
-    ticket with a long brief, its discussion and the standing context gets
-    there. Past `ARGUMENT_LIMIT` the prompt is piped; below it nothing changes."""
+def a_prompt_never_reaches_the_command_line():
+    """The prompt goes on stdin, whatever its size, and argv keeps only options.
+
+    Too long, an argument is refused by Linux before the session exists (E2BIG
+    past 128 KiB). Short, it is worse: `ps` shows it to every user, and
+    `pkill -f` matches it — a ticket quoting the last run's `vite --port 5199`
+    had its session kill itself with `pkill -f "vite --port 5199"`. The marker
+    here is drawn fresh, so this test cannot kill anything but its own fake.
+    """
+    marker = f"vite --port {uuid.uuid4().hex}"
     with tempfile.TemporaryDirectory() as directory:
         home = Path(directory)
         seen = home / "seen.json"
         (home / "claude").write_text(
             "#!" + sys.executable + "\n"
-            "import json, sys\n"
-            "args = sys.argv[1:]\n"
-            "last = args[-1]\n"
-            "argued = not last.startswith('-') and last not in ('bypassPermissions', 'stream-json')\n"
-            "prompt = last if argued else sys.stdin.read()\n"
-            f"open({str(seen)!r}, 'w').write(json.dumps({{'argued': argued, 'size': len(prompt)}}))\n"
+            "import json, shutil, subprocess, sys\n"
+            "prompt = sys.stdin.read()\n"
+            # What the session that died did: kill a server by its command line.
+            f"if shutil.which('pkill'): subprocess.run(['pkill', '-f', {marker!r}])\n"
+            f"open({str(seen)!r}, 'w').write(json.dumps({{'args': sys.argv[1:], 'prompt': prompt}}))\n"
             "print(json.dumps({'type': 'result', 'result': 'RESULT: ok', 'session_id': 's'}))\n"
         )
         (home / "claude").chmod(0o755)
         previous = os.environ["PATH"]
         os.environ["PATH"] = f"{home}{os.pathsep}{previous}"
+        prompts = {
+            "short": f"Restart the server: {marker}.",
+            "long": f"{marker} " + "x" * 300_000,  # past the 128 KiB Linux takes
+        }
         try:
-            outcome = session.run(
-                "x" * (session.ARGUMENT_LIMIT * 3), cwd=home, log=home / "long.jsonl",
-                timeout_minutes=1,
-            )
-            long = json.loads(seen.read_text())
-            session.run("a short brief", cwd=home, log=home / "short.jsonl", timeout_minutes=1)
-            short = json.loads(seen.read_text())
+            for name, text in prompts.items():
+                for resume in (False, True):
+                    outcome = session.run(
+                        text, cwd=home, log=home / f"{name}.jsonl", timeout_minutes=1,
+                        session_id="0486a9fd-44f6-4fff-9dee-9e58bc4062ba", resume=resume,
+                    )
+                    assert outcome.ok, (name, resume, outcome.error)
+                    got = json.loads(seen.read_text())
+                    assert got["prompt"] == text, (name, resume)
+                    assert not any(marker in word for word in got["args"]), got["args"]
+                    assert all(len(word) < 100 for word in got["args"]), got["args"]
         finally:
             os.environ["PATH"] = previous
-    assert outcome.ok, outcome.error
-    assert long == {"argued": False, "size": session.ARGUMENT_LIMIT * 3}, long
-    assert short == {"argued": True, "size": len("a short brief")}, short
 
 
 @case

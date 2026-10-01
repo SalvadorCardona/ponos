@@ -69,13 +69,16 @@ _LOST = re.compile(
 )
 
 
-# Past this, the prompt goes to the session on its standard input rather than
-# as its last argument. Linux refuses any single argument over 128 KiB
-# (MAX_ARG_STRLEN) with E2BIG, before the session exists — and a ticket with a
-# long brief, a long discussion and the standing context gets there. `--print`
-# reads its prompt from stdin when it is given none, so the long ones take that
-# road; the short ones keep the argument, which is what every session did.
-ARGUMENT_LIMIT = 100_000  # bytes, well under the kernel's 131072
+# The prompt never goes on the command line: the session reads it on its
+# standard input, which `--print` does when it is given none. Two reasons, and
+# the second is the one that killed sessions. Linux refuses any single argument
+# over 128 KiB (MAX_ARG_STRLEN) with E2BIG, before the session exists. And
+# argv is public: `ps` shows it to every user of the machine — a brief can hold
+# a secret — and `pkill -f` matches it. A ticket whose page quotes the last
+# run's `vite --port 5199` made its own session's command line contain that
+# text, so the session's `pkill -f "vite --port 5199"` killed the session
+# itself (exit 137), and any other one carrying the same words. What stays in
+# argv is short and the runner's own: options, an identifier, a model name.
 
 
 def available() -> str:
@@ -142,9 +145,6 @@ def run(
     ]
     if model:
         command += ["--model", model]
-    piped = len(prompt.encode("utf-8")) > ARGUMENT_LIMIT
-    if not piped:
-        command.append(prompt)
 
     # What the caller adds comes last: an OpenRouter key configured for the
     # runner is meant to win over one that happens to be in this shell. See
@@ -170,17 +170,14 @@ def run(
             bufsize=1,
             env=inherited,
             start_new_session=True,  # its own process group, so we can kill it all
-            # Only a piped prompt changes what the session reads: every other
-            # one inherits stdin, exactly as before.
-            stdin=subprocess.PIPE if piped else None,
+            stdin=subprocess.PIPE,
         )
-        if piped:
-            # From a thread: a prompt larger than the pipe's buffer would block
-            # this write until the session reads it, while the session may be
-            # waiting for us to read what it has already written.
-            threading.Thread(
-                target=_feed, args=(process, prompt), name="tr-prompt", daemon=True
-            ).start()
+        # From a thread: a prompt larger than the pipe's buffer would block
+        # this write until the session reads it, while the session may be
+        # waiting for us to read what it has already written.
+        threading.Thread(
+            target=_feed, args=(process, prompt), name="tr-prompt", daemon=True
+        ).start()
 
         timed_out = threading.Event()
 
