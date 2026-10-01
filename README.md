@@ -1736,7 +1736,10 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 
 **The menu** down the left is where the pages live: a name each, and a count beside it
 where something is waiting there — how many tickets are on the board. On a phone the menu runs
-along the bottom edge instead. The frame is react-resource-view's admin layout (see
+along the bottom edge instead: the board, the projects and the schedules, and **More**, which
+opens the context, the statistics and the settings from the bottom of the screen — the bar
+fits a 360px screen and never scrolls sideways. The bubble stands on that bar, and every page
+ends far enough above it that nothing is left under it. The frame is react-resource-view's admin layout (see
 [The console's own code](#the-consoles-own-code)), and the end of its bar holds the things
 about the console itself: whether the event stream is up — a stream the server refuses
 because the session expired sends the page back to the sign-in rather than saying
@@ -1744,7 +1747,9 @@ because the session expired sends the page back to the sign-in rather than sayin
 day a newer one is waiting — when the board last agreed with Notion, a green dot that
 turns amber when something is out of step (the tooltip says what), and the two buttons
 that **resynchronise** — the whole board read again, the refused moves sent again — and
-change the light. Every page has an address — `/?view=console/tickets/list`,
+change the light. On a phone, where the bar has room for none of those words, the stream,
+the last read and the version are one pill — a dot and *live* — that a tap opens on all
+three. Every page has an address — `/?view=console/tickets/list`,
 `/?view=console/tickets/read/<id>` — so a reload, a bookmark or a link pasted into a chat
 lands where you were. The page of sessions the console used to have is gone, and its old
 address leads to the board: a session is followed on its ticket.

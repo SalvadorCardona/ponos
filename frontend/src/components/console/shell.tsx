@@ -63,6 +63,14 @@ export interface ConsoleMenuItem extends MenuItemInterface {
   badge?: "board"
 }
 
+/* Where the package's layout trades its sidebar for a bar along the bottom —
+ * its own query, word for word, so the menu and the layout never disagree on
+ * which of the two is on screen. */
+const PHONE = "(max-width: 767px)"
+
+/** Whether the screen is a phone's, as the admin layout decides it. */
+export const onPhone = () => window.matchMedia(PHONE).matches
+
 /** The resource the address names; an address that names none is the board. */
 export function useCurrentResourceId(): string {
   const { params } = useRoute()
@@ -106,7 +114,7 @@ export function MenuEntry({ menuItem }: { menuItem: MenuItemInterface }) {
  * had been changed under, an écart the last full read found, or a read that
  * failed. What exactly is under the pointer; the button beside it is the one
  * that does something about it. */
-function SyncLine() {
+function useSyncSummary() {
   const synced = useSync()
   const t = useT()
   // Redrawn on a clock of its own: "12 s ago" that never moves is a lie.
@@ -136,6 +144,14 @@ function SyncLine() {
       : "",
     synced.error ? t("the last read failed: {{why}}", { why: synced.error }) : "",
   ].filter(Boolean)
+  return { age, troubled, said }
+}
+
+function SyncLine() {
+  const summary = useSyncSummary()
+  const t = useT()
+  if (!summary) return null
+  const { age, troubled, said } = summary
 
   return (
     <Tooltip>
@@ -149,13 +165,91 @@ function SyncLine() {
           <span
             className={cn("size-1.5 shrink-0 rounded-full", troubled ? "bg-tr-amber" : "bg-tr-green")}
           />
-          <span className="hidden md:inline">{t("synced {{age}}", { age })}</span>
+          <span>{t("synced {{age}}", { age })}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent>
         {said.map((line) => (
           <div key={line}>{line}</div>
         ))}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** What the stream's dot says, in words. */
+function useConnectionWord(): string {
+  const { connection } = useStatus()
+  const t = useT()
+  return connection === "live"
+    ? t("live")
+    : connection === "connecting"
+      ? t("connecting…")
+      : t("reconnecting…")
+}
+
+/* The same three things on a phone, said once.
+ *
+ * The bar of a phone has room for the mark and three buttons, and the stream,
+ * the version and the last read had shrunk to two green dots and nothing —
+ * their words hidden for want of room, their tooltips out of reach of a
+ * finger. So they become one: a dot and one short word, green when the stream
+ * is live and nothing is out of step, amber otherwise; and a tap on it opens
+ * what the three said on a wider screen. A tooltip rather than a menu, because
+ * there is nothing in it to press — only told on a tap rather than a hover. */
+function PhoneStatus() {
+  const { connection } = useStatus()
+  const { runner } = useConsole()
+  const sync = useSyncSummary()
+  const word = useConnectionWord()
+  const t = useT()
+  const [open, setOpen] = React.useState(false)
+  // Whether it was open when the finger came down: the tooltip closes itself
+  // on that press, before the click that is meant to toggle it.
+  const wasOpen = React.useRef(false)
+  const live = connection === "live"
+  const troubled = Boolean(sync?.troubled)
+
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={t("State of the console")}
+          aria-expanded={open}
+          // The tooltip opens on a hover and closes on a press: a finger has
+          // no hover, so the press is what opens and closes it.
+          onPointerDown={() => {
+            wasOpen.current = open
+          }}
+          onClick={(event) => {
+            event.preventDefault()
+            setOpen(!wasOpen.current)
+          }}
+          className={cn(
+            "flex h-8 items-center gap-1.5 rounded-md px-2 font-mono text-[0.7rem] outline-hidden",
+            "focus-visible:ring-ring/30 focus-visible:ring-2",
+            !live || troubled ? "text-tr-amber" : "text-tr-green"
+          )}
+        >
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              !live ? "bg-tr-amber animate-pulse" : troubled ? "bg-tr-amber" : "bg-tr-green"
+            )}
+          />
+          {word}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="end" className="max-w-[calc(100vw-2rem)]">
+        <div>{t("event stream: {{state}}", { state: word })}</div>
+        {sync ? <div>{t("synced {{age}}", { age: sync.age })}</div> : null}
+        {sync?.said.map((line) => (
+          <div key={line} className="text-muted-foreground">
+            {line}
+          </div>
+        ))}
+        {runner ? <div className="mt-1 font-mono">v{runner.version}</div> : null}
       </TooltipContent>
     </Tooltip>
   )
@@ -172,43 +266,47 @@ function SyncLine() {
 export function TopBarEnd() {
   const { refresh } = useConsole()
   const { connection } = useStatus()
+  const word = useConnectionWord()
   const { theme, toggle } = useTheme()
   const t = useT()
   const palette = hotkeyLabel("palette")
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            className={cn(
-              "flex items-center gap-1.5 px-2 font-mono text-[0.7rem]",
-              connection === "live" ? "text-tr-green" : "text-muted-foreground"
-            )}
-          >
+      {/* Beside a menu, each said on its own; on a phone, once. */}
+      <div className="hidden items-center md:flex">
+        <Tooltip>
+          <TooltipTrigger asChild>
             <span
               className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                connection === "live" ? "bg-tr-green" : "bg-tr-amber animate-pulse"
+                "flex items-center gap-1.5 px-2 font-mono text-[0.7rem]",
+                connection === "live" ? "text-tr-green" : "text-muted-foreground"
               )}
-            />
-            <span className="hidden sm:inline">
-              {connection === "live"
-                ? t("live")
-                : connection === "connecting"
-                  ? t("connecting…")
-                  : t("reconnecting…")}
+            >
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  connection === "live" ? "bg-tr-green" : "bg-tr-amber animate-pulse"
+                )}
+              />
+              <span>{word}</span>
             </span>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{t("event stream")}</TooltipContent>
-      </Tooltip>
+          </TooltipTrigger>
+          <TooltipContent>{t("event stream")}</TooltipContent>
+        </Tooltip>
 
-      {/* The number this console is running — and, the day a newer one is
-          waiting, the button that installs it. */}
-      <VersionBadge />
+        {/* The number this console is running — and, the day a newer one is
+            waiting, the button that installs it. */}
+        <VersionBadge />
 
-      <SyncLine />
+        <SyncLine />
+      </div>
+      <div className="flex items-center md:hidden">
+        <PhoneStatus />
+        {/* An update waiting is a button, and a button stays where a finger
+            can reach it; the version alone is in the pill. */}
+        <VersionBadge offerOnly />
+      </div>
 
       {/* The palette's way in for a mouse, and where its shortcut is learnt. */}
       <Tooltip>

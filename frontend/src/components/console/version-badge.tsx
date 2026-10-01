@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils"
  * ticket in flight, installing, restarting — and says each step down the
  * stream, which is how every open tab follows the same update.
  */
-export function VersionBadge() {
+export function VersionBadge({ offerOnly = false }: { offerOnly?: boolean }) {
   const { runner } = useConsole()
   const t = useT()
   const [open, setOpen] = React.useState(false)
@@ -58,15 +58,19 @@ export function VersionBadge() {
 
   return (
     <>
+      {/* On a phone the number is said in the bar's one status pill (see
+          `shell`): here, only the day it is a button. */}
       {mode === "version" ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="text-muted-foreground flex items-center gap-1 px-2 font-mono text-[0.7rem]">
-              <span className="hidden sm:inline">v{runner.version}</span>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{t("the version this console runs")}</TooltipContent>
-        </Tooltip>
+        offerOnly ? null : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-muted-foreground flex items-center gap-1 px-2 font-mono text-[0.7rem]">
+                v{runner.version}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t("the version this console runs")}</TooltipContent>
+          </Tooltip>
+        )
       ) : (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -87,7 +91,9 @@ export function VersionBadge() {
               ) : (
                 <ArrowUp className="size-3 shrink-0" />
               )}
-              <span>v{runner.version}</span>
+              {/* A phone's bar has no room for the number beside the pill
+                  that already says it: the arrow alone, its words read out. */}
+              {offerOnly ? null : <span>v{runner.version}</span>}
               {mode === "offer" ? (
                 <span className="hidden font-sans font-medium md:inline">· {t("Update")}</span>
               ) : null}
