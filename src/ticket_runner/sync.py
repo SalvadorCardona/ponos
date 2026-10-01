@@ -310,6 +310,9 @@ class Mirror:
     def comments(self, page_id: str):
         return self.primary.comments(page_id)
 
+    def attachment(self, block_id: str) -> str:
+        return self.primary.attachment(block_id)
+
     def me(self) -> str:
         return self.primary.me()
 

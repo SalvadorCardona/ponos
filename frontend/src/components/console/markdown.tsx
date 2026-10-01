@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 import { Flow } from "./text"
@@ -30,12 +31,21 @@ type Block =
   | { kind: "code"; language: string; lines: string[] }
   | { kind: "rule" }
   | { kind: "paragraph"; text: string }
+  | { kind: "attached"; file: string; label: string; block: string }
 
 /** How deep a list item sits: two spaces is a level, a tab is a level. */
 function depth(line: string): number {
   const indent = /^[\t ]*/.exec(line)?.[0] ?? ""
   return Math.min(3, indent.replace(/\t/g, "  ").length >> 1)
 }
+
+/* An image, a file or a PDF on a Notion page, as `markdown.attached` names it.
+ *
+ * The line carries no address — a Notion file's is signed for an hour, and
+ * cut off its signature it is a 403 — but the block holding the file, which
+ * `/api/files/<block>` turns into a fresh address each time it is asked. */
+const ATTACHED =
+  /^\[(image|file|pdf) attached to the ticket(?:: (.*))? \(Notion block ([0-9a-f]{32})\)\]$/
 
 function blocks(text: string): Block[] {
   const out: Block[] = []
@@ -98,6 +108,11 @@ function blocks(text: string): Block[] {
       // The number a list was written with, rather than one this file counted:
       // a session that starts at 3 meant to start at 3.
       out.push({ kind: "item", marker: `${ordered[1]}.`, depth: level, text: ordered[2] })
+      continue
+    }
+    const attached = ATTACHED.exec(trimmed)
+    if (attached) {
+      out.push({ kind: "attached", file: attached[1], label: attached[2] ?? "", block: attached[3] })
       continue
     }
     if (trimmed.startsWith(">")) {
@@ -183,6 +198,48 @@ function Inline({ text }: { text: string }) {
   )
 }
 
+/* A picture drawn where the brief has it, its caption under it, and opened
+ * full size in a tab of its own. A picture the board will not hand over is its
+ * caption alone — never a broken image, never a link that answers 403. */
+function Attached({ block }: { block: Extract<Block, { kind: "attached" }> }) {
+  const t = useT()
+  const [broken, setBroken] = React.useState(false)
+  const source = `/api/files/${block.block}`
+  if (block.file === "image" && !broken)
+    return (
+      <figure className="flex flex-col items-start gap-1">
+        <a href={source} target="_blank" rel="noreferrer noopener" title={t("Open full size")}>
+          <img
+            src={source}
+            alt={block.label || t("Image attached to the ticket")}
+            loading="lazy"
+            onError={() => setBroken(true)}
+            className="max-h-96 max-w-full cursor-zoom-in rounded-lg border object-contain"
+          />
+        </a>
+        {block.label ? (
+          <figcaption className="text-muted-foreground text-xs">{block.label}</figcaption>
+        ) : null}
+      </figure>
+    )
+  const label =
+    block.label ||
+    (block.file === "image" ? t("Image attached to the ticket") : t("File attached to the ticket"))
+  if (broken) return <p className="text-muted-foreground">{label}</p>
+  return (
+    <p>
+      <a
+        href={source}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-tr-blue underline underline-offset-2 hover:opacity-80"
+      >
+        📎 {label}
+      </a>
+    </p>
+  )
+}
+
 export function Markdown({ text }: { text: string }) {
   const drawn = React.useMemo(() => blocks(text), [text])
   if (!drawn.length) return null
@@ -241,6 +298,8 @@ export function Markdown({ text }: { text: string }) {
             // `<hr>` is a blank line rather than a rule: the break has to be
             // asked for by name.
             return <hr key={index} className="border-border my-3 border-t" />
+          case "attached":
+            return <Attached key={index} block={block} />
           default:
             return (
               <p key={index} className="whitespace-pre-wrap">

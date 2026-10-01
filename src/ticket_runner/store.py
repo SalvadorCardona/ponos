@@ -231,6 +231,15 @@ class Store(Protocol):
 
     def comments(self, page_id: str) -> list[Comment]: ...
 
+    def attachment(self, block_id: str) -> str:
+        """Where the file an image, file or PDF block holds can be fetched now.
+
+        Asked at the moment it is wanted, never kept: a file Notion hosts is
+        behind an address good for an hour. See `markdown.attached`. Raises
+        LookupError when that block holds no file.
+        """
+        ...
+
     # -- writing -------------------------------------------------------------
 
     def update(self, database_id: str, page_id: str, values: dict[str, Any]) -> None: ...

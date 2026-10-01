@@ -15,6 +15,7 @@ reaches Notion as a wall of text, a summary that keeps its verdict.
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import os
@@ -10323,6 +10324,87 @@ def a_block_reads_back_whichever_end_of_the_wire_it_came_from():
         "bulleted_list_item": {"rich_text": [{"plain_text": "une puce"}]},
     }
     assert markdown.plain(returned) == "- une puce"
+
+
+@case
+def an_image_in_a_brief_is_named_for_the_session_and_drawn_by_the_console():
+    """A capture in a Notion brief: no dead link anywhere, a fresh one on demand.
+
+    The line used to carry the file's address cut off its signature, which S3
+    answers with 403 from the first second — shown as is on the console, in
+    English, crochets and all. It now names the file and the block holding it:
+    the session is still told there is a picture, and the console asks the
+    board where that block's file is at the moment it draws it.
+    """
+    signed = "https://prod-files-secure.s3.us-west-2.amazonaws.com/w/f/opoil-bug-prix-negatif.png?X-Amz-Signature=abc"
+    block_id = "3ec45168-0af4-8106-be46-dbf34ca5cc95"
+    image = {
+        "id": block_id,
+        "type": "image",
+        "image": {
+            "type": "file",
+            "file": {"url": signed, "expiry_time": "2026-10-01T10:00:00.000Z"},
+            "caption": [{"plain_text": "Prix négatif affiché au client"}],
+        },
+    }
+    line = markdown.plain(image)
+    assert "amazonaws" not in line and "?" not in line, line
+    assert line == f"[image attached to the ticket: Prix négatif affiché au client (Notion block {block_id.replace('-', '')})]"
+    read = markdown.ATTACHED.match(line)
+    assert read and read["kind"] == "image" and read["block"] == block_id.replace("-", "")
+    assert read["label"] == "Prix négatif affiché au client"
+    # Without a caption, the file's own name says what it is.
+    image["image"]["caption"] = []
+    assert markdown.ATTACHED.match(markdown.plain(image))["label"] == "opoil-bug-prix-negatif.png"
+    pdf = {"id": "b" * 32, "type": "pdf", "pdf": {"type": "external", "external": {"url": ""}}}
+    assert markdown.ATTACHED.match(markdown.plain(pdf))["label"] is None
+
+    client = notion.Client("ntn_x")
+    asked: list[str] = []
+
+    def request(method, path, body=None, **_):
+        asked.append(path)
+        if path == f"/blocks/{'c' * 32}":
+            return {"id": "c" * 32, "type": "paragraph", "paragraph": {"rich_text": []}}
+        return image
+
+    client._request = request  # type: ignore[method-assign]
+    assert client.attachment(block_id.replace("-", "")) == signed
+    try:
+        client.attachment("c" * 32)
+        raise AssertionError("a paragraph holds no file")
+    except LookupError:
+        pass
+
+    from ticket_runner.web import server as web_server
+
+    api = _bare_api(client)
+    console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+    threading.Thread(target=console.serve_forever, daemon=True).start()
+    try:
+
+        def get(path: str) -> tuple[int, str]:
+            connection = http.client.HTTPConnection("127.0.0.1", console.server_address[1], timeout=5)
+            connection.request("GET", path, headers={"Authorization": "Bearer tok"})
+            response = connection.getresponse()
+            response.read()
+            connection.close()
+            return response.status, response.getheader("Location") or ""
+
+        # Signed at the moment it is opened, and the browser is sent there.
+        assert get(f"/api/files/{block_id}") == (302, signed)
+        assert asked[-1] == f"/blocks/{block_id.replace('-', '')}"
+        assert get(f"/api/files/{'c' * 32}")[0] == 404
+    finally:
+        console.shutdown()
+        console.server_close()
+
+    # A board of files has no blocks: a line copied from Notion is only a name.
+    try:
+        files.Board(Path(tempfile.mkdtemp())).attachment(block_id)
+        raise AssertionError("a board of files holds no Notion file")
+    except LookupError:
+        pass
 
 
 @case

@@ -12,6 +12,7 @@ the text always reaches the page, at worst without its formatting.
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 # Notion rejects a code block whose language it does not know.
 LANGUAGES = {
@@ -195,11 +196,7 @@ def plain(block: dict) -> str:
     if kind == "divider":
         return "---"
     if kind in ("image", "file", "pdf"):
-        payload = block.get(kind, {})
-        source = payload.get("external", {}).get("url") or payload.get("file", {}).get("url", "")
-        caption = "".join(part.get("plain_text", "") for part in payload.get("caption", []))
-        # The S3 URL is signed and expires: it is indicative only.
-        return f"[{caption or kind} attached to the ticket: {source.split('?')[0]}]"
+        return attached(block)
     if kind == "bookmark":
         return block.get(kind, {}).get("url", "")
     if kind == "child_page":
@@ -207,3 +204,36 @@ def plain(block: dict) -> str:
     if kind in ("table", "table_row", "column_list", "column"):
         return ""
     return _rich(block, kind)
+
+
+def attached(block: dict) -> str:
+    """An image, a file or a PDF on the page, as one line naming it.
+
+    Never its URL. A file Notion keeps is behind an address signed for an hour,
+    and that address cut off its signature — which is what this line used to
+    carry — answers 403 from the start: a link nobody can open, in the prompt
+    as on the console. What is written instead is what the file *is* (its
+    caption, else its name) and which block holds it, which is everything a
+    session needs to know there is a picture, and everything the console needs
+    to ask the board for a fresh address when it draws one: `/api/files/<block>`.
+
+    The sentence is the console's to recognise, `ATTACHED` here and in
+    `markdown.tsx`; a block without an id — one this module built — has nothing
+    to point at and is only named.
+    """
+    kind = block.get("type", "")
+    payload = block.get(kind) or {}
+    source = (payload.get("external") or {}).get("url") or (payload.get("file") or {}).get("url", "")
+    caption = "".join(part.get("plain_text", "") for part in payload.get("caption", [])).strip()
+    name = urllib.parse.unquote(urllib.parse.urlsplit(source).path.rsplit("/", 1)[-1])
+    label = " ".join((caption or name).split())
+    said = f"{kind} attached to the ticket{': ' + label if label else ''}"
+    identifier = str(block.get("id", "")).replace("-", "")
+    return f"[{said} (Notion block {identifier})]" if identifier else f"[{said}]"
+
+
+# The line `attached` writes, as the console reads it back.
+ATTACHED = re.compile(
+    r"^\[(?P<kind>image|file|pdf) attached to the ticket(?:: (?P<label>.*))?"
+    r" \(Notion block (?P<block>[0-9a-f]{32})\)\]$"
+)

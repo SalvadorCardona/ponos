@@ -523,6 +523,9 @@ export const FRENCH: Record<string, string> = {
     "Ce projet est une ligne de config.toml et n'a pas de page : le tableau n'en a jamais entendu parler, il n'y a donc rien ici sur quoi écrire un brief.",
   "Change its path in the settings.": "Changez son chemin dans les réglages.",
   "Open the project's page": "Ouvrir la page du projet",
+  "Open full size": "Ouvrir en grand",
+  "Image attached to the ticket": "Image jointe au ticket",
+  "File attached to the ticket": "Fichier joint au ticket",
   "its pictures, the brief as it reads, and the way to Notion.":
     "ses images, le brief tel qu'il se lit, et le chemin vers Notion.",
 
