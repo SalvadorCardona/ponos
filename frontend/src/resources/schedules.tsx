@@ -257,9 +257,12 @@ const PageLink: InputControllerComponentInterface = ({ formInput }) => {
   // The row the cell belongs to, which is what the form was built from: a
   // controller is handed its own field and nothing else.
   const url = String((form?.data as { url?: string } | undefined)?.url ?? "")
-  if (!url) return <>{said}</>
+  // `data-schedule` is how the stylesheet finds this table among the others,
+  // to fold it to a phone's width.
+  if (!url) return <span data-schedule>{said}</span>
   return (
     <a
+      data-schedule
       href={url}
       target="_blank"
       rel="noreferrer noopener"
@@ -268,6 +271,24 @@ const PageLink: InputControllerComponentInterface = ({ formInput }) => {
       {said}
     </a>
   )
+}
+
+/* The cadence in the console's language. The row holds the board's word — the
+ * one `schedules.py` reads and the form writes back — and a word the runner does
+ * not know is drawn as it is, since the dictionary has nothing for it. */
+const CadenceWord: InputControllerComponentInterface = ({ formInput }) => {
+  const said = String(formInput.value ?? "")
+  return <>{said ? t(said) : ""}</>
+}
+
+/* When the next ticket is born. The server sends nothing for a schedule that is
+ * off, since nothing will be; said here in a word rather than left blank, so an
+ * empty cell is not read as a date that failed to load. */
+const NextMoment: InputControllerComponentInterface = (props) => {
+  const { form } = useFormContext()
+  const on = (form?.data as { active?: boolean } | undefined)?.active === true
+  if (!on) return <span className="text-muted-foreground">{t("paused")}</span>
+  return <MomentInputController {...props} />
 }
 
 /* The project a schedule points at, by name.
@@ -305,6 +326,11 @@ const ProjectName: InputControllerComponentInterface = ({ formInput }) => {
  * Model and priority are not here: they are what the ticket inherits, they are
  * in the form that writes them, and two more columns would push the dates off
  * the edge of a pane that shares its screen with the console.
+ *
+ * The order is the phone's: the name, the cadence, the switch and the next
+ * date come first, and on a narrow screen they are the only four — the
+ * stylesheet folds the rest away (see `[data-schedule]` in index.css), so the
+ * switch and the edit button are on the screen rather than past its edge.
  */
 const rowForm: FormInterface = {
   inputs: {
@@ -312,11 +338,11 @@ const rowForm: FormInterface = {
     // The row's own word, and not the select the form offers: a cadence the
     // runner does not know is still what the board says, and a select asked for
     // a word it has no option for answers with the wrong one.
-    cadence: { label: "Cadence", readonly: true },
+    cadence: { label: "Cadence", readonly: true, controller: CadenceWord },
+    active: { label: "On", controller: SwitchInputController },
+    next: { label: "Next", readonly: true, controller: NextMoment },
     at: { label: "At", readonly: true },
     day: { label: "Day", readonly: true },
-    active: { label: "On", controller: SwitchInputController },
-    next: { label: "Next", readonly: true, controller: MomentInputController },
     last: { label: "Last", readonly: true, controller: MomentInputController },
     project: { label: "Project", readonly: true, controller: ProjectName },
     problem: { label: "Problem", readonly: true },

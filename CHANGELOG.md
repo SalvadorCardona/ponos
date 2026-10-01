@@ -631,6 +631,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   between the page numbers instead of four dots; a ticket Notion has no title
   for is « (ticket sans titre) »; and the *By status* card of the statistics
   names the columns as the board does — « Done », not « done ».
+- **The schedules list no longer shows a next date in the past.** A schedule
+  turned off said *paused* instead of the date the last pass left on it — weeks
+  old, for a row that will not fire — and one that is on and due shows the current minute,
+  since it fires on the next pass. The cadence is drawn in the console's
+  language (*Toutes les heures*, *Quotidienne*…) while the board keeps
+  `Hourly`; the count reads *1 active sur 2*; and on a phone the table keeps
+  the name, the cadence, the switch, the next date and the edit pencil on the
+  screen, the other columns being a tap away in the form.
 
 - **Markdown in the console reads as text, not as its source.** A numbered
   list is counted — 1, 2, 3 — even when it was written « 1. 1. 1. », as every
