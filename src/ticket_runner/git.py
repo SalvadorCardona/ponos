@@ -23,6 +23,7 @@ as, exactly as before.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -888,6 +889,95 @@ def wait_for_checks(
             time.sleep(10)
             continue
         return "failed"
+
+
+# What a red check is still given after it has been asked to run again, before
+# its pull request's checks are read: GitHub puts the jobs back in the queue a
+# moment after the call returns, and reading at once would read the old verdict.
+RERUN_SETTLE_SECONDS = 20
+
+
+def _failing(url: str, accounts: Accounts | None = None) -> list[dict]:
+    """The pull request's checks that failed, as `gh pr checks --json` lists them.
+
+    Read whatever the exit code: `gh` answers 1 when a check failed, and the
+    list it printed is the very thing asked for. Nothing when it cannot say —
+    a `gh` too old for `--json`, no network — which the caller reads as not
+    knowing, never as green.
+    """
+    if not shutil.which("gh"):
+        return []
+    result = run(
+        ["gh", "pr", "checks", url, "--json", "name,bucket,link"],
+        timeout=60,
+        token=token_for(url, accounts),
+    )
+    try:
+        checks = json.loads(result.out or "[]")
+    except ValueError:
+        return []
+    if not isinstance(checks, list):
+        return []
+    return [one for one in checks if isinstance(one, dict) and one.get("bucket") in ("fail", "cancel")]
+
+
+def failing_checks(url: str, accounts: Accounts | None = None) -> list[str]:
+    """The names of the pull request's checks that failed, or nothing when unknown."""
+    return sorted({str(one.get("name") or "") for one in _failing(url, accounts)} - {""})
+
+
+def rerun_failed_checks(url: str, accounts: Accounts | None = None) -> bool:
+    """Run the failed jobs of the pull request's workflows again. Whether any was.
+
+    Only GitHub Actions can be asked: a check another app posts has no run to
+    start again, and is left as it is. Only the failed jobs, too — the green
+    ones already said what they had to say, and running them again would only
+    spend minutes.
+    """
+    parts = reference_parts(url)
+    runs = sorted(
+        {
+            found.group(1)
+            for one in _failing(url, accounts)
+            if (found := re.search(r"/actions/runs/(\d+)", str(one.get("link") or "")))
+        }
+    )
+    if not runs or len(parts) < 3:
+        return False
+    repository = "/".join(parts[:3])
+    token = token_for(url, accounts)
+    started = [
+        run(["gh", "run", "rerun", one, "--failed", "-R", repository], timeout=60, token=token).ok
+        for one in runs
+    ]
+    if any(started):
+        time.sleep(RERUN_SETTLE_SECONDS)
+    return any(started)
+
+
+def failing_on(url: str, base: str, accounts: Accounts | None = None) -> list[str]:
+    """The checks that failed on the newest commit of `base`, in that pull request's repository.
+
+    What tells a pull request that broke something from one that merely
+    inherited a red `main`: the same check red on both is not the pull
+    request's doing. Nothing when it cannot be asked, which leaves the red to
+    the pull request — the cautious reading.
+    """
+    parts = reference_parts(url)
+    if not base or len(parts) < 3 or not shutil.which("gh"):
+        return []
+    host, owner_name = parts[0], "/".join(parts[1:3])
+    result = run(
+        ["gh", "api", "--hostname", host,
+         f"repos/{owner_name}/commits/{base}/check-runs?per_page=100",
+         "-q", ".check_runs[] | select(.conclusion == \"failure\" or .conclusion == "
+               "\"timed_out\" or .conclusion == \"cancelled\") | .name"],
+        timeout=60,
+        token=token_for(url, accounts),
+    )
+    if not result.ok:
+        return []
+    return sorted({line.strip() for line in result.out.splitlines() if line.strip()})
 
 
 def pull_request_on(repo: Path, branch: str, accounts: Accounts | None = None) -> str:

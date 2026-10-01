@@ -384,7 +384,8 @@ resolve_model = ""
 # How long a resolved pull request's CI is waited for before the merge is
 # asked. Only a repository with a .github/workflows directory is waited on;
 # 0 does not wait — GitHub still refuses a merge a required check has not
-# passed.
+# passed. A red check is run again once, and waited for again; one still red
+# that the base branch fails too is not held against the pull request.
 checks_timeout_minutes = 20
 
 # How a *validated* pull request is merged — see `validated` above. Nothing
