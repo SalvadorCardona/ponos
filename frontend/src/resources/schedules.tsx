@@ -20,6 +20,7 @@ import {
 
 import { EmptyState } from "@/components/console/empty-state"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
+import { Pagination } from "@/components/console/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, why } from "@/lib/api"
@@ -514,7 +515,12 @@ export const schedules = createViewResource<ScheduleItem, ScheduleItem, Schedule
       // Declared on the list rather than on the view every action inherits: a
       // `top` posted there is drawn over the create dialog too, and the count
       // of what is on belongs to the page, not to the form over it.
-      components: { top: SchedulesTop, bottom: SchedulesFoot, noResult: NoSchedule },
+      components: {
+        top: SchedulesTop,
+        bottom: SchedulesFoot,
+        noResult: NoSchedule,
+        pagination: Pagination,
+      },
       // What a schedule is, without naming where it is kept: the same console
       // draws a Notion workspace and a directory of Markdown files.
       description:

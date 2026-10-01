@@ -2,7 +2,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { api, why } from "@/lib/api"
-import { currentBoard, moveTicket, publishBoard } from "@/lib/board-store"
+import { currentBoard, moveTicket, publishBoard, titleOf } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
 import type {
   Attached,
@@ -292,8 +292,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         if (before.get(item.id) === item.sync) continue
         toast.error(
           item.sync === "failed"
-            ? t("“{{title}}” did not reach Notion", { title: item.title })
-            : t("“{{title}}” was changed in Notion meanwhile", { title: item.title }),
+            ? t("“{{title}}” did not reach Notion", { title: titleOf(item) })
+            : t("“{{title}}” was changed in Notion meanwhile", { title: titleOf(item) }),
           { description: item.sync_error }
         )
       }
@@ -537,9 +537,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       column
     try {
       if (await moveTicket(target.id, column))
-        toast.success(t("“{{title}}” moved to {{column}}", { title: target.title, column: name }))
+        toast.success(t("“{{title}}” moved to {{column}}", { title: titleOf(target), column: name }))
     } catch (error) {
-      toast.error(t("could not move “{{title}}”", { title: target.title }), {
+      toast.error(t("could not move “{{title}}”", { title: titleOf(target) }), {
         description: why(error),
       })
     }

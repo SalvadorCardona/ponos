@@ -7136,6 +7136,50 @@ def a_board_that_names_its_drafts_draws_them_apart_from_no_status():
     )
 
 
+class _UntitledClient(_ColumnsClient):
+    """The same database, where nobody wrote a title on any row."""
+
+    def query(self, database: str, *args, **kwargs) -> list[notion.Page]:
+        return [
+            notion.Page(id=page.id, url=page.url, title="", properties=page.properties, raw=page.raw)
+            for page in super().query(database, *args, **kwargs)
+        ]
+
+
+@case
+def a_ticket_without_a_title_is_named_by_the_console_in_its_language():
+    """"(untitled ticket)" used to come from the server, in English on a French console.
+
+    The server sends the title Notion has — none — and the console says what
+    to call it, through the dictionary like every other word it says.
+    """
+    api = _bare_api(_UntitledClient(["Ready"]))
+    api._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
+    api._schema_at = time.time()
+    assert [item["title"] for item in api.board()["tickets"]] == [""]
+    store_ = (FRONTEND / "src/lib/board-store.ts").read_text(encoding="utf-8")
+    assert 't("(untitled ticket)")' in store_, "the console no longer names a ticket without a title"
+    french = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
+    assert '"(untitled ticket)": "(ticket sans titre)"' in french
+
+
+@case
+def the_pages_of_a_list_are_said_in_the_console_s_language():
+    """react-resource-view writes "Showing 1 to 30 sur 475 results" whatever the language.
+
+    Every list brings the console's own pagination, whose words go through the
+    dictionary, with one ellipsis between the pages rather than four dots.
+    """
+    pagination = (FRONTEND / "src/components/console/pagination.tsx").read_text(encoding="utf-8")
+    assert 't("Showing {{from}} to {{to}} of {{total}} results"' in pagination
+    assert "…" in pagination and "...." not in pagination
+    french = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
+    assert '"Affichage de {{from}} à {{to}} sur {{total}} résultats"' in french
+    for resource in ("tickets", "projects", "schedules", "pairs"):
+        source = (FRONTEND / f"src/resources/{resource}.tsx").read_text(encoding="utf-8")
+        assert "pagination: Pagination" in source, f"the {resource} list says its pages in English"
+
+
 def _session_line(kind: str = "assistant") -> str:
     if kind == "result":
         return json.dumps({"type": "result", "result": "done", "session_id": "s"}) + "\n"
@@ -9763,7 +9807,7 @@ def the_console_is_drawn_in_react_resource_view_s_admin_layout():
     # rereads the board on every event has to be said on the list too — without
     # it the board stops following the stream.
     tickets = (FRONTEND / "src/resources/tickets.tsx").read_text(encoding="utf-8")
-    assert "components: { top: BoardTop, noResult: NoTicket }" in tickets, (
+    assert "components: { top: BoardTop, noResult: NoTicket, pagination: Pagination }" in tickets, (
         "the board no longer rereads itself when the stream moves it"
     )
 

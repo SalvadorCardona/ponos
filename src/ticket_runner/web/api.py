@@ -293,7 +293,9 @@ class Api:
         return {
             "id": page.id.replace("-", ""),
             "short": short_id(page.id),
-            "title": page.title or "(untitled ticket)",
+            # Empty when Notion has none: "(untitled ticket)" is the console's to
+            # say, in the language it is read in.
+            "title": page.title,
             "url": page.url,
             "status": status,
             "column": names.get(status, "other"),

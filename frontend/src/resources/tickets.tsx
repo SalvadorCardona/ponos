@@ -37,6 +37,7 @@ import {
   when,
 } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
+import { Pagination } from "@/components/console/pagination"
 import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip, every } from "@/components/console/runner-strip"
 import { CardLive } from "@/components/console/session-log"
@@ -45,7 +46,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
-import { addTicket, boardOnce, currentBoard, moveTicket, subscribeBoard, useBoard } from "@/lib/board-store"
+import {
+  addTicket,
+  boardOnce,
+  currentBoard,
+  moveTicket,
+  subscribeBoard,
+  titleOf,
+  useBoard,
+} from "@/lib/board-store"
 import { t } from "@/lib/i18n"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { ColumnKey, Ticket, TicketDetail } from "@/lib/types"
@@ -141,6 +150,8 @@ const item = (ticket: Ticket | TicketDetail): TicketItem => ({
   ...ticket,
   "@id": `/api/tickets/${ticket.id}`,
   "@type": TICKETS,
+  // The card, the table and the page's header all read the title from here.
+  title: titleOf(ticket),
   spent: typeof ticket.cost === "number" && ticket.cost ? `$${ticket.cost.toFixed(2)}` : "",
   took: typeof ticket.duration === "number" && ticket.duration ? lasted(ticket.duration) : "",
   due: when(ticket.scheduled),
@@ -148,7 +159,7 @@ const item = (ticket: Ticket | TicketDetail): TicketItem => ({
 
 /** The column's name, as the board spells it. */
 export function columnName(key: string): string {
-  return columnTitle(key, currentBoard()?.columns.find((column) => column.key === key)?.name)
+  return capital(columnTitle(key, currentBoard()?.columns.find((column) => column.key === key)?.name))
 }
 
 /* -- the forms ------------------------------------------------------------ */
@@ -487,11 +498,10 @@ function NoTicket() {
  * a column of thirty: the count is the column's own, drawn here, and the
  * package's is hidden (see `BoardColumn`). */
 function heading(key: string, name: string, count?: number) {
-  const said = capital(name)
   return (
     <span className="flex items-center gap-2">
       <span className={cn("size-1.5 shrink-0 rounded-full", SEED[key] ?? "bg-muted-foreground")} />
-      <span className="truncate">{said}</span>
+      <span className="truncate">{capital(name)}</span>
       {count === undefined ? null : (
         <span className="bg-background text-muted-foreground ms-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-normal tabular-nums">
           {count}
@@ -923,7 +933,7 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       // `top` said again: the package merges a view over the resource's one
       // key by key, so a `components` here replaces the whole of it — and
       // without `BoardTop` the list never rereads the board the stream moves.
-      components: { top: BoardTop, noResult: NoTicket },
+      components: { top: BoardTop, noResult: NoTicket, pagination: Pagination },
     },
     [ActionList.create]: {
       name: "New ticket",
