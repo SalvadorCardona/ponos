@@ -82,6 +82,17 @@ def restart() -> None:
         if shown.returncode == 0 and shown.stdout.strip() == str(os.getpid()):
             subprocess.run(["systemctl", "--user", "--no-block", "restart", UNIT], timeout=10)
             return
+    # The launcher put the version it found on PYTHONPATH, resolved; the same
+    # command line would come back on it. The version the link names now is the
+    # one to come back on.
+    app = update_module.app_dir()
+    if app.is_symlink():
+        running = str(Path(update_module.__file__).resolve().parents[2] / "src")
+        landed = str(app.resolve() / "src")
+        parts = os.environ.get("PYTHONPATH", "").split(os.pathsep)
+        os.environ["PYTHONPATH"] = os.pathsep.join(
+            landed if part == running else part for part in parts
+        )
     os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
 
 
@@ -131,8 +142,9 @@ class Upgrade:
         why = ""
         if not local:
             why = "an update is started from the machine the runner is on"
-        elif not os.access(self.app, os.W_OK):
-            why = f"{self.app} is not writable by the console"
+        elif not os.access(self.app.parent, os.W_OK):
+            # A version is written beside the one in use, not over it.
+            why = f"{self.app.parent} is not writable by the console"
         return {
             "available": status.stale,
             "current": status.current[:8],

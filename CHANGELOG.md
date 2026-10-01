@@ -526,6 +526,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   request is merged all the same, its report saying which check and why. Only
   a check red here and not on the base still blocks — and the report names it.
   The same reading applies to a type whose validation is forced.
+- **A pass started during an update no longer dies on a mixture of two
+  versions.** The update rewrote the installation in place, and a pass the
+  timer started at that moment imported some files already new and others
+  still old — `ImportError: cannot import name 'SLOTS'`, and the service marked
+  failed. Each version is now installed in a directory of its own
+  (`app-<commit>`), checked there, and `app` is switched onto it in one step;
+  the launcher reads the link once when it starts, so a pass runs whole on one
+  version, and the previous one stays on disk for going back. `install.sh`
+  installs the same way; an existing installation is moved to it by its next
+  update.
 - **A tab closed mid-request no longer fills the console's journal.** Closing
   or reloading the console while it was answering left two Python tracebacks
   in `journalctl` each time — the broken pipe, then the 500 the console tried

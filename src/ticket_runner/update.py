@@ -32,6 +32,17 @@ channel — is left where it is rather than taken back to the tag.
 An installation made from a local copy (`TR_SRC=.`) has no remote to compare
 itself against. That is not an error and never fails a run — it is said once,
 and the runner carries on.
+
+**Each version has a directory of its own, and `app` is a link to one of them.**
+On 30 September 2026 a pass started while an update was rewriting `app` in
+place: it imported a `files.py` already new and a `store.py` still old, and died
+on `ImportError: cannot import name 'SLOTS'`. The run lock could not have
+prevented it — a process imports its modules before it ever asks for the lock.
+So nothing in use is written to any more: the new version is copied beside the
+old one as `app-<commit>`, checked, and `app` is moved onto it by one rename.
+The launcher resolves the link once, when it starts, so a process imports every
+module from the one version it found, however long it runs. The version it
+replaced stays on disk — for what is still running on it, and for going back.
 """
 
 from __future__ import annotations
@@ -52,8 +63,16 @@ from .config import Runner, state_dir
 
 
 def app_dir() -> Path:
-    """Where the sources live — the directory `install.sh` filled."""
-    return Path(__file__).resolve().parents[2]
+    """Where the sources live: the link `install.sh` made, when there is one.
+
+    This file resolves to the version it belongs to (`app-<commit>`); what an
+    update moves is the link beside it, named like it without the commit — and
+    that link may already name a newer version than the one asking. A checkout,
+    a copy, or an installation from before the link answer with themselves.
+    """
+    here = Path(__file__).resolve().parents[2]
+    link = here.with_name(here.name.rpartition("-")[0] or here.name)
+    return link if link.is_symlink() else here
 
 
 # A release, as `scripts/release.py` tags one: `v` and three numbers. A
@@ -266,8 +285,9 @@ def write_launcher(app: Path | None = None) -> Path:
     text = (app / "bin" / "ticket-runner.in").read_text()
     text = text.replace("@APP_DIR@", str(app)).replace("@PYTHON@", sys.executable)
     binary.parent.mkdir(parents=True, exist_ok=True)
-    binary.write_text(text)
-    binary.chmod(0o755)
+    # Renamed over the old one: the timer may start it at any moment, and a
+    # launcher read half-written is a pass that does not start.
+    disk.write_atomic(binary, text, mode=0o755)
     return binary
 
 
@@ -345,42 +365,106 @@ def apply(status: Status, interval_seconds: int, app: Path | None = None) -> str
 
 
 def install(status: Status, interval_seconds: int, app: Path | None = None) -> str:
-    """Put `status.latest` on disk, or leave `status.current` there. "" or why.
+    """Put `status.latest` in use, or leave `status.current` there. "" or why.
 
     Everything but the restart, so that the console — which is the process an
     update restarts — can say "installed" before it goes. And never half of it:
-    a version that lands but does not import, or whose launcher and units cannot
-    be written, is taken back to the commit it replaced, launcher and units
+    the new version is a directory of its own, copied from the one in use and
+    moved to the new commit there, and `app` only points at it once it imports.
+    A version that does not start is never pointed at; one whose launcher and
+    units cannot be written is pointed away from again, launcher and units
     included. A runner on last week's code runs tickets; a runner on a commit
     that fails at `import` runs nothing, and nobody is there to notice.
     """
     app = app or app_dir()
     try:
-        reset = git.git(["reset", "--hard", "--quiet", status.latest], app)
+        previous = _versioned(app)
     except (OSError, subprocess.SubprocessError) as error:
-        return f"git reset: {error}"
-    if not reset.ok:
-        return f"git reset: {reset.err or reset.out}"
-    problem = verify(app)
-    if not problem:
-        try:
-            _regenerate(interval_seconds, app)
-        except (OSError, subprocess.SubprocessError) as error:
-            problem = f"the installed files could not be regenerated: {error}"
+        return f"the installation could not be given a version directory: {error}"
+    version = app.with_name(f"{app.name}-{status.latest[:12]}")
+    if version == previous:
+        # Moved by hand inside its directory: the name is taken by what is in use.
+        version = version.with_name(f"{version.name}-{int(time.time())}")
+    problem = _prepare(previous, version, status.latest)
+    if problem:
+        _remove(version)
+        return f"{problem} — still on {status.current[:8] or previous.name}"
+    try:
+        _switch(app, version)
+        _regenerate(interval_seconds, app)
+    except (OSError, subprocess.SubprocessError) as error:
+        problem = f"the installed files could not be regenerated: {error}"
     if not problem:
         remember(Status(current=status.latest, latest=status.latest, tag=status.tag))
+        _prune(app, keep={version, previous})
         return ""
-    if not status.current:
-        return f"{problem} — and there is no previous version to go back to"
     try:
-        back = git.git(["reset", "--hard", "--quiet", status.current], app)
-        if back.ok:
-            _regenerate(interval_seconds, app)
+        _switch(app, previous)
+        _regenerate(interval_seconds, app)
     except (OSError, subprocess.SubprocessError) as error:
         return f"{problem} — and going back to {status.current[:8]} failed: {error}"
-    if not back.ok:
-        return f"{problem} — and going back to {status.current[:8]} failed: {back.err or back.out}"
-    return f"{problem} — back on {status.current[:8]}"
+    _remove(version)
+    return f"{problem} — back on {status.current[:8] or previous.name}"
+
+
+def _versioned(app: Path) -> Path:
+    """The directory of the version in use — made one, the first time.
+
+    An installation from before the link has `app` as a plain directory. It is
+    renamed after the commit it holds, and `app` becomes the link to it: the
+    one moment, once, when `app` is missing — a pass started then does not
+    start at all, which is a failure the next tick forgets, not a mixture.
+    """
+    if app.is_symlink():
+        return app.resolve()
+    head = git.git(["rev-parse", "HEAD"], app).out
+    named = app.with_name(f"{app.name}-{head[:12] or int(time.time())}")
+    _remove(named)
+    app.rename(named)
+    _switch(app, named)
+    return named
+
+
+def _prepare(previous: Path, version: Path, commit: str) -> str:
+    """Copy the version in use to `version`, move it to `commit`, and start it."""
+    staging = version.with_name(f"{version.name}.partial")
+    _remove(version)
+    _remove(staging)
+    try:
+        shutil.copytree(
+            previous, staging, symlinks=True, ignore=shutil.ignore_patterns("__pycache__")
+        )
+        reset = git.git(["reset", "--hard", "--quiet", commit], staging)
+        if not reset.ok:
+            _remove(staging)
+            return f"git reset: {reset.err or reset.out}"
+        staging.rename(version)
+    except (OSError, shutil.Error, subprocess.SubprocessError) as error:
+        _remove(staging)
+        return f"the new version could not be copied: {error}"
+    return verify(version)
+
+
+def _switch(app: Path, version: Path) -> None:
+    """Point `app` at `version` in one rename: a launcher reads one or the other."""
+    scratch = app.with_name(f".{app.name}.{os.getpid()}.link")
+    scratch.unlink(missing_ok=True)
+    # Relative, so that the whole directory can move without breaking it.
+    scratch.symlink_to(version.name)
+    os.replace(scratch, app)
+
+
+def _prune(app: Path, keep: set[Path]) -> None:
+    """Drop the versions older than the previous one, and what a crash left."""
+    kept = {path.resolve() for path in keep}
+    for path in app.parent.glob(f"{app.name}-*"):
+        if path.resolve() not in kept:
+            _remove(path)
+
+
+def _remove(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _regenerate(interval_seconds: int, app: Path) -> None:

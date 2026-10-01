@@ -18,7 +18,9 @@ TR_REPO="${TR_REPO:-SalvadorCardona/ticket-runner}"
 TR_REF="${TR_REF:-main}"
 TR_INTERVAL="${TR_INTERVAL:-1800}"
 
-APP_DIR="$HOME/.local/share/ticket-runner/app"
+APP_ROOT="$HOME/.local/share/ticket-runner"
+# A link to the version in use, app-<commit> beside it — see update.py.
+APP_DIR="$APP_ROOT/app"
 BIN_DIR="$HOME/.local/bin"
 BIN="$BIN_DIR/ticket-runner"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ticket-runner"
@@ -64,29 +66,57 @@ else
 fi
 
 # --- 2. sources -------------------------------------------------------------
-mkdir -p "$APP_DIR" "$BIN_DIR" "$CONFIG_DIR"
+# Each version in a directory of its own, and `app` moved onto it in one rename:
+# a pass the timer starts meanwhile runs on the old version or on the new one,
+# never on a mixture of the two. The version replaced is kept, for what still
+# runs on it and for going back.
+mkdir -p "$APP_ROOT" "$BIN_DIR" "$CONFIG_DIR"
+STAGE="$APP_ROOT/app.partial"
+rm -rf "$STAGE"
 if [ -n "${TR_SRC:-}" ]; then
     say "Copying sources from $TR_SRC"
     have tar || die "tar is required"
     [ -d "$TR_SRC/src/ticket_runner" ] || die "$TR_SRC does not contain src/ticket_runner"
-    rm -rf "$APP_DIR"; mkdir -p "$APP_DIR"
+    mkdir -p "$STAGE"
     # `node_modules` is the console's build-time dependency and is measured in
     # hundreds of megabytes; what the console actually serves is already built
     # and committed under src/ticket_runner/web/static.
     tar -C "$TR_SRC" --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
-        -cf - . | tar -C "$APP_DIR" -xf -
-    ok "sources in $APP_DIR (a copy: it will not update itself)"
+        -cf - . | tar -C "$STAGE" -xf -
+    LABEL="copy-$(date +%s)"
+    WHAT="a copy: it will not update itself"
 else
     # A clone rather than a tarball: it is what lets the runner answer "am I
     # still on the latest version" with one git fetch, once an hour, and update
     # itself when the answer is no. Shallow, because no run ever reads history.
     say "Cloning $TR_REPO ($TR_REF)"
-    rm -rf "$APP_DIR"
     GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --branch "$TR_REF" \
-        "https://github.com/$TR_REPO.git" "$APP_DIR" \
+        "https://github.com/$TR_REPO.git" "$STAGE" \
         || die "clone failed (private repository, or no such branch?)"
-    ok "sources in $APP_DIR ($(git -C "$APP_DIR" rev-parse --short HEAD))"
+    LABEL="$(git -C "$STAGE" rev-parse --short=12 HEAD)"
+    WHAT="$(git -C "$STAGE" rev-parse --short HEAD)"
 fi
+# The same commit installed again gets a name of its own: the directory in use
+# is never written over.
+[ -e "$APP_ROOT/app-$LABEL" ] && LABEL="$LABEL-$(date +%s)"
+mv "$STAGE" "$APP_ROOT/app-$LABEL"
+PREVIOUS=""
+if [ -L "$APP_DIR" ]; then
+    PREVIOUS="$(readlink "$APP_DIR")"
+elif [ -e "$APP_DIR" ]; then
+    # Installed before versions had directories: that one becomes the previous.
+    PREVIOUS="app-before-$(date +%s)"
+    mv "$APP_DIR" "$APP_ROOT/$PREVIOUS"
+fi
+rm -f "$APP_ROOT/.app.link"
+ln -s "app-$LABEL" "$APP_ROOT/.app.link"
+# `mv` onto a link to a directory would move into it; a rename replaces it.
+python3 -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' "$APP_ROOT/.app.link" "$APP_DIR"
+for old in "$APP_ROOT"/app-*; do
+    name="${old##*/}"
+    [ "$name" = "app-$LABEL" ] || [ "$name" = "${PREVIOUS##*/}" ] || rm -rf "$old"
+done
+ok "sources in $APP_ROOT/app-$LABEL ($WHAT)"
 
 # --- 3. executable ----------------------------------------------------------
 PYTHON="$(command -v python3)"
