@@ -9807,6 +9807,33 @@ def the_landing_page_opens_on_ponos_and_tells_the_loop_in_seven_sections():
 
 
 @case
+def the_heros_picture_is_the_loop_and_ends_on_your_decision():
+    """Three numbered steps, and the third a decision rather than a pull request.
+
+    The promise is *nothing ships until you say yes*: the picture shows the two
+    gestures the console really offers on a ticket in review — Validate, Run
+    again — and the way back to Ponos. Without script or motion it rests on
+    that decision, and the ticket of the first step stays Ready all along.
+    """
+    page = LANDING.read_text(encoding="utf-8")
+    figure = page.split('<figure class="card flow" id="flow"', 1)[1].split("</figure>", 1)[0]
+    assert 'data-step="3"' in figure.split(">", 1)[0], "without script, the picture is not at the decision"
+    steps = re.findall(r'<span class="flow-num">(\d)</span><b>([^<]+)</b>', figure)
+    assert [n for n, _ in steps] == ["1", "2", "3"], f"the steps are not numbered one to three: {steps}"
+    assert "Ponos" in steps[1][1], "the second step is not Ponos's"
+    assert ">Validate<" in figure and ">Run again<" in figure, "the decision has lost one of its two buttons"
+    assert "flow-link to-you" in figure and "your note" in figure, "the way back to Ponos is gone"
+    assert "<ticket-runner-robot" in figure
+    statuses = re.findall(r'<span class="status[^"]*">([^<]+)</span>', figure)
+    assert statuses == ["Ready"], f"the ticket of step one moves on: {statuses}"
+    label = re.search(r'role="img" aria-label="([^"]+)"', figure).group(1)
+    assert "Validate" in label and "Run again" in label, "the picture's description does not tell the decision"
+    # The console's own words, so the picture does not promise a button that is not there.
+    bits = (FRONTEND / "src/components/console/ticket-bits.tsx").read_text(encoding="utf-8")
+    assert 't("validate")' in bits and 't("run again")' in bits
+
+
+@case
 def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
     """The robot's name, in both languages, wherever the robot is."""
     assert "Ponos" in LANDING.read_text(encoding="utf-8")

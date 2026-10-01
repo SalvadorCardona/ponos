@@ -547,6 +547,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   and the line below says what it needs: Claude Code, and Notion or a folder
   of Markdown files. The count of sessions is gone from the public page.
 
+- **The picture at the top of the site reads as the loop.** Three numbered
+  steps — *Write the ticket*, *Ponos does it*, *You decide* — instead of three
+  grey captions. The third is a decision: what came back fits on one line, a
+  pull request or a post ready for X in turn, under the two buttons the
+  console offers on a ticket in review, *Validate* and *Run again*, and an
+  arrow goes from *Run again* back to Ponos — he picks it up with your note.
+  Ponos's log is one line anyone can read, *Working on it…* then *Done*, and
+  the ticket of the first step stays *Ready*. Without motion, the picture rests
+  on the decision, both buttons on show.
+
 ### Fixed
 
 - **The e2e of a ticket's discussion no longer fails when it runs while the gestures e2e has a ticket set aside**: it looks for the mark on the card of the ticket that asked a question, instead of counting every Blocked card on the shared board.
