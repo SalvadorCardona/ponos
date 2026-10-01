@@ -9,6 +9,7 @@
 import type { UpgradePhase } from "./upgrade"
 
 export type ColumnKey =
+  | "draft"
   | "ready"
   | "running"
   | "review"

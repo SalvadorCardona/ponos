@@ -138,6 +138,12 @@ class Notion:
         if key == "validated" and "validated" not in self.status:
             if "review" in self.status or "done" in self.status:
                 return self.state("review")
+        # "draft" has no default at all: it names an option the board already
+        # has for tickets still being written, and a board without one keeps
+        # them with no status, as before. Unnamed, it is "", which no ticket
+        # is ever read as — the runner itself never asks for it.
+        if key == "draft":
+            return self.status.get("draft", "")
         return self.status.get(key, _DEFAULT_STATUS[key])
 
 

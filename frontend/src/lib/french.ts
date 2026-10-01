@@ -198,6 +198,7 @@ export const FRENCH: Record<string, string> = {
   Failed: "Échoué",
   Done: "Terminé",
   "No status": "Sans statut",
+  Drafts: "Brouillons",
   "Your board, live. Drop a card in another column and the runner is told.":
     "Votre tableau, en direct. Déposez une carte dans une autre colonne et le runner en est averti.",
   "Nothing on the board yet — a ticket moved to the ready column is a session that starts.":
@@ -1032,6 +1033,8 @@ export const FRENCH: Record<string, string> = {
   "Something broke; a log says what.": "Quelque chose a cassé ; un journal dit quoi.",
   "The runner asked you a question and is waiting.":
     "Le runner vous a posé une question et attend.",
+  "Optional: the option your board already has for tickets still being written. Never picked up. Empty: a draft has no status.":
+    "Facultatif : l'option que votre tableau a déjà pour les tickets en cours d'écriture. Jamais pris en charge. Vide : un brouillon n'a pas de statut.",
 
   "Names of the ticket properties": "Noms des propriétés des tickets",
   "Change these only if your Notion properties are named differently. An optional one may be missing: what it would hold is simply not written.":

@@ -659,6 +659,13 @@ SECTIONS: tuple[Section, ...] = (
                 "failed": ("Failed", "Something broke; a log says what."),
                 "blocked": ("Blocked", "The runner asked you a question and is waiting."),
             },
+        )
+        + (
+            Field(
+                "notion.status", "draft", "text", "Drafts",
+                "Optional: the option your board already has for tickets still being "
+                "written. Never picked up. Empty: a draft has no status.",
+            ),
         ),
     ),
     Section(
@@ -740,7 +747,7 @@ def _fallback(config: Config, entry: Field) -> object:
     placeholder cannot drift from the default it claims to show.
     """
     if entry.table == "notion.status":
-        return config_module.defaults("status")[entry.key]
+        return config_module.defaults("status").get(entry.key, "")
     if entry.table == "notion.properties":
         return config_module.defaults("properties")[entry.key]
     if entry.table == "notion.pages":
