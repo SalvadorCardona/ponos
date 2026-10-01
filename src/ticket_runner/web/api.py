@@ -286,6 +286,17 @@ class Api:
         )
         return {**card, "content": content}
 
+    def attachment(self, block_id: str) -> str:
+        """Where a picture or a file on a page is, asked when it is opened.
+
+        A page's text names its files by block (`markdown.attached`) and the
+        console draws each one from `/api/files/<block>`, which sends the
+        browser on to this. Read again at every opening rather than kept like a
+        project's cover: a brief's capture is looked at once, and a fresh
+        address is one call — where an address kept an hour is a 403.
+        """
+        return self.runner.client.attachment(block_id.replace("-", ""))
+
     def projects(self) -> dict[str, dict]:
         """{page id: {name, kind, …}} — one query, kept for a few minutes.
 

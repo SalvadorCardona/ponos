@@ -379,6 +379,8 @@ class Handler(BaseHTTPRequestHandler):
                     200, data, kind, {"Content-Security-Policy": PICTURE_POLICY},
                     cache="private, max-age=86400",
                 )
+            if match := re.fullmatch(r"/api/files/([0-9a-fA-F-]{32,36})", route):
+                return self._send(302, b"", "text/plain", {"Location": self.api.attachment(match.group(1))})
             if route == "/api/context":
                 return self._json(self.api.context())
             if route == "/api/schedules":

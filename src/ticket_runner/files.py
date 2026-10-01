@@ -390,6 +390,10 @@ class Board:
         _, path = self._find(block_id)
         return parse(_text(path))[1]
 
+    def attachment(self, block_id: str) -> str:
+        """Nothing here is addressable below the page. See `append_blocks`."""
+        raise LookupError("a board of files has no blocks to hold a file")
+
     def comments(self, page_id: str) -> list[Comment]:
         """The discussion of one page, oldest first.
 

@@ -361,6 +361,16 @@ class Client:
             cursor = payload.get("next_cursor")
         return "\n".join(line for line in lines if line is not None).strip()
 
+    def attachment(self, block_id: str) -> str:
+        block = self._request("GET", f"/blocks/{block_id}")
+        kind = block.get("type", "")
+        payload = (block.get(kind) or {}) if kind in ("image", "file", "pdf") else {}
+        url = (payload.get("file") or {}).get("url") or (payload.get("external") or {}).get("url") or ""
+        # Somebody else's address is whatever was pasted; only the web is sent on.
+        if not url.lower().startswith(("https://", "http://")):
+            raise LookupError(f"block {block_id} holds no file")
+        return url
+
     # -- writing -------------------------------------------------------------
 
     def update(self, database_id: str, page_id: str, values: dict[str, Any]) -> None:

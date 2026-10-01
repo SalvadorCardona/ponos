@@ -476,7 +476,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   to write on the same closed connection — and they hid the real errors. A
   client that has gone is now let go in silence; a route that fails still
   answers 500 with its message.
-
+- **A picture in a Notion brief shows on the ticket's page.** A capture
+  pasted into a ticket came out on the console as a bracketed English sentence
+  ending in an S3 address cut off its signature — a link that answered 403.
+  The page now draws the picture with its caption, and a click opens it full
+  size; a file or a PDF is a link that opens, and the console says it in its
+  own language. What the session reads still names the file, by its caption
+  or its name, without the dead address.
 - **Tickets abandoned on a board without a Runner column come back.** The
   runner signs a ticket it claims in that column, and only put back the ones
   it had signed — so on a board without it, a ticket left *in progress* by a
