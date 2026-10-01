@@ -8,6 +8,7 @@ import {
 } from "react-resource-view"
 
 import { EmptyState } from "@/components/console/empty-state"
+import { Pagination } from "@/components/console/pagination"
 import { api } from "@/lib/api"
 import { t } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
@@ -236,7 +237,7 @@ function pairResource(table: PairTable, words: Words) {
         },
         // There is nothing to read that the row does not already show.
         behavior: { rowActions: [ActionList.update, ActionList.delete] },
-        components: { noResult: nothingHere(words.empty) },
+        components: { noResult: nothingHere(words.empty), pagination: Pagination },
       },
       // Over the section rather than instead of it: two boxes are not a page,
       // and the table behind them is what says whether the row is a duplicate.

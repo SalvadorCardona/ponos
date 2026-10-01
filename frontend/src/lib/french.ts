@@ -199,6 +199,12 @@ export const FRENCH: Record<string, string> = {
   Done: "Terminé",
   "No status": "Sans statut",
   Drafts: "Brouillons",
+  "(untitled ticket)": "(ticket sans titre)",
+  // The pages of a long list, which the console draws itself (`pagination.tsx`).
+  Pagination: "Pagination",
+  "Previous page": "Page précédente",
+  "Next page": "Page suivante",
+  "Showing {{from}} to {{to}} of {{total}} results": "Affichage de {{from}} à {{to}} sur {{total}} résultats",
   "Your board, live. Drop a card in another column and the runner is told.":
     "Votre tableau, en direct. Déposez une carte dans une autre colonne et le runner en est averti.",
   "Nothing on the board yet — a ticket moved to the ready column is a session that starts.":

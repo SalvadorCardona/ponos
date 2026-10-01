@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/command"
 import { useConsole } from "@/hooks/use-console"
 import { hotkeyLabel, useHotkeys } from "@/hooks/use-hotkeys"
-import { useBoard } from "@/lib/board-store"
+import { titleOf, useBoard } from "@/lib/board-store"
 import { useT } from "@/lib/i18n"
 import { contextHref } from "@/resources/context"
 import { idOf, projectHref, projectsHref, projectsOnce, useProjects } from "@/resources/projects"
@@ -199,12 +199,12 @@ export function CommandPalette() {
               {board.tickets.map((ticket) => (
                 <CommandItem
                   key={ticket.id}
-                  value={`${ticket.title} ${ticket.short} ${ticket.id}`}
+                  value={`${titleOf(ticket)} ${ticket.short} ${ticket.id}`}
                   keywords={["ticket", ticket.project]}
                   onSelect={() => go(ticketHref(ticket.id))}
                 >
                   <LayoutGrid />
-                  <span className="truncate">{ticket.title}</span>
+                  <span className="truncate">{titleOf(ticket)}</span>
                   <CommandShortcut className="tracking-normal">#{ticket.short}</CommandShortcut>
                 </CommandItem>
               ))}

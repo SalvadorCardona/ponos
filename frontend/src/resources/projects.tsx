@@ -21,6 +21,7 @@ import {
 import { EmptyState } from "@/components/console/empty-state"
 import { Eyebrow, Fact, Facts } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
+import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
 import { Chip } from "@/components/console/ticket-bits"
@@ -600,7 +601,12 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
       // A click on a project opens its form; the button under a card, and
       // beside a row, is the way to its page.
       behavior: { rowActions: [ActionList.read] },
-      components: { top: ProjectsTop, bottom: ProjectsFoot, noResult: NoProject },
+      components: {
+        top: ProjectsTop,
+        bottom: ProjectsFoot,
+        noResult: NoProject,
+        pagination: Pagination,
+      },
     },
     [ActionList.read]: {
       name: "Project",

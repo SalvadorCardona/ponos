@@ -581,6 +581,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   size; a file or a PDF is a link that opens, and the console says it in its
   own language. What the session reads still names the file, by its caption
   or its name, without the dead address.
+
+- **The console in French no longer slips into English.** The pages of a long
+  list say « Affichage de 1 à 30 sur 475 résultats », with a single ellipsis
+  between the page numbers instead of four dots; a ticket Notion has no title
+  for is « (ticket sans titre) »; and the *By status* card of the statistics
+  names the columns as the board does — « Done », not « done ».
+
 - **Tickets abandoned on a board without a Runner column come back.** The
   runner signs a ticket it claims in that column, and only put back the ones
   it had signed — so on a board without it, a ticket left *in progress* by a

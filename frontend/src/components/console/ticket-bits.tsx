@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { useConsole } from "@/hooks/use-console"
+import { titleOf } from "@/lib/board-store"
 import { currentLanguage, t, useT } from "@/lib/i18n"
 import type { Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -307,7 +308,7 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
       {ticket.column === "review" ? (
         <Confirmed
           label={t("run again")}
-          title={t("Run “{{title}}” again?", { title: ticket.title })}
+          title={t("Run “{{title}}” again?", { title: titleOf(ticket) })}
           body={t(
             "The ticket goes back to {{column}} and the next pass starts a new session on it — a session that is paid for, like the first one.",
             { column: named("ready") }
@@ -327,7 +328,7 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
         <Confirmed
           label={t("validate")}
           className="text-tr-pink hover:text-tr-pink"
-          title={t("Validate “{{title}}”?", { title: ticket.title })}
+          title={t("Validate “{{title}}”?", { title: titleOf(ticket) })}
           body={
             ticket.pull_request
               ? t("The runner merges its pull request on its next pass. A merge is not taken back from here.")

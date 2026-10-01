@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { api } from "./api"
+import { t } from "./i18n"
 import type { Board, ColumnKey, Ticket } from "./types"
 
 /* The board, as the stream last said it.
@@ -47,6 +48,11 @@ export function addTicket(ticket: Ticket) {
 }
 
 export const currentBoard = (): Board | null => board
+
+/* A ticket's title, or what to call one Notion left without: the server sends
+ * it empty, and the words for "no title" are the console's, in its language. */
+export const titleOf = (ticket: Pick<Ticket, "title">): string =>
+  ticket.title || t("(untitled ticket)")
 
 /* A card moved to another column: drawn there now, marked as waiting to be
  * sent, and put back where it was if the console refuses the move. The one way
