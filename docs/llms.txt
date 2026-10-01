@@ -24,6 +24,6 @@ command and the Python package are still called ticket-runner.
 
 ## Docs
 
-- [Landing page](https://cardona.digital/ticket-runner/): what it is, the four kinds of task, the loop, the console, the integrations, installation without Notion
+- [Landing page](https://cardona.digital/ticket-runner/): what it is, the loop — the console filmed doing it —, the four kinds of task, the console, the integrations, installation without Notion
 - [Documentation](https://github.com/SalvadorCardona/ticket-runner#readme): installation, the board and its columns, the types of ticket, the Validated column, recurring tickets, Telegram and Slack, the web console, the Markdown board, Notion, OpenRouter, several GitHub accounts, usage limits, configuration, safety, troubleshooting, Ponos the mascot
 - [Changelog](https://github.com/SalvadorCardona/ticket-runner/blob/main/CHANGELOG.md): what changed, release by release

@@ -314,8 +314,6 @@
   @media (prefers-reduced-motion: reduce) {
     .flow-pane, .flow-link::before, .flow-act .btn, .flow-loop .flow-step::after, .flow-loop .flow-step::before, .flow-link.to-you::after, .flow-link.to-you span { transition: none; }
   }
-  .mood { font: .75rem/1 var(--mono); color: var(--muted-foreground); display: inline-flex; align-items: center; gap: .5rem; }
-  .mood .dot { background: var(--tr-green); }
   .film { margin-block: 3.5rem 0; }
   .film video {
     display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: var(--card);
@@ -362,7 +360,39 @@
     .launch-play::after { animation: none; }
   }
 
-  /* -- 2. what it does: one card per type of ticket, an example ticket in each,
+  /* -- 2. the loop: the console filmed doing it, and the four gestures under
+     it as its legend — the one the film is at lit, from the film's own clock
+     (data-cues-*, written by scripts/film-console.mjs). On a phone the film is
+     shown twice as large and follows the card across the board: whole, its
+     text would be a few pixels high. -- */
+  .console-film { margin: 0; }
+  .console-film .frame { position: relative; overflow: hidden; aspect-ratio: 8 / 5; background: var(--muted); }
+  .console-film .frame video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .console-film .play { top: 50%; }
+  .console-film:not(.held) .play, .console-film:not(.ready) .window-bar .btn { display: none; }
+  .console-film .play-icon, .console-film.playing .pause-icon { display: block; }
+  .console-film .pause-icon, .console-film.playing .play-icon { display: none; }
+  @media (max-width: 640px) {
+    /* The four gestures, one under the other, are taller than a phone: the
+       film stays pinned under the bar while they go by. */
+    .reel .console-film { position: sticky; top: 4.25rem; z-index: 1; }
+    .console-film .frame { aspect-ratio: 5 / 4; }
+    .console-film .frame video {
+      position: absolute; left: 0; top: 0; width: 200%; height: auto; aspect-ratio: 8 / 5;
+      transform: translate(-25%, -30%); transition: transform .8s cubic-bezier(.4, 0, .2, 1);
+    }
+    .console-film[data-step="0"] .frame video { transform: translate(-25%, -8%); }
+    .console-film[data-step="3"] .frame video { transform: translate(-48%, -30%); }
+  }
+  @media (prefers-reduced-motion: reduce) { .console-film .frame video { transition: none; } }
+  .gestures { list-style: none; padding: 0; margin: 1rem 0 0; }
+  .step { transition: border-color .3s, box-shadow .3s, opacity .3s; }
+  .step .num { font: 600 .8125rem/1 var(--mono); color: var(--primary); }
+  .gestures.live .step:not(.on) { opacity: .6; }
+  .gestures .step.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), var(--shadow-sm); }
+  @media (prefers-reduced-motion: reduce) { .step { transition: none; } }
+
+  /* -- 3. what it does: one card per type of ticket, an example ticket in each,
      edged with the colour its column has on the board -- */
   .task { gap: 1rem; }
   .task .card-title { font-size: 1.125rem; }
@@ -383,44 +413,7 @@
   .around p { margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
   .around q { color: var(--foreground); font-weight: 500; }
 
-  /* -- 2. the loop -- */
-  .step .num { font: 600 .8125rem/1 var(--mono); color: var(--primary); }
-  .board-demo { margin-top: 1.5rem; overflow: hidden; gap: 0; padding: 0; }
-  .board-demo > * { padding-inline: 0; }
-  .board-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 1.25rem; border-bottom: 1px solid var(--border); }
-  .board {
-    display: grid; grid-template-columns: repeat(5, minmax(168px, 1fr)); gap: .75rem;
-    padding: 1.25rem; overflow-x: auto; min-height: 250px; background: var(--background);
-  }
-  .col { display: flex; flex-direction: column; gap: .5rem; min-width: 0; background: color-mix(in srgb, var(--muted) 60%, transparent); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: .625rem; }
-  .col-h { display: flex; align-items: center; gap: .5rem; font-size: .875rem; font-weight: 500; padding: .125rem .25rem .25rem; }
-  .col-h b { margin-left: auto; font: 500 .75rem var(--mono); color: var(--muted-foreground); }
-  .col.ready .dot { background: var(--tr-green); }
-  .col.running .dot { background: var(--tr-blue); }
-  .col.review .dot { background: var(--tr-violet); }
-  .col.validated .dot { background: var(--tr-pink); }
-  .slot:empty { display: none; }
-  .tcard {
-    background: var(--card); border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius);
-    padding: .625rem .75rem; font-size: .8125rem; line-height: 1.45; box-shadow: var(--shadow-xs);
-  }
-  .ready .tcard { border-left-color: var(--tr-green); }
-  .running .tcard { border-left-color: var(--tr-blue); }
-  .review .tcard { border-left-color: var(--tr-violet); }
-  .validated .tcard { border-left-color: var(--tr-pink); }
-  .tcard.ghost { box-shadow: none; background: transparent; }
-  .tcard.ghost .t { font-weight: 500; color: var(--muted-foreground); }
-  .tcard.enter { animation: pop .4s ease-out; }
-  @keyframes pop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-  .tcard .t { font-weight: 600; }
-  .tcard .m { color: var(--muted-foreground); font: .6875rem/1.5 var(--mono); margin-top: .25rem; }
-  .tcard .live { margin-top: .5rem; border-top: 1px solid var(--border); padding-top: .5rem; font: .6875rem/1.5 var(--mono); color: var(--muted-foreground); min-height: 1.2em; }
-  .tcard .live .k { color: var(--tr-blue); }
-  .tcard .live .ok { color: var(--tr-green); }
-  .tcard .live .caret { display: inline-block; width: 6px; height: 1em; background: var(--primary); vertical-align: -.15em; margin-left: 2px; animation: blink 1.05s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-
-  /* -- 3. the proofs -- */
+  /* -- 2. the proofs, under the loop -- */
   .proof .card-title { font-size: 1.25rem; letter-spacing: -.015em; }
   .proof p { margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
   .proof p b { color: var(--foreground); font-weight: 600; }
@@ -550,7 +543,6 @@
   @media (max-width: 640px) {
     section { padding-top: 4rem; }
     .hero { padding-top: 2rem; }
-    .board { padding: .875rem; }
   }
 </style>
 <script type="module" src="mascot/ticket-runner-robot.js?v=greek"></script>
@@ -683,6 +675,81 @@
   </figure>
 </section>
 
+<section id="loop">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">How it works</span>
+      <h2>The whole loop, in four gestures.</h2>
+      <p>Two of them are yours, and each takes a few seconds. The two in between are Ponos's.</p>
+    </div>
+    <div class="reel">
+      <figure class="window console-film" id="loop-film" data-step="1">
+        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>127.0.0.1:8787 — the console</span><button class="btn btn-ghost btn-icon" type="button" data-toggle aria-label="Pause the film"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
+        <div class="frame">
+          <video muted loop playsinline preload="none" width="1280" height="800" poster="media/console-loop-light-poster.webp"
+                 data-light="media/console-loop-light.mp4" data-dark="media/console-loop-dark.mp4"
+                 data-poster-light="media/console-loop-light-poster.webp" data-poster-dark="media/console-loop-dark-poster.webp"
+                 data-cues-light="0.0 6.7 11.1 13.8" data-cues-dark="0.0 6.8 11.1 13.8"
+                 aria-label="The console, filmed: a ticket is written in New ticket and lands in Ready; Ponos takes it to In progress, its card saying each step live — Read, Edit, Write, Bash npm test; it comes back to In review with its cost, $0.84; validate is clicked, and confirmed, and it moves to Validated.">
+            <source src="media/console-loop-light.mp4" type="video/mp4">
+          </video>
+          <button class="btn play" type="button" data-play aria-label="Play the film"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg></button>
+        </div>
+      </figure>
+      <ol class="grid g4 gestures">
+        <li class="card step">
+          <div class="card-header"><span class="num">01 · you</span><h3 class="card-title">You write the ticket</h3></div>
+          <p class="card-description">What you would tell a colleague, on your board — then you move it to <em>Ready</em>.</p>
+        </li>
+        <li class="card step">
+          <div class="card-header"><span class="num">02 · Ponos</span><h3 class="card-title">Ponos does it</h3></div>
+          <p class="card-description">While you do something else: a pull request on its own branch, a text written into the ticket, an action carried out.</p>
+        </li>
+        <li class="card step">
+          <div class="card-header"><span class="num">03 · you</span><h3 class="card-title">You read, and answer in a word</h3></div>
+          <p class="card-description">A question or a result reaches you — in the console, or on your phone. <em>oui</em> is a whole answer.</p>
+        </li>
+        <li class="card step">
+          <div class="card-header"><span class="num">04 · Ponos</span><h3 class="card-title">He delivers</h3></div>
+          <p class="card-description">Move it to <em>Validated</em>: the pull request is merged, the post is published — and only then is it <em>Done</em>.</p>
+        </li>
+      </ol>
+    </div>
+
+    <div class="sub-head" id="proofs">
+      <span class="label">Why hand it over</span>
+      <h3>Three things it does that a to-do list does not.</h3>
+    </div>
+    <div class="grid g3">
+      <article class="card proof">
+        <div class="card-header"><span class="badge badge-secondary">It asks first</span><h3 class="card-title">A doubt stops it.</h3></div>
+        <p>A ticket <b>nobody typed</b> is classified before it runs, and a hesitation sends it back to you with the question. An action stops at <b>its first doubt</b> — a wrong account, a value the ticket does not give — rather than act on a guess.</p>
+        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#the-type-of-a-ticket">The four types of ticket →</a></div>
+      </article>
+      <article class="card proof">
+        <div class="card-header"><span class="badge badge-secondary">You keep the hand</span><h3 class="card-title">Nothing goes out without you.</h3></div>
+        <p>No pull request is merged and nothing is published until <b>you</b> move the ticket to <em>Validated</em>. And it all runs <b>on your machine</b>, each ticket in a disposable worktree — your own checkout is never touched.</p>
+        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#what-protects-your-code">What protects your code →</a></div>
+      </article>
+      <article class="card proof">
+        <div class="card-header"><span class="badge badge-secondary">It comes to you</span><h3 class="card-title">“oui” is enough.</h3></div>
+        <div class="chat" aria-label="A question from Ponos on Telegram, and its answer">
+          <div class="bubble"><small>Ponos · Telegram</small>Which header — the dashboard one or the public site?</div>
+          <div class="bubble you">the dashboard</div>
+          <div class="bubble">✓ noted on “Le header” — the next run carries on.</div>
+        </div>
+        <p>When a ticket needs a decision, the question reaches you on <b>Telegram or Slack</b>, and your reply lands on the ticket.</p>
+        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#being-told-and-answering-with-one-word">Telegram and Slack →</a></div>
+      </article>
+    </div>
+    <div class="works">
+      <span>Runs on</span><span class="badge">Claude Code</span><span>and a board of its own. Plugs into</span>
+      <span class="badge">Notion</span><span class="badge">GitHub</span><span class="badge">Telegram</span><span class="badge">Slack</span><span class="badge">OpenRouter</span>
+      <span>— <a href="#integrations">only if you want</a>.</span>
+    </div>
+  </div>
+</section>
+
 <section id="tasks">
   <div class="wrap">
     <div class="sec-head">
@@ -729,82 +796,6 @@
   </div>
 </section>
 
-<section id="loop">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="label">How it works</span>
-      <h2>The whole loop, in four gestures.</h2>
-      <p>Two of them are yours, and each takes a few seconds. The two in between are Ponos's.</p>
-    </div>
-    <ol class="grid g4" style="list-style:none;padding:0;margin:0">
-      <li class="card step">
-        <div class="card-header"><span class="num">01 · you</span><h3 class="card-title">You write the ticket</h3></div>
-        <p class="card-description">What you would tell a colleague, on your board — then you move it to <em>Ready</em>.</p>
-      </li>
-      <li class="card step">
-        <div class="card-header"><span class="num">02 · Ponos</span><h3 class="card-title">Ponos does it</h3></div>
-        <p class="card-description">While you do something else: a pull request on its own branch, a text written into the ticket, an action carried out.</p>
-      </li>
-      <li class="card step">
-        <div class="card-header"><span class="num">03 · you</span><h3 class="card-title">You read, and answer in a word</h3></div>
-        <p class="card-description">A question or a result reaches you — in the console, or on your phone. <em>oui</em> is a whole answer.</p>
-      </li>
-      <li class="card step">
-        <div class="card-header"><span class="num">04 · Ponos</span><h3 class="card-title">He delivers</h3></div>
-        <p class="card-description">Move it to <em>Validated</em>: the pull request is merged, the post is published — and only then is it <em>Done</em>.</p>
-      </li>
-    </ol>
-
-    <div class="card board-demo" aria-hidden="true">
-      <div class="board-bar"><span class="label">Your board</span><span class="mood"><span class="dot"></span>live</span></div>
-      <div class="board" id="board">
-        <div class="col ready"><div class="col-h"><span class="dot"></span>Ready<b id="n-ready">2</b></div>
-          <div class="slot" data-col="ready"></div>
-          <div class="tcard ghost"><div class="t">Draft the October newsletter</div><div class="m">Newsletter · writing</div></div>
-        </div>
-        <div class="col running"><div class="col-h"><span class="dot"></span>In progress<b id="n-running">0</b></div><div class="slot" data-col="running"></div></div>
-        <div class="col review"><div class="col-h"><span class="dot"></span>In review<b id="n-review">0</b></div><div class="slot" data-col="review"></div></div>
-        <div class="col validated"><div class="col-h"><span class="dot"></span>Validated<b id="n-validated">0</b></div><div class="slot" data-col="validated"></div></div>
-        <div class="col done"><div class="col-h"><span class="dot"></span>Done<b id="n-done">3</b></div>
-          <div class="slot" data-col="done"></div>
-          <div class="tcard ghost"><div class="t">Add a sitemap</div><div class="m">Landing page · PR #17</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sub-head" id="proofs">
-      <span class="label">Why hand it over</span>
-      <h3>Three things it does that a to-do list does not.</h3>
-    </div>
-    <div class="grid g3">
-      <article class="card proof">
-        <div class="card-header"><span class="badge badge-secondary">It asks first</span><h3 class="card-title">A doubt stops it.</h3></div>
-        <p>A ticket <b>nobody typed</b> is classified before it runs, and a hesitation sends it back to you with the question. An action stops at <b>its first doubt</b> — a wrong account, a value the ticket does not give — rather than act on a guess.</p>
-        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#the-type-of-a-ticket">The four types of ticket →</a></div>
-      </article>
-      <article class="card proof">
-        <div class="card-header"><span class="badge badge-secondary">You keep the hand</span><h3 class="card-title">Nothing goes out without you.</h3></div>
-        <p>No pull request is merged and nothing is published until <b>you</b> move the ticket to <em>Validated</em>. And it all runs <b>on your machine</b>, each ticket in a disposable worktree — your own checkout is never touched.</p>
-        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#what-protects-your-code">What protects your code →</a></div>
-      </article>
-      <article class="card proof">
-        <div class="card-header"><span class="badge badge-secondary">It comes to you</span><h3 class="card-title">“oui” is enough.</h3></div>
-        <div class="chat" aria-label="A question from Ponos on Telegram, and its answer">
-          <div class="bubble"><small>Ponos · Telegram</small>Which header — the dashboard one or the public site?</div>
-          <div class="bubble you">the dashboard</div>
-          <div class="bubble">✓ noted on “Le header” — the next run carries on.</div>
-        </div>
-        <p>When a ticket needs a decision, the question reaches you on <b>Telegram or Slack</b>, and your reply lands on the ticket.</p>
-        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#being-told-and-answering-with-one-word">Telegram and Slack →</a></div>
-      </article>
-    </div>
-    <div class="works">
-      <span>Runs on</span><span class="badge">Claude Code</span><span>and a board of its own. Plugs into</span>
-      <span class="badge">Notion</span><span class="badge">GitHub</span><span class="badge">Telegram</span><span class="badge">Slack</span><span class="badge">OpenRouter</span>
-      <span>— <a href="#integrations">only if you want</a>.</span>
-    </div>
-  </div>
-</section>
 
 <section id="console">
   <div class="wrap">
@@ -1237,49 +1228,70 @@
     scenes.forEach(poster); fig.classList.add('held');
   }
 
-  /* --- the board: one ticket, all the way round, and Ponos's face with it --- */
-  var slots = {};
-  Array.prototype.forEach.call(document.querySelectorAll('.slot'), function (s) { slots[s.getAttribute('data-col')] = s; });
-  var counts = { ready: 1, running: 0, review: 0, validated: 0, done: 2 };
-  var card = document.createElement('div');
-  card.className = 'tcard';
-  var title = document.createElement('div'); title.className = 't'; title.textContent = 'Remove the banner from the header';
-  var meta = document.createElement('div'); meta.className = 'm';
-  var live = document.createElement('div'); live.className = 'live';
-  card.appendChild(title); card.appendChild(meta); card.appendChild(live);
-
-  function count() {
-    Object.keys(counts).forEach(function (k) {
-      document.getElementById('n-' + k).textContent = counts[k] + (card.parentNode === slots[k] ? 1 : 0);
+  /* --- the loop, filmed on the console: the light film or the dark one, as
+     the page is; nothing fetched before the section is near; playing only
+     while it is on screen, and never on its own if motion is unwelcome. The
+     gesture the film is at is lit under it, from its own clock. --- */
+  var reel = document.getElementById('loop-film');
+  var shown = reel.querySelector('video');
+  var reelToggle = reel.querySelector('[data-toggle]');
+  function cues() { return shown.getAttribute('data-cues-' + shade()).split(' ').map(Number); }
+  var gestures = Array.prototype.slice.call(document.querySelectorAll('.gestures .step'));
+  var reelNear = false, lit = -1;
+  function shade() { return root.classList.contains('dark') ? 'dark' : 'light'; }
+  function dress() {
+    var theme = shade();
+    var src = shown.getAttribute('data-' + theme);
+    shown.poster = shown.getAttribute('data-poster-' + theme);
+    if (!reelNear || shown.getAttribute('src') === src) return;
+    // The other film, from where this one was: the two are cut alike.
+    var at = shown.currentTime, playing = !shown.paused;
+    var source = shown.querySelector('source');
+    if (source) shown.removeChild(source);
+    shown.src = src;
+    shown.addEventListener('loadedmetadata', function () {
+      shown.currentTime = at;
+      if (playing) shown.play().catch(function () {});
+    }, { once: true });
+    shown.load();
+  }
+  function light(step) {
+    if (step === lit) return;
+    lit = step;
+    reel.setAttribute('data-step', String(step));
+    gestures[0].parentNode.classList.add('live');
+    gestures.forEach(function (g, i) {
+      g.classList.toggle('on', i === step);
+      if (i === step) g.setAttribute('aria-current', 'step'); else g.removeAttribute('aria-current');
     });
   }
-  function setMeta(text) { meta.textContent = text; }
-  function setLive(html) { live.innerHTML = html; live.style.display = html ? '' : 'none'; }
-  function move(col) {
-    card.classList.remove('enter');
-    slots[col].appendChild(card);
-    void card.offsetWidth;
-    card.classList.add('enter');
-    count();
-  }
-
-  var timers = [];
-  function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
-  function type(html, ms) { at(ms, function () { setLive(html + '<span class="caret"></span>'); }); }
-
-  function cycle() {
-    timers.forEach(clearTimeout); timers = [];
-    move('ready'); setMeta('Landing page · High'); setLive('');
-    at(2200, function () { move('running'); setMeta('Landing page · claimed'); });
-    type('<span class="k">Read</span> src/header.html', 2900);
-    type('<span class="k">Edit</span> src/header.html', 4300);
-    type('<span class="k">Edit</span> src/header.css', 5500);
-    type('<span class="k">Bash</span> npm test', 6700);
-    at(8400, function () { setLive('<span class="ok">✓</span> 27 steps · 6 minutes · 2 commits'); });
-    at(9600, function () { move('review'); setMeta('Landing page · PR #12'); setLive('yours to read'); });
-    at(13400, function () { move('validated'); setMeta('Landing page · you said yes'); setLive('<span class="k">gh</span> pr merge --squash<span class="caret"></span>'); });
-    at(15600, function () { move('done'); setMeta('Landing page · PR #12'); setLive('<span class="ok">✓ merged</span>'); });
-    at(19200, cycle);
+  shown.addEventListener('timeupdate', function () {
+    var step = 0;
+    cues().forEach(function (at, i) { if (shown.currentTime >= at) step = i; });
+    light(step);
+  });
+  function rollReel() { reel.classList.remove('held'); shown.play().catch(function () {}); }
+  function holdReel() { reel.classList.add('held'); shown.pause(); }
+  shown.addEventListener('play', function () { reel.classList.add('playing'); reelToggle.setAttribute('aria-label', 'Pause the film'); });
+  shown.addEventListener('pause', function () { reel.classList.remove('playing'); reelToggle.setAttribute('aria-label', 'Play the film'); });
+  reelToggle.addEventListener('click', function () { if (shown.paused) rollReel(); else holdReel(); });
+  reel.querySelector('[data-play]').addEventListener('click', rollReel);
+  reel.classList.add('ready');
+  reel.classList.toggle('held', reduce);
+  dress();
+  new MutationObserver(dress).observe(root, { attributes: true, attributeFilter: ['class'] });
+  if ('IntersectionObserver' in window) {
+    var approach = new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting) return;
+      reelNear = true; approach.disconnect(); dress();
+    }, { rootMargin: '600px 0px' });
+    approach.observe(reel);
+    new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting) { shown.pause(); return; }
+      if (!reel.classList.contains('held')) shown.play().catch(function () {});
+    }, { threshold: 0.4 }).observe(reel);
+  } else {
+    reelNear = true; dress(); reel.classList.add('held');
   }
 
   /* --- the hero's picture: the ticket is written, Ponos does it, it comes
@@ -1303,12 +1315,11 @@
 
   if (reduce) {
     heroBot.setAttribute('still', '');
-    move('review'); setMeta('Landing page · PR #12'); setLive('yours to read');
   } else {
-    cycle(); round();
+    round();
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden) { timers.forEach(clearTimeout); timers = []; flowTimers.forEach(clearTimeout); flowTimers = []; }
-      else { cycle(); round(); }
+      if (document.hidden) { flowTimers.forEach(clearTimeout); flowTimers = []; }
+      else { round(); }
     });
   }
 })();

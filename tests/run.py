@@ -9889,6 +9889,47 @@ def the_heros_picture_is_the_loop_and_ends_on_your_decision():
 
 
 @case
+def the_landing_page_shows_the_console_filmed_right_after_its_hero():
+    """The hero promises; the section under it shows the real console doing it.
+
+    A schematic board drawn in the page's own markup came second, and it looked
+    like no screen of the product. What comes second now is the console itself,
+    filmed by `scripts/film-console.mjs`: light and dark, each light enough for
+    the second screen of a page, fetched only as the section comes near and
+    started by the script — never by an `autoplay` the browser would honour
+    before the page could ask whether motion is welcome. The four gestures stay
+    under it as its legend, lit from the film's clock.
+    """
+    page = LANDING.read_text(encoding="utf-8")
+    order = re.findall(r'<section\b[^>]*\bid="([^"]+)"', page)
+    assert order[:3] == ["top", "loop", "tasks"], f"the loop no longer follows the hero: {order}"
+    assert "board-demo" not in page and 'id="board"' not in page, "the schematic board is back"
+    loop = page.split('<section id="loop">', 1)[1].split("</section>", 1)[0]
+    video = re.search(r"<video\b[^>]*>", loop, re.S).group(0)
+    for attribute in ("muted", "loop", "playsinline", 'preload="none"'):
+        assert re.search(rf"\s{attribute}(?=[\s>])", video), f"the film is not {attribute}"
+    assert "autoplay" not in video, "the film starts before the page can ask about motion"
+    assert re.search(r'\sposter="media/console-loop-light-poster\.webp"', video), "the film has no poster"
+    for theme in ("light", "dark"):
+        for attribute, name in ((f"data-{theme}", f"console-loop-{theme}.mp4"),
+                                (f"data-poster-{theme}", f"console-loop-{theme}-poster.webp")):
+            assert f'{attribute}="media/{name}"' in video, f"the {theme} film lacks {attribute}"
+            file = ROOT / "docs/media" / name
+            assert file.exists(), f"docs/media/{name} is missing — node scripts/film-console.mjs"
+            assert file.stat().st_size < 2_000_000, f"docs/media/{name} is too heavy for the second screen"
+    for theme in ("light", "dark"):
+        cues = [float(at) for at in re.search(rf'data-cues-{theme}="([^"]+)"', video).group(1).split()]
+        assert len(cues) == 4 and cues[0] == 0 and cues == sorted(cues), f"one cue per gesture, in order: {cues}"
+    assert loop.count('class="card step"') == 4, "the four gestures are no longer the legend"
+    assert loop.index("<video") < loop.index('class="grid g4 gestures"'), "the legend comes before the film"
+    script = (ROOT / "scripts/film-console.mjs").read_text(encoding="utf-8")
+    assert "data-cues" in script, "the film's script no longer writes the cues into the page"
+    assert "node scripts/film-console.mjs" in (ROOT / "README.md").read_text(encoding="utf-8"), (
+        "the command that films the console is not documented"
+    )
+
+
+@case
 def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
     """The robot's name, in both languages, wherever the robot is."""
     assert "Ponos" in LANDING.read_text(encoding="utf-8")
