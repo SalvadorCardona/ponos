@@ -151,7 +151,7 @@
     font: 500 .875rem/1 var(--sans); white-space: nowrap; background: none; color: inherit; cursor: pointer;
     transition: color .15s, box-shadow .15s;
   }
-  .tabs-trigger[aria-selected="true"] { background: var(--background); color: var(--foreground); box-shadow: var(--shadow-sm); }
+  .tabs-trigger[aria-selected="true"], .tabs-trigger[aria-pressed="true"] { background: var(--background); color: var(--foreground); box-shadow: var(--shadow-sm); }
 
   /* -- code -- */
   pre {
@@ -448,13 +448,37 @@
   .sub-head pre { margin-top: 1.25rem; }
   @media (max-width: 640px) { .sub-head { margin-top: 3.5rem; } }
 
-  /* -- notion: text on one side, a window on the other, sides swapping row by row -- */
-  .rows { display: grid; gap: 4rem; }
-  .row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: center; }
-  .row:nth-child(even) .text { order: 1; }
-  @media (max-width: 860px) { .rows { gap: 3rem; } .row { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; } .row:nth-child(even) .text { order: 0; } }
-  .row h3 { font-size: 1.375rem; line-height: 1.25; letter-spacing: -.015em; margin: .5rem 0 0; }
-  .row p { color: var(--muted-foreground); margin: .75rem 0 0; }
+  /* -- notion: one band — a few words and the command, then one window that
+     tells the round, step by step. The mark is Notion's "Made for Notion" badge
+     as their brand guidelines ask: never the bare logo, never animated. -- */
+  .band { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: center; margin-top: 5rem; scroll-margin-top: 76px; }
+  @media (max-width: 860px) { .band { grid-template-columns: minmax(0, 1fr); gap: 2rem; } }
+  @media (max-width: 640px) { .band { margin-top: 3.5rem; } }
+  .band h3 { font-size: clamp(1.5rem, 3vw, 1.875rem); line-height: 1.15; margin: .5rem 0 0; }
+  .band-text > p { color: var(--muted-foreground); font-size: 1.0625rem; margin: .875rem 0 0; }
+  /* The command wraps rather than slide under its Copy button. */
+  .band pre { margin-top: 1.25rem; padding-right: 4.5rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .band-text > .made-for { display: flex; margin-top: 1.5rem; }
+  .made-for img { display: block; width: auto; height: 48px; }
+  .dark .made-for .light, html:not(.dark) .made-for .dark { display: none; }
+  .band-show { display: flex; flex-direction: column; gap: .875rem; min-width: 0; }
+  .steps { display: flex; height: auto; overflow-x: auto; scrollbar-width: none; }
+  .steps .tabs-trigger { height: 1.875rem; }
+  /* Below the window on a phone, where the thumb is — and scrolled, not squeezed. */
+  @media (max-width: 640px) { .steps { order: 1; } .steps .tabs-trigger { flex: none; } .captions { order: 2; } }
+  /* Every scene in one frame of the same size: the band does not jump from a
+     capture to the next, and the board's wider frame sits on Notion's dark. */
+  .stage { display: grid; aspect-ratio: 1020 / 756; background: color-mix(in srgb, var(--foreground) 92%, var(--card)); }
+  .dark .stage { background: color-mix(in srgb, var(--foreground) 9%, var(--background)); }
+  .window .stage > * { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; background: none; }
+  .window .stage > [hidden] { display: none; }
+  .band.closed .window { opacity: 0; translate: 0 1.5rem; }
+  .band .window { transition: opacity .6s ease, translate .6s ease; }
+  /* The tallest caption gives the height, so the next one never moves the page. */
+  .captions { display: grid; }
+  .captions p { grid-area: 1 / 1; margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
+  .captions p b { color: var(--foreground); font-weight: 600; }
+  .captions p:not(.on) { visibility: hidden; }
   /* The captures are Notion in dark: on the light page, a bar and an edge a shade
      deeper than the card keep them from bleeding into the white around. */
   .window {
@@ -471,8 +495,8 @@
   .window-bar span:not(.dot) { margin-left: .5rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .window-bar .btn { margin-left: auto; width: 1.75rem; height: 1.75rem; color: var(--muted-foreground); }
   .window img, .window video { display: block; width: 100%; height: auto; background: var(--muted); }
-  .window .play-icon, .loop.playing .window .pause-icon { display: block; }
-  .window .pause-icon, .loop.playing .window .play-icon { display: none; }
+  .window .play-icon, .loop.playing .pause-icon { display: block; }
+  .window .pause-icon, .loop.playing .play-icon { display: none; }
   .play {
     position: absolute; left: 50%; top: calc(50% + 1.125rem); translate: -50% -50%; width: 3.5rem; height: 3.5rem; border-radius: 999px;
     background: color-mix(in srgb, var(--background) 88%, transparent); border-color: var(--border); box-shadow: var(--shadow-sm);
@@ -845,64 +869,48 @@
       </article>
     </div>
 
-    <div class="sub-head" id="notion">
-      <span class="label">Notion</span>
-      <h3>Your board in Notion.</h3>
-      <p>Share one page with a Notion integration, and <code>init</code> builds the rest under it — tickets, projects, agents, context. Ponos then reads the tickets you write there, and writes back on the same page.</p>
-      <pre data-copy><span class="p">$ </span>ticket-runner init https://www.notion.so/your-page --token ntn_…</pre>
-    </div>
-    <div class="rows">
-      <div class="row">
-        <div class="text">
-          <h3>You write where you already work.</h3>
-          <p>Tickets are rows in a Notion database; their <em>Project</em> points at the repository — or at none, for a text. Nothing to learn, no new tool to open.</p>
+    <div class="band" id="notion">
+      <div class="band-text">
+        <span class="label">Notion</span>
+        <h3>Your board in Notion.</h3>
+        <p>Tickets are rows in a Notion database: share one page with a Notion integration, and <code>init</code> builds the rest under it. Ponos reads the tickets you write there, and writes back on the same page.</p>
+        <pre data-copy><span class="p">$ </span>ticket-runner init https://www.notion.so/your-page --token ntn_…</pre>
+        <p class="made-for">
+          <img class="light" src="media/notion/made-for-notion-white.svg" width="106" height="48" alt="Made for Notion">
+          <img class="dark" src="media/notion/made-for-notion-black.svg" width="106" height="48" alt="Made for Notion">
+        </p>
+      </div>
+      <div class="band-show">
+        <div class="tabs-list steps" role="group" aria-label="Steps of a ticket in Notion">
+          <button class="tabs-trigger" type="button" data-step="write" aria-pressed="true">You write there</button>
+          <button class="tabs-trigger" type="button" data-step="report" aria-pressed="false">He reports on the ticket</button>
+          <button class="tabs-trigger" type="button" data-step="validate" aria-pressed="false">Your column is the go-ahead</button>
         </div>
-        <figure class="window">
-          <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Ponos board</span></div>
-          <img src="media/notion/notion-board.webp" width="948" height="484" loading="lazy" alt="A Notion board in dark, with the columns Ready, In progress, In review, Validated and Done, and a card per ticket naming its project.">
+        <figure class="window loop">
+          <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span data-title>Ponos board</span><button class="btn btn-ghost btn-icon" type="button" data-toggle aria-label="Pause the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
+          <div class="stage">
+            <img data-scene="write" data-title="Ponos board" src="media/notion/notion-board.webp" width="948" height="484" loading="lazy" alt="A Notion board in dark, with the columns Ready, In progress, In review, Validated and Done, and a card per ticket naming its project.">
+            <video data-scene="report" data-title="A ticket in review" muted playsinline preload="none" data-poster="media/notion/notion-read-result-poster.webp" width="1020" height="756" hidden
+                   aria-label="A ticket in review opened in Notion: Ponos's folded log is unfolded, showing his steps and checks, then his comment with the pull request and what the run cost.">
+              <source src="media/notion/notion-read-result.mp4" type="video/mp4">
+            </video>
+            <video data-scene="report" data-title="A writing ticket" muted playsinline preload="none" data-poster="media/notion/notion-text-poster.webp" width="1020" height="756" hidden
+                   aria-label="A writing ticket in Notion: the text Ponos wrote appears in the page of the ticket itself.">
+              <source src="media/notion/notion-text.mp4" type="video/mp4">
+            </video>
+            <video data-scene="validate" data-title="Ponos board" muted playsinline preload="none" data-poster="media/notion/notion-board.webp" width="948" height="484" hidden
+                   aria-label="On the Notion board, a card is dragged from In review to Validated.">
+              <source src="media/notion/notion-validate.mp4" type="video/mp4">
+            </video>
+          </div>
+          <button class="btn play" type="button" data-play aria-label="Play the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg></button>
         </figure>
-      </div>
-      <div class="row">
-        <div class="text">
-          <h3>He reports on the ticket itself.</h3>
-          <p>Every run leaves a folded log in the page — each file he read, each command he ran, what he said — and a comment with the pull request, the time and the cost.</p>
+        <div class="captions">
+          <p class="on"><b>You write where you already work.</b> Tickets are rows in a Notion database; their <em>Project</em> points at the repository — or at none, for a text.</p>
+          <p><b>He reports on the ticket itself.</b> Every run leaves a folded log in the page — each file he read, each command he ran, what he said — and a comment with the pull request, the time and the cost.</p>
+          <p><b>A text comes back as text.</b> Release notes, a newsletter, a post: written straight into the ticket, ready to copy.</p>
+          <p><b>Your column is the go-ahead.</b> Drag the card to <em>Validated</em>: he merges or publishes. Not before.</p>
         </div>
-      <figure class="window loop">
-        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>A ticket in review</span><button class="btn btn-ghost btn-icon" type="button" data-toggle aria-label="Pause the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
-        <video muted loop playsinline preload="none" data-poster="media/notion/notion-read-result-poster.webp" width="1020" height="756"
-               aria-label="A ticket in review opened in Notion: Ponos's folded log is unfolded, showing his steps and checks, then his comment with the pull request and what the run cost.">
-          <source src="media/notion/notion-read-result.mp4" type="video/mp4">
-        </video>
-        <button class="btn play" type="button" data-play aria-label="Play the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg></button>
-      </figure>
-      </div>
-      <div class="row">
-        <div class="text">
-          <h3>A text comes back as text.</h3>
-          <p>Release notes, a newsletter, a post: written straight into the ticket, ready to copy.</p>
-        </div>
-      <figure class="window loop">
-        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>A writing ticket</span><button class="btn btn-ghost btn-icon" type="button" data-toggle aria-label="Pause the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
-        <video muted loop playsinline preload="none" data-poster="media/notion/notion-text-poster.webp" width="1020" height="756"
-               aria-label="A writing ticket in Notion: the text Ponos wrote appears in the page of the ticket itself.">
-          <source src="media/notion/notion-text.mp4" type="video/mp4">
-        </video>
-        <button class="btn play" type="button" data-play aria-label="Play the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg></button>
-      </figure>
-      </div>
-      <div class="row">
-        <div class="text">
-          <h3>Your column is the go-ahead.</h3>
-          <p>Drag the card to <em>Validated</em>: he merges or publishes. Not before.</p>
-        </div>
-      <figure class="window loop">
-        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Ponos board</span><button class="btn btn-ghost btn-icon" type="button" data-toggle aria-label="Pause the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
-        <video muted loop playsinline preload="none" data-poster="media/notion/notion-board.webp" width="948" height="484"
-               aria-label="On the Notion board, a card is dragged from In review to Validated.">
-          <source src="media/notion/notion-validate.mp4" type="video/mp4">
-        </video>
-        <button class="btn play" type="button" data-play aria-label="Play the animation"><svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg></button>
-      </figure>
       </div>
     </div>
     <p class="notion-foot">Notion and the folder of files can also be kept in step, both at once. <a href="https://github.com/SalvadorCardona/ticket-runner#both-and-what-happens-when-they-disagree">Both, and when they disagree →</a></p>
@@ -1153,44 +1161,80 @@
     });
   });
 
-  /* --- the Notion loops: nothing is fetched before the section is near, and a
-     loop plays only while it is on screen — never on its own if motion is
-     unwelcome, where its poster waits for a click --- */
-  var loops = Array.prototype.slice.call(document.querySelectorAll('.loop'));
-  function poster(fig) {
-    var v = fig.querySelector('video');
-    if (!v.poster) v.poster = v.getAttribute('data-poster');
+  /* --- Notion: one window, the round told scene by scene — the board, his
+     report, a text, the go-ahead — each video calling the next when it ends.
+     Nothing is fetched before the band is near, then one video at a time, the
+     next one loading while the current plays. It plays only on screen, and never
+     on its own if motion is unwelcome: the board waits, with its play button,
+     and the steps still show each scene. --- */
+  var band = document.getElementById('notion');
+  var fig = band.querySelector('.loop');
+  var scenes = Array.prototype.slice.call(fig.querySelectorAll('[data-scene]'));
+  var steps = Array.prototype.slice.call(band.querySelectorAll('[data-step]'));
+  var captions = band.querySelectorAll('.captions p');
+  var barTitle = fig.querySelector('[data-title]');
+  var toggle = fig.querySelector('[data-toggle]');
+  var current = 0, still = 0, onScreen = false;
+  function poster(v) { if (v.tagName === 'VIDEO' && !v.poster) v.poster = v.getAttribute('data-poster'); }
+  function playing() { return !fig.classList.contains('held') && onScreen; }
+  function stop() {
+    clearTimeout(still); still = 0;
+    var el = scenes[current];
+    if (el.tagName === 'VIDEO') el.pause();
+    fig.classList.remove('playing'); toggle.setAttribute('aria-label', 'Play the animation');
   }
-  loops.forEach(function (fig) {
-    var v = fig.querySelector('video');
-    var toggle = fig.querySelector('[data-toggle]');
-    fig.classList.add('ready');
-    fig.classList.toggle('held', reduce);
-    function start() { fig.classList.remove('held'); v.play().catch(function () {}); }
-    function hold() { fig.classList.add('held'); v.pause(); }
-    v.addEventListener('play', function () {
-      fig.classList.add('playing'); toggle.setAttribute('aria-label', 'Pause the animation');
+  function run() {
+    if (!playing()) return;
+    var el = scenes[current];
+    fig.classList.add('playing'); toggle.setAttribute('aria-label', 'Pause the animation');
+    if (el.tagName === 'VIDEO') {
+      el.play().catch(function () {});
+      var next = scenes[(current + 1) % scenes.length];
+      if (next.tagName === 'VIDEO') { poster(next); next.preload = 'auto'; }
+    } else if (!still) {
+      still = setTimeout(function () { still = 0; show(current + 1); }, 3500);
+    }
+  }
+  function show(i) {
+    stop();
+    current = (i + scenes.length) % scenes.length;
+    var el = scenes[current];
+    scenes.forEach(function (s, n) { s.hidden = n !== current; });
+    Array.prototype.forEach.call(captions, function (c, n) { c.classList.toggle('on', n === current); });
+    steps.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-step') === el.getAttribute('data-scene'))); });
+    barTitle.textContent = el.getAttribute('data-title');
+    if (el.tagName === 'VIDEO') { poster(el); el.currentTime = 0; }
+    run();
+  }
+  function start() { fig.classList.remove('held'); run(); }
+  function hold() { fig.classList.add('held'); stop(); }
+  scenes.forEach(function (el) { if (el.tagName === 'VIDEO') el.addEventListener('ended', function () { show(current + 1); }); });
+  steps.forEach(function (b) {
+    b.addEventListener('click', function () {
+      for (var n = 0; n < scenes.length; n++) if (scenes[n].getAttribute('data-scene') === b.getAttribute('data-step')) return show(n);
     });
-    v.addEventListener('pause', function () {
-      fig.classList.remove('playing'); toggle.setAttribute('aria-label', 'Play the animation');
-    });
-    toggle.addEventListener('click', function () { if (v.paused) start(); else hold(); });
-    fig.querySelector('[data-play]').addEventListener('click', start);
   });
+  fig.classList.add('ready');
+  fig.classList.toggle('held', reduce);
+  toggle.addEventListener('click', function () { if (fig.classList.contains('playing')) hold(); else start(); });
+  fig.querySelector('[data-play]').addEventListener('click', start);
   if ('IntersectionObserver' in window) {
+    // The window opens as the band comes in, and the round starts once it has.
+    if (!reduce) band.classList.add('closed');
     var near = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) { if (e.isIntersecting) { poster(e.target); near.unobserve(e.target); } });
+      if (!entries[0].isIntersecting) return;
+      scenes.forEach(poster); near.disconnect();
     }, { rootMargin: '800px 0px' });
     var seen = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        var v = e.target.querySelector('video');
-        if (!e.isIntersecting) { v.pause(); return; }
-        if (!e.target.classList.contains('held')) v.play().catch(function () {});
-      });
+      onScreen = entries[0].isIntersecting;
+      if (!onScreen) { stop(); return; }
+      if (!band.classList.contains('closed')) { run(); return; }
+      band.classList.remove('closed');
+      setTimeout(run, 600);
     }, { threshold: 0.4 });
-    loops.forEach(function (fig) { near.observe(fig); seen.observe(fig); });
+    near.observe(band); seen.observe(fig);
   } else {
-    loops.forEach(function (fig) { poster(fig); fig.classList.add('held'); });
+    scenes.forEach(poster); fig.classList.add('held');
   }
 
   /* --- the board: one ticket, all the way round, and Ponos's face with it --- */

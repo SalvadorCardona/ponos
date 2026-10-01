@@ -9851,6 +9851,42 @@ def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
     assert "<title>Ponos" in (ROOT / "docs/mascot/robot.svg").read_text(encoding="utf-8")
 
 
+@case
+def the_landing_page_tells_notion_in_one_band_with_its_badge_served_locally():
+    """Notion is optional: one band, not four rows longer than the console.
+
+    One window chains the three captures and steps that follow it; a video
+    plays muted and inline or a phone opens it full screen, and nothing loads
+    before the band is near. The mark is Notion's own "Made for Notion" badge,
+    in both of its variants, from docs/ — their guidelines forbid the bare logo,
+    and a third-party CDN would see every visit.
+    """
+    page = LANDING.read_text(encoding="utf-8")
+    assert page.count('id="notion"') == 1, "the links to #notion land nowhere"
+    band = page.split('id="notion"', 1)[1].split('class="notion-foot"', 1)[0]
+    assert 'class="rows"' not in page and ".rows " not in page, "the four rows are back"
+    videos = re.findall(r"<video\b[^>]*>", band)
+    for name in ("notion-read-result", "notion-text", "notion-validate"):
+        assert f'src="media/notion/{name}.mp4"' in band, f"{name}.mp4 is not in the band"
+    assert band.index("notion-read-result.mp4") < band.index("notion-text.mp4") < band.index("notion-validate.mp4")
+    assert len(videos) == 3 and band.count('class="window loop"') == 1, "the band holds more than one window"
+    for video in videos:
+        assert "muted" in video and "playsinline" in video, "a video would play aloud, or full screen"
+        assert 'preload="none"' in video, "a video loads before the band is near"
+        assert 'aria-label="' in video, "a video says nothing to a screen reader"
+        assert " loop " not in video, "a video loops on itself instead of calling the next"
+    steps = re.findall(r"<button\b[^>]*\bdata-step=[^>]*>", band)
+    assert len(steps) == 3 and all("aria-pressed" in b for b in steps), "the steps are not buttons that say their state"
+    assert "data-toggle" in band and "data-play" in band, "the window lost its pause or its play button"
+    badges = re.findall(r'<img\b[^>]*alt="Made for Notion"[^>]*>', band)
+    assert len(badges) == 2, "the badge needs its light and its dark variant"
+    for badge in badges:
+        src = re.search(r'src="([^"]+)"', badge).group(1)
+        assert src.startswith("media/notion/") and (ROOT / "docs" / src).exists(), f"the badge is not served from docs/: {src}"
+        assert 'height="48"' in badge, "Notion asks for a badge 48 px high on screen"
+    assert "class=\"notion-foot\"" in page, "the line on Notion and the files kept in step is gone"
+
+
 def _readme_anchors() -> set[str]:
     """The anchors GitHub gives the README's headings, and the ones it declares.
 
