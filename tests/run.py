@@ -7247,6 +7247,33 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
 
 
 @case
+def a_choice_is_shown_in_words_and_saved_as_the_file_spells_it():
+    """The page says "One commit (squash)"; the file keeps saying `squash`.
+
+    Every value a choice offers has its words, and no words name a value the
+    loader would refuse. A section never folds all of itself away: the advanced
+    fields sit under the ones somebody setting up a board needs first.
+    """
+    for name, field in web_settings.FIELDS.items():
+        if field.options:
+            assert [value for value, _ in field.options] == list(field.choices), name
+    path, config = _saved()
+    drawn = {
+        field["name"]: field
+        for section in web_settings.describe(config)["sections"]
+        for field in section["fields"]
+    }
+    assert drawn["runner.merge_method"]["options"]["squash"] == "One commit (squash)"
+    assert drawn["runner.permission_mode"]["advanced"] is True
+    assert drawn["runner.max_concurrent"]["advanced"] is False
+    web_settings.save(config, {"settings": {"runner.merge_method": "rebase"}})
+    assert 'merge_method = "rebase"' in path.read_text()
+    for section in web_settings.SECTIONS:
+        if section.fields:
+            assert not all(field.advanced for field in section.fields), section.key
+
+
+@case
 def the_tables_that_are_mappings_gain_and_lose_rows():
     """The two sections that are a mapping rather than a list of known keys.
 
@@ -9285,6 +9312,7 @@ def the_console_says_the_configuration_in_french_too():
         said = [section.title, section.blurb]
         for field in section.fields:
             said += [field.label, field.help, field.after]
+            said += [label for _, label in field.options]
         for sentence in said:
             assert not sentence or sentence in dictionary, (
                 f"nothing translates “{sentence}” — add it to french.ts"

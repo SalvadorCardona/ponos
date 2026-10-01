@@ -497,7 +497,7 @@ subscription's: nothing is metered in windows any more, so `runner.wait_for_cred
 nothing left to wait for, and `runner.credit_reserve_percent` no window to reserve a share
 of.
 
-Both switches are fields of the console's **Settings** tab, under *Every other model*; the
+Both switches are fields of the console's **Settings** tab, under *OpenRouter (other models)*; the
 key is a secret like any other, so it goes out to the page as “set, ending in …abcd” and
 comes back only when you type a new one.
 
@@ -538,8 +538,8 @@ An owner this table does not name is worked under whichever account `gh` is sign
 which is what one GitHub has always done — so a machine with one account leaves this out
 entirely. A line naming an account `gh` is *not* signed in as is not a ticket's problem
 either: the command runs as the active account, and `ticket-runner doctor` is what says
-the line is dead. The table is also a section of the console's **Settings** tab, *Your
-GitHub accounts*.
+the line is dead. The table is also a section of the console's **Settings** tab, *GitHub
+accounts*.
 
 ---
 
@@ -1431,7 +1431,7 @@ Five things are worth knowing:
 For some types of ticket the review stopped earning its keep: you validate every pull
 request of a project you trust, or every post of an account that only relays. One box per
 type — **Code**, **Writing**, **External action**, **Publication** — in the console's
-*Settings › Force validated*, or `force_validated_<type> = true` under `[runner]`, makes
+*Settings › Automatic validation*, or `force_validated_<type> = true` under `[runner]`, makes
 that gesture in advance. All four are off by default, and nothing changes until you tick
 one.
 
@@ -1924,6 +1924,15 @@ is given back when you come back to it. `[projects]` and `[github]` are the two 
 you add rows to rather than fields you fill, so they are tables under that page, each with
 its own *add* dialog and a confirmation before a row goes.
 
+The sections follow what you are trying to do rather than the tables of the file — *Running
+tickets*, *Models and usage*, *Repositories and pull requests*, *Notifications*… — from the
+connection to your board down to the names a hand-built board may spell differently. A field
+says what it changes, in words, with its unit; a choice shows what each value does
+(*One commit (squash)*) while the file keeps saying `squash`; and the key the field writes
+sits under it in small, so the page and this README's table can be read side by side. The
+settings few people need are folded away at the bottom of each section, behind *Show the
+advanced settings* — still in the form, so what you typed in one is saved with the rest.
+
 Three things it does that a form usually does not.
 
 - **A blank field says nothing**, and the runner's own default answers — shown greyed, in
@@ -1949,7 +1958,7 @@ than read it — `run`, `update`, `enable`… — are the terminal's. A setting 
 **In English, or in French.** The console reads the browser before it says anything —
 `Accept-Language` is a setting somebody actually made — and where the browser says nothing
 useful, the time zone answers for it: a machine set to Europe/Paris is a machine whose owner
-reads French. So there is nothing to choose, and the select at the top of *Settings → This
+reads French. So there is nothing to choose, and the select at the top of *Settings → Web
 console* is how you disagree with the guess. The choice is one line in
 `localStorage`, like the theme, and it holds for every page of the console: the menu, the
 board's own words, a ticket's page, and the settings tab down to the sentence under each

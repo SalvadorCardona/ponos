@@ -1,19 +1,24 @@
 import * as React from "react"
 import {
   Activity,
+  BadgeCheck,
   Bell,
   Bot,
   CalendarClock,
+  Coins,
   Columns3,
   FileStack,
   FolderGit2,
   GitBranch,
   GitPullRequest,
   Globe,
+  HardDrive,
+  MessageSquareReply,
   MessageSquareText,
   NotebookText,
   RefreshCw,
   Settings2,
+  Shapes,
   TableProperties,
   Timer,
 } from "lucide-react"
@@ -29,7 +34,12 @@ import {
 
 import { PageHead } from "@/components/console/frame"
 import { LanguagePicker } from "@/components/console/language-picker"
-import { SectionForm, type SaveNote } from "@/components/console/settings-bits"
+import {
+  FoldContext,
+  SectionForm,
+  written,
+  type SaveNote,
+} from "@/components/console/settings-bits"
 import { Rich } from "@/components/console/text"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { api } from "@/lib/api"
@@ -37,6 +47,7 @@ import { useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 import {
   currentSettings,
+  draftOf,
   publishSettings,
   sectionOf,
   somethingIsEdited,
@@ -81,11 +92,16 @@ export interface SettingsItem extends Settings {
  * sections: a key nobody has drawn an icon for gets the page's own. */
 const ICONS: Record<string, IconType> = {
   notion: NotebookText,
+  storage: HardDrive,
   runner: Timer,
+  models: Coins,
   openrouter: Bot,
   git: GitBranch,
+  validation: BadgeCheck,
+  types: Shapes,
   schedules: CalendarClock,
   live: Activity,
+  replies: MessageSquareReply,
   prompts: MessageSquareText,
   notify: Bell,
   web: Globe,
@@ -109,9 +125,27 @@ function Blurb({ text }: { text: string }) {
 
 /* -- one sub-page ---------------------------------------------------------- */
 
+/* The sections whose advanced fields somebody unfolded, for as long as the page
+ * is open: coming back to a section shows it the way it was left. */
+const UNFOLDED = new Set<string>()
+
+/** Whether a section has an advanced field waiting to be saved. */
+function advancedTyped(sectionKey: string): boolean {
+  const section = sectionOf(sectionKey)
+  const draft = draftOf(sectionKey)
+  if (!section || !draft) return false
+  const typed = Object.keys(written(section, draft))
+  return section.fields.some((field) => field.advanced && typed.includes(field.name))
+}
+
 function SectionPage({ sectionKey }: { sectionKey: string }) {
   const revision = useSettingsRevision()
   const [note, setNote] = React.useState<SaveNote | null>(null)
+  // Unfolded already when something typed in a folded field is waiting: a
+  // change you cannot see is a change you save without knowing.
+  const [unfolded, setUnfolded] = React.useState(
+    () => UNFOLDED.has(sectionKey) || advancedTyped(sectionKey)
+  )
   const section = sectionOf(sectionKey)
 
   React.useEffect(() => {
@@ -122,9 +156,18 @@ function SectionPage({ sectionKey }: { sectionKey: string }) {
   }, [note])
 
   if (!section) return null
+  const advanced = section.fields.filter((field) => field.advanced).length
+
+  const fold = () => {
+    if (unfolded) UNFOLDED.delete(sectionKey)
+    else UNFOLDED.add(sectionKey)
+    setUnfolded(!unfolded)
+  }
 
   return (
-    <div className="min-w-0">
+    // The advanced fields are in the form either way; this attribute is what
+    // hides them. See `ADVANCED` in `settings-bits`.
+    <div className="group/settings min-w-0" data-advanced={unfolded ? "unfolded" : "folded"}>
       <Blurb text={section.blurb} />
       {/* The console's own language, at the top of the section that is about
           this console. It is the browser's rather than the file's, so it is
@@ -140,7 +183,11 @@ function SectionPage({ sectionKey }: { sectionKey: string }) {
       ) : null}
       {/* Keyed by the revision: a save reads the file again, and the fields of
           every section are redrawn from what it now says. */}
-      <SectionForm key={revision} section={section} onSaved={setNote} />
+      {/* The switch is drawn in the section's save bar, which sticks to the
+          bottom of the screen: anywhere after the form it sat under the bar. */}
+      <FoldContext.Provider value={{ advanced, unfolded, fold }}>
+        <SectionForm key={revision} section={section} onSaved={setNote} />
+      </FoldContext.Provider>
     </div>
   )
 }
@@ -229,7 +276,7 @@ function SettingsHead() {
       <PageHead
         title={t("Configure the runner.")}
         blurb={t(
-          "A field left blank says nothing, and the runner’s own default answers — shown greyed beside it. Your tokens stay on the machine: they are never sent to this page."
+          "A blank field uses the runner’s own default, shown greyed inside it; under each field, its key in config.toml. Your tokens stay on this machine: they are never sent to this page."
         )}
         action={<span className="text-muted-foreground font-mono text-xs break-all">{drawn.path}</span>}
       />
@@ -283,7 +330,7 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
       // The object is what the package reads the tabs off, so the getter on it
       // survives the copy `createViewResource` makes of the view itself.
       subViewResource: {
-        // Fourteen sections read as a column: a bar would push most of them off
+        // Twenty sections read as a column: a bar would push most of them off
         // the screen, and the one you are on with them.
         orientation: "vertical",
         get list() {

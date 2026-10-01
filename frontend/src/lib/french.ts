@@ -602,8 +602,8 @@ export const FRENCH: Record<string, string> = {
 
   /* -- the settings page, in its own words ----------------------------------- */
   "Configure the runner.": "Configurez le runner.",
-  "A field left blank says nothing, and the runner’s own default answers — shown greyed beside it. Your tokens stay on the machine: they are never sent to this page.":
-    "Un champ laissé vide ne dit rien, et c'est la valeur par défaut du runner qui répond — affichée en gris à côté. Vos jetons restent sur la machine : ils ne sont jamais envoyés à cette page.",
+  "A blank field uses the runner’s own default, shown greyed inside it; under each field, its key in config.toml. Your tokens stay on this machine: they are never sent to this page.":
+    "Un champ vide prend la valeur par défaut du runner, affichée en gris à l'intérieur ; sous chaque champ, sa clé dans config.toml. Vos jetons restent sur cette machine : ils ne sont jamais envoyés à cette page.",
   "Reading the configuration…": "Lecture de la configuration…",
   "could not read the configuration: {{why}}": "impossible de lire la configuration : {{why}}",
   "default · {{value}}": "défaut · {{value}}",
@@ -616,6 +616,9 @@ export const FRENCH: Record<string, string> = {
   "takes effect once": "prend effet une fois que",
   "Written to the file": "Écrit dans le fichier",
   "nothing typed here": "rien de tapé ici",
+  "Show the advanced settings ({{count}})": "Afficher les réglages avancés ({{count}})",
+  "Hide the advanced settings": "Masquer les réglages avancés",
+  "Its key in config.toml": "Sa clé dans config.toml",
 
   /* -- the two `name = value` tables, each a resource of its own -------------
      `Projects`, `Project` and the two section blurbs are already said where
@@ -663,360 +666,410 @@ export const FRENCH: Record<string, string> = {
 
   /* -- the settings page, as `web/settings.py` describes the file ------------- */
   // The server sends one entry per key of `config.toml` — a title, a sentence
-  // of help, what has to happen for a change to count — and they arrive in the
-  // words that file is written in. Held to it by the test suite.
-  Notion: "Notion",
-  "The board, and the integration that reads it. `ticket-runner init <page-url>` fills these in by building the databases for you; this is where you look when it has to be done by hand.":
-    "Le tableau, et l'intégration qui le lit. `ticket-runner init <page-url>` remplit tout cela en construisant les bases pour vous ; c'est ici que l'on regarde quand il faut le faire à la main.",
-  "Integration token": "Jeton d'intégration",
-  "The `ntn_…` secret of your internal integration. The board has to be shared with it — a token alone sees nothing.":
-    "Le secret `ntn_…` de votre intégration interne. Le tableau doit être partagé avec elle — un jeton seul ne voit rien.",
-  "Workspace page": "Page de l'espace de travail",
-  "The page that holds Tickets, Projects, Agents and Context. A Notion URL does: only the identifier in it is kept.":
-    "La page qui contient Tickets, Projects, Agents et Context. Une URL Notion convient : seul l'identifiant qu'elle contient est gardé.",
-  "Tickets database": "Base des tickets",
-  "Only if you name no workspace page — the ticket database on its own.":
-    "Seulement si vous ne nommez aucune page d'espace de travail — la base des tickets toute seule.",
-  "How you call it": "Comment vous l'appelez",
-  "The word that asks it to answer in a comment rather than to work. Its own integration name always works too.":
-    "Le mot qui lui demande de répondre en commentaire plutôt que de travailler. Le nom de son intégration marche toujours aussi.",
+  // of help, what has to happen for a change to count, the words a choice is
+  // shown in — and they arrive in the words that file is written in. Held to it
+  // by the test suite. In the order the page draws them.
 
-  "The run": "La passe",
-  "How often the board is read, how many tickets may run at once, and how long one of them is allowed to take.":
-    "À quelle fréquence le tableau est lu, combien de tickets peuvent tourner à la fois, et combien de temps l'un d'eux a le droit de prendre.",
-  "Workspace root": "Racine de l'espace de travail",
-  "Where your repositories live. Worktrees are made beside them, never in them.":
-    "Là où vivent vos dépôts. Les worktrees sont créés à côté d'eux, jamais dedans.",
-  "Between two runs (seconds)": "Entre deux passes (secondes)",
-  "How long the timer waits before looking at the board again.":
-    "Combien de temps la minuterie attend avant de regarder le tableau à nouveau.",
+  "Notion connection": "Connexion à Notion",
+  "The Notion integration that reads and writes your board. `ticket-runner init <page-url>` fills all of this in for you: come here only to fix it by hand.":
+    "L'intégration Notion qui lit et écrit votre tableau. `ticket-runner init <page-url>` remplit tout ceci pour vous : ne venez ici que pour corriger à la main.",
+  "Integration token": "Jeton d'intégration",
+  "The secret starting with `ntn_`, from notion.so/profile/integrations. Share your workspace page with the integration too: a token alone sees nothing.":
+    "Le secret qui commence par `ntn_`, depuis notion.so/profile/integrations. Partagez aussi votre page d'espace de travail avec l'intégration : un jeton seul ne voit rien.",
+  "Workspace page": "Page de l'espace de travail",
+  "The Notion page that holds the Tickets, Projects, Agents and Context databases. Paste its URL: only the identifier is kept.":
+    "La page Notion qui contient les bases Tickets, Projects, Agents et Context. Collez son URL : seul l'identifiant est gardé.",
+  "Word that asks for an answer": "Mot pour demander une réponse",
+  "Write it in a ticket's comment — `@claude what is blocking?` — and the runner answers in the thread instead of working. The integration's own name works too.":
+    "Écrivez-le dans un commentaire de ticket — `@claude qu'est-ce qui bloque ?` — et le runner répond dans le fil au lieu de travailler. Le nom de l'intégration marche aussi.",
+  "Tickets database (without a workspace page)": "Base des tickets (sans page d'espace de travail)",
+  "Only if the workspace page is empty: the tickets database on its own, by URL or identifier.":
+    "Seulement si la page d'espace de travail est vide : la base des tickets seule, par son URL ou son identifiant.",
+
+  "Board storage": "Stockage du tableau",
+  "Where your tickets live: in Notion (the default), as Markdown files on this machine, or in both, kept in sync.":
+    "Où vivent vos tickets : dans Notion (par défaut), en fichiers Markdown sur cette machine, ou dans les deux, synchronisés.",
+  "Board kept in": "Tableau stocké dans",
+  "Markdown files need no Notion token and no network. Both writes to the two and reconciles them.":
+    "Les fichiers Markdown ne demandent ni jeton Notion ni réseau. Les deux écrit des deux côtés et les réconcilie.",
+  "the console has to be restarted": "la console doit être redémarrée",
+  Notion: "Notion",
+  "Markdown files": "Fichiers Markdown",
+  "Both, kept in sync": "Les deux, synchronisés",
+  "Markdown folder": "Dossier Markdown",
+  "The folder holding `tickets/`, `projects/`, `agents/`, `schedules/` and `context.md`. You can put it under git.":
+    "Le dossier qui contient `tickets/`, `projects/`, `agents/`, `schedules/` et `context.md`. Vous pouvez le mettre sous git.",
+  "When both sides changed": "Quand les deux côtés ont changé",
+  "A page edited in Notion and in the files since the last sync: the most recent edit wins, the other is kept in the sync journal.":
+    "Une page modifiée dans Notion et dans les fichiers depuis la dernière synchronisation : la modification la plus récente l'emporte, l'autre est gardée dans le journal de synchronisation.",
+  "Keep the most recent": "Garder la plus récente",
+  "Sync before every check of the board": "Synchroniser avant chaque consultation du tableau",
+  "Only for Both. Off: the two only sync when you run `ticket-runner sync`.":
+    "Seulement pour Les deux. Désactivé : ils ne se synchronisent que lorsque vous lancez `ticket-runner sync`.",
+
+  "Running tickets": "Exécution des tickets",
+  "How often the board is checked, how many tickets run at once, and how long each one may take.":
+    "À quelle fréquence le tableau est consulté, combien de tickets tournent à la fois, et combien de temps chacun peut prendre.",
+  "Repositories folder": "Dossier des dépôts",
+  "Where your git repositories are, e.g. `~/workspace`. A project's repository is looked for here — and cloned here when it is missing.":
+    "Là où sont vos dépôts git, par ex. `~/workspace`. Le dépôt d'un projet y est cherché — et cloné ici s'il manque.",
+  "Check the board every (seconds)": "Consulter le tableau toutes les (secondes)",
+  "The delay between two looks for Ready tickets. 10 starts a ticket within ten seconds; a look that finds nothing costs one request.":
+    "Le délai entre deux recherches de tickets prêts. 10 démarre un ticket en moins de dix secondes ; une recherche qui ne trouve rien coûte une requête.",
   "`ticket-runner enable` writes it into the systemd timer":
     "`ticket-runner enable` l'écrit dans la minuterie systemd",
-  "Tickets at once": "Tickets à la fois",
-  "Two sessions on one laptop is already a lot of machine.":
-    "Deux sessions sur un portable, c'est déjà beaucoup de machine.",
-  "A ticket may take (minutes)": "Un ticket peut prendre (minutes)",
-  "Past this, the session is killed and the ticket is put back with the reason.":
-    "Passé ce délai, la session est tuée et le ticket est remis en place avec la raison.",
-  "Wait when the credits run out": "Attendre quand les crédits sont épuisés",
-  "A subscription is metered in windows. When one is spent, the ticket goes back where it came from and nothing is run until the window rolls over — off, an exhausted quota fails every ticket it touches.":
-    "Un abonnement se compte par fenêtres. Quand l'une est consommée, le ticket retourne d'où il vient et plus rien ne tourne jusqu'à la fenêtre suivante — désactivé, un quota épuisé fait échouer chaque ticket qu'il touche.",
-  "Keep for yourself (%)": "Garder pour vous (%)",
-  "The share of each window the runner refuses to touch. At 5 it starts nothing past 95 % of the session or the week — what is already running finishes, and the tickets it did not start stay where they are, ticked as waiting for credit. 0 spends the lot.":
-    "La part de chaque fenêtre à laquelle le runner ne touche pas. À 5, il ne lance plus rien au-delà de 95 % de la session ou de la semaine — ce qui tourne déjà va au bout, et les tickets qu'il n'a pas démarrés restent où ils sont, cochés en attente de crédit. 0 consomme tout.",
-  "Empty: whatever Claude Code is set to. A ticket's own Model column wins over this one.":
-    "Vide : ce que Claude Code utilise. La colonne Model d'un ticket l'emporte sur celui-ci.",
-  "Answer in": "Répondre en",
-  "The language the runner writes its reports in, and the one a session is asked to answer in. Empty: it reports in English, and each session keeps writing in the language it was written to.":
-    "La langue dans laquelle le runner écrit ses comptes rendus, et celle dans laquelle on demande à une session de répondre. Vide : il rend compte en anglais, et chaque session continue d'écrire dans la langue qu'on lui a adressée.",
-  "Permission mode": "Mode de permission",
-  "How much a ticket's session may do without asking. Nobody is watching it: anything but `bypassPermissions` is a session that will sit waiting.":
-    "Ce que la session d'un ticket a le droit de faire sans demander. Personne ne la regarde : autre chose que `bypassPermissions`, c'est une session qui restera à attendre.",
-  "Dry run": "À blanc",
-  "Say what would happen and touch nothing — no branch, no commit, no Notion write. The one switch to leave on while you are still deciding.":
-    "Dire ce qui se passerait et ne toucher à rien — pas de branche, pas de commit, rien d'écrit dans Notion. L'interrupteur à laisser actif tant que vous hésitez encore.",
+  "Tickets in parallel": "Tickets en parallèle",
+  "How many Claude sessions run at the same time. Each is a full session: 2 suits a laptop.":
+    "Combien de sessions Claude tournent en même temps. Chacune est une session complète : 2 convient à un portable.",
+  "Time limit per ticket (minutes)": "Durée maximale par ticket (minutes)",
+  "Past it, the session is stopped and the ticket fails, with the reason.":
+    "Au-delà, la session est arrêtée et le ticket passe en échec, avec la raison.",
+  "Language of the reports": "Langue des comptes rendus",
+  "What the runner writes on tickets and sends to your phone, and the language sessions are asked to answer in. Not set: reports in English, and each session answers in the ticket's language.":
+    "Ce que le runner écrit sur les tickets et envoie sur votre téléphone, et la langue dans laquelle on demande aux sessions de répondre. Non choisie : comptes rendus en anglais, et chaque session répond dans la langue du ticket.",
+  English: "Anglais",
+  French: "Français",
+  "Test mode (changes nothing)": "Mode test (ne modifie rien)",
+  "The runner says what it would do and does none of it: no branch, no commit, no write to the board. Useful while you set things up.":
+    "Le runner dit ce qu'il ferait et n'en fait rien : ni branche, ni commit, ni écriture sur le tableau. Utile pendant la mise en place.",
+  "What a session may do without asking": "Ce qu'une session peut faire sans demander",
+  "Nobody is there to approve: anything but “Everything” leaves a session waiting until it times out.":
+    "Personne n'est là pour valider : autre chose que « Tout » laisse une session attendre jusqu'à expiration.",
+  "Everything, without asking (bypassPermissions)": "Tout, sans demander (bypassPermissions)",
+  "Edit files, no commands (acceptEdits)": "Modifier les fichiers, sans commandes (acceptEdits)",
+  "Ask each time (default)": "Demander à chaque fois (default)",
+  "Read only (plan)": "Lecture seule (plan)",
   "Keep session logs (days)": "Garder les journaux de session (jours)",
-  "0 keeps them forever.": "0 les garde pour toujours.",
+  "How long each session's log stays on this machine. 0 keeps them forever.":
+    "Combien de temps le journal de chaque session reste sur cette machine. 0 les garde pour toujours.",
 
-  "Every other model": "Tous les autres modèles",
-  "One key in front of every provider there is. It goes into each session's environment as `OPENROUTER_API_KEY`, so the work itself can call whatever model it needs — a GPT, an image, a transcription, a video — and pay for it. Running the sessions themselves on it is the second switch, and it changes who answers them.":
-    "Une seule clé devant tous les fournisseurs qui existent. Elle entre dans l'environnement de chaque session sous le nom `OPENROUTER_API_KEY`, pour que le travail lui-même puisse appeler le modèle dont il a besoin — un GPT, une image, une transcription, une vidéo — et le payer. Faire tourner les sessions elles-mêmes dessus, c'est le second interrupteur, et il change qui leur répond.",
-  "OpenRouter key": "Clé OpenRouter",
-  "The `sk-or-…` one, from openrouter.ai/keys. On its own it only makes the key reachable from a session; nothing about the runner changes.":
-    "Celle en `sk-or-…`, depuis openrouter.ai/keys. Seule, elle rend simplement la clé accessible depuis une session ; rien ne change pour le runner.",
-  "Run the sessions on it": "Faire tourner les sessions dessus",
-  "Claude Code then talks to OpenRouter rather than to Anthropic, and every model named — a ticket's Model column, an agent's, the one above — becomes an OpenRouter slug: `openai/gpt-5`, `anthropic/claude-sonnet-4.5`. Two things go with it: the CLI is no longer signed in as you, so Claude in Chrome does not load, and the bill is OpenRouter's rather than your subscription's — there is no window left to wait for.":
-    "Claude Code parle alors à OpenRouter plutôt qu'à Anthropic, et chaque modèle nommé — la colonne Model d'un ticket, celle d'un agent, celui ci-dessus — devient un identifiant OpenRouter : `openai/gpt-5`, `anthropic/claude-sonnet-4.5`. Deux choses vont avec : le CLI n'est plus connecté en votre nom, donc Claude in Chrome ne se charge pas, et la facture est celle d'OpenRouter plutôt que celle de votre abonnement — il n'y a plus de fenêtre à attendre.",
-  "Transcribe dictation with": "Transcrire la dictée avec",
-  "The model a message dictated in the console is turned into text by.":
-    "Le modèle qui transforme en texte un message dicté dans la console.",
-  Endpoint: "Point d'accès",
-  "Where that key is spent. Only worth touching for a gateway of your own that speaks the same API.":
-    "Là où cette clé est dépensée. Ne vaut la peine d'être changé que pour une passerelle à vous qui parle la même API.",
+  "Models and usage": "Modèles et consommation",
+  "Which Claude model works the tickets, and how much of your subscription the runner may spend.":
+    "Quel modèle Claude traite les tickets, et quelle part de votre abonnement le runner peut consommer.",
+  "Default model": "Modèle par défaut",
+  "`opus`, `sonnet` or `haiku`, for instance. Empty: Claude Code's own default. A ticket's Model column wins over it.":
+    "`opus`, `sonnet` ou `haiku`, par exemple. Vide : le modèle par défaut de Claude Code. La colonne Model d'un ticket l'emporte.",
+  "Pause when the subscription limit is reached":
+    "Patienter quand la limite de l'abonnement est atteinte",
+  "On: the ticket waits, ticked Waiting for credit, and starts again when the usage window resets. Off: every ticket fails until then.":
+    "Activé : le ticket patiente, coché En attente de crédit, et repart quand la fenêtre d'usage se renouvelle. Désactivé : chaque ticket échoue jusque-là.",
+  "Share kept for your own use (%)": "Part gardée pour votre usage (%)",
+  "At 5, no new ticket starts past 95 % of the session or weekly limit, so you still have Claude for yourself. Running tickets finish. From 0 (use it all) to 50.":
+    "À 5, aucun nouveau ticket ne démarre au-delà de 95 % de la limite de session ou de la semaine : il vous reste Claude pour vous. Les tickets en cours vont au bout. De 0 (tout utiliser) à 50.",
 
-  "Git and pull requests": "Git et pull requests",
-  "What a ticket with a repository turns into, and how it is accepted.":
-    "Ce que devient un ticket avec un dépôt, et comment il est accepté.",
-  "Branch prefix": "Préfixe de branche",
+  "Repositories and pull requests": "Dépôts et pull requests",
+  "What a Code ticket turns into: a branch, a pull request, and the merge once you validate it.":
+    "Ce que devient un ticket Code : une branche, une pull request, et la fusion une fois que vous l'avez validé.",
+  "Open a pull request": "Ouvrir une pull request",
+  "Once the session succeeds, on GitHub — needs `gh` installed and signed in. Opening one merges nothing.":
+    "Une fois la session réussie, sur GitHub — il faut `gh` installé et connecté. L'ouvrir ne fusionne rien.",
+  "Push the branch": "Pousser la branche",
+  "Send the ticket's branch to the remote once it has commits. Off: the work stays on this machine.":
+    "Envoyer la branche du ticket sur le dépôt distant dès qu'elle a des commits. Désactivé : le travail reste sur cette machine.",
+  "Merge a validated pull request as": "Fusionner une pull request validée en",
+  "Applied when you move a ticket to Validated.": "Appliqué quand vous passez un ticket en Validé.",
+  "One commit (squash)": "Un seul commit (squash)",
+  "A merge commit (merge)": "Un commit de fusion (merge)",
+  "Commits replayed (rebase)": "Commits rejoués (rebase)",
+  "Base branch": "Branche de base",
+  "The branch a ticket's branch starts from, e.g. `main`. Empty: the repository's default branch.":
+    "La branche d'où part la branche d'un ticket, par ex. `main`. Vide : la branche par défaut du dépôt.",
+  "Resolve merge conflicts automatically": "Résoudre les conflits de fusion automatiquement",
+  "When a validated pull request conflicts, a session resolves it, runs the project's checks, then merges. A conflict that needs a decision blocks the ticket with the question.":
+    "Quand une pull request validée est en conflit, une session le résout, lance les vérifications du projet, puis fusionne. Un conflit qui demande une décision bloque le ticket avec la question.",
+  "Branch name prefix": "Préfixe des noms de branche",
   "`ticket/` gives `ticket/1a2b3c4d-remove-the-header`.":
     "`ticket/` donne `ticket/1a2b3c4d-remove-the-header`.",
-  "Base branch": "Branche de base",
-  "Empty: whatever the repository's HEAD points at.": "Vide : ce que le HEAD du dépôt désigne.",
-  "Fetch before branching": "Fetch avant de brancher",
-  "So a ticket does not start from last week.":
-    "Pour qu'un ticket ne parte pas de la semaine dernière.",
-  "Push the branch": "Pousser la branche",
-  "Open a pull request": "Ouvrir une pull request",
-  "Needs `gh` to be installed and logged in.": "Demande que `gh` soit installé et connecté.",
-  "Replay the branch before the pull request": "Rejouer la branche avant la pull request",
-  "A session takes an hour and the base branch does not wait for it. The branch is put back on top of it before the push, and a validated merge refused for being behind is retried once after the same gesture.":
-    "Une session prend une heure et la branche de base ne l'attend pas. La branche est remise par-dessus avant le push, et une fusion validée refusée pour retard est retentée une fois après le même geste.",
-  "Merge a validated ticket by": "Fusionner un ticket validé par",
-  "What `gh pr merge` is told when you move a ticket to Validated.":
-    "Ce qu'on dit à `gh pr merge` quand vous déplacez un ticket vers Validé.",
-  "Resolve a validated merge's conflicts": "Résoudre les conflits d'une fusion validée",
-  "A replay that stops on a conflict is handed to a session: both sides kept, the project's checks run, pushed with a lease, then merged. A conflict that is a decision blocks the ticket with the question.":
-    "Un rebase qui s'arrête sur un conflit est confié à une session : les deux côtés conservés, les vérifications du projet lancées, poussé avec un bail, puis fusionné. Un conflit qui relève d'une décision bloque le ticket avec la question.",
+  "Fetch the remote before branching": "Récupérer le dépôt distant avant de créer la branche",
+  "So a ticket starts from the latest code rather than last week's.":
+    "Pour qu'un ticket parte du code le plus récent, et non de celui de la semaine dernière.",
+  "Rebase on the base branch before pushing": "Rebaser sur la branche de base avant le push",
+  "The base branch moves while a session works: the branch is replayed on top of it before the push, and a merge refused for being behind is retried once.":
+    "La branche de base avance pendant qu'une session travaille : la branche est rejouée par-dessus avant le push, et une fusion refusée pour retard est retentée une fois.",
   "Projects whose conflicts are left to you": "Projets dont les conflits vous reviennent",
-  "Their names, separated by commas: a conflict there blocks the ticket, as before.":
-    "Leurs noms, séparés par des virgules : un conflit y bloque le ticket, comme avant.",
-  "Model that resolves": "Modèle qui résout",
-  "Empty: the model the ticket was worked with.": "Vide : le modèle avec lequel le ticket a été traité.",
-  "Wait for CI after a resolution (minutes)": "Attendre la CI après une résolution (minutes)",
-  "Zero does not wait: GitHub still refuses a merge that a required check has not passed. A merge forced by Force validated waits the same way.":
-    "Zéro n'attend pas : GitHub refuse quand même une fusion qu'une vérification requise n'a pas validée. Une fusion forcée par Force validated attend de la même façon.",
-  "Keep the worktree on failure": "Garder le worktree en cas d'échec",
-  "The state a failed session died in, for you to look at. `ticket-runner clean --force` sweeps them.":
-    "L'état dans lequel une session échouée est morte, pour que vous puissiez le regarder. `ticket-runner clean --force` fait le ménage.",
+  "Project names, separated by commas. A conflict there blocks the ticket instead of being resolved.":
+    "Noms de projets, séparés par des virgules. Un conflit y bloque le ticket au lieu d'être résolu.",
+  "Model that resolves conflicts": "Modèle qui résout les conflits",
+  "Empty: the model the ticket was worked with.":
+    "Vide : le modèle avec lequel le ticket a été traité.",
+  "Wait for CI before merging (minutes)": "Attendre la CI avant de fusionner (minutes)",
+  "After a resolved conflict, or with automatic validation. 0 does not wait — GitHub still refuses a merge a required check has not passed.":
+    "Après un conflit résolu, ou avec la validation automatique. 0 n'attend pas — GitHub refuse quand même une fusion qu'une vérification obligatoire n'a pas validée.",
+  "Keep a failed ticket's work folder": "Garder le dossier de travail d'un ticket en échec",
+  "Its worktree stays as the session left it, for you to look at. `ticket-runner clean --force` removes them.":
+    "Son worktree reste tel que la session l'a laissé, pour que vous l'examiniez. `ticket-runner clean --force` les supprime.",
 
-  "Force validated": "Force validated",
-  "Skip the review, one type of ticket at a time. Once its session has succeeded, the runner does at once what moving it to Validated would have set off, then moves it to Done — and its report says the validation was forced. A ticket that failed, was blocked or ran out of credit is never validated, and one already in review stays there. All off: every ticket waits for you, as before.":
-    "Se passer de la relecture, un type de ticket à la fois. Dès que sa session a réussi, le runner fait tout de suite ce qu'aurait déclenché le passage en Validé, puis le passe en Terminé — et son compte rendu dit que la validation a été forcée. Un ticket en échec, bloqué ou à court de crédits n'est jamais validé, et celui qui est déjà en relecture y reste. Tout décoché : chaque ticket vous attend, comme avant.",
-  "The pull request is opened, its CI waited for, then merged the way a validated one is. A merge GitHub refuses leaves the ticket in review, with the reason on its card.":
-    "La pull request est ouverte, sa CI attendue, puis elle est fusionnée comme une pull request validée. Une fusion que GitHub refuse laisse le ticket en relecture, avec la raison sur sa carte.",
-  Writing: "Rédaction",
-  "A text already ends in Done, with nothing to validate: this changes nothing today.":
-    "Un texte finit déjà en Terminé, sans rien à valider : cela ne change rien aujourd'hui.",
-  "External action": "Action externe",
-  "An external action already ends in Done, with nothing to validate: this changes nothing today.":
-    "Une action externe finit déjà en Terminé, sans rien à valider : cela ne change rien aujourd'hui.",
-  Publication: "Publication",
-  "What was prepared is published straight away, without waiting in review.":
-    "Ce qui a été préparé est publié aussitôt, sans attendre en relecture.",
+  "Project folders": "Dossiers des projets",
+  "Which folder on this machine holds a Notion project's repository. Only needed when it is not found on its own: a `path` or `github` property on the project page does the same, for every machine.":
+    "Quel dossier de cette machine contient le dépôt d'un projet Notion. Utile seulement s'il n'est pas trouvé tout seul : une propriété `path` ou `github` sur la page du projet fait la même chose, pour toutes les machines.",
 
-  "What comes back on its own": "Ce qui revient tout seul",
-  "The Schedules database, read in the same pass that reads the board. A row there describes a ticket and how often it is born; everything after that is an ordinary ticket. Catching up creates one occurrence, never the twelve a machine that was off has missed.":
-    "La base Schedules, lue dans la même passe que le tableau. Une ligne y décrit un ticket et la fréquence à laquelle il naît ; tout le reste est un ticket ordinaire. Le rattrapage crée une occurrence, jamais les douze qu'une machine éteinte a manquées.",
-  "Let schedules make tickets": "Laisser les récurrences créer des tickets",
-  "Off: the database is read by nobody, and no row has to be unticked. A workspace with no schedules page never had any of this anyway.":
-    "Désactivé : la base n'est lue par personne, et aucune ligne n'a besoin d'être décochée. Un espace de travail sans page de récurrences n'avait de toute façon rien de tout cela.",
+  "GitHub accounts": "Comptes GitHub",
+  "Which `gh` account works for each GitHub owner, when this machine uses several — yours and a client's. Left, the owner as in the repository's URL; right, the account as `gh auth status` lists it. Sign each one in once with `gh auth login`. An owner not listed here is worked under the active account.":
+    "Quel compte `gh` travaille pour chaque propriétaire GitHub, quand cette machine en utilise plusieurs — le vôtre et celui d'un client. À gauche le propriétaire tel qu'il apparaît dans l'URL du dépôt ; à droite le compte tel que `gh auth status` le liste. Connectez chacun une fois avec `gh auth login`. Un propriétaire absent d'ici est traité sous le compte actif.",
 
-  "While it runs": "Pendant que ça tourne",
-  "The parts that report as the work happens: the Progress column, the session links, and the answers written under a ticket's comments.":
-    "Les parties qui rendent compte au fil du travail : la colonne Progress, les liens de session, et les réponses écrites sous les commentaires d'un ticket.",
-  "Write progress into the ticket": "Écrire l'avancement dans le ticket",
-  "The board's live column: what the session is doing, as it does it.":
-    "La colonne vivante du tableau : ce que fait la session, pendant qu'elle le fait.",
-  "Progress cadence (seconds)": "Cadence de l'avancement (secondes)",
-  "The floor is five: below it, two tickets at once spend the integration's rate limit on saying what they are about to do.":
-    "Le plancher est à cinq : en dessous, deux tickets à la fois dépensent la limite de l'intégration à dire ce qu'ils s'apprêtent à faire.",
-  "Link the session on the ticket": "Lier la session sur le ticket",
-  "A `ticket-runner://` link that reopens the very session in a terminal.":
-    "Un lien `ticket-runner://` qui rouvre exactement cette session dans un terminal.",
-  "Session host": "Machine de la session",
-  "Set it when the runner is not on the machine you click from — the link then says which machine to open it on.":
-    "À renseigner quand le runner n'est pas sur la machine depuis laquelle vous cliquez — le lien dit alors sur quelle machine l'ouvrir.",
-  "Answer in the comments": "Répondre dans les commentaires",
-  "A comment under one of its reports is answered, in the thread, by something that has read the ticket and the repository.":
-    "Un commentaire sous l'un de ses comptes rendus reçoit une réponse, dans le fil, de quelque chose qui a lu le ticket et le dépôt.",
-  "Look for comments every (seconds)": "Chercher les commentaires toutes les (secondes)",
-  "Tickets scanned for comments": "Tickets scrutés pour les commentaires",
-  "An answer may take (minutes)": "Une réponse peut prendre (minutes)",
-  "Permission mode for answers": "Mode de permission des réponses",
-  "`plan` is the guardrail: a conversation that quietly edited a repository is the one thing nobody would expect of it.":
-    "`plan` est le garde-fou : une conversation qui modifierait discrètement un dépôt est bien la seule chose que personne n'attend d'elle.",
+  "Automatic validation": "Validation automatique",
+  "Skip your review for some types of ticket. Once the session succeeds, the runner does what moving the ticket to Validated would do, then moves it to Done, and its report says so. A failed, blocked or out-of-credit ticket is never validated. All off: every ticket waits for you.":
+    "Se passer de votre relecture pour certains types de ticket. Dès que la session réussit, le runner fait ce que ferait le passage en Validé, puis passe le ticket en Terminé, et son compte rendu le dit. Un ticket en échec, bloqué ou à court de crédits n'est jamais validé. Tout désactivé : chaque ticket vous attend.",
+  "Code tickets": "Tickets Code",
+  "The pull request is opened, its CI waited for, then merged. A merge GitHub refuses leaves the ticket in review, with the reason.":
+    "La pull request est ouverte, sa CI attendue, puis elle est fusionnée. Une fusion que GitHub refuse laisse le ticket en relecture, avec la raison.",
+  "Publication tickets": "Tickets Publication",
+  "What was prepared is published straight away, without waiting for your review.":
+    "Ce qui a été préparé est publié aussitôt, sans attendre votre relecture.",
+  "Writing tickets": "Tickets Rédaction",
+  "No effect today: a Writing ticket already ends in Done.":
+    "Sans effet aujourd'hui : un ticket Rédaction finit déjà en Terminé.",
+  "External action tickets": "Tickets Action externe",
+  "No effect today: an External action ticket already ends in Done.":
+    "Sans effet aujourd'hui : un ticket Action externe finit déjà en Terminé.",
 
-  Prompts: "Prompts",
-  "The three briefs the runner writes, each replaceable by a file of your own. Leave them empty to keep the ones built in.":
-    "Les trois briefs que le runner écrit, chacun remplaçable par un fichier à vous. Laissez-les vides pour garder ceux d'origine.",
-  "A ticket with a repository": "Un ticket avec un dépôt",
-  "A ticket without one": "Un ticket sans dépôt",
-  "A validated ticket, being published": "Un ticket validé, en cours de publication",
+  "Ticket types": "Types de ticket",
+  "A ticket's type decides how it is worked: Code (a repository and a pull request), Writing (the answer in the page), External action (in a browser or a service), Publication (prepared, then published once validated). An empty type is guessed before the ticket runs; a type you chose is never changed.":
+    "Le type d'un ticket décide comment il est traité : Code (un dépôt et une pull request), Rédaction (la réponse dans la page), Action externe (dans un navigateur ou un service), Publication (préparée, puis publiée une fois validée). Un type vide est deviné avant que le ticket ne tourne ; un type que vous avez choisi n'est jamais changé.",
+  "Guess the type when it is empty": "Deviner le type quand il est vide",
+  "A short session reads the ticket, writes the type in its column and the reason in a comment. Off: a ticket without a type is worked as before, from what its project holds.":
+    "Une courte session lit le ticket, écrit le type dans sa colonne et la raison en commentaire. Désactivé : un ticket sans type est traité comme avant, d'après ce que contient son projet.",
+  "Least confidence to act on a guess": "Confiance minimale pour suivre la déduction",
+  "Below it, the ticket is blocked and asks you for its type. A doubt involving Publication or External action always blocks.":
+    "En dessous, le ticket est bloqué et vous demande son type. Un doute qui touche Publication ou Action externe bloque toujours.",
+  Low: "Faible",
+  Medium: "Moyenne",
+  High: "Élevée",
+  "Model that guesses the type": "Modèle qui devine le type",
+  "A light one is enough, e.g. `haiku`. Empty: Claude Code's own default.":
+    "Un modèle léger suffit, par ex. `haiku`. Vide : celui de Claude Code par défaut.",
+  "Name of the Code type": "Nom du type Code",
+  "As written in your Type column.": "Tel qu'il s'écrit dans votre colonne Type.",
+  "Name of the Writing type": "Nom du type Rédaction",
+  "Name of the External action type": "Nom du type Action externe",
+  "Name of the Publication type": "Nom du type Publication",
 
-  "Being told": "Être prévenu",
-  "Where the runner reaches you, and whether it listens for an answer. What you reply on Telegram or Slack becomes a comment on the ticket, which is already what wakes a blocked one.":
-    "Où le runner vous joint, et s'il écoute une réponse. Ce que vous répondez sur Telegram ou Slack devient un commentaire sur le ticket, ce qui est déjà ce qui réveille un ticket bloqué.",
-  "Notify this machine's screen": "Prévenir sur l'écran de cette machine",
-  "Read what you write back": "Lire ce que vous répondez",
-  "Off: it still tells you things, it just never listens.":
-    "Désactivé : il continue de vous dire les choses, il n'écoute simplement jamais.",
-  "Worth a message": "Mérite un message",
-  "`blocked` is the one that expects something back from you; `done` is the pull request waiting; `failed` is a log to read.":
-    "`blocked` est celui qui attend quelque chose de vous ; `done`, c'est la pull request qui patiente ; `failed`, c'est un journal à lire.",
+  "Recurring tickets": "Tickets récurrents",
+  "Tickets created on their own from the Schedules database — hourly, daily, weekly or monthly. After the machine was off, one occurrence is created, never every one it missed.":
+    "Des tickets créés tout seuls depuis la base Schedules — chaque heure, jour, semaine ou mois. Après une machine éteinte, une seule occurrence est créée, jamais toutes celles qu'elle a manquées.",
+  "Create recurring tickets": "Créer les tickets récurrents",
+  "Off: the Schedules database is ignored, and none of its rows is touched.":
+    "Désactivé : la base Schedules est ignorée, et aucune de ses lignes n'est touchée.",
+
+  Notifications: "Notifications",
+  "How the runner reaches you: this computer's screen, Telegram or Slack. A reply on Telegram or Slack becomes a comment on the ticket — which is what restarts a blocked one.":
+    "Comment le runner vous joint : l'écran de cet ordinateur, Telegram ou Slack. Une réponse sur Telegram ou Slack devient un commentaire sur le ticket — ce qui relance un ticket bloqué.",
+  "Send a message when a ticket is": "Envoyer un message quand un ticket est",
+  "Blocked: it asks you a question. Done: its work waits for your review. Failed: there is a log to read.":
+    "Bloqué : il vous pose une question. Terminé : son travail attend votre relecture. Échoué : il y a un journal à lire.",
+  "Notify on this computer's screen": "Notifier sur l'écran de cet ordinateur",
+  "A desktop notification when a ticket finishes.":
+    "Une notification de bureau quand un ticket se termine.",
+  "Read your replies": "Lire vos réponses",
+  "Your replies on Telegram or Slack become comments on the ticket. Off: messages are sent, replies are ignored.":
+    "Vos réponses sur Telegram ou Slack deviennent des commentaires sur le ticket. Désactivé : les messages partent, les réponses sont ignorées.",
   "Telegram bot token": "Jeton du bot Telegram",
-  "From @BotFather. `ticket-runner notify --pair` then finds the chat id.":
-    "Chez @BotFather. `ticket-runner notify --pair` trouve ensuite l'identifiant de conversation.",
-  "Telegram chat id": "Identifiant de conversation Telegram",
-  "Only that chat is ever read: a bot token is a public address.":
-    "Seule cette conversation est lue : un jeton de bot est une adresse publique.",
+  "From @BotFather (/newbot). `ticket-runner notify --pair` then finds the chat ID.":
+    "Chez @BotFather (/newbot). `ticket-runner notify --pair` trouve ensuite l'identifiant de la discussion.",
+  "Telegram chat ID": "Identifiant de la discussion Telegram",
+  "Only this chat is read: anybody can write to a bot.":
+    "Seule cette discussion est lue : n'importe qui peut écrire à un bot.",
   "Slack bot token": "Jeton du bot Slack",
   "The `xoxb-…` one. Scopes: `chat:write`, and `channels:history` (`groups:history`, `im:history`) to read your replies.":
     "Celui en `xoxb-…`. Scopes : `chat:write`, et `channels:history` (`groups:history`, `im:history`) pour lire vos réponses.",
-  "Slack channel id": "Identifiant de canal Slack",
-  "··· → View channel details, at the bottom. And `/invite @your-bot` in the channel — the step everyone forgets.":
-    "··· → Afficher les détails du canal, tout en bas. Et `/invite @votre-bot` dans le canal — l'étape que tout le monde oublie.",
+  "Slack channel ID": "Identifiant du canal Slack",
+  "In Slack, ··· → View channel details, at the bottom. Then `/invite @your-bot` in the channel — the step everyone forgets.":
+    "Dans Slack, ··· → Afficher les détails du canal, tout en bas. Puis `/invite @votre-bot` dans le canal — l'étape que tout le monde oublie.",
+  "Desktop notification (older setting)": "Notification de bureau (ancien réglage)",
+  "Kept for older files: “Notify on this computer's screen” follows it when it is not set itself.":
+    "Gardé pour les anciens fichiers : « Notifier sur l'écran de cet ordinateur » le suit quand il n'est pas renseigné lui-même.",
 
-  "This console": "Cette console",
-  "Behind this port sits a runner that starts Claude Code sessions with `bypassPermissions`. Anything that can reach it can run code on this machine, as you — which is why the bind is loopback and why widening it is a decision you have to take on purpose, token included.":
-    "Derrière ce port se tient un runner qui démarre des sessions Claude Code en `bypassPermissions`. Tout ce qui peut l'atteindre peut exécuter du code sur cette machine, en votre nom — c'est pourquoi l'écoute est en loopback, et pourquoi l'ouvrir plus largement est une décision à prendre exprès, jeton compris.",
-  "Bind address": "Adresse d'écoute",
-  "Anything but `127.0.0.1` is refused unless a token, or a sign-in, is set below. The answer that does not depend on a secret never leaking is an ssh tunnel: `ssh -L 8787:127.0.0.1:8787 <this machine>`.":
-    "Tout autre chose que `127.0.0.1` est refusé tant qu'aucun jeton, ni aucune connexion, n'est renseigné plus bas. La réponse qui ne dépend pas d'un secret qui ne fuite jamais, c'est un tunnel ssh : `ssh -L 8787:127.0.0.1:8787 <cette machine>`.",
-  "the console has to be restarted": "la console doit être redémarrée",
+  "Live progress": "Suivi en direct",
+  "What a ticket shows while its session is running, and where the session goes after.":
+    "Ce qu'un ticket montre pendant que sa session tourne, et où va la session ensuite.",
+  "Show progress on the ticket": "Afficher l'avancement sur le ticket",
+  "The session's steps are written on the ticket's page, the latest one in its Progress column.":
+    "Les étapes de la session sont écrites sur la page du ticket, la dernière dans sa colonne Progress.",
+  "File sessions under their project": "Ranger les sessions dans leur projet",
+  "A finished session is moved under the project's folder, so `claude --resume` there finds it. Off: it can only be resumed by its ID.":
+    "Une session terminée est déplacée sous le dossier du projet, pour que `claude --resume` l'y retrouve. Désactivé : on ne peut la reprendre que par son identifiant.",
+  "Update progress every (seconds)": "Mettre à jour l'avancement toutes les (secondes)",
+  "10 reads as live. 5 at the least, so two tickets at once do not spend Notion's rate limit on it.":
+    "10 donne une impression de direct. 5 au minimum, pour que deux tickets à la fois n'épuisent pas la limite de requêtes de Notion.",
+  "Machine the sessions run on (ssh)": "Machine où tournent les sessions (ssh)",
+  "Only when the runner lives on a server, e.g. `me@server.example.com`: the ticket's Session link then opens the session over ssh.":
+    "Seulement si le runner vit sur un serveur, par ex. `moi@serveur.example.com` : le lien Session du ticket ouvre alors la session par ssh.",
+
+  "Answers in comments": "Réponses aux commentaires",
+  "Reply under one of the runner's reports, or name it, and it answers in the thread — having read the ticket and the repository, and changing nothing.":
+    "Répondez sous un compte rendu du runner, ou nommez-le, et il répond dans le fil — après avoir lu le ticket et le dépôt, sans rien modifier.",
+  "Answer comments": "Répondre aux commentaires",
+  "Off: comments get no answer. Answering a blocked ticket's question still starts it again.":
+    "Désactivé : les commentaires restent sans réponse. Répondre à la question d'un ticket bloqué le relance toujours.",
+  "Look for new comments every (seconds)":
+    "Chercher les nouveaux commentaires toutes les (secondes)",
+  "10 at the least.": "10 au minimum.",
+  "Tickets looked at each time": "Tickets examinés à chaque fois",
+  "One request each; the next ones are looked at the time after.":
+    "Une requête chacun ; les suivants sont examinés la fois d'après.",
+  "Time limit per answer (minutes)": "Durée maximale par réponse (minutes)",
+  "Somebody is waiting for it: keep it short.": "Quelqu'un l'attend : gardez-la courte.",
+  "What an answer may do": "Ce qu'une réponse peut faire",
+  "“Read only” is the guardrail: an answer that quietly changed a repository is the last thing anybody expects.":
+    "« Lecture seule » est le garde-fou : une réponse qui modifierait un dépôt en silence est bien la dernière chose qu'on attend.",
+
+  "OpenRouter (other models)": "OpenRouter (autres modèles)",
+  "One key for every other AI provider — a GPT, images, transcription. Sessions get it as `OPENROUTER_API_KEY`, and this console dictates with it.":
+    "Une seule clé pour tous les autres fournisseurs d'IA — un GPT, des images, de la transcription. Les sessions la reçoivent sous le nom `OPENROUTER_API_KEY`, et cette console s'en sert pour la dictée.",
+  "OpenRouter key": "Clé OpenRouter",
+  "Starts with `sk-or-`, from openrouter.ai/keys. On its own it is only handed to the sessions; nothing about the runner changes.":
+    "Commence par `sk-or-`, depuis openrouter.ai/keys. Seule, elle est simplement transmise aux sessions ; rien ne change pour le runner.",
+  "Run the sessions through OpenRouter": "Faire passer les sessions par OpenRouter",
+  "Claude Code then talks to OpenRouter instead of Anthropic: models are named the OpenRouter way (`openai/gpt-5`), the bill is OpenRouter's rather than your subscription's, and Claude in Chrome no longer loads.":
+    "Claude Code parle alors à OpenRouter au lieu d'Anthropic : les modèles se nomment à la façon d'OpenRouter (`openai/gpt-5`), la facture est celle d'OpenRouter et non de votre abonnement, et Claude in Chrome ne se charge plus.",
+  "Dictation model": "Modèle de dictée",
+  "Turns a message dictated in the console into text.":
+    "Transforme en texte un message dicté dans la console.",
+  "API address": "Adresse de l'API",
+  "Only for a gateway of your own that speaks the same API.":
+    "Seulement pour une passerelle à vous qui parle la même API.",
+
+  "Web console": "Console web",
+  "The server behind this page. It can run code on this machine as you, so it only listens to this machine unless you set a token or a sign-in.":
+    "Le serveur derrière cette page. Il peut exécuter du code sur cette machine en votre nom : il n'écoute donc que cette machine, sauf si vous fixez un jeton ou une connexion.",
+  "Listen address": "Adresse d'écoute",
+  "`127.0.0.1`: this machine only. Any other address needs a token, or an email and a password, below. Safer still: an ssh tunnel, `ssh -L 8787:127.0.0.1:8787 <this machine>`.":
+    "`127.0.0.1` : cette machine seulement. Toute autre adresse demande un jeton, ou une adresse e-mail et un mot de passe, plus bas. Plus sûr encore : un tunnel ssh, `ssh -L 8787:127.0.0.1:8787 <cette machine>`.",
   Port: "Port",
+  "The console is then at `http://127.0.0.1:<port>`.":
+    "La console est alors à l'adresse `http://127.0.0.1:<port>`.",
   "Console token": "Jeton de la console",
-  "Empty: one is drawn once and kept in `~/.local/state/ticket-runner/web/token`. Setting one here is what allows a non-loopback bind.":
-    "Vide : un jeton est tiré une fois et gardé dans `~/.local/state/ticket-runner/web/token`. En renseigner un ici est ce qui autorise une écoute hors loopback.",
+  "Empty: one is drawn once and kept in `~/.local/state/ticket-runner/web/token`. Needed to listen beyond this machine.":
+    "Vide : un jeton est tiré une fois et gardé dans `~/.local/state/ticket-runner/web/token`. Nécessaire pour écouter au-delà de cette machine.",
   "the console has to be restarted, and this page reopened with the new token":
     "la console doit être redémarrée, et cette page rouverte avec le nouveau jeton",
-  "Sign in with this email": "Se connecter avec cette adresse e-mail",
-  "Set it with a password and the console asks for the two instead of for the token — a page you open from a bookmark rather than from a secret. `TICKET_RUNNER_WEB_EMAIL` says the same thing and wins over this.":
-    "Renseignez-la avec un mot de passe et la console demande les deux plutôt que le jeton — une page qu'on ouvre depuis un marque-page et non depuis un secret. `TICKET_RUNNER_WEB_EMAIL` dit la même chose et l'emporte sur ce champ.",
-  "And this password": "Et ce mot de passe",
-  "Kept in the file beside the other secrets, or in `TICKET_RUNNER_WEB_PASSWORD`, which wins over it. Changing it signs out every browser at once; the token keeps working, for scripts.":
-    "Gardé dans le fichier à côté des autres secrets, ou dans `TICKET_RUNNER_WEB_PASSWORD`, qui l'emporte sur lui. Le changer déconnecte tous les navigateurs d'un coup ; le jeton, lui, continue de marcher, pour les scripts.",
-  "Reread the board every (seconds)": "Relire le tableau toutes les (secondes)",
-  "Only while a browser is connected.": "Seulement tant qu'un navigateur est connecté.",
-  "A chat turn may take (minutes)": "Un tour de conversation peut prendre (minutes)",
-  "A file sent to the workspace may weigh (MB)":
-    "Un fichier envoyé à l'espace de travail peut peser (Mo)",
-  "Per file. Past it, the console refuses the file and says why.":
-    "Par fichier. Au-delà, la console refuse le fichier et dit pourquoi.",
-  "Keep the conversation's files (days)": "Garder les fichiers de la conversation (jours)",
-  "They also go with “new conversation”. Copies of what you dropped, not the originals.":
-    "Ils partent aussi avec « nouvelle conversation ». Des copies de ce que vous avez déposé, pas les originaux.",
-  "Send a dictated message as soon as it is transcribed":
-    "Envoyer un message dicté dès qu'il est transcrit",
-  "Off: the transcription waits in the field, to be read over and corrected before it goes. Dictation needs the OpenRouter key.":
-    "Désactivé : la transcription attend dans le champ, pour être relue et corrigée avant de partir. La dictée demande la clé OpenRouter.",
+  "Sign-in email": "Adresse e-mail de connexion",
+  "With a password, the console asks for the two instead of the token. `TICKET_RUNNER_WEB_EMAIL` wins over it.":
+    "Avec un mot de passe, la console demande les deux au lieu du jeton. `TICKET_RUNNER_WEB_EMAIL` l'emporte.",
+  "Sign-in password": "Mot de passe de connexion",
+  "`TICKET_RUNNER_WEB_PASSWORD` wins over it. Changing it signs every browser out; the token keeps working, for scripts.":
+    "`TICKET_RUNNER_WEB_PASSWORD` l'emporte. Le changer déconnecte tous les navigateurs ; le jeton continue de marcher, pour les scripts.",
+  "Send a dictated message right away": "Envoyer un message dicté aussitôt",
+  "Off: the transcription waits in the field, to be read over first. Dictation needs the OpenRouter key.":
+    "Désactivé : la transcription attend dans le champ, pour être relue d'abord. La dictée demande la clé OpenRouter.",
+  "Refresh the board every (seconds)": "Rafraîchir le tableau toutes les (secondes)",
+  "Only while this page is open. 5 at the least.":
+    "Seulement tant que cette page est ouverte. 5 au minimum.",
+  "Time limit per discussion reply (minutes)":
+    "Durée maximale d'une réponse de la discussion (minutes)",
+  "For the discussion with the workspace, in this console.":
+    "Pour la discussion avec l'espace de travail, dans cette console.",
+  "Largest attached file (MB)": "Taille maximale d'un fichier joint (Mo)",
+  "Per file sent in the discussion. A larger one is refused, with the reason.":
+    "Par fichier envoyé dans la discussion. Un fichier plus gros est refusé, avec la raison.",
+  "Keep attached files (days)": "Garder les fichiers joints (jours)",
+  "Copies of what you sent in the discussion, deleted after this or with “new conversation”.":
+    "Les copies de ce que vous avez envoyé dans la discussion, supprimées après ce délai ou avec « nouvelle conversation ».",
 
-  "Staying up to date": "Rester à jour",
-  "A run asks the remote whether the installed code is still the newest.":
-    "Une passe demande au dépôt distant si le code installé est encore le plus récent.",
-  "Update itself between two runs": "Se mettre à jour entre deux passes",
-  "What it follows": "Ce qu'il suit",
-  "`release`: the newest `vX.Y.Z` tag, and nothing pushed in between. `main`: every commit of the branch it was installed from, as it lands.":
-    "`release` : le dernier tag `vX.Y.Z`, et rien de ce qui est poussé entre deux. `main` : chaque commit de la branche d'installation, dès qu'il arrive.",
-  "Ask at most every (seconds)": "Demander au plus toutes les (secondes)",
-  "One desktop notification per ticket": "Une notification bureau par ticket",
-  "The old switch, kept: “Notify this machine's screen” above defaults to it.":
-    "L'ancien interrupteur, conservé : « Prévenir sur l'écran de cette machine » ci-dessus s'y replie par défaut.",
+  Updates: "Mises à jour",
+  "The runner can update itself between two checks of the board.":
+    "Le runner peut se mettre à jour entre deux consultations du tableau.",
+  "Update automatically": "Mettre à jour automatiquement",
+  "Installs the newest version as soon as there is one.":
+    "Installe la version la plus récente dès qu'il y en a une.",
+  Follow: "Suivre",
+  "Releases are versions that were tested; the branch brings every change as soon as it lands.":
+    "Les versions publiées ont été éprouvées ; la branche apporte chaque changement dès qu'il arrive.",
+  "Releases (vX.Y.Z tags)": "Les versions publiées (tags vX.Y.Z)",
+  "Every commit of the installed branch": "Chaque commit de la branche installée",
+  "Look for an update every (seconds)": "Chercher une mise à jour toutes les (secondes)",
+  "3600 is an hour. 60 at the least.": "3600, c'est une heure. 60 au minimum.",
 
-  "Where the board lives": "Où vit le tableau",
-  "Notion is the default and changes nothing. Markdown is the same board as files on disk, and never asks Notion anything — no token, no sharing, no network. Both keeps the two in step.":
-    "Notion est le choix par défaut et ne change rien. Markdown, c'est le même tableau sous forme de fichiers, sans jamais rien demander à Notion — ni jeton, ni partage, ni réseau. Both tient les deux au même pas.",
-  "The board": "Le tableau",
-  "`notion` reads and writes Notion, as it always has. `markdown` reads and writes files. `both` does the two, and reconciles them.":
-    "`notion` lit et écrit dans Notion, comme toujours. `markdown` lit et écrit des fichiers. `both` fait les deux, et les réconcilie.",
-  "Where the files are": "Où sont les fichiers",
-  "One directory, with `tickets/`, `projects/`, `agents/`, `schedules/` and `context.md` in it. A directory you can put under git, which is most of the point.":
-    "Un répertoire, avec `tickets/`, `projects/`, `agents/`, `schedules/` et `context.md` dedans. Un répertoire que vous pouvez mettre sous git, ce qui est presque tout l'intérêt.",
-  "When the two disagree": "Quand les deux divergent",
-  "A page changed on both sides since the last reconciliation. `newest` keeps the later of the two — and writes the other into the journal, so nothing is lost quietly.":
-    "Une page modifiée des deux côtés depuis la dernière réconciliation. `newest` garde la plus récente — et écrit l'autre dans le journal, pour que rien ne se perde en silence.",
-  "Reconcile before every pass": "Réconcilier avant chaque passe",
-  "Off, and the two boards only meet when you run `ticket-runner sync`.":
-    "Désactivé, les deux tableaux ne se rencontrent que lorsque vous lancez `ticket-runner sync`.",
+  "Custom instructions": "Consignes personnalisées",
+  "The instructions each session is given, each replaceable by a file of your own. Empty: the built-in ones.":
+    "Les consignes données à chaque session, chacune remplaçable par un fichier à vous. Vide : celles d'origine.",
+  "Instructions for a ticket with a repository": "Consignes pour un ticket avec dépôt",
+  "The path to a Markdown or text file.": "Le chemin d'un fichier Markdown ou texte.",
+  "Instructions for a ticket without one": "Consignes pour un ticket sans dépôt",
+  "Instructions for publishing a validated ticket": "Consignes pour publier un ticket validé",
 
-  Projects: "Projets",
-  "A Notion project, and the repository it means on this machine. Only needed when the project page says nothing: a `path` or a `github` property on the page keeps the mapping on the board, where every machine can read it.":
-    "Un projet Notion, et le dépôt qu'il désigne sur cette machine. Utile seulement quand la page du projet ne dit rien : une propriété `path` ou `github` sur la page garde la correspondance sur le tableau, où toutes les machines peuvent la lire.",
+  "Names of the board's columns": "Noms des colonnes du tableau",
+  "Change these only if your board's columns are named differently. Leaving Blocked empty while renaming Failed means one column for both.":
+    "À changer seulement si les colonnes de votre tableau portent d'autres noms. Laisser Bloqué vide en renommant Échoué, c'est une seule colonne pour les deux.",
+  "The tickets the runner picks up.": "Les tickets que le runner prend en charge.",
+  "Where a ticket goes while it is worked on.": "Là où va un ticket pendant qu'il est traité.",
+  "Work done, waiting for your review.": "Travail fait, en attente de votre relecture.",
+  "You accepted it: the runner merges, or publishes.":
+    "Vous l'avez accepté : le runner fusionne, ou publie.",
+  "Finished and closed.": "Fini et clos.",
+  "Something broke; a log says what.": "Quelque chose a cassé ; un journal dit quoi.",
+  "The runner asked you a question and is waiting.":
+    "Le runner vous a posé une question et attend.",
 
-  "Your GitHub accounts": "Vos comptes GitHub",
-  "One machine often answers to two GitHubs — your own and a client's — and `gh` only ever has one of them active, so a pull request on the other is refused for reasons that read like a bug. On the left the owner, as GitHub spells it in a repository's URL; on the right the account, as `gh auth status` lists it. Log each one in once with `gh auth login` and they stay signed in side by side. An owner nobody names here is worked under whichever account `gh` is active as, which is what one GitHub has always done.":
-    "Une machine répond souvent à deux GitHub — le vôtre et celui d'un client — et `gh` n'en a jamais qu'un d'actif : une pull request sur l'autre est refusée pour des raisons qui ressemblent à un bug. À gauche le propriétaire, tel que GitHub l'écrit dans l'URL d'un dépôt ; à droite le compte, tel que `gh auth status` le liste. Connectez chacun une fois avec `gh auth login` et ils restent connectés côte à côte. Un propriétaire que personne ne nomme ici est travaillé sous le compte actif de `gh`, ce qu'un seul GitHub a toujours fait.",
+  "Names of the ticket properties": "Noms des propriétés des tickets",
+  "Change these only if your Notion properties are named differently. An optional one may be missing: what it would hold is simply not written.":
+    "À changer seulement si vos propriétés Notion portent d'autres noms. Une propriété facultative peut manquer : ce qu'elle contiendrait n'est simplement pas écrit.",
+  "Required.": "Obligatoire.",
+  "Relation to the Projects database.": "Relation vers la base Projects.",
+  Machine: "Machine",
+  "Written by the runner: which machine took the ticket.":
+    "Écrite par le runner : quelle machine a pris le ticket.",
+  "Pull request": "Pull request",
+  "Written by the runner when one is opened.":
+    "Écrite par le runner quand une pull request est ouverte.",
+  Session: "Session",
+  "Written by the runner: the link that reopens the session.":
+    "Écrite par le runner : le lien qui rouvre la session.",
+  "This ticket's model, over the default one.":
+    "Le modèle de ce ticket, prioritaire sur celui par défaut.",
+  "Which Ready ticket goes first.": "Quel ticket prêt passe en premier.",
+  "Written by the runner, in dollars.": "Écrit par le runner, en dollars.",
+  Duration: "Durée",
+  "Written by the runner, in minutes.": "Écrite par le runner, en minutes.",
+  Progress: "Avancement",
+  "Written by the runner: what the session is doing.":
+    "Écrit par le runner : ce que fait la session.",
+  "Scheduled for": "Prévu pour",
+  "A date here holds the ticket until then.": "Une date ici retient le ticket jusque-là.",
+  "Waiting for credit": "En attente de crédit",
+  "Ticked while the subscription limit is reached.":
+    "Cochée tant que la limite de l'abonnement est atteinte.",
+  Type: "Type",
+  "Code, Writing, External action or Publication; empty, it is guessed.":
+    "Code, Rédaction, Action externe ou Publication ; vide, il est deviné.",
+  Agent: "Agent",
+  "Relation to the Agents database: who handles the ticket.":
+    "Relation vers la base Agents : qui traite le ticket.",
+  "Schedule: cadence": "Récurrence : cadence",
+  "Hourly, Daily, Weekly or Monthly.": "Hourly, Daily, Weekly ou Monthly.",
+  "Schedule: time": "Récurrence : heure",
+  "The hour, written 09:00.": "L'heure, écrite 09:00.",
+  "Schedule: day": "Récurrence : jour",
+  "Monday… or 1 to 31.": "Monday… ou 1 à 31.",
+  "Schedule: active": "Récurrence : active",
+  "Unticked: paused, nothing deleted.": "Décochée : en pause, rien n'est supprimé.",
+  "Schedule: next run": "Récurrence : prochaine occurrence",
+  "Written by the runner.": "Écrite par le runner.",
+  "Schedule: last run": "Récurrence : dernière occurrence",
+  "Schedule: last ticket": "Récurrence : dernier ticket",
+  "Written by the runner: what the last occurrence created.":
+    "Écrit par le runner : ce qu'a créé la dernière occurrence.",
 
-  "The columns of your board": "Les colonnes de votre tableau",
-  "What each moment is called in your Notion. Empty means the default, and the defaults are not arbitrary: leaving `blocked` unset while naming `failed` is how you say your board has one column for both.":
-    "Comment chaque moment s'appelle dans votre Notion. Vide signifie la valeur par défaut, et les valeurs par défaut ne sont pas arbitraires : laisser `blocked` vide tout en nommant `failed`, c'est dire que votre tableau n'a qu'une colonne pour les deux.",
-  ready: "prêt",
-  "the column the runner claims from": "la colonne dans laquelle le runner se sert",
-  running: "en cours",
-  "where it puts a ticket it has taken": "où il met un ticket qu'il a pris",
-  review: "en revue",
-  "a pull request is waiting for you": "une pull request vous attend",
-  validated: "validé",
-  "you accepted it — the runner merges, or publishes":
-    "vous l'avez accepté — le runner fusionne, ou publie",
-  "in, and closed": "rentré, et clos",
-  failed: "échoué",
-  "something broke; there is a log to read": "quelque chose a cassé ; il y a un journal à lire",
-  blocked: "bloqué",
-  "it asked you something and is waiting": "il vous a demandé quelque chose et attend",
-
-  "The columns of the ticket database": "Les colonnes de la base des tickets",
-  "What each property is called. The optional ones change nothing by their absence: a database without a Cost column is a database that is not told what a ticket cost.":
-    "Comment chaque propriété s'appelle. Les facultatives ne changent rien par leur absence : une base sans colonne Cost est une base à qui l'on ne dit pas ce qu'un ticket a coûté.",
-  status: "statut",
-  required: "obligatoire",
-  "relation to the projects database": "relation vers la base des projets",
-  agent: "agent",
-  "which machine took the ticket": "quelle machine a pris le ticket",
-  "written back when one is opened": "réécrite quand une pull request est ouverte",
-  "the link that reopens the session": "le lien qui rouvre la session",
-  "per-ticket model, overriding the one above":
-    "modèle par ticket, qui l'emporte sur celui ci-dessus",
-  "which ready ticket goes first": "quel ticket prêt passe en premier",
-  cost: "coût",
-  "written back, in dollars": "réécrit, en dollars",
-  duration: "durée",
-  "written back, in minutes": "réécrite, en minutes",
-  progress: "avancement",
-  "what the session is doing right now": "ce que la session est en train de faire",
-  due: "échéance",
-  "a date here holds the ticket until that moment":
-    "une date ici retient le ticket jusqu'à ce moment",
-  waiting: "en attente",
-  "ticked while the credit is out — it comes back on its own":
-    "cochée tant que le crédit est épuisé — il repart tout seul",
-  role: "rôle",
-  "relation to the agents database": "relation vers la base des agents",
-  cadence: "cadence",
-  "schedules: Hourly, Daily, Weekly or Monthly":
-    "récurrences : Hourly, Daily, Weekly ou Monthly",
-  at: "heure",
-  "schedules: the hour, written 09:00": "récurrences : l'heure, écrite 09:00",
-  day: "jour",
-  "schedules: Monday, or 1 to 31": "récurrences : Monday, ou 1 à 31",
-  active: "active",
-  "schedules: unticked stops it, deleting nothing":
-    "récurrences : décochée, elle s'arrête sans rien supprimer",
-  "next run": "prochaine passe",
-  "schedules: written back — the next birth": "récurrences : réécrite — la prochaine naissance",
-  "last run": "dernière passe",
-  "schedules: written back — the last one": "récurrences : réécrite — la dernière",
-  "last ticket": "dernier ticket",
-  "schedules: written back — what the last occurrence made":
-    "récurrences : réécrit — ce qu'a produit la dernière occurrence",
-
-  "The rows of the workspace page": "Les lignes de la page d'espace de travail",
+  "Names of the Notion databases": "Noms des bases Notion",
   "The titles the runner looks for under your workspace page. Only Tickets is required; the others change nothing by their absence.":
     "Les titres que le runner cherche sous votre page d'espace de travail. Seule Tickets est obligatoire ; les autres ne changent rien par leur absence.",
-  tickets: "tickets",
-  projects: "projets",
-  "a ticket's repository is found through it": "c'est par elle qu'on trouve le dépôt d'un ticket",
-  agents: "agents",
-  "the crafts a ticket can be handled by": "les métiers par lesquels un ticket peut être traité",
-  context: "contexte",
-  "who the work is for, read into every prompt":
-    "pour qui le travail est fait, lu dans chaque prompt",
-  "what repeats — absent means nothing does":
-    "ce qui se répète — absente, rien ne se répète",
+  "Tickets database": "Base des tickets",
+  "Projects database": "Base des projets",
+  "Where a ticket's repository is found.": "Là où l'on trouve le dépôt d'un ticket.",
+  "Agents database": "Base des agents",
+  "The roles a ticket can be handled by.": "Les rôles qui peuvent traiter un ticket.",
+  "Context page": "Page de contexte",
+  "Who the work is for, read by every session.":
+    "Pour qui le travail est fait, lu par chaque session.",
+  "Schedules database": "Base des récurrences",
+  "Recurring tickets; absent, nothing recurs.":
+    "Les tickets récurrents ; absente, rien ne se répète.",
 
-  type: "type",
-  "Code, Writing, External action or Publication — empty, it is worked out":
-    "Code, Rédaction, Action externe ou Publication — vide, il est déduit",
-  "The types of ticket": "Les types de ticket",
-  "The road a ticket takes, told by how the work is done rather than by what it is about. A ticket whose Type is empty is classified before it runs, by a short session on a light model: the type goes into the column, the reason into a comment. A type you chose is never overwritten, and a doubt blocks the ticket with the question rather than running it.":
-    "Le chemin que prend un ticket, défini par la façon dont le travail se fait plutôt que par son sujet. Un ticket dont le Type est vide est classé avant de s'exécuter, par une courte session sur un modèle léger : le type va dans la colonne, la raison dans un commentaire. Un type que vous avez choisi n'est jamais écrasé, et un doute bloque le ticket avec la question plutôt que de l'exécuter.",
-  "Work out an empty type": "Déduire un type vide",
-  "Off: a ticket with no type runs by what its project holds, as before.":
-    "Désactivé : un ticket sans type s'exécute selon ce que contient son projet, comme avant.",
-  "Model that classifies": "Modèle qui classe",
-  "The lightest will do: it reads one page and answers one line. Empty: whatever Claude Code is set to.":
-    "Le plus léger suffit : il lit une page et répond une ligne. Vide : celui que Claude Code utilise.",
-  "Act on a guess from": "Agir sur une déduction à partir de",
-  "Below this confidence the ticket is blocked with the question. A guess that hesitated with Publication or External action is blocked whatever this says.":
-    "Sous cette confiance, le ticket est bloqué avec la question. Une déduction qui a hésité avec Publication ou Action externe est bloquée quoi qu'indique ce réglage.",
-  code: "code",
-  "a repository, a branch, a pull request": "un dépôt, une branche, une pull request",
-  writing: "rédaction",
-  "no repository — the answer is written into the page":
-    "pas de dépôt — la réponse est écrite dans la page",
-  external: "action externe",
-  "done in the browser or a service's settings; stops at the first doubt":
-    "faite dans le navigateur ou les réglages d'un service ; s'arrête au moindre doute",
-  publication: "publication",
-  "prepared, sent to review, published once validated":
-    "préparée, passée en revue, publiée une fois validée",
+  // Not said by the settings page any more, but still said elsewhere: the menu
+  // and the projects' own list, and the ticket types a board's default columns
+  // are written in.
+  Projects: "Projets",
+  Writing: "Rédaction",
+  "External action": "Action externe",
+  Publication: "Publication",
 }

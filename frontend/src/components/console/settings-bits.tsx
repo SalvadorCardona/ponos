@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ChevronDown } from "lucide-react"
 import {
   FormElement,
   MultiSelectInputController,
@@ -111,6 +112,15 @@ function told(field: SettingField, value: unknown): SettingValue {
   return String(value ?? "").trim()
 }
 
+/** A choice as the page says it: its words when the server gave some, else the value. */
+const worded = (field: SettingField, value: string) => field.options?.[value] ?? value
+
+/* The class an advanced field carries. Hidden by the section's wrapper rather
+ * than left out of the form: the form keeps holding every field of the section,
+ * so what was typed in one that is folded away is still counted and saved. See
+ * `SectionPage` in `resources/settings`. */
+const ADVANCED = "group-data-[advanced=folded]/settings:hidden"
+
 /** The greyed answer beside a box: what happens if you say nothing. */
 function placeholder(field: SettingField): string {
   if (field.kind === "secret")
@@ -122,10 +132,11 @@ function placeholder(field: SettingField): string {
 }
 
 /* The sentence under a box. Handed to the package as a node rather than as a
- * string, because it is two: what the setting does, and — where a change does
- * not simply take on the next run — what has to happen for it to count. */
+ * string, because it is three: what the setting does, — where a change does
+ * not simply take on the next run — what has to happen for it to count, and
+ * the key it is in `config.toml`, small, for whoever edits the file by hand or
+ * reads the README's table. */
 function saying(field: SettingField): React.ReactNode {
-  if (!field.help && !field.after) return undefined
   return (
     <>
       {field.help ? <Rich text={translate(field.help)} /> : null}
@@ -134,6 +145,12 @@ function saying(field: SettingField): React.ReactNode {
           {translate("takes effect once")} <Rich text={translate(field.after)} />
         </span>
       ) : null}
+      <code
+        className="text-muted-foreground/70 mt-1 block font-mono text-[10px]"
+        title={translate("Its key in config.toml")}
+      >
+        {field.name}
+      </code>
     </>
   )
 }
@@ -211,8 +228,9 @@ function input(field: SettingField): FormInputInterface {
     label: field.label,
     description: saying(field),
     placeholder: placeholder(field),
-    className: "min-w-0",
+    className: field.advanced ? `min-w-0 ${ADVANCED}` : "min-w-0",
   }
+  const wide = field.advanced ? `col-span-full min-w-0 ${ADVANCED}` : "col-span-full min-w-0"
 
   if (field.kind === "bool")
     return {
@@ -241,9 +259,11 @@ function input(field: SettingField): FormInputInterface {
           // A default nobody wrote is still a line in the list, and an empty
           // `{{value}}` would be read as a key rather than as nothing at all.
           value: UNSET,
-          label: translate("default · {{value}}", { value: String(field.fallback) || "—" }),
+          label: translate("default · {{value}}", {
+            value: field.fallback ? translate(worded(field, String(field.fallback))) : "—",
+          }),
         },
-        ...field.choices.map((choice) => ({ value: choice, label: choice })),
+        ...field.choices.map((choice) => ({ value: choice, label: worded(field, choice) })),
       ],
     }
 
@@ -253,8 +273,8 @@ function input(field: SettingField): FormInputInterface {
       controller: MultiSelectInputController,
       // A row of moments is a row, not a column: it takes the width the grid
       // gives a field and needs all of it.
-      className: "col-span-full min-w-0",
-      valueOptions: field.choices.map((choice) => ({ value: choice, label: choice })),
+      className: wide,
+      valueOptions: field.choices.map((choice) => ({ value: choice, label: worded(field, choice) })),
     }
 
   if (field.kind === "secret") {
@@ -270,7 +290,7 @@ function input(field: SettingField): FormInputInterface {
 
   // A path — a workspace, a prompt file — is read to its end or not at all:
   // half a column would cut it where it says which file.
-  if (field.kind === "path") return { ...shared, className: "col-span-full min-w-0" }
+  if (field.kind === "path") return { ...shared, className: wide }
 
   return shared
 }
@@ -296,6 +316,13 @@ export function written(
 
 /* -- what a section is saved with ------------------------------------------ */
 
+/** How many advanced fields a section has, whether they show, and the switch. */
+export const FoldContext = React.createContext<{
+  advanced: number
+  unfolded: boolean
+  fold: () => void
+}>({ advanced: 0, unfolded: false, fold: () => {} })
+
 /* The bar every section ends on: what is waiting to be saved, the command that
  * says whether this part of the file actually works, and the two gestures.
  *
@@ -308,6 +335,7 @@ export function written(
 function SaveBar({ sectionKey }: { sectionKey: string }) {
   const { form, onSubmit, updateData, isLoading } = useFormContext()
   const { runCommand } = useConsole()
+  const { advanced, unfolded, fold } = React.useContext(FoldContext)
   const t = useT()
   const section = sectionOf(sectionKey)
   if (!section) return null
@@ -324,6 +352,21 @@ function SaveBar({ sectionKey }: { sectionKey: string }) {
             ? t("one change, unsaved")
             : t("{{count}} changes, unsaved", { count: String(changed) })}
       </span>
+      {advanced ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="text-muted-foreground"
+          aria-expanded={unfolded}
+          onClick={fold}
+        >
+          <ChevronDown className={unfolded ? "rotate-180" : undefined} />
+          {unfolded
+            ? t("Hide the advanced settings")
+            : t("Show the advanced settings ({{count}})", { count: String(advanced) })}
+        </Button>
+      ) : null}
       <span className="flex-1" />
       {check ? (
         <Button
