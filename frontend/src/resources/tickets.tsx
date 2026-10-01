@@ -65,6 +65,50 @@ export const TICKETS = "tickets"
 let ticketProblem = ""
 export const lastTicketProblem = () => ticketProblem
 
+/* The page under a ticket, read once per opening.
+ *
+ * Reading it is the slow part of opening a ticket — the server asks Notion for
+ * every block — and the package asks for the record again every time the
+ * stream moves the board, so one opening sent the same request two or three
+ * times. The read is kept, promise and all, for as long as the page is open:
+ * asked again for the same ticket it is the same read, unless the board says
+ * the ticket was edited since. Leaving the page lets go of it, so the next
+ * opening reads a brief changed in Notion. */
+let held: { id: string; edited: string; read: Promise<TicketDetail> } | null = null
+let letGo: ReturnType<typeof setTimeout> | undefined
+
+export function readTicket(id: string, edited = ""): Promise<TicketDetail> {
+  if (!held || held.id !== id || (edited && held.edited && edited !== held.edited)) {
+    const read = api.ticket(id)
+    const reading = { id, edited, read }
+    held = reading
+    read.then(
+      (detail) => {
+        if (!reading.edited) reading.edited = detail.edited
+      },
+      () => {
+        // A failed read is not kept: "Try again" has to try.
+        if (held === reading) held = null
+      }
+    )
+  }
+  return held.read
+}
+
+/** The ticket page is on screen: what it read stays read. */
+export function holdTicket() {
+  clearTimeout(letGo)
+}
+
+/* The ticket page left the screen. A tick later rather than now: React's
+ * strict mode takes a page off and puts it back at once, and that is not
+ * somebody leaving. */
+export function releaseTicket() {
+  letGo = setTimeout(() => {
+    held = null
+  })
+}
+
 /** A ticket as the views hold it: the row, and an IRI so the package can address it. */
 export type TicketItem = Ticket & {
   "@id": string
@@ -679,11 +723,19 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       data: createResourceCollection({ id: "/api/board", items: board.tickets.map(item) }),
     } as never
   },
+  // What the board already knows, at once: the title, the column, the
+  // project and the cost are on the card, and the page draws them without
+  // waiting for Notion. The brief is the page's to read (see `readTicket`).
+  // A ticket the board does not hold — an address typed before the board
+  // arrived — is read whole, and that read is the one the page uses.
   getItem: async ({ id }) => {
     // Kept for the page to say: the package only says *that* a read failed.
     ticketProblem = ""
+    const wanted = String(id).replace(/-/g, "")
+    const row = currentBoard()?.tickets.find((ticket) => ticket.id === wanted)
+    if (row) return { data: item(row) }
     try {
-      return { data: item(await api.ticket(String(id))) }
+      return { data: item(await readTicket(wanted)) }
     } catch (error) {
       ticketProblem = why(error)
       throw error

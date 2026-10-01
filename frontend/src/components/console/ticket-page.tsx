@@ -6,10 +6,17 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConsole } from "@/hooks/use-console"
+import { why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import type { TicketDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { boardHref, lastTicketProblem } from "@/resources/tickets"
+import {
+  boardHref,
+  holdTicket,
+  lastTicketProblem,
+  readTicket,
+  releaseTicket,
+} from "@/resources/tickets"
 
 import { EmptyState } from "./empty-state"
 import { Fact, Facts } from "./frame"
@@ -29,11 +36,12 @@ import {
 
 /* One ticket, as a page.
  *
- * The `read` view of the tickets resource: react-resource-view has fetched
- * `/api/tickets/<id>` by the time this draws, and what it holds is the card
- * plus the page under it — the brief, the report a run appended, the notes
- * between. The ticket's discussion is a bubble away, in the drawer: opening
- * this page is what loads it.
+ * The `read` view of the tickets resource: what react-resource-view holds by
+ * the time this draws is the card, as the board has it — so the page is drawn
+ * at once — and the page under it, the brief, the report a run appended, the
+ * notes between, is read here from `/api/tickets/<id>`, once per opening (see
+ * `readTicket`). The ticket's discussion is a bubble away, in the drawer:
+ * opening this page is what loads it.
  *
  * It opens the way the board's cards do and then says more: the column as a
  * banner, and the metadata as a ruled grid — because six facts in a row of pills is six pills, where six
@@ -54,6 +62,7 @@ export function TicketPage() {
   const page = context.data as TicketDetail | undefined
   const { ticket: open, openTicket, board } = useConsole()
   const t = useT()
+  const brief = useBrief(page)
 
   // The page is the ticket's terminal too: opening it loads the discussion.
   React.useEffect(() => {
@@ -148,8 +157,29 @@ export function TicketPage() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="brief" className="mt-2">
-              {ticket.content ? (
-                <Markdown text={ticket.content} />
+              {brief.content === undefined ? (
+                brief.problem !== undefined ? (
+                  <EmptyState
+                    robot="error"
+                    title={t("This ticket could not be read.")}
+                    action={
+                      <Button variant="outline" size="sm" onClick={brief.again}>
+                        <RotateCw />
+                        {t("Try again")}
+                      </Button>
+                    }
+                  >
+                    {brief.problem || t("The server gave no reason.")}
+                  </EmptyState>
+                ) : (
+                  <div className="flex flex-col gap-2" aria-busy="true">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-5/6" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                )
+              ) : brief.content ? (
+                <Markdown text={brief.content} />
               ) : (
                 <p className="text-muted-foreground text-sm">
                   {t("The page is empty: the title is the whole brief.")}
@@ -193,6 +223,45 @@ export function TicketPage() {
       )}
     </div>
   )
+}
+
+/* The brief of the ticket on screen, read once per opening.
+ *
+ * Read again when the board says the ticket was edited while the page is
+ * open, and let go of when the page is left. `content` stays undefined until
+ * it is read; `problem` is why it could not be. */
+function useBrief(page: TicketDetail | undefined) {
+  const [brief, setBrief] = React.useState<{ id: string; content?: string; problem?: string }>()
+  const [attempt, setAttempt] = React.useState(0)
+  const id = page?.id
+  const edited = page?.edited ?? ""
+
+  React.useEffect(() => {
+    holdTicket()
+    return releaseTicket
+  }, [])
+
+  React.useEffect(() => {
+    if (!id) return
+    let live = true
+    readTicket(id, edited).then(
+      (detail) => live && setBrief({ id, content: detail.content }),
+      (error) => live && setBrief({ id, problem: why(error) })
+    )
+    return () => {
+      live = false
+    }
+  }, [id, edited, attempt])
+
+  const mine = brief && brief.id === id ? brief : undefined
+  return {
+    content: mine?.content,
+    problem: mine?.problem,
+    again: () => {
+      setBrief(undefined)
+      setAttempt((count) => count + 1)
+    },
+  }
 }
 
 /** Notion, the pull request, the session: the right of the layout's header. */
