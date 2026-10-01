@@ -30,7 +30,7 @@ directories are made the first time something is written into them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Callable, Protocol, runtime_checkable
 
 # The three modes of `storage.mode`, and the whole of them.
 MODES = ("notion", "markdown", "both")
@@ -38,6 +38,45 @@ MODES = ("notion", "markdown", "both")
 # How a page edited on both sides at once is settled. One rule, named, because
 # the day there is a second one the configuration has to be able to say which.
 CONFLICTS = ("newest",)
+
+# The columns of the tickets board the runner reads or writes: the kinds of
+# property each one works as, and what a board without it goes without. One
+# table for the two places that have to say it — `doctor`, before anything
+# runs, and a run, the first time a write lands on a column that is not there.
+# A missing column is never an error to Notion: it is a value quietly left
+# out, and a 1st of October spent with fourteen tickets in progress that
+# nothing was going to put back. So what it costs is spelled out.
+COLUMNS: dict[str, tuple[tuple[str, ...], str]] = {
+    "status": (("status", "select"), "no ticket can be claimed, moved or finished"),
+    "project": (("relation",), "no ticket is tied to a project, so none reaches a repository"),
+    "agent": (
+        ("rich_text",),
+        "which machine took a ticket is not written — fine on one machine, but a "
+        "second one on this board would put back the tickets the first is running",
+    ),
+    "pull_request": (
+        ("url",),
+        "the pull request is not linked from its ticket, so a validated one is not merged for you",
+    ),
+    "session": (("url", "rich_text"), "no link to the session behind a ticket"),
+    "model": (("select", "rich_text"), "no model per ticket — runner.model for every one"),
+    "priority": (("select",), "no ready ticket goes before another"),
+    "cost": (("number",), "what a run cost is not written back"),
+    "duration": (("number",), "how long a run took is not written back"),
+    "progress": (("rich_text",), "nothing says what a session is doing while it runs"),
+    "due": (("date",), "no ticket can be held until a date"),
+    "waiting": (("checkbox",), "a ticket held back by the credit does not say so"),
+    "role": (("relation",), "no agent, and so no role, per ticket"),
+    "type": (("select",), "the kind a ticket was classified as is not kept on the board"),
+}
+
+
+def lost(settings: Any, name: str) -> str:
+    """What the tickets board goes without when it has no column `name`."""
+    for key, (_, cost) in COLUMNS.items():
+        if settings.prop(key) == name:
+            return cost
+    return ""
 
 
 class StoreError(Exception):
@@ -226,8 +265,12 @@ class Store(Protocol):
         ...
 
 
-def open(config) -> Store:  # noqa: A001 — it opens a store, and nothing else does
+def open(config, *, dropped: Callable[[str, str], None] | None = None) -> Store:  # noqa: A001
     """The store the configuration asks for.
+
+    `dropped` hears of every property a write leaves out because the database
+    has no such column — `(database, name)` — which only Notion ever does: a
+    Markdown board keeps whatever it is given.
 
     `notion` is the default and the whole of the old behaviour. `markdown` never
     reaches the network: a token is not even read. `both` is the two of them,
@@ -251,10 +294,10 @@ def open(config) -> Store:  # noqa: A001 — it opens a store, and nothing else 
         from .sync import Mirror
 
         return Mirror(
-            Client(config.notion.token),
+            Client(config.notion.token, dropped=dropped),
             Board(config.storage.path, config.notion),
             conflict=config.storage.conflict,
         )
     from .notion import Client
 
-    return Client(config.notion.token)
+    return Client(config.notion.token, dropped=dropped)

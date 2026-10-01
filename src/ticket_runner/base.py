@@ -54,7 +54,7 @@ class Base:
         # The board, whichever one the configuration asked for: Notion, a
         # directory of Markdown files, or the two kept in step. Nothing above
         # this line knows which — see store.py.
-        self.client = store.open(config)
+        self.client = store.open(config, dropped=self._dropped)
         self.resolver = Resolver(
             config.runner.workspace_root, config.projects, config.github
         )
@@ -79,6 +79,9 @@ class Base:
         # Whether this run has already said it cannot read the subscription's
         # usage. Said once — see `under_reserve`, which asks at every free place.
         self._usage_warned = False
+        # The columns a write of this run left out because the board has none
+        # by that name. Each is said once — see `_dropped`.
+        self._unwritten: set[tuple[str, str]] = set()
 
     @property
     def workspace(self) -> workspace_module.Workspace:
@@ -120,6 +123,25 @@ class Base:
     def say(self, message: str) -> None:
         if not self.quiet:
             print(message, flush=True)
+
+    def _dropped(self, database: str, name: str) -> None:
+        """A write left `name` out: the board has no such column. Said once a run.
+
+        Once, and not at every ticket: the column is missing for all of them,
+        and the progress line alone is rewritten every few seconds. But said,
+        because a column the configuration names and the board does not have
+        is a feature switched off without anybody having switched it — the
+        claims went unsigned for a day, and the abandoned tickets with them.
+        """
+        if (database, name) in self._unwritten:
+            return
+        self._unwritten.add((database, name))
+        cost = store.lost(self.config.notion, name) if database == self.database else ""
+        self.say(
+            f"  ! “{name}” is not a column of the board — left unwritten"
+            + (f": {cost}" if cost else "")
+            + " (ticket-runner doctor)"
+        )
 
     def _notify(
         self, title: str, body: str, *, urgent: bool = False, link: str = ""

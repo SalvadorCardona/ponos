@@ -431,6 +431,21 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **Tickets abandoned on a board without a Runner column come back.** The
+  runner signs a ticket it claims in that column, and only put back the ones
+  it had signed — so on a board without it, a ticket left *in progress* by a
+  reboot or a crash stayed there for good. Without the column, every ticket
+  in progress that no run is holding goes back to *Ready* (one machine per
+  board, then); with it, nothing changes, and another machine's tickets are
+  still left alone.
+
+- **A missing column is said, not swallowed.** `ticket-runner doctor` checks
+  every column the runner works with — the optional ones too — and counts as
+  a problem each one that is missing or of the wrong type, with what it
+  switches off; `ticket-runner init` adds them. And a run that writes to a
+  column the board does not have says so once, instead of dropping the value
+  without a word.
+
 - **An update that does not start is taken back.** A version is started by a
   Python of its own before it is kept; if it fails to import, or its launcher
   and units cannot be written, the installation returns to the commit it

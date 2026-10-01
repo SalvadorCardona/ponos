@@ -112,14 +112,17 @@ context = "Context"
 schedules = "Schedules"      # on the board this shipped against: "Master Scheluder"
 
 # Rename here if your Notion columns are named differently.
-# A property that does not exist in the database is simply skipped.
+# A property that does not exist in the database is skipped — and said: once
+# per run when it is written, and by `ticket-runner doctor` with what it turns off.
 [notion.properties]
 status = "Status"
 project = "Project"          # relation → your projects database
 pull_request = "Pull Request"
 
 # Which machine took the ticket, written as ticket-runner@host. Not the same
-# thing as `role` below, which is the craft the session plays.
+# thing as `role` below, which is the craft the session plays. Without the
+# column, a ticket abandoned in progress still goes back to ready, but the board
+# is taken to be run by one machine: a second one would put back the first's.
 agent = "Runner"
 
 # Written when the ticket is claimed. As a URL column it becomes a link that

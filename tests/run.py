@@ -4044,9 +4044,11 @@ class _BoardClient:
         self.written: list[tuple[str, dict]] = []
         self.comments_written: list[str] = []
         self.queried: list[object] = []
+        # Columns a test adds to the board: the Runner one, to begin with.
+        self.columns: dict[str, str] = {}
 
     def schema(self, database_id: str) -> dict[str, str]:
-        schema = {"Status": "status", "Pull Request": "url"}
+        schema = {"Status": "status", "Pull Request": "url", **self.columns}
         if self.waiting:
             schema["Waiting for credit"] = "checkbox"
         return schema
@@ -4535,6 +4537,142 @@ def a_ticket_claimed_from_ready_is_still_put_back_in_the_queue():
         assert runner.sweep() == 1
     assert runner.client.written == [("p-work", {"Status": "Ready"})]
     assert "picking it up again" in runner.client.comments_written[0]
+
+
+def _in_progress(page_id: str, runner_label: str | None) -> notion.Page:
+    """A ticket left in progress long ago, signed by `runner_label` if given."""
+    properties: dict = {"Status": {"type": "status", "status": {"name": "In progress"}}}
+    if runner_label is not None:
+        properties["Runner"] = {"type": "rich_text", "rich_text": [{"plain_text": runner_label}]}
+    return notion.Page(
+        id=page_id, url="", title=page_id, properties=properties,
+        raw={"last_edited_time": "2020-01-01T00:00:00.000+00:00"},
+    )
+
+
+@case
+def a_board_without_a_runner_column_still_gets_its_abandoned_tickets_back():
+    """The 1st of October: fourteen tickets in progress, nobody behind them.
+
+    The claims were never signed — the board had no such column — and the
+    sweep only put back what this host had signed.
+    """
+    runner = _board_runner([_in_progress("p-lost", None), _in_progress("p-other", None)], {})
+    with _state_home():
+        assert runner.sweep() == 2
+    assert runner.client.written == [("p-lost", {"Status": "Ready"}), ("p-other", {"Status": "Ready"})]
+
+
+@case
+def a_ticket_this_run_holds_is_never_put_back():
+    runner = _board_runner([_in_progress("p-held", None), _in_progress("p-signed", "ticket-runner@laptop")], {})
+    runner.client.columns = {"Runner": "rich_text"}
+    runner._claimed = {"pheld", "psigned"}  # `Ticket.id`, dashes dropped
+    with _state_home():
+        assert runner.sweep() == 0
+    assert runner.client.written == []
+
+
+@case
+def with_a_runner_column_only_this_hosts_tickets_come_back():
+    """Unchanged where the board can say who took a ticket."""
+    runner = _board_runner(
+        [
+            _in_progress("p-mine", "ticket-runner@laptop"),
+            _in_progress("p-theirs", "ticket-runner@desktop"),
+            _in_progress("p-unsigned", None),
+        ],
+        {},
+    )
+    runner.client.columns = {"Runner": "rich_text"}
+    with _state_home():
+        assert runner.sweep() == 1
+    assert runner.client.written == [("p-mine", {"Status": "Ready"})]
+
+
+@case
+def a_publication_interrupted_on_a_board_without_a_runner_column_still_asks():
+    runner = _board_runner([_in_progress("ppost", None)], {})
+    with _state_home():
+        state.claim("ppost", "Validated")
+        assert runner.sweep() == 1
+    assert runner.client.written == [("ppost", {"Status": "Blocked"})]
+
+
+class _SchemaOnly(notion.Client):
+    """A Notion client whose database has these columns, and whose PATCHes stay here."""
+
+    def __init__(self, columns: dict[str, str], dropped=None):
+        super().__init__("secret", dropped=dropped)
+        self._columns = columns
+        self.patched: list[dict] = []
+
+    def schema(self, database_id: str) -> dict[str, str]:
+        return dict(self._columns)
+
+    def _request(self, method, path, body=None, **kwargs):
+        self.patched.append(body or {})
+        return {}
+
+
+@case
+def a_write_to_a_column_the_board_lacks_is_said_once_a_run():
+    runner = _board_runner([], {})
+    runner.quiet = False
+    runner._unwritten = set()
+    runner.client = _SchemaOnly({"Status": "status"}, dropped=runner._dropped)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        for page in ("p1", "p2", "p3"):
+            runner.client.update("db", page, {"Status": "In progress", "Runner": "ticket-runner@laptop"})
+            runner.client.update("db", page, {"Progress": "reading the code"})
+    said = out.getvalue().splitlines()
+    assert len(said) == 2, said
+    assert "“Runner” is not a column of the board" in said[0]
+    assert "a second one on this board would put back" in said[0], "with what it costs"
+    assert "“Progress”" in said[1] and "while it runs" in said[1]
+    assert all(body == {"properties": {"Status": {"status": {"name": "In progress"}}}}
+               for body in runner.client.patched[::2]), "the status still goes through"
+    runner._unwritten = set()  # what `tick` does: the next run says it again
+    with contextlib.redirect_stdout(out):
+        runner.client.update("db", "p4", {"Runner": "ticket-runner@laptop"})
+    assert out.getvalue().count("“Runner”") == 2
+
+
+@case
+def doctor_names_every_column_the_board_lacks_and_counts_it():
+    from ticket_runner.__main__ import _doctor_columns
+
+    settings = C.Notion(properties=dict(C._DEFAULT_PROPERTIES))
+    complete = {settings.prop(key): kinds_accepted[0] for key, (kinds_accepted, _) in store.COLUMNS.items()}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert _doctor_columns(complete, settings) == 0
+    assert "missing" not in out.getvalue()
+
+    lacking = {name: kind for name, kind in complete.items() if name not in ("Runner", "Progress")}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert _doctor_columns(lacking, settings) == 2
+    said = re.sub(r"\x1b\[[0-9;]*m", "", out.getvalue())
+    assert "✗ “Runner” missing — which machine took a ticket is not written" in said, said
+    assert "✗ “Progress” missing — nothing says what a session is doing" in said, said
+    assert "ticket-runner init adds the missing ones" in said
+
+    retyped = {**complete, "Cost": "rich_text"}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert _doctor_columns(retyped, settings) == 1
+    assert "“Cost” is a rich_text, expected number" in out.getvalue()
+
+    # The configuration of the 1st of October: `agent = "Agent"`, on a board
+    # that has no column by that name — nor by the Runner one.
+    renamed = C.Notion(properties={**C._DEFAULT_PROPERTIES, "agent": "Agent"})
+    board = {name: kind for name, kind in complete.items() if name not in ("Agent", "Runner")}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert _doctor_columns(board, renamed) == 2  # the role column is “Agent” too
+    assert "“Agent” missing — which machine took a ticket" in out.getvalue()
 
 
 @case

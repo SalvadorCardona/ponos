@@ -635,6 +635,36 @@ def _timer_line(timer: systemd.Timer) -> None:
         print(f"    {DIM}{timer.row}{RESET}")
 
 
+def _doctor_columns(schema: dict[str, str], settings: config_module.Notion) -> int:
+    """Every column the runner works with, and what is off when one is not there.
+
+    All of them count, the optional ones too. Optional meant that the runner
+    carries on without them — and it does, silently: a board with no agent
+    column ran for months with every claim unsigned, and this said it in
+    yellow among a dozen other lines in yellow, which is to say not at all.
+    What a missing column switches off is a problem to fix or a column to
+    rename in `[notion.properties]`, and either way it is a decision.
+    """
+    problems = 0
+    for key, (kinds_accepted, cost) in store.COLUMNS.items():
+        name = settings.prop(key)
+        kind = schema.get(name)
+        if kind is None:
+            bad(f"“{name}” missing — {cost}")
+            problems += 1
+        elif kind not in kinds_accepted:
+            bad(f"“{name}” is a {kind}, expected {' or '.join(kinds_accepted)} — {cost}")
+            problems += 1
+        else:
+            ok(f"“{name}” ({kind})")
+    if problems:
+        print(
+            f"  {DIM}ticket-runner init adds the missing ones; a column under "
+            f"another name is renamed in [notion.properties]{RESET}"
+        )
+    return problems
+
+
 def command_doctor(args: argparse.Namespace) -> int:
     problems = 0
 
@@ -872,45 +902,7 @@ def command_doctor(args: argparse.Namespace) -> int:
     if storage.notion and database != reference:
         warn(f"resolved from “{reference}” to database {database}")
 
-    for key, expected in (
-        ("status", ("status", "select")),
-        ("project", ("relation",)),
-        ("agent", ("rich_text",)),
-        ("pull_request", ("url",)),
-    ):
-        name = configuration.notion.prop(key)
-        kind = schema.get(name)
-        if kind is None:
-            (warn if key in ("agent", "pull_request") else bad)(
-                f"property “{name}” missing"
-                + (" — the runner will do without it" if key in ("agent", "pull_request") else "")
-            )
-            problems += 0 if key in ("agent", "pull_request") else 1
-        elif kind not in expected:
-            warn(f"“{name}” is a {kind}, expected {' or '.join(expected)}")
-        else:
-            ok(f"“{name}” ({kind})")
-    optional = (
-        ("session", "url", "a clickable link to the session; as text, the bare ID"),
-        ("model", "select", "pick the model per ticket, overriding runner.model"),
-        ("priority", "select", "which ready ticket runs first"),
-        ("cost", "number", "what the run cost, written back"),
-        ("duration", "number", "how long it took, in minutes"),
-        ("progress", "rich_text", "what the session is doing, while it does it"),
-        ("due", "date", "hold the ticket until that date, then run — or publish — it"),
-        ("waiting", "checkbox", "ticked while the credit is out; it comes back on its own"),
-        ("role", "relation", "which agent handles the ticket; its page is the role"),
-        ("type", "select", "Code, Writing, External action or Publication — empty, it is classified"),
-    )
-    for key, preferred, why in optional:
-        name = configuration.notion.prop(key)
-        kind = schema.get(name)
-        if kind is None:
-            warn(f"“{name}” missing — {why}")
-        elif kind != preferred:
-            ok(f"“{name}” ({kind}) — {preferred} would be better: {why}")
-        else:
-            ok(f"“{name}” ({kind})")
+    problems += _doctor_columns(schema, configuration.notion)
 
     title("Statuses")
     options = client.options(database, configuration.notion.prop("status"))
