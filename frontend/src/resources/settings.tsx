@@ -88,6 +88,8 @@ export interface SettingsItem extends Settings {
   "@id": string
   "@type": string
   id: string
+  /** What the bar's breadcrumb calls it, which would otherwise be "#config". */
+  name: string
 }
 
 /* What each section is, at a glance. Decoration rather than a second list of
@@ -384,6 +386,10 @@ function SettingsHead() {
   )
 }
 
+/* The layout's header, in place of the package's: nothing. The page says what it
+ * is in `SettingsHead`, and the bar above it already says where you are. */
+const NoHeader = () => null
+
 export const settings = createViewResource<SettingsItem>(SETTINGS, {
   name: "Settings",
   scope: SCOPE,
@@ -403,7 +409,9 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
     // Published before it is returned: the tabs are built from the store, and
     // they are drawn the moment this resolves.
     publishSettings(drawn)
-    return { data: { ...drawn, id: THE_FILE, "@id": "/api/settings", "@type": SETTINGS } }
+    return {
+      data: { ...drawn, id: THE_FILE, name: "config.toml", "@id": "/api/settings", "@type": SETTINGS },
+    }
   },
   createItem: async () => {
     throw new Error("the configuration is not created from the console")
@@ -419,6 +427,10 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
     [ActionList.read]: {
       name: "Settings",
       viewComponent: SettingsHead,
+      // No header from the layout: it said the page twice over `SettingsHead`
+      // — a way back, "Settings", "#config" — and its way back led to a list
+      // the one file does not have.
+      components: { navigation: NoHeader },
       // The page's whole width rather than the layout's column: a column of
       // tabs beside two columns of fields left each field the width of a word.
       fullWidth: true,
