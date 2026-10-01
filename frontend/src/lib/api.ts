@@ -166,6 +166,11 @@ export const api = {
     body: string
     project: string
     ready: boolean
+    /** Each left out, or empty, for a ticket that does not say: an empty type
+     * is the runner's to deduce. `type` is one of the four keys, not a label. */
+    priority?: string
+    type?: string
+    model?: string
   }) => request<{ id: string; title: string }>("/api/tickets", ticket),
   /** `from` is the status the card showed: Notion saying anything else by the
    * time the write goes out is somebody else's move, not overwritten. */

@@ -61,6 +61,9 @@ export interface Board {
   /** Whether this board has a `validated` column the runner would honour. */
   validate?: boolean
   columns: { key: ColumnKey; name: string }[]
+  /** What a new ticket may be given beside its title, for the columns this
+   * board has: a column it lacks is not a key here. */
+  choices?: Partial<Record<"priority" | "type" | "model", { value: string; label: string }[]>>
 }
 
 export interface Project {

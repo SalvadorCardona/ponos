@@ -24,9 +24,11 @@ from typing import Any
 
 from .. import config as config_module
 from .. import cleanup, conversation, credits, images, session, state, store, sync, systemd, voice
+from .. import kinds as kinds_module
+from .. import provision
 from .. import schedules as schedules_module
 from .. import update as update_module
-from ..config import Config
+from ..config import PRIORITIES, Config
 from ..runner import Runner
 from ..schedules import scheduled_for
 from ..ticket import short_id
@@ -244,7 +246,41 @@ class Api:
         # console says "No status" in whichever language it is in.
         if any(item["column"] == "other" for item in tickets):
             columns.append({"key": "other", "name": ""})
-        return {"tickets": tickets, "validate": offers, "columns": columns}
+        return {"tickets": tickets, "validate": offers, "columns": columns, "choices": self._choices()}
+
+    def _choices(self) -> dict[str, list[dict[str, str]]]:
+        """What a new ticket may be given beside its title: priority, type, model.
+
+        Only the columns this board has. A select offered for a column Notion
+        does not carry is a value silently dropped on the way in — the form
+        would be promising what the board cannot keep. The runner's own words
+        come first, because they are the ones it acts on (`PRIORITIES` orders
+        the queue, `MODELS` is what `claude --model` takes); whatever else the
+        board offers follows. A type is one of the four, written as the board
+        spells it.
+        """
+        settings = self.config.notion
+        client, database = self.runner.client, self.runner.database
+        try:
+            schema = client.schema(database)
+        except store.StoreError:
+            return {}
+        choices: dict[str, list[dict[str, str]]] = {}
+        for key, ours in (("priority", PRIORITIES), ("model", provision.MODELS)):
+            name = settings.prop(key)
+            if name not in schema:
+                continue
+            try:
+                offered = client.options(database, name)
+            except store.StoreError:
+                offered = []
+            values = list(dict.fromkeys([*ours, *(value for value in offered if value)]))
+            choices[key] = [{"value": value, "label": value} for value in values]
+        if settings.prop("type") in schema:
+            choices["type"] = [
+                {"value": key, "label": self.runner.kind_name(key)} for key in kinds_module.KINDS
+            ]
+        return choices
 
     def _ticket(self, page: store.Page, names: dict[str, str], projects: dict, host: str) -> dict:
         """One page of the tickets database, as a card reads it."""
@@ -888,10 +924,22 @@ class Api:
 
     # -- writing --------------------------------------------------------------
 
-    def create_ticket(self, title: str, body: str = "", project: str = "", ready: bool = True) -> dict:
+    def create_ticket(
+        self,
+        title: str,
+        body: str = "",
+        project: str = "",
+        ready: bool = True,
+        priority: str = "",
+        kind: str = "",
+        model: str = "",
+    ) -> dict:
         title = title.strip()
         if not title:
             raise ValueError("a ticket needs a title")
+        kind = kind.strip()
+        if kind and kind not in kinds_module.KINDS:
+            raise ValueError(f"unknown type “{kind}”")
         settings = self.config.notion
         values: dict[str, Any] = {}
         # Ready means "start it now"; anything else means the ticket is being
@@ -906,6 +954,14 @@ class Api:
             values[settings.prop("status")] = settings.state("draft")
         if project:
             values[settings.prop("project")] = [project]
+        # Each one left out when it is not said: an empty type is the runner's
+        # to classify before the ticket runs, as on a ticket written in Notion.
+        if priority.strip():
+            values[settings.prop("priority")] = priority.strip()
+        if kind:
+            values[settings.prop("type")] = self.runner.kind_name(kind)
+        if model.strip():
+            values[settings.prop("model")] = model.strip()
         page_id = self.runner.client.create_row(self.runner.database, title, values)
         if body.strip():
             self.runner.client.append_markdown(page_id, body)

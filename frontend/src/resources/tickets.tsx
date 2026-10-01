@@ -38,11 +38,12 @@ import {
 } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
 import { Robot, TicketRobot } from "@/components/console/robot"
-import { RunnerStrip } from "@/components/console/runner-strip"
+import { RunnerStrip, every } from "@/components/console/runner-strip"
 import { CardLive } from "@/components/console/session-log"
 import { TicketHead, TicketPage } from "@/components/console/ticket-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import { addTicket, boardOnce, currentBoard, moveTicket, subscribeBoard, useBoard } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
@@ -131,6 +132,9 @@ export interface TicketWrite {
   body?: string
   project?: string
   ready?: boolean
+  priority?: string
+  type?: string
+  model?: string
 }
 
 const item = (ticket: Ticket | TicketDetail): TicketItem => ({
@@ -158,9 +162,12 @@ export function columnName(key: string): string {
 const TitleInputController: InputControllerComponentInterface = ({ formInput, onChange }) => {
   const invalid = Boolean(formInput.violations?.length)
   const id = formInput.id ?? "field-title"
+  const field = React.useRef<HTMLInputElement>(null)
+  useSendOnControlEnter(field)
   return (
     <>
       <Input
+        ref={field}
         id={id}
         name={formInput.name}
         defaultValue={String(formInput.value ?? "")}
@@ -182,6 +189,65 @@ const TitleInputController: InputControllerComponentInterface = ({ formInput, on
       ) : null}
     </>
   )
+}
+
+/* Ctrl+Enter (⌘+Enter on a Mac) creates the ticket from any field of the form,
+ * the brief included — Enter alone is a new line there. Listened to on the
+ * form, before the field: the editor would otherwise take the key for itself.
+ * From the brief it waits a moment, because the editor tells the form what it
+ * holds a little after the last key, and the last words typed would be left
+ * out of the ticket. */
+function useSendOnControlEnter(field: React.RefObject<HTMLElement | null>) {
+  React.useEffect(() => {
+    const form = field.current?.closest("form")
+    if (!form) return
+    const send = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return
+      event.preventDefault()
+      event.stopPropagation()
+      const editing = (event.target as Element | null)?.closest?.('[data-slot="markdown-editor"]')
+      window.setTimeout(() => form.requestSubmit(), editing ? 300 : 0)
+    }
+    form.addEventListener("keydown", send, true)
+    return () => form.removeEventListener("keydown", send, true)
+  }, [field])
+}
+
+/* What ticking "Ready to run" does, said under it: the ticket is a session at
+ * the runner's next pass, and a session is paid for. The interval is the
+ * runner's own, so the sentence says when that is — or only "the next pass"
+ * when the timer that makes passes is not running. */
+function ReadyNote() {
+  const { runner } = useConsole()
+  const seconds = runner?.timer === "enabled" ? (runner.interval_seconds ?? 0) : 0
+  return (
+    <>
+      {seconds
+        ? t("Ticked, a session starts at the next pass (within {{every}}).", { every: every(seconds) })
+        : t("Ticked, a session starts at the next pass.")}{" "}
+      {t("Off, and the ticket is a draft the runner leaves alone.")}
+    </>
+  )
+}
+
+/* The three selects a board may or may not have a column for: priority, type,
+ * model. Drawn only where it has one — a value for a missing column would be
+ * dropped on its way in — and always optional. The options are the board's
+ * (see `Api._choices`): read from the board the console already holds, which
+ * is there before a dialog over it can open. */
+function choiceInput(key: "priority" | "type" | "model", empty: string, description: string) {
+  return {
+    label: key === "type" ? "Type" : key === "priority" ? "Priority" : "Model",
+    get description() {
+      return t(description)
+    },
+    controller: SelectInputController,
+    hidden: () => !currentBoard()?.choices?.[key]?.length,
+    getValueOptions: async () => [
+      { value: "", label: empty },
+      ...(currentBoard()?.choices?.[key] ?? []),
+    ],
+  }
 }
 
 /** A refusal about one field, in the shape the form draws under that field. */
@@ -249,10 +315,21 @@ const createForm: FormInterface = {
         ]
       },
     },
+    priority: choiceInput(
+      "priority",
+      "no priority",
+      "Which ready ticket goes first. Empty, it waits its turn."
+    ),
+    type: choiceInput(
+      "type",
+      "deduced by the runner",
+      "The road the ticket takes. Empty, the runner deduces it before the ticket runs."
+    ),
+    model: choiceInput("model", "the runner's model", "Empty, the model the runner is set to."),
     ready: {
       label: "Ready to run",
       get description() {
-        return t("Off, and the ticket is a draft the runner leaves alone.")
+        return <ReadyNote />
       },
       controller: BooleanInputController,
       defaultValue: true,
@@ -760,6 +837,9 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       body: String(fresh.body ?? ""),
       project: String(fresh.project ?? ""),
       ready: fresh.ready !== false,
+      priority: String(fresh.priority ?? ""),
+      type: String(fresh.type ?? ""),
+      model: String(fresh.model ?? ""),
     })
     const projects = await api.projects().catch(() => ({ projects: [] }))
     const project = projects.projects.find((candidate) => candidate.id === fresh.project)
@@ -776,8 +856,8 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       column,
       project: project?.name ?? "",
       kind: project?.kind ?? "",
-      priority: "",
-      model: "",
+      priority: String(fresh.priority ?? ""),
+      model: String(fresh.model ?? ""),
       progress: "",
       runner: "",
       pull_request: "",
@@ -848,8 +928,8 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     [ActionList.create]: {
       name: "New ticket",
       form: createForm,
-      // Over the board rather than instead of it, and in the middle of it: four
-      // fields are a question asked, not a page to settle into. The dialog is
+      // Over the board rather than instead of it, and in the middle of it: a
+      // handful of fields are a question asked, not a page to settle into. The dialog is
       // already as wide as a brief wants and scrolls inside when one runs long.
       behavior: { openIn: "popup" },
     },
