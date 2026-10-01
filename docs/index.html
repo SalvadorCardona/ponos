@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ponos — Write the ticket. It comes back done.</title>
-<meta name="description" content="Write the ticket. It comes back done. Ponos does the work on your machine while you do something else — a pull request, a text, an action — asks on Telegram or Slack when it needs you, and merges or publishes only once you say yes.">
+<meta name="description" content="Write the ticket. It comes back done. Ponos is a harness around Claude Code that runs your tasks on your machine — code, writing, actions, posts — on a board of its own, the console or a folder of Markdown files. Notion and GitHub plug in when you want them, and nothing ships until you say yes.">
 <link rel="canonical" href="https://cardona.digital/ticket-runner/">
 <link rel="icon" type="image/svg+xml" href="mascot/favicon.svg?v=greek">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Ponos — Write the ticket. It comes back done.">
-<meta property="og:description" content="Ponos does the work on your machine — a pull request, a text, an action. You read it, answer in a word, even from your phone, and he delivers.">
+<meta property="og:description" content="A harness around Claude Code that runs your tasks on your machine — a pull request, a text, an action, a post. A board of its own; Notion and GitHub only if you want them.">
 <meta property="og:url" content="https://cardona.digital/ticket-runner/">
 <meta property="og:image" content="https://cardona.digital/ticket-runner/mascot/og.png?v=greek">
 <meta property="og:image:alt" content="Ponos, the robot, jumping beside its name and the words: Write the ticket. It comes back done.">
@@ -22,6 +22,7 @@
 <meta property="og:video:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Ponos — Write the ticket. It comes back done.">
+<meta name="twitter:description" content="A harness around Claude Code that runs your tasks on your machine — code, writing, actions, posts. Notion and GitHub optional.">
 <meta name="twitter:image" content="https://cardona.digital/ticket-runner/mascot/og.png?v=greek">
 <script type="application/ld+json">
 {
@@ -29,7 +30,7 @@
   "@type": "SoftwareApplication",
   "name": "Ponos",
   "alternateName": "ticket-runner",
-  "description": "Write the ticket. It comes back done. Ponos does the work on your machine — a pull request, a text, an action — and merges or publishes only once you say yes.",
+  "description": "Write the ticket. It comes back done. Ponos is a harness around Claude Code that runs your tasks on your machine — code, writing, external actions, publications — on a board of its own, and merges or publishes only once you say yes.",
   "url": "https://cardona.digital/ticket-runner/",
   "codeRepository": "https://github.com/SalvadorCardona/ticket-runner",
   "applicationCategory": "DeveloperApplication",
@@ -41,14 +42,16 @@
     "priceCurrency": "USD"
   },
   "featureList": [
+    "Four kinds of task: code, writing, external actions, publications",
     "One agent session per ticket, on a disposable git worktree",
     "Pull request for code tickets, the written page for the others",
     "Validated column that merges pull requests or publishes documents",
     "Questions and answers over Telegram and Slack",
     "Replies to comments on a ticket",
-    "Recurring tickets from a schedules database",
-    "Local web console: live board, statistics, workspace chat, settings",
-    "Notion board or Markdown files, Claude Code or any model through OpenRouter"
+    "Recurring tickets from schedules",
+    "A board of its own: the local web console over a folder of Markdown files",
+    "Workspace chat with the machine, in the console",
+    "Optional integrations: Notion, GitHub, Telegram, Slack, OpenRouter for any other model"
   ],
   "author": {
     "@type": "Person",
@@ -194,7 +197,10 @@
   @media (max-width: 900px) { .hero-in { grid-template-columns: minmax(0, 1fr); gap: 2.5rem; } }
   h1 { font-size: clamp(2.75rem, 7vw, 4.75rem); line-height: 1; letter-spacing: -.04em; margin: 0; }
   h1 span { color: var(--primary); display: block; }
-  .lede { font-size: clamp(1.0625rem, 2vw, 1.25rem); color: var(--muted-foreground); margin: 1.5rem 0 0; max-width: 36rem; }
+  /* What it is, in one line, before what it does: read first, so a little
+     louder than the paragraph under it. */
+  .tagline { font-size: clamp(1.125rem, 2.2vw, 1.375rem); line-height: 1.45; font-weight: 500; letter-spacing: -.01em; margin: 1.5rem 0 0; max-width: 36rem; }
+  .lede { font-size: clamp(1rem, 1.8vw, 1.125rem); color: var(--muted-foreground); margin: 1rem 0 0; max-width: 36rem; }
   .lede strong { color: var(--foreground); font-weight: 600; }
   .cta { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 2rem; }
   .cta .link { margin-left: .5rem; font-size: .875rem; font-weight: 500; color: var(--muted-foreground); text-underline-offset: 3px; }
@@ -210,7 +216,7 @@
   .install code { flex: 1; min-width: 0; padding: .3rem 0; overflow-wrap: anywhere; white-space: normal; background: none; border: 0; font-size: inherit; }
   .byline { margin-top: 1.25rem; font-size: .875rem; color: var(--muted-foreground); max-width: 36rem; }
 
-  /* The hero's picture: a ticket as Notion shows it, Ponos at work on it, and
+  /* The hero's picture: a ticket as the board shows it, Ponos at work on it, and
      what comes back. One attribute, data-step, says how far the ticket went;
      the page's script moves it round, and without script — or with motion
      unwelcome — it stays at the end, the pull request opened. */
@@ -319,6 +325,27 @@
     .launch-play::after { animation: none; }
   }
 
+  /* -- 2. what it does: one card per type of ticket, an example ticket in each,
+     edged with the colour its column has on the board -- */
+  .task { gap: 1rem; }
+  .task .card-title { font-size: 1.125rem; }
+  .task .ask {
+    margin: 0 1.5rem; border: 1px solid var(--border); border-left: 3px solid var(--edge, var(--border)); border-radius: var(--radius);
+    padding: .5rem .75rem; background: var(--background); font-size: .8125rem; font-weight: 600; line-height: 1.45;
+  }
+  .task .ask small { display: block; font: 400 .6875rem/1.5 var(--mono); color: var(--muted-foreground); margin-bottom: .125rem; }
+  .task p { margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
+  .task p b { color: var(--foreground); font-weight: 600; }
+  .task.code { --edge: var(--tr-blue); }
+  .task.writing { --edge: var(--tr-green); }
+  .task.action { --edge: var(--tr-amber); }
+  .task.publication { --edge: var(--tr-violet); }
+  .around { margin-top: 1rem; }
+  .around .card { gap: .75rem; }
+  .around .card-title { font-size: 1rem; }
+  .around p { margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
+  .around q { color: var(--foreground); font-weight: 500; }
+
   /* -- 2. the loop -- */
   .step .num { font: 600 .8125rem/1 var(--mono); color: var(--primary); }
   .board-demo { margin-top: 1.5rem; overflow: hidden; gap: 0; padding: 0; }
@@ -369,7 +396,22 @@
   .works { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1.5rem; color: var(--muted-foreground); font-size: .875rem; }
   .works .badge { font-size: .8125rem; padding: .25rem .625rem; color: var(--foreground); }
 
-  /* -- 4. notion: text on one side, a window on the other, sides swapping row by row -- */
+  /* -- 4. integrations: a card each, then Notion told at length -- */
+  .plug { gap: 1rem; }
+  .plug .card-header { grid-template-columns: 1fr auto; align-items: center; }
+  .plug .card-title { font-size: 1.125rem; }
+  .plug .badge { color: var(--muted-foreground); }
+  .plug p { margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
+  .plug p b { color: var(--foreground); font-weight: 600; }
+  .plug .card-footer a { color: var(--primary); font-weight: 500; text-decoration: none; }
+  .plug .card-footer a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .sub-head { max-width: 680px; margin: 5rem 0 2.25rem; scroll-margin-top: 76px; }
+  .sub-head h3 { font-size: clamp(1.5rem, 3vw, 1.875rem); line-height: 1.15; margin: .5rem 0 0; }
+  .sub-head p { color: var(--muted-foreground); font-size: 1.0625rem; margin: .875rem 0 0; }
+  .sub-head pre { margin-top: 1.25rem; }
+  @media (max-width: 640px) { .sub-head { margin-top: 3.5rem; } }
+
+  /* -- notion: text on one side, a window on the other, sides swapping row by row -- */
   .rows { display: grid; gap: 4rem; }
   .row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: center; }
   .row:nth-child(even) .text { order: 1; }
@@ -415,7 +457,10 @@
   .install-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
   @media (max-width: 860px) { .install-grid { grid-template-columns: minmax(0, 1fr); } }
   .install-grid .card p { margin: 0; color: var(--muted-foreground); font-size: .9375rem; }
-  .install-grid ul { margin: 0; padding-left: 1.125rem; color: var(--muted-foreground); font-size: .9375rem; }
+  .install-grid ul { margin: 0; padding-left: 2.625rem; color: var(--muted-foreground); font-size: .9375rem; }
+  /* A block of code sits inside the card's margins, not across its edges. */
+  .install-grid .card > pre { margin-inline: 1.5rem; padding-inline: 1rem 4.5rem; }
+  .install-grid .card > p + p { margin-top: -.75rem; font-size: .875rem; }
   .install-grid li { margin: .25rem 0; }
   .docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: .5rem; margin-top: 1rem; }
   .docs a {
@@ -459,10 +504,10 @@
       Ponos
     </a>
     <nav class="nav-links" aria-label="Sections">
+      <a class="btn btn-ghost btn-sm section-link" href="#tasks">What it does</a>
       <a class="btn btn-ghost btn-sm section-link" href="#loop">How it works</a>
-      <a class="btn btn-ghost btn-sm section-link" href="#proofs">Why</a>
-      <a class="btn btn-ghost btn-sm section-link" href="#notion">Notion</a>
       <a class="btn btn-ghost btn-sm section-link" href="#console">Console</a>
+      <a class="btn btn-ghost btn-sm section-link" href="#integrations">Integrations</a>
       <a class="btn btn-ghost btn-sm section-link" href="#install">Install</a>
       <a class="btn btn-outline btn-sm" href="https://github.com/SalvadorCardona/ticket-runner#readme">
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
@@ -482,10 +527,11 @@
   <div class="wrap hero-in">
     <div>
       <h1>Write the ticket. <span>It comes back done.</span></h1>
+      <p class="tagline">A harness around Claude Code that runs your tasks on your machine — code, writing, actions, posts.</p>
       <p class="lede">
-        Write tickets in <strong>Notion</strong>. <strong>Ponos</strong> hands each one to
-        <strong>Claude Code</strong>, on your machine, and brings back a pull request or a written
-        text. You review, answer in a word — even from your phone — and he merges or publishes it.
+        Write the ticket on <strong>Ponos</strong>’s own board — the console, or a folder of
+        Markdown files. He brings back a pull request, a text, an action carried out or a post
+        ready to go. You answer in a word, even from your phone, and nothing ships until you say yes.
       </p>
       <div class="cta">
         <a class="btn btn-primary btn-lg" href="#video">
@@ -500,12 +546,12 @@
         <code id="install-cmd">curl -LsSf https://raw.githubusercontent.com/<wbr>SalvadorCardona/ticket-runner/<wbr>main/install.sh | sh</code>
         <button class="btn btn-outline btn-sm" id="copy-install" type="button" aria-label="Copy the install command">Copy</button>
       </div>
-      <p class="byline">Free and open source, MIT · Linux · Python and git · Requires Claude Code and a Notion workspace — or <a href="https://github.com/SalvadorCardona/ticket-runner#without-notion-the-board-as-markdown-files">a folder of Markdown files</a>.</p>
+      <p class="byline">Free and open source, MIT · Linux · Python and git · Requires Claude Code — <a href="#integrations">Notion and GitHub are optional</a>.</p>
     </div>
     <figure class="card flow" id="flow" data-step="4">
-      <div role="img" aria-label="A ticket written in Notion, Console: limit the Done column, set to Ready; Ponos works it with Claude Code on your machine — reads the repository, edits, runs the tests; it comes back as pull request #96, opened and waiting for your review.">
+      <div role="img" aria-label="A ticket written on the board, Console: limit the Done column, set to Ready; Ponos works it with Claude Code on your machine — reads the repository, edits, runs the tests; it comes back as pull request #96, opened and waiting for your review.">
         <div class="flow-step" aria-hidden="true">
-          <span class="label">You write it · Notion</span>
+          <span class="label">You write it · your board</span>
           <div class="flow-pane">
             <div class="flow-crumb">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
@@ -564,6 +610,52 @@
   </figure>
 </section>
 
+<section id="tasks">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">What it does</span>
+      <h2>Not only code. Four kinds of task.</h2>
+      <p>The ticket’s type decides the road — pick it, or let a small model read the ticket and choose. A doubt stops it before anything runs.</p>
+    </div>
+    <div class="grid g4">
+      <article class="card task code">
+        <div class="card-header"><span class="badge">Code</span><h3 class="card-title">A pull request.</h3></div>
+        <div class="ask"><small>ticket</small>Console: limit the Done column</div>
+        <p>Its own branch, on a disposable worktree; the tests run. <b>Merged when you validate.</b></p>
+      </article>
+      <article class="card task writing">
+        <div class="card-header"><span class="badge">Writing</span><h3 class="card-title">A text, in the ticket.</h3></div>
+        <div class="ask"><small>ticket</small>Draft the October newsletter</div>
+        <p>Release notes, a brief, a summary: written into the ticket, ready to copy. <b>No repository needed.</b></p>
+      </article>
+      <article class="card task action">
+        <div class="card-header"><span class="badge">External action</span><h3 class="card-title">Done, and logged.</h3></div>
+        <div class="ask"><small>ticket</small>Add the DNS records for the new domain</div>
+        <p>In the browser or a service’s settings, with <b>every change logged</b> — before, after, what was checked. It stops at its first doubt.</p>
+      </article>
+      <article class="card task publication">
+        <div class="card-header"><span class="badge">Publication</span><h3 class="card-title">Prepared, then published.</h3></div>
+        <div class="ask"><small>ticket</small>Post the 1.2 release on LinkedIn</div>
+        <p>A post, a site put online, a message sent: prepared and shown to you first. <b>Published once you say yes.</b></p>
+      </article>
+    </div>
+    <div class="grid g3 around">
+      <article class="card">
+        <div class="card-header"><h3 class="card-title">Tickets that come back</h3></div>
+        <p><q>Every Monday, review the dependencies</q> — a schedule writes the ticket and moves it to <em>Ready</em> on its own.</p>
+      </article>
+      <article class="card">
+        <div class="card-header"><h3 class="card-title">A chat with your machine</h3></div>
+        <p><q>Create a ticket for the SQLite migration and make it ready</q> — the console’s chat is a Claude Code session in your workspace, and it does it.</p>
+      </article>
+      <article class="card">
+        <div class="card-header"><h3 class="card-title">Projects, without ceremony</h3></div>
+        <p>A project is a name and a brief. Give it a GitHub link and the repository is cloned the first time a ticket needs it; give it none and its tickets come back as text.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
 <section id="loop">
   <div class="wrap">
     <div class="sec-head">
@@ -606,19 +698,15 @@
         </div>
       </div>
     </div>
-  </div>
-</section>
 
-<section id="proofs">
-  <div class="wrap">
-    <div class="sec-head">
+    <div class="sub-head" id="proofs">
       <span class="label">Why hand it over</span>
-      <h2>Three things it does that a to-do list does not.</h2>
+      <h3>Three things it does that a to-do list does not.</h3>
     </div>
     <div class="grid g3">
       <article class="card proof">
-        <div class="card-header"><span class="badge badge-secondary">Not only code</span><h3 class="card-title">A pull request, or a text.</h3></div>
-        <p><b>“Remove that header”</b> comes back as a pull request on its own branch. <b>“Draft the October newsletter”</b> comes back written into the ticket. Same board, same gesture — the ticket decides which, not a setting.</p>
+        <div class="card-header"><span class="badge badge-secondary">It asks first</span><h3 class="card-title">A doubt stops it.</h3></div>
+        <p>A ticket <b>nobody typed</b> is classified before it runs, and a hesitation sends it back to you with the question. An action stops at <b>its first doubt</b> — a wrong account, a value the ticket does not give — rather than act on a guess.</p>
         <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#the-type-of-a-ticket">The four types of ticket →</a></div>
       </article>
       <article class="card proof">
@@ -638,25 +726,87 @@
       </article>
     </div>
     <div class="works">
-      <span>By default on</span>
-      <span class="badge">Notion</span><span>and</span><span class="badge">Claude Code</span>
-      <span>— or a board of</span><span class="badge">Markdown files</span><span>and any model through</span><span class="badge">OpenRouter</span>.
+      <span>Runs on</span><span class="badge">Claude Code</span><span>and a board of its own. Plugs into</span>
+      <span class="badge">Notion</span><span class="badge">GitHub</span><span class="badge">Telegram</span><span class="badge">Slack</span><span class="badge">OpenRouter</span>
+      <span>— <a href="#integrations">only if you want</a>.</span>
     </div>
   </div>
 </section>
 
-<section id="notion">
+<section id="console">
   <div class="wrap">
     <div class="sec-head">
+      <span class="label">The console</span>
+      <h2>A board of its own.</h2>
+      <p>Ponos needs nobody else’s board. The console, on <code>127.0.0.1</code>, is where you write a ticket, drag it to <em>Ready</em> and watch its session live — with a chat with your whole workspace beside it. Under it, the board is a folder of Markdown files: <code>grep</code>, your editor and <code>git</code> read it too.</p>
+    </div>
+    <figure class="shots">
+      <div class="shots-bar">
+        <div class="tabs-list" role="tablist" aria-label="Pages of the console">
+          <button class="tabs-trigger" role="tab" type="button" id="tab-board" aria-controls="shot-board" aria-selected="true">Board</button>
+          <button class="tabs-trigger" role="tab" type="button" id="tab-ticket" aria-controls="shot-ticket" aria-selected="false" tabindex="-1">A ticket</button>
+          <button class="tabs-trigger" role="tab" type="button" id="tab-statistics" aria-controls="shot-statistics" aria-selected="false" tabindex="-1">Statistics</button>
+        </div>
+        <span class="badge">in English or French · light or dark</span>
+      </div>
+      <div class="shot" role="tabpanel" id="shot-board" aria-labelledby="tab-board">
+        <img class="light" src="console/board-light.webp" width="1440" height="900" loading="lazy" alt="The console's board in light: columns Ready, In progress, In review and Validated, a card per ticket, and Ponos in the top bar saying what he is doing.">
+        <img class="dark" src="console/board-dark.webp" width="1440" height="900" loading="lazy" alt="The console's board in dark: columns Ready, In progress, In review and Validated, a card per ticket, and Ponos in the top bar saying what he is doing.">
+      </div>
+      <div class="shot" role="tabpanel" id="shot-ticket" aria-labelledby="tab-ticket" hidden>
+        <img class="light" src="console/ticket-light.webp" width="1440" height="900" loading="lazy" alt="A ticket in the console, in light: its status, the buttons to run it again, validate it or close it, its project, priority, cost and duration, and its brief.">
+        <img class="dark" src="console/ticket-dark.webp" width="1440" height="900" loading="lazy" alt="A ticket in the console, in dark: its status, the buttons to run it again, validate it or close it, its project, priority, cost and duration, and its brief.">
+      </div>
+      <div class="shot" role="tabpanel" id="shot-statistics" aria-labelledby="tab-statistics" hidden>
+        <img class="light" src="console/statistics-light.webp" width="1440" height="900" loading="lazy" alt="The console's statistics in light: tickets open, closed and created over a month, what was spent, and a curve per day.">
+        <img class="dark" src="console/statistics-dark.webp" width="1440" height="900" loading="lazy" alt="The console's statistics in dark: tickets open, closed and created over a month, what was spent, and a curve per day.">
+      </div>
+      <figcaption>The current console, on a demonstration board. <code>ticket-runner serve</code> — the installer already starts it. <a href="https://github.com/SalvadorCardona/ticket-runner#the-web-console">Everything it does →</a></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="integrations">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">Integrations</span>
+      <h2>Plugs in where you already work. If you want.</h2>
+      <p>Ponos needs Claude Code and nothing else. Each of these is one more token in the settings, and none of them is a requirement.</p>
+    </div>
+    <div class="grid g4">
+      <article class="card plug">
+        <div class="card-header"><h3 class="card-title">Notion</h3><span class="badge">optional</span></div>
+        <p><b>Your board in Notion.</b> Tickets, projects and schedules become Notion databases, and every report is written back on the ticket’s page.</p>
+        <div class="card-footer"><a href="#notion">Your board in Notion ↓</a></div>
+      </article>
+      <article class="card plug">
+        <div class="card-header"><h3 class="card-title">GitHub</h3><span class="badge">optional</span></div>
+        <p><b>Pull requests.</b> A code ticket comes back as one, through <code>gh</code>, and is merged on your yes. Writing, actions and posts need none of it.</p>
+        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#several-github-accounts">Several GitHub accounts →</a></div>
+      </article>
+      <article class="card plug">
+        <div class="card-header"><h3 class="card-title">Telegram · Slack</h3><span class="badge">optional</span></div>
+        <p><b>Your phone.</b> A question or a result reaches you there, and your answer — <em>oui</em> will do — lands on the ticket.</p>
+        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#being-told-and-answering-with-one-word">Telegram and Slack →</a></div>
+      </article>
+      <article class="card plug">
+        <div class="card-header"><h3 class="card-title">OpenRouter</h3><span class="badge">optional</span></div>
+        <p><b>Every other model.</b> One key: a GPT writes the copy, a model transcribes a voice note — or the sessions themselves run on the model you name.</p>
+        <div class="card-footer"><a href="https://github.com/SalvadorCardona/ticket-runner#every-other-model">Every other model →</a></div>
+      </article>
+    </div>
+
+    <div class="sub-head" id="notion">
       <span class="label">Notion</span>
-      <h2>Your board stays in Notion.</h2>
-      <p>Ponos reads the tickets you already write, and writes back on the same page. Nothing to learn, no new tool to open.</p>
+      <h3>Your board in Notion.</h3>
+      <p>Share one page with a Notion integration, and <code>init</code> builds the rest under it — tickets, projects, agents, context. Ponos then reads the tickets you write there, and writes back on the same page.</p>
+      <pre data-copy><span class="p">$ </span>ticket-runner init https://www.notion.so/your-page --token ntn_…</pre>
     </div>
     <div class="rows">
       <div class="row">
         <div class="text">
           <h3>You write where you already work.</h3>
-          <p>Tickets are rows in a Notion database; their <em>Project</em> points at the repository — or at none, for a text. Share one page, and <code>ticket-runner init</code> builds the rest: tickets, projects, agents, context.</p>
+          <p>Tickets are rows in a Notion database; their <em>Project</em> points at the repository — or at none, for a text. Nothing to learn, no new tool to open.</p>
         </div>
         <figure class="window">
           <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Ponos board</span></div>
@@ -706,40 +856,7 @@
       </figure>
       </div>
     </div>
-    <p class="notion-foot">No Notion? The same board works as a folder of Markdown files. <a href="https://github.com/SalvadorCardona/ticket-runner#without-notion-the-board-as-markdown-files">A board without Notion →</a></p>
-  </div>
-</section>
-
-<section id="console">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="label">The console</span>
-      <h2>Where you watch Ponos work.</h2>
-      <p>The same board, live, on <code>127.0.0.1</code>: every ticket with its session beside it, what came in and what went out, and a chat with your whole workspace.</p>
-    </div>
-    <figure class="shots">
-      <div class="shots-bar">
-        <div class="tabs-list" role="tablist" aria-label="Pages of the console">
-          <button class="tabs-trigger" role="tab" type="button" id="tab-board" aria-controls="shot-board" aria-selected="true">Board</button>
-          <button class="tabs-trigger" role="tab" type="button" id="tab-ticket" aria-controls="shot-ticket" aria-selected="false" tabindex="-1">A ticket</button>
-          <button class="tabs-trigger" role="tab" type="button" id="tab-statistics" aria-controls="shot-statistics" aria-selected="false" tabindex="-1">Statistics</button>
-        </div>
-        <span class="badge">in English or French · light or dark</span>
-      </div>
-      <div class="shot" role="tabpanel" id="shot-board" aria-labelledby="tab-board">
-        <img class="light" src="console/board-light.webp" width="1440" height="900" loading="lazy" alt="The console's board in light: columns Ready, In progress, In review and Validated, a card per ticket, and Ponos in the top bar saying what he is doing.">
-        <img class="dark" src="console/board-dark.webp" width="1440" height="900" loading="lazy" alt="The console's board in dark: columns Ready, In progress, In review and Validated, a card per ticket, and Ponos in the top bar saying what he is doing.">
-      </div>
-      <div class="shot" role="tabpanel" id="shot-ticket" aria-labelledby="tab-ticket" hidden>
-        <img class="light" src="console/ticket-light.webp" width="1440" height="900" loading="lazy" alt="A ticket in the console, in light: its status, the buttons to run it again, validate it or close it, its project, priority, cost and duration, and its brief.">
-        <img class="dark" src="console/ticket-dark.webp" width="1440" height="900" loading="lazy" alt="A ticket in the console, in dark: its status, the buttons to run it again, validate it or close it, its project, priority, cost and duration, and its brief.">
-      </div>
-      <div class="shot" role="tabpanel" id="shot-statistics" aria-labelledby="tab-statistics" hidden>
-        <img class="light" src="console/statistics-light.webp" width="1440" height="900" loading="lazy" alt="The console's statistics in light: tickets open, closed and created over a month, what was spent, and a curve per day.">
-        <img class="dark" src="console/statistics-dark.webp" width="1440" height="900" loading="lazy" alt="The console's statistics in dark: tickets open, closed and created over a month, what was spent, and a curve per day.">
-      </div>
-      <figcaption>The current console, on a demonstration board. <code>ticket-runner serve</code> — the installer already starts it. <a href="https://github.com/SalvadorCardona/ticket-runner#the-web-console">Everything it does →</a></figcaption>
-    </figure>
+    <p class="notion-foot">Notion and the folder of files can also be kept in step, both at once. <a href="https://github.com/SalvadorCardona/ticket-runner#both-and-what-happens-when-they-disagree">Both, and when they disagree →</a></p>
   </div>
 </section>
 
@@ -748,14 +865,16 @@
     <div class="sec-head">
       <span class="label">Installation</span>
       <h2>One command.</h2>
-      <p>It installs the <code>ticket-runner</code> command, a timer that hands Ponos the ready tickets, and the console — then asks for what it needs.</p>
+      <p>It installs the <code>ticket-runner</code> command, a timer that hands Ponos the ready tickets, and the console. Beyond Claude Code, nothing to sign up for.</p>
     </div>
     <pre data-copy><span class="p">$ </span>curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ticket-runner/main/install.sh | sh</pre>
     <div class="install-grid" style="margin-top:1rem">
       <div class="card">
         <div class="card-header"><h3 class="card-title">Then, the board</h3></div>
-        <p>Share one Notion page with an integration and let it build the rest — or skip Notion with <code>storage.mode = "markdown"</code>, and the board is a folder of files.</p>
-        <pre data-copy><span class="p">$ </span>ticket-runner init https://www.notion.so/your-page --token ntn_…
+        <p>Make it a folder of Markdown files: in the console, <em>Settings › Where the board lives › markdown</em> — or one line under <code>[storage]</code>. Then write your first ticket in the console.</p>
+        <p>The installer still asks for a Notion token first: press Enter to skip it. Rather Notion? <a href="#notion">Your board in Notion</a>.</p>
+        <pre data-copy><span class="c"># [storage] mode = "markdown"</span>
+<span class="p">$ </span>ticket-runner config
 <span class="p">$ </span>ticket-runner doctor</pre>
       </div>
       <div class="card">
@@ -763,7 +882,8 @@
         <ul>
           <li>Linux, with systemd in the user session;</li>
           <li><code>python3</code> ≥ 3.11 — standard library only, nothing to install;</li>
-          <li><code>git</code>, <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>, and <code>gh</code> for pull requests.</li>
+          <li><code>git</code> and <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>;</li>
+          <li><code>gh</code>, only for tickets that end in a pull request.</li>
         </ul>
       </div>
     </div>
@@ -779,7 +899,7 @@
       <a href="https://github.com/SalvadorCardona/ticket-runner#being-told-and-answering-with-one-word">Telegram and Slack <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ticket-runner#what-comes-back-on-its-own">Tickets that come back <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ticket-runner#the-web-console">The web console <span>§</span></a>
-      <a href="https://github.com/SalvadorCardona/ticket-runner#without-notion-the-board-as-markdown-files">A board without Notion <span>§</span></a>
+      <a href="https://github.com/SalvadorCardona/ticket-runner#without-notion-the-board-as-markdown-files">The board as Markdown files <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ticket-runner#every-other-model">Every other model <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ticket-runner#several-github-accounts">Several GitHub accounts <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ticket-runner#when-the-credits-run-out">When the credits run out <span>§</span></a>
