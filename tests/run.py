@@ -2879,40 +2879,27 @@ def an_update_puts_the_console_on_the_code_it_just_installed():
 
     `try-restart`, so that an update never starts a console somebody stopped.
     """
-    from ticket_runner import git as git_module
-
-    ran: list[list[str]] = []
-    was_run, was_git = git_module.run, git_module.git
-    git_module.run = lambda args, *rest, **kept: (ran.append(args) or git_module.Result(0, "", ""))
-    git_module.git = lambda args, *rest, **kept: git_module.Result(0, "", "")
-    # A home and a PATH of their own: `apply` rewrites the launcher and the
-    # units of whoever is running it, and a test that reinstalls this machine
-    # is a test that has gone somewhere it was never asked to go. The PATH is
-    # also what `systemctl` is looked for on — an empty one would make this
-    # pass on a laptop and mean nothing on a runner without systemd.
-    elsewhere = Path(tempfile.mkdtemp())
-    (elsewhere / "systemctl").write_text("#!/bin/sh\nexit 0\n")
-    (elsewhere / "systemctl").chmod(0o755)
-    kept = {name: os.environ.get(name) for name in ("HOME", "PATH")}
-    os.environ["HOME"], os.environ["PATH"] = str(elsewhere), str(elsewhere)
-    try:
-        with _state_home():
-            error = update.apply(update.Status(current="a" * 40, latest="b" * 40), 600, ROOT)
-    finally:
-        git_module.run, git_module.git = was_run, was_git
-        for name, value in kept.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
+    with _installable() as (commit, app, first):
+        # A `systemctl` that only writes down what it was asked, on a PATH of the
+        # installation's own: a test that reloads this machine's units is a test
+        # gone somewhere it was never asked to go.
+        asked = app.parent / "systemctl.log"
+        (app.parent / "bin" / "systemctl").write_text(
+            f'#!/bin/sh\necho "$@" >> {asked}\n'
+        )
+        (app.parent / "bin" / "systemctl").chmod(0o755)
+        (app.parent / "bin" / "sh").symlink_to(shutil.which("sh") or "/bin/sh")
+        commit("two")
+        error = update.apply(update.check(app, "main"), 600, app)
+        ran = asked.read_text().splitlines()
 
     assert error == "", error
-    restarts = [args for args in ran if "ticket-runner-web.service" in args]
+    restarts = [line for line in ran if "ticket-runner-web.service" in line]
     assert restarts, "the console is left running the code the update replaced"
-    assert restarts[0] == ["systemctl", "--user", "try-restart", "ticket-runner-web.service"], (
+    assert restarts[0] == "--user try-restart ticket-runner-web.service", (
         "a plain restart would start a console somebody stopped on purpose"
     )
-    assert ran.index(restarts[0]) > ran.index(["systemctl", "--user", "daemon-reload"]), (
+    assert ran.index(restarts[0]) > ran.index("--user daemon-reload"), (
         "the console is restarted before its unit is reloaded"
     )
 
@@ -2984,15 +2971,29 @@ def a_version_that_does_not_start_is_taken_back_and_one_that_does_is_kept():
         status = update.check(app, "main")
         assert status.stale and status.latest == broken
         error = update.install(status, 600, app)
-        assert error and "does not start" in error and f"back on {first[:8]}" in error, error
+        assert error and "does not start" in error and f"still on {first[:8]}" in error, error
         assert _head(app) == first, "a version that does not start was left installed"
         assert update.waiting(app).stale, "the update is still to be made"
+        assert app.is_symlink() and app.resolve().name == f"app-{first[:12]}", (
+            "the installation was not given a directory per version"
+        )
+        assert not app.with_name(f"app-{broken[:12]}").exists(), "the broken version was kept"
 
         fixed = commit("fixed", lambda work: shutil.copy(
             ROOT / "src/ticket_runner/__main__.py", work / "src/ticket_runner/__main__.py"))
         status = update.check(app, "main")
         assert update.install(status, 600, app) == ""
         assert _head(app) == fixed
+        assert app.resolve().name == f"app-{fixed[:12]}"
+        # The version replaced is still whole on disk: what was started on it
+        # keeps importing from it, and it is the one to go back to.
+        previous = app.with_name(f"app-{first[:12]}")
+        assert _head(previous) == first, "the previous version was written over"
+        third = commit("three")
+        assert update.install(update.check(app, "main"), 600, app) == ""
+        assert _head(app) == third
+        assert not previous.exists(), "every version ever installed is kept"
+        assert _head(app.with_name(f"app-{fixed[:12]}")) == fixed, "the previous one is gone"
         launcher = Path(os.environ["HOME"]) / ".local/bin/ticket-runner"
         assert str(app) in launcher.read_text(), "the launcher still points at the old sources"
         assert not update.waiting(app).stale, (

@@ -222,6 +222,10 @@ installing, restarting — and the page reconnects by itself onto the new versio
   the installation goes back to the commit it replaced, the dialog says why, and the log is
   there — in the dialog, and in `~/.local/state/ticket-runner/web/update.log`. The same
   holds for an update made by a run or by `ticket-runner update`;
+- **nothing runs on half of two versions.** Each version is installed in a directory of
+  its own, `~/.local/share/ticket-runner/app-<commit>`, and `app` is a link moved onto it
+  in one step once it starts. A pass reads the link once, when it starts, and runs whole
+  on the version it found; the previous version stays on disk beside the new one;
 - **the page chooses nothing.** `POST /api/update` takes no command, no version and no
   path; it asks the remote again, under the lock, for the newest version of the configured
   channel. It answers only a request from this machine carrying the console's guard header

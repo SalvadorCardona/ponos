@@ -51,6 +51,7 @@ from ticket_runner.config import PRIORITIES  # noqa: E402
 from ticket_runner.runner import Runner  # noqa: E402
 
 CASES = []
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def case(function):
@@ -482,7 +483,7 @@ says so in the stream the runner parses: a commit in a repository, an
 `ANSWER.md` where there is none. `FAKE_CLAUDE_FAIL` makes it the other kind of
 session, the one that stops and explains itself.
 """
-import json, os, subprocess, sys
+import json, os, subprocess, sys, time
 from pathlib import Path
 
 args = sys.argv[1:]
@@ -495,6 +496,17 @@ log = os.environ.get("FAKE_CLAUDE_LOG")
 if log:
     with open(log, "a", encoding="utf-8") as handle:
         handle.write(json.dumps({"cwd": os.getcwd(), "session": session, "prompt": prompt}) + "\\n")
+
+
+# A session that lasts: it says it has started, then waits for the test to let
+# it go — the window in which something else happens to the machine under it.
+held = os.environ.get("FAKE_CLAUDE_HOLD", "")
+if held:
+    Path(held + ".started").touch()
+    for _ in range(600):
+        if os.path.exists(held):
+            break
+        time.sleep(0.1)
 
 
 def emit(event):
@@ -1590,6 +1602,118 @@ def a_picture_chosen_in_the_console_is_the_cover_in_notion_and_the_other_way_rou
             assert not board.refused, board.refused
     finally:
         shutil.rmtree(directory, ignore_errors=True)
+
+
+@case
+def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
+    """On 30 September 2026 a pass started while an update rewrote the app in
+    place, imported a `files.py` already new with a `store.py` still old, and
+    died on `ImportError: cannot import name 'SLOTS'`.
+
+    So the road is driven the way the timer drives it: through the installed
+    launcher, as processes of their own. A pass is held in the middle of its
+    session while a version lands whose two modules only work together; a pass
+    started then, and one started after, must run whole on one version — and
+    the one held must finish on the version it started on, still on disk.
+    """
+    from ticket_runner import update
+
+    with bench() as machine:
+        home = machine.root / "home"
+        remote, work, app = (home / name for name in ("remote.git", "work", "app"))
+        _git(["init", "--bare", "--initial-branch=main", str(remote)], machine.root)
+        _git(["clone", str(remote), str(work)], machine.root)
+        ignore = shutil.ignore_patterns("__pycache__")
+        for part in ("src", "bin", "systemd"):
+            shutil.copytree(ROOT / part, work / part, ignore=ignore)
+
+        def land(message: str) -> str:
+            _git(["add", "-A"], work)
+            _git(["commit", "--quiet", "-m", message], work)
+            _git(["push", "--quiet", "origin", "HEAD:main"], work)
+            return subprocess.run(["git", "-C", str(work), "rev-parse", "HEAD"],
+                                  capture_output=True, text=True, check=True).stdout.strip()
+
+        first = land("one")
+        _git(["clone", str(remote), str(app)], machine.root)
+        # The launcher as install.sh writes it, and a PATH with no systemctl on
+        # it: the units of the machine running the test are not the test's.
+        launcher = home / ".local" / "bin" / "ticket-runner"
+        launcher.parent.mkdir(parents=True)
+        launcher.write_text((ROOT / "bin" / "ticket-runner.in").read_text()
+                            .replace("@APP_DIR@", str(app)).replace("@PYTHON@", sys.executable))
+        launcher.chmod(0o755)
+        tools = machine.root / "tools"
+        tools.mkdir()
+        (tools / "bash").symlink_to(shutil.which("bash") or "/bin/bash")
+        hold = machine.root / "hold"
+        environment = {
+            "HOME": str(home),
+            "PATH": os.pathsep.join([str(launcher.parent), str(machine.root / "bin"), str(tools)]),
+            "TICKET_RUNNER_CONFIG": str(machine.config),
+            "FAKE_CLAUDE_HOLD": str(hold),
+        }
+
+        def started(*arguments: str) -> subprocess.Popen:
+            return subprocess.Popen([str(launcher), *arguments], stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True)
+
+        project = machine.project("Lettre d'information")
+        ticket = machine.ticket("Rédiger l'édito", "Deux paragraphes.", project)
+        with _environ(environment):
+            held = started("run")
+            for _ in range(300):
+                if Path(f"{hold}.started").exists() or held.poll() is not None:
+                    break
+                time.sleep(0.1)
+            assert Path(f"{hold}.started").exists(), held.communicate()[0]
+
+            # The incident's shape: a module that needs a name only the new
+            # version of another one has.
+            store_py = work / "src/ticket_runner/store.py"
+            store_py.write_text(store_py.read_text() + "\nHANDOVER = 'v2'\n")
+            runner_py = work / "src/ticket_runner/runner.py"
+            runner_py.write_text(runner_py.read_text().replace(
+                "from .ticket import Ticket\n",
+                "from .ticket import Ticket\nfrom .store import HANDOVER  # noqa: F401\n", 1))
+            init_py = work / "src/ticket_runner/__init__.py"
+            init_py.write_text(init_py.read_text().replace('__version__ = "', '__version__ = "9.', 1))
+            second = land("two")
+
+            # Started while the update copies, resets and checks the new version.
+            during: list[str] = []
+            installing = threading.Thread(target=lambda: during.append(
+                update.install(update.check(app, "main"), 600, app)))
+            installing.start()
+            meanwhile = []
+            while installing.is_alive():
+                meanwhile.append(started("run"))
+                time.sleep(0.05)
+            installing.join()
+            assert during == [""], during
+            assert app.resolve().name == f"app-{second[:12]}"
+
+            meanwhile.append(started("run"))
+            for one in meanwhile:
+                said = one.communicate(timeout=120)[0]
+                assert one.returncode == 0 and "Error" not in said, said
+                assert "already in progress" in said, said
+
+            # The held pass started on the old version; it is still whole on disk.
+            previous = app.with_name(f"app-{first[:12]}")
+            assert "HANDOVER" not in (previous / "src/ticket_runner/store.py").read_text(), (
+                "the version a pass was running on was written over"
+            )
+            hold.touch()
+            said = held.communicate(timeout=120)[0]
+            assert held.returncode == 0 and "Error" not in said, said
+            assert machine.status(ticket) == "Done", machine.status(ticket)
+
+            version = started("--version")
+            assert "9." in version.communicate(timeout=60)[0], "the next pass is not the new version"
+            after = started("run")
+            said = after.communicate(timeout=120)[0]
+            assert after.returncode == 0 and "Error" not in said, said
 
 
 def main() -> int:
