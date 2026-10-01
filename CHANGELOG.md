@@ -618,6 +618,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   for is « (ticket sans titre) »; and the *By status* card of the statistics
   names the columns as the board does — « Done », not « done ».
 
+- **Markdown in the console reads as text, not as its source.** A numbered
+  list is counted — 1, 2, 3 — even when it was written « 1. 1. 1. », as every
+  Notion brief is, and a list that starts at 3 still starts at 3; a table is
+  drawn as a table, with its head, and scrolls sideways when it is wider than
+  the screen; a bold or an italic may hold a bit of code or a link without its
+  asterisks showing. In a ticket's brief and in the workspace's chat alike.
 - **Tickets abandoned on a board without a Runner column come back.** The
   runner signs a ticket it claims in that column, and only put back the ones
   it had signed — so on a board without it, a ticket left *in progress* by a
