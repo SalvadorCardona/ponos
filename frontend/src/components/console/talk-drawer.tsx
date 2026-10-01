@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useConsole } from "@/hooks/use-console"
+import { hotkeyLabel, useHotkeys } from "@/hooks/use-hotkeys"
 import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -40,6 +41,13 @@ const OPENED = "ticket-runner:talk"
 
 /** Open the drawer, from anywhere on the page. */
 export const openTalk = () => window.dispatchEvent(new Event(OPENED))
+
+/* Opened or closed, whichever it is not: the palette's entry, which says the
+ * same thing as the shortcut. */
+const TOGGLED = "ticket-runner:talk-toggle"
+
+/** Open the drawer if it is closed, close it if it is open. */
+export const toggleTalk = () => window.dispatchEvent(new Event(TOGGLED))
 
 /* How wide the drawer is.
  *
@@ -93,6 +101,11 @@ export function TalkDrawer() {
   // the pointer by the distance it moved, not to wherever it happens to be.
   const drag = React.useRef<{ x: number; width: number } | null>(null)
   const content = React.useRef<HTMLDivElement>(null)
+  // What had the focus before the drawer opened — a card, the palette's
+  // field, a textarea on the page — and gets it back when the drawer closes.
+  // The sheet alone would hand it to the bubble, which was not where you were
+  // unless you clicked it.
+  const before = React.useRef<HTMLElement | null>(null)
 
   const resize = (next: number) => {
     const bounded = within(next)
@@ -100,17 +113,34 @@ export function TalkDrawer() {
     keepWidth(bounded)
   }
 
-  React.useEffect(() => {
-    const listener = () => setOpen(true)
-    window.addEventListener(OPENED, listener)
-    return () => window.removeEventListener(OPENED, listener)
+  const change = React.useCallback((next: boolean | ((current: boolean) => boolean)) => {
+    setOpen((current) => {
+      const opening = typeof next === "function" ? next(current) : next
+      if (opening && !current)
+        before.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      return opening
+    })
   }, [])
+
+  React.useEffect(() => {
+    const opened = () => change(true)
+    const toggled = () => change((current) => !current)
+    window.addEventListener(OPENED, opened)
+    window.addEventListener(TOGGLED, toggled)
+    return () => {
+      window.removeEventListener(OPENED, opened)
+      window.removeEventListener(TOGGLED, toggled)
+    }
+  }, [change])
+
+  useHotkeys({ console: () => change((current) => !current) })
+  const shortcut = hotkeyLabel("console")
 
   const label = ticket ? t("the discussion") : t("the console")
   const fullLabel = full ? t("Leave full screen") : t("Full screen")
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={change}>
       <Tooltip>
         <TooltipTrigger asChild>
           <SheetTrigger asChild>
@@ -121,13 +151,14 @@ export function TalkDrawer() {
             <Button
               size="icon-lg"
               aria-label={t("open {{pane}}", { pane: label })}
+              aria-keyshortcuts={shortcut.aria}
               className="fixed right-4 bottom-24 z-40 md:bottom-4 size-12 rounded-full shadow-lg data-[state=open]:hidden"
             >
               <MessageCircle className="size-5" />
             </Button>
           </SheetTrigger>
         </TooltipTrigger>
-        <TooltipContent side="left">{t("open {{pane}}", { pane: label })}</TooltipContent>
+        <TooltipContent side="left">{`${t("open {{pane}}", { pane: label })} · ${shortcut.label}`}</TooltipContent>
       </Tooltip>
 
       <SheetContent
@@ -155,6 +186,13 @@ export function TalkDrawer() {
           if (!field || field.disabled) return
           event.preventDefault()
           field.focus()
+        }}
+        onCloseAutoFocus={(event) => {
+          const back = before.current
+          before.current = null
+          if (!back || !back.isConnected || back === document.body) return
+          event.preventDefault()
+          back.focus()
         }}
       >
         {/* The pane under it opens with its own heading — which ticket, or

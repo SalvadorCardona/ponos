@@ -1768,6 +1768,15 @@ next run reads it as yours rather than as its own voice.
 over the page, another closes it, and no page is given up for it. It is one message bar and
 two gestures, and they are not made to look alike.
 
+Two keys reach it without the mouse. **Ctrl+J** (⌘J on a Mac) opens and closes the
+drawer, the cursor already in its message bar — type straight away — and gives the focus
+back to wherever it was when it closes; Escape closes it too. **Ctrl+K** (⌘K) opens a
+palette: the pages, the projects, the tickets on the board, and a few actions (a new
+ticket, the console, a resynchronisation), found by typing a few letters and opened with
+Enter. Both answer from inside a field as well; the magnifying glass in the bar opens the
+same palette, and its tooltip and the bubble's say the keys. They are listed in one place,
+`frontend/src/lib/hotkeys.ts`, which is where a third one goes.
+
 - A line starting with `>` is a **`ticket-runner` subcommand** — `>status`, `>list`,
   `>doctor`, `>logs 1a2b3c4d`. The CLI is already the considered surface of this
   tool, so the console does not invent a second one; the command runs as a subprocess with

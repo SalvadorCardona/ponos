@@ -11,6 +11,7 @@ import {
   type ViewResourceContextParams,
 } from "react-resource-view"
 
+import { CommandPalette } from "@/components/console/command-palette"
 import { TalkDrawer } from "@/components/console/talk-drawer"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -118,6 +119,8 @@ function Console() {
       {/* Over everything, at every width: the conversation is never a page you
           navigate to and lose your place for. */}
       <TalkDrawer />
+      {/* Ctrl+K, from every page: inside the router, which its links go through. */}
+      <CommandPalette />
     </>
   )
 }

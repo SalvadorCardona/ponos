@@ -89,6 +89,15 @@ export const FRENCH: Record<string, string> = {
   // The bubble in the bottom corner, and what it opens: the ticket's
   // discussion where there is one, the workspace's own everywhere else.
   "open {{pane}}": "ouvrir {{pane}}",
+  // Ctrl+K, and the button in the bar that opens it.
+  "Command palette": "Palette de commandes",
+  "Find a page, a project or a ticket, or run an action.":
+    "Trouver une page, un projet ou un ticket, ou lancer une action.",
+  "Type a page, a project, a ticket…": "Une page, un projet, un ticket…",
+  "Nothing matches.": "Rien ne correspond.",
+  "Open or close the console": "Ouvrir ou fermer la console",
+  Search: "Rechercher",
+  "search a page, a project, a ticket": "chercher une page, un projet, un ticket",
   "A sentence talks to your workspace; a line that starts with > runs a command.":
     "Une phrase parle à votre espace de travail ; une ligne qui commence par > lance une commande.",
   "No such page.": "Cette page n'existe pas.",
