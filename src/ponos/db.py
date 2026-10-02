@@ -54,6 +54,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -168,6 +169,26 @@ def path_of(connection: sqlite3.Connection) -> str:
     return row[2] if row and row[2] else "the database"
 
 
+def _switch_to_wal(connection: sqlite3.Connection) -> None:
+    """Put the file in WAL mode, waiting out another process doing the same.
+
+    Leaving the rollback journal takes the file to itself, and SQLite answers
+    "database is locked" at once rather than through the busy handler when a
+    second process is reading it in the old mode — which is just what the
+    timer and the console do when they start together on a new file. So the
+    wait the busy timeout gives every other statement is given here by hand.
+    """
+    deadline = time.monotonic() + BUSY_TIMEOUT_MS / 1000
+    while True:
+        try:
+            connection.execute("PRAGMA journal_mode = WAL")
+            return
+        except sqlite3.OperationalError as error:
+            if "locked" not in str(error) or time.monotonic() > deadline:
+                raise
+            time.sleep(0.01)
+
+
 def open_at(location: Path, migrations: Sequence[Migration] = MIGRATIONS) -> sqlite3.Connection:
     """A new connection to `location`, set up and migrated. Prefer `connect()`.
 
@@ -186,7 +207,7 @@ def open_at(location: Path, migrations: Sequence[Migration] = MIGRATIONS) -> sql
         raise DatabaseError(f"cannot open {location}: {error}") from error
     try:
         connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
-        connection.execute("PRAGMA journal_mode = WAL")
+        _switch_to_wal(connection)
         connection.execute("PRAGMA synchronous = NORMAL")
         connection.execute("PRAGMA foreign_keys = ON")
         migrate(connection, migrations)
