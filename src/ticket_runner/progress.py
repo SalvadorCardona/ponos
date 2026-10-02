@@ -433,7 +433,7 @@ class Live:
         try:
             self.client.append_blocks(
                 self._toggle,
-                [_bullet(Step("…", f"more than {MAX_STEPS} steps — the rest is in the log"))],
+                [_bullet(Step("…", self.words.say("too-many-steps", count=MAX_STEPS)))],
             )
         except store.StoreError:
             pass

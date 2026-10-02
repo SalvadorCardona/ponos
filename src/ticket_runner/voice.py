@@ -25,12 +25,15 @@ Two decisions hold it together.
   off the board's own columns and off the folded block the run leaves on the
   page, which is where somebody looks on the rare day a run went wrong.
 
-One thing a report carries is deliberately not here: the note `git.add_worktree`
-writes when a ticket runs a second time on a branch it already had. That
-sentence is made of facts only git has, it is read by the session as much as by
-you, and translating it would mean `git.py` knowing there is such a thing as a
-language. It stays English until there is a reason for that module to have a
-voice at all.
+Nothing the runner writes where you read it is spelled anywhere else — not the
+body of the pull requests it opens, not the note about a branch a ticket already
+had, not the answer it relays from your phone. `git.py` hands back facts and the
+run says them here, so that a module about git never has to learn that there is
+such a thing as a language. What stays English is the journal and the CLI, and
+what a session is told: those are read in front of the machine, or by a model.
+And an error is quoted as it came — git's, Notion's, or the diagnosis of a
+project nobody could find, which `ticket-runner projects` prints word for word:
+the sentence around it is translated, the evidence is not.
 
 Adding a language is adding a column to `_SAID`. The keys stay English, because
 the code that calls them is English, and a key nobody translated shows up as a
@@ -112,6 +115,15 @@ def line(error: object) -> str:
     return str(error).splitlines()[0] if str(error).strip() else ""
 
 
+def _wanted(raw: str) -> str:
+    return str(raw or "").strip().lower().replace("_", "-").split("-")[0]
+
+
+def known(raw: str) -> bool:
+    """Does the file name one of the two — rather than something read as English?"""
+    return any(_wanted(raw) in spellings for spellings in _SPELLINGS.values())
+
+
 def understood(raw: str) -> str:
     """The language a file asked for, as one of the two this speaks.
 
@@ -119,7 +131,7 @@ def understood(raw: str) -> str:
     does the region nobody meant to specify: only what comes before the dash is
     read. Anything else is English — see the module's second paragraph.
     """
-    wanted = str(raw or "").strip().lower().replace("_", "-").split("-")[0]
+    wanted = _wanted(raw)
     for language, spellings in _SPELLINGS.items():
         if wanted in spellings:
             return language
@@ -514,6 +526,56 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "I am picking it up again from the start.",
         "fr": "Je le reprends depuis le début.",
     },
+    # -- a branch a ticket already had ----------------------------------------
+    # Facts only git has, said here rather than by `git.py`: the worktree it
+    # hands back carries them bare, and the run says them in its own words.
+    "branch-there": {
+        "en": "Branch `{branch}` was already there ({why}, {commits})",
+        "fr": "La branche `{branch}` existait déjà ({why}, {commits})",
+    },
+    "branch-held": {"en": "its worktree was still there", "fr": "son worktree était encore là"},
+    "branch-left": {"en": "an earlier attempt left it", "fr": "une tentative précédente l'a laissée"},
+    "branch-pushed": {
+        "en": "it was pushed but never merged",
+        "fr": "elle a été poussée mais jamais fusionnée",
+    },
+    "branch-own-commits": {"en": "{count} commit(s)", "fr": "{count} commit(s)"},
+    "branch-no-commit": {"en": "no commit of its own", "fr": "aucun commit à elle"},
+    "branch-rebased": {
+        "en": "{was}, rebased onto `{start}` and picked up where it stopped.",
+        "fr": "{was}, rejouée sur `{start}` et reprise là où elle s'était arrêtée.",
+    },
+    "branch-as-it-stands": {
+        "en": (
+            "{was} and is reused as it stands: it does not replay onto `{start}` — "
+            "{failure}. Whatever it is behind on is for this session to deal with."
+        ),
+        "fr": (
+            "{was} et est reprise telle quelle : elle ne se rejoue pas sur `{start}` — "
+            "{failure}. Le retard qu'elle a, c'est à cette session de s'en occuper."
+        ),
+    },
+    # -- what a pull request is opened with -----------------------------------
+    "pull-request-body": {
+        "en": (
+            "{summary}\n\n---\nNotion ticket: {url}\nClaude Code session: `{session}`\n"
+            "Opened by ticket-runner ({commits})."
+        ),
+        "fr": (
+            "{summary}\n\n---\nTicket Notion : {url}\nSession Claude Code : `{session}`\n"
+            "Ouverte par ticket-runner ({commits})."
+        ),
+    },
+    # -- a ticket born of a schedule ------------------------------------------
+    "born-of-schedule": {
+        "en": "*Born of the “{name}” schedule, {stamp}* — {url}",
+        "fr": "*Né de la récurrence « {name} », {stamp}* — {url}",
+    },
+    # -- the folded block, when it is longer than it is worth ------------------
+    "too-many-steps": {
+        "en": "more than {count} steps — the rest is in the log",
+        "fr": "plus de {count} étapes — la suite est dans le journal",
+    },
     # -- talking in a thread --------------------------------------------------
     "no-reply": {
         "en": "I could not answer this one: {error}.\nIts log is `{log}`.",
@@ -533,7 +595,42 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "sa publication a été interrompue — est-elle partie ? Sinon, retour "
         "dans « {origin} »",
     },
+    # -- about the runner itself, wherever you are reachable ------------------
+    "out-of-credit": {"en": "Ponos is out of credit", "fr": "Ponos n'a plus de crédit"},
+    "out-of-credit-detail": {"en": "Back to work at {when}.", "fr": "Retour au travail à {when}."},
+    "credit-again": {"en": "Ponos has credit again", "fr": "Ponos a de nouveau du crédit"},
+    "credit-again-detail": {
+        "en": "{used}% of the subscription spent — back to work.",
+        "fr": "{used} % de l'abonnement consommé — retour au travail.",
+    },
+    "reserve-reached": {
+        "en": "Ponos is leaving you the rest",
+        "fr": "Ponos te laisse le reste",
+    },
+    "reserve-reached-detail": {
+        "en": (
+            "{used}% of the subscription spent, {reserve}% reserved — nothing new is "
+            "started before {when}."
+        ),
+        "fr": (
+            "{used} % de l'abonnement consommé, {reserve} % en réserve — rien de nouveau "
+            "ne démarre avant {when}."
+        ),
+    },
+    # The button a desktop draws under a notification that has a ticket to open.
+    "open-ticket": {"en": "Open the ticket", "fr": "Ouvrir le ticket"},
     # -- answering from Telegram or Slack -------------------------------------
+    # A relayed answer opens on where it came from, and that opening is what
+    # tells the next run it is yours — see `openings`, which reads every
+    # language's, since a board keeps the answers given before a change of mind.
+    "relayed": {"en": "Answered from {channel}", "fr": "Répondu depuis {channel}"},
+    "relayed-by": {"en": " by {who}", "fr": " par {who}"},
+    "relayed-console": {"en": "the console", "fr": "la console"},
+    "relayed-yes": {
+        "en": "Yes — go ahead with what you proposed.",
+        "fr": "Oui — vas-y avec ce que tu as proposé.",
+    },
+    "relayed-no": {"en": "No — do not do that.", "fr": "Non — ne fais pas ça."},
     "noted": {
         "en": "✓ noted on “{title}” — it runs again in a moment.",
         "fr": "✓ noté sur « {title} » — il repart dans un instant.",
@@ -584,14 +681,18 @@ _SAID: dict[str, dict[str, str]] = {
     # session to interpret.
     "instruction": {
         "en": (
-            "Write in English — your report, the final line below, and anything you "
-            "write back into the ticket. Code, commit messages and identifiers keep the "
-            "language the repository already uses."
+            "Write in English — your report, any question you ask, the final line below, "
+            "and anything you write back into the ticket — even when the ticket is written "
+            "in another language; only the words `RESULT:`, `ok` and `blocked` stay as "
+            "they are. Code, commit messages and identifiers keep the language the "
+            "repository already uses."
         ),
         "fr": (
-            "Write in French — your report, the final line below, and anything you write "
-            "back into the ticket. Code, commit messages and identifiers keep the "
-            "language the repository already uses."
+            "Write in French — your report, any question you ask, the final line below, "
+            "and anything you write back into the ticket — even when the ticket is written "
+            "in another language; only the words `RESULT:`, `ok` and `blocked` stay as "
+            "they are. Code, commit messages and identifiers keep the language the "
+            "repository already uses."
         ),
     },
     "instruction-reply": {
@@ -599,6 +700,16 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "Answer in French, whatever language the message you are answering is in.",
     },
 }
+
+
+def openings(key: str) -> tuple[str, ...]:
+    """How a phrase begins, in every language — what comes before its first blank.
+
+    For the sentences that are *recognised* as well as written: the board keeps
+    what was said in English the day before `runner.language` turned to French,
+    and those still have to be read as what they were.
+    """
+    return tuple(dict.fromkeys(text.split("{", 1)[0] for text in _SAID[key].values()))
 
 
 class Voice:
@@ -740,6 +851,40 @@ class Voice:
         """Where to go when the report is not enough: the session, then the log."""
         picker = self.say("trace-picker", home=home) if home else ""
         return self.say("trace", resume=resume, picker=picker, log=log)
+
+    def branch_note(self, worktree: object) -> str:
+        """What a ticket's comment says about a branch it already had, or nothing.
+
+        Read off a `git.Worktree` — its facts, not a sentence: see its docstring.
+        A branch drawn fresh says nothing, which is the ordinary case.
+        """
+        if not getattr(worktree, "reused", False):
+            return ""
+        carried = int(getattr(worktree, "carried", 0) or 0)
+        was = self.say(
+            "branch-there",
+            branch=getattr(worktree, "branch", ""),
+            why=self.say(f"branch-{getattr(worktree, 'why', '') or 'left'}"),
+            commits=(
+                self.say("branch-own-commits", count=carried)
+                if carried
+                else self.say("branch-no-commit")
+            ),
+        )
+        start = getattr(worktree, "start", "")
+        if failure := getattr(worktree, "failure", ""):
+            return self.say("branch-as-it-stands", was=was, start=start, failure=failure)
+        return self.say("branch-rebased", was=was, start=start)
+
+    def pull_request_body(self, summary: str, url: str, session: str, commits: int) -> str:
+        """What a pull request the runner opens says under the session's summary."""
+        return self.say(
+            "pull-request-body",
+            summary=summary,
+            url=url,
+            session=session,
+            commits=self.count(commits, "commit"),
+        )
 
     # -- what the session is told --------------------------------------------
 

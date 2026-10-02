@@ -234,6 +234,14 @@ SECTIONS: tuple[Section, ...] = (
                 options=(("en", "English"), ("fr", "French")),
             ),
             Field(
+                "runner", "app_language", "choice", "Language of the console",
+                "The language the console opens in, until you pick one with the FR / EN "
+                "select — that choice stays with the browser. Not set: the language of the "
+                "reports, or else the browser's.",
+                choices=voice.LANGUAGES,
+                options=(("en", "English"), ("fr", "French")),
+            ),
+            Field(
                 "runner", "dry_run", "bool", "Test mode (changes nothing)",
                 "The runner says what it would do and does none of it: no branch, no commit, "
                 "no write to the board. Useful while you set things up.",

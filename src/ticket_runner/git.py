@@ -242,15 +242,25 @@ def fetch(repo: Path) -> None:
 class Worktree:
     """What making the ticket's worktree took, when it took anything.
 
-    `note` is what the ticket's comment should say about it, empty when the
-    branch was drawn fresh — which is the ordinary case, and says nothing worth
-    reading. `reused` says the branch was already there: whatever is under it
-    now is a history the last attempt left, replayed, so the push that follows
-    is no longer a fast-forward of what origin holds.
+    `reused` says the branch was already there: whatever is under it now is a
+    history the last attempt left, replayed, so the push that follows is no
+    longer a fast-forward of what origin holds. Unset when the branch was drawn
+    fresh — which is the ordinary case, and says nothing worth reading.
+
+    The rest is what the ticket's comment says about it, as facts rather than
+    as a sentence: `voice.Voice.branch_note` writes the sentence, in the
+    language the run speaks. `why` is `held` (its worktree was still there),
+    `left` (an earlier attempt left the branch) or `pushed` (on origin, never
+    merged); `failure` is why it could not be replayed onto `start`, if it
+    could not.
     """
 
-    note: str = ""
     reused: bool = False
+    branch: str = ""
+    why: str = ""
+    carried: int = 0
+    start: str = ""
+    failure: str = ""
 
 
 def _held_at(repo: Path, branch: str) -> str:
@@ -364,7 +374,7 @@ def add_worktree(repo: Path, path: Path, branch: str, base: str) -> Worktree:
             f"  git -C {repo} worktree remove {held}   once you are done with it"
         )
     if held:
-        kept = "its worktree was still there"
+        why = "held"
     else:
         _make_room(repo, path, base)
         add = (
@@ -375,22 +385,15 @@ def add_worktree(repo: Path, path: Path, branch: str, base: str) -> Worktree:
         result = git(add, repo)
         if not result.ok:
             raise GitError(f"git worktree add: {result.err or result.out}")
-        kept = "an earlier attempt left it" if local else "it was pushed but never merged"
+        why = "left" if local else "pushed"
 
-    carried = commits_ahead(path, base)
-    commits = f"{carried} commit(s)" if carried else "no commit of its own"
-    was = f"Branch `{branch}` was already there ({kept}, {commits})"
-    if failure := rebase(path, start):
-        return Worktree(
-            note=(
-                f"{was} and is reused as it stands: it does not replay onto `{start}` "
-                f"— {failure}. Whatever it is behind on is for this session to deal with."
-            ),
-            reused=True,
-        )
     return Worktree(
-        note=f"{was}, rebased onto `{start}` and picked up where it stopped.",
         reused=True,
+        branch=branch,
+        why=why,
+        carried=commits_ahead(path, base),
+        start=start,
+        failure=rebase(path, start),
     )
 
 

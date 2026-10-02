@@ -347,6 +347,16 @@ model = ""
 # here is what replaces that rule with a decision.
 language = ""
 
+# The language the console opens in, until you pick one with its FR / EN select
+# (that choice is kept by the browser, and wins). Also the language of the pages
+# it shows before you are in — the sign-in, the first set-up.
+#   en | fr        spelled any way `language` accepts
+#
+# Empty follows `language`, so one line is enough to have everything in French.
+# Both empty: the console reads the browser's languages, as it always did. The
+# CLI and the journal stay in English whatever is written here.
+app_language = ""
+
 # A session with nobody to answer cannot ask for permission. The work happens in
 # a disposable worktree, never in your working copy. Use "acceptEdits" to forbid
 # unapproved shell commands — at the cost of sessions that stall as soon as a

@@ -384,6 +384,7 @@ for reading rather than for filling in.
 | `runner.credit_reserve_percent` | `5` | the share of each window the runner refuses to touch, so there is a subscription left for you — `0`–`50`, see *Stopping before the wall* below |
 | `runner.model` | `""` | `"opus"`, `"sonnet"`… empty = the CLI's default |
 | `runner.language` | `""` | `"fr"` to be answered in French — see *The language it answers in* below |
+| `runner.app_language` | `""` | the language the console opens in; empty follows `runner.language` — see *The language it answers in* below |
 | `runner.permission_mode` | `"bypassPermissions"` | see *What protects your code* below |
 | `runner.branch_prefix` | `"ticket/"` | prefix of the created branches |
 | `runner.base_branch` | `""` | empty = each repository's default branch |
@@ -970,8 +971,30 @@ ticket is written in, reply in the language you were written to — so a ticket 
 French comes back in French, under a report written in English. That is the runner as it
 has always behaved, and naming a language here is what replaces it with a decision.
 
+Everything the runner writes where you read it follows the setting: the comments under a
+ticket, the title of the folded block (`✓ 130 étapes · 19 minutes`), the line that resumes
+the session, the body of the pull requests it opens, the note about a branch a ticket
+already had, the line a ticket born of a schedule opens with, the answer it relays from
+Telegram or Slack, and the desktop and phone notifications. Only an error is quoted as it
+came — git's, GitHub's, Notion's — because it is evidence, not a sentence. The journal on
+the terminal and the CLI stay in English: they are read by whoever is standing at the
+machine.
+
+An answer is understood whatever language it is typed in: *oui*, *ouais*, *vas-y* and
+*yes*, *ok*, *go* are all a yes; *non*, *laisse tomber* and *no*, *stop* all a no — on a
+board told to answer in either.
+
+**The console has a language of its own, `runner.app_language`**, and by default it is the
+same one: `language = "fr"` alone is enough to have the console open in French too. Set
+`app_language` to have the two apart — tickets answered in English, a console in French, or
+the reverse. Both empty, the console reads the browser's languages, as it always did. It is
+only where the console *opens*: the FR / EN select in its header still switches it, and the
+choice made there is kept by the browser and wins over the file. The sign-in and first
+set-up pages follow the same setting.
+
 Two languages are spelled out today, `en` and `fr`; a third is a column in
-`voice.py`.
+`voice.py` — every phrase in one table, and `tests/run.py` fails if a phrase is missing
+in one of them.
 
 ### The projects database
 

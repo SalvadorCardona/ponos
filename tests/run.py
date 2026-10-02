@@ -4211,6 +4211,107 @@ def a_board_told_to_answer_in_french_is_answered_in_french():
 
 
 @case
+def a_stuck_ticket_in_french_is_stuck_in_french_from_the_first_line_to_the_phone():
+    """The comment that asked for the setting: a French question wrapped in
+    three English sentences. Every line of it comes out of `voice`, and so does
+    the message that reaches the phone."""
+    runner = _board_runner([_reviewed("p-stuck", "In progress", None)], {"blocked": "Blocked"})
+    runner.config.runner.language = "fr"
+    runner.config.notify = _config(
+        '[notify]\ndesktop = false\n\n[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n'
+    ).notify
+    said = runner.voice
+    ticket = ticket_module.Ticket(runner.client._pages[0])
+    sent: list[str] = []
+    original = channels.announce
+    channels.announce = lambda settings, text, **rest: sent.append(text)
+    try:
+        runner._fail(
+            ticket,
+            said.say("asked-something"),
+            blocked=True,
+            question="Audit déjà livré et validé : on le refait ?",
+            note=said.say("trace-in-page"),
+        )
+    finally:
+        channels.announce = original
+    comment = runner.client.comments_written[0]
+    assert comment == (
+        "🙋 Bloqué — Audit déjà livré et validé : on le refait ?\n"
+        "Une réponse ici ou sur ton téléphone — oui, non, ou une phrase — et il repart "
+        "au prochain passage.\n"
+        "Ce qu'il a fait est dans le bloc replié en bas de la page."
+    ), comment
+    assert sent and sent[0].startswith("🙋 Bloqué · p-stuck"), sent
+    english = voice.Voice("en")
+    for key in ("verdict-blocked", "answer-here", "trace-in-page"):
+        assert english.say(key) not in comment + sent[0], key
+    # The folded block and the session's footer, said the same way.
+    assert said.count(130, "step") + " · " + said.minutes(19 * 60) == "130 étapes · 19 minutes"
+    assert said.minutes(20.0) == "moins d'une minute"
+    assert said.trace("claude --resume abc", "/tmp/log").startswith("Pour reprendre la session")
+
+
+@case
+def an_answer_is_understood_in_either_language_and_relayed_in_the_runners():
+    """« oui » on a board told to speak English, `yes` on one told French: the
+    word is read whatever it was typed in, and spelled out in the runner's."""
+    for text, verdict in (("oui", "yes"), ("yes", "yes"), ("non", "no"), ("no", "no")):
+        assert channels.decide(text) == verdict, text
+    reply = channels.Reply(channel="telegram", text="yes", who="Salva", ticket=TICKET)
+    relayed = channels.answer(reply, voice.Voice("fr"))
+    assert relayed == "Répondu depuis Telegram par Salva.\nOui — vas-y avec ce que tu as proposé."
+    assert conversation.is_relayed(relayed), "and it still wakes the ticket"
+    assert channels.answer(reply) == "Answered from Telegram by Salva.\nYes — go ahead with what you proposed."
+    assert conversation.is_relayed("Answered from Slack.\nok"), "a board keeps the old ones"
+    assert conversation.said(relayed) == "Oui — vas-y avec ce que tu as proposé."
+
+
+@case
+def what_the_runner_writes_on_github_and_on_a_schedules_ticket_follows_the_language():
+    said = voice.Voice("fr")
+    body = said.pull_request_body("Le header est parti.", "https://notion.so/t", "abc", 3)
+    assert body == (
+        "Le header est parti.\n\n---\nTicket Notion : https://notion.so/t\n"
+        "Session Claude Code : `abc`\nOuverte par ticket-runner (3 commits)."
+    ), body
+    assert voice.Voice().pull_request_body("s", "u", "abc", 1).endswith(
+        "Opened by ticket-runner (1 commit)."
+    ), "and English says what it always said"
+    assert said.say("born-of-schedule", name="Veille", stamp="2026-10-02", url="u") == (
+        "*Né de la récurrence « Veille », 2026-10-02* — u"
+    )
+    assert "Ponos" in said.say("out-of-credit") and said.say("out-of-credit") != voice.Voice().say(
+        "out-of-credit"
+    )
+
+
+@case
+def the_console_opens_in_the_language_the_file_names_and_follows_the_reports_by_default():
+    """One line — `language = "fr"` — is enough to have everything in French;
+    `app_language` is for whoever wants the two apart."""
+    from ticket_runner.web import server as web_server
+
+    settings = C.Runner()
+    assert settings.interface_language() == "", "nothing said: the browser decides"
+    settings.language = "fr"
+    assert settings.interface_language() == "fr", "the console follows the reports"
+    settings.app_language = "en"
+    assert settings.interface_language() == "en", "unless it is told otherwise"
+    loaded = _config('[runner]\nlanguage = "fr"\napp_language = "en"\n').runner
+    assert (loaded.language, loaded.app_language) == ("fr", "en")
+
+    page = b'<!doctype html>\n<html lang="en" class="dark">\n<body></body></html>'
+    assert web_server.configured(page, "") == page, "nothing said, nothing written"
+    marked = web_server.configured(page, "fr")
+    assert marked.startswith(b'<!doctype html>\n<html data-language="fr" lang="en" class="dark">')
+    example = Path(__file__).resolve().parents[1] / "config.example.toml"
+    assert b"\napp_language = " in example.read_bytes(), "documented where every key is"
+    fields = {(field.table, field.key) for section in web_settings.SECTIONS for field in section.fields}
+    assert ("runner", "app_language") in fields, "and the Settings screen offers it"
+
+
+@case
 def a_ticket_is_never_closed_on_an_answer_github_did_not_give():
     """No pull request, or no `gh` to ask: the ticket stays where it is."""
     client, closed = _closing(
@@ -6927,7 +7028,7 @@ def the_discussion_of_a_ticket_reads_as_a_conversation():
             created_by="runner-id",
         ),
         notion.Comment(
-            f"{conversation.RELAYED}Telegram by Salva.\nCelui du dashboard.",
+            f"{conversation.RELAYED[0]}Telegram by Salva.\nCelui du dashboard.",
             discussion_id="d-report",
             created_by="runner-id",
         ),
@@ -8343,7 +8444,8 @@ def a_desktop_notification_takes_you_to_the_ticket_it_names():
         "the click is waited for beside the run, never inside it"
     )
     assert command[3:] == [
-        "https://notion.so/t", "Blocked · Le header", "Which header?", "normal"
+        "https://notion.so/t", "Blocked · Le header", "Which header?", "normal",
+        "Open the ticket",
     ]
 
 
@@ -8429,7 +8531,16 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
     finally:
         notify.send = original
     assert seen == [{"title": "To review · t", "urgent": False,
-                     "link": "https://notion.so/t"}]
+                     "link": "https://notion.so/t", "action": "Open the ticket"}]
+
+    seen.clear()
+    runner.config.runner.language = "fr"
+    notify.send = lambda title, body, **rest: seen.append({"title": title, **rest})
+    try:
+        runner._tell("done", ticket, "review", "branch")
+    finally:
+        notify.send = original
+    assert seen[0]["title"] == "À relire · t" and seen[0]["action"] == "Ouvrir le ticket"
 
 
 # -- clean, and the branch a failure leaves behind ----------------------------
@@ -8840,7 +8951,7 @@ def the_console_measures_the_disk_and_cleans_only_between_runs():
 @case
 def a_ticket_that_never_ran_gets_its_branch_drawn_fresh():
     made, commands = _worktree_for()
-    assert made.note == "", "nothing happened worth telling anyone about"
+    assert voice.Voice().branch_note(made) == "", "nothing happened worth telling anyone about"
     assert not made.reused
     assert ["worktree", "add", "-b", "ticket/le-header-9d2cb790"] == commands[-1][:4]
     assert not any(command[:1] == ["rebase"] for command in commands)
@@ -8860,7 +8971,11 @@ def a_branch_left_by_an_earlier_attempt_is_picked_up_and_replayed():
         refs=("main", "origin/main", "refs/heads/ticket/le-header-9d2cb790"), commits=2
     )
     assert made.reused, "the push that follows is not a fast-forward any more"
-    assert "2 commit(s)" in made.note and "rebased onto `origin/main`" in made.note
+    note = voice.Voice().branch_note(made)
+    assert "2 commit(s)" in note and "rebased onto `origin/main`" in note
+    said = voice.Voice("fr").branch_note(made)
+    assert said.startswith("La branche `ticket/le-header-9d2cb790` existait déjà"), said
+    assert "rejouée sur `origin/main`" in said, "and the comment says it in its own voice"
     added = _one(commands, ["worktree", "add"])
     assert added[-1] == "ticket/le-header-9d2cb790", "checked out, not drawn again"
     assert "-b" not in added
@@ -8879,7 +8994,8 @@ def a_branch_that_only_exists_on_origin_comes_back_with_its_commits():
         refs=("main", "origin/main", "refs/remotes/origin/ticket/le-header-9d2cb790"), commits=1
     )
     assert made.reused
-    assert "it was pushed but never merged" in made.note
+    note = voice.Voice().branch_note(made)
+    assert "it was pushed but never merged" in note
     added = _one(commands, ["worktree", "add"])
     assert added[:4] == ["worktree", "add", "--track", "-b"]
     assert added[-1] == "origin/ticket/le-header-9d2cb790"
@@ -8900,7 +9016,8 @@ def a_worktree_kept_for_a_post_mortem_is_worked_in_again():
         path_exists=True,
     )
     assert isinstance(made, git_module.Worktree) and made.reused
-    assert "its worktree was still there" in made.note
+    note = voice.Voice().branch_note(made)
+    assert "its worktree was still there" in note
     assert not any(command[:2] == ["worktree", "add"] for command in commands)
     assert commands[-1] == ["rebase", "--autostash", "origin/main"]
 
@@ -8937,7 +9054,8 @@ def a_rebase_that_conflicts_is_undone_and_the_session_runs_anyway():
         rebase="src/app.py",
     )
     assert made.reused
-    assert "reused as it stands" in made.note and "src/app.py" in made.note
+    note = voice.Voice().branch_note(made)
+    assert "reused as it stands" in note and "src/app.py" in note
     assert commands[-1] == ["rebase", "--abort"], "nothing is left half-applied"
 
 

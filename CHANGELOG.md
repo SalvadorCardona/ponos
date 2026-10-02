@@ -18,6 +18,25 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The console opens in the language you set, and the runner says everything in
+  it.** A new key, `runner.app_language` (`en` or `fr`), is the language the
+  console opens in and the one its sign-in and set-up pages are written in;
+  empty, it follows `runner.language`, so `language = "fr"` alone puts the
+  reports *and* the console in French. The FR / EN select still switches the
+  console, and a choice made there stays with the browser. Both empty: nothing
+  changes. The Settings page offers the key, and `ticket-runner doctor` says
+  which language each is in — and warns about a name it does not speak, which
+  it reads as English.
+- **What the runner still said in English follows `runner.language` too**: the
+  body of the pull requests it opens, the note on a branch a ticket already had,
+  the line a ticket born of a schedule opens with, the « more than 300 steps »
+  line of the folded block, the out-of-credit and reserve notifications, the
+  button of a desktop notification, and an answer relayed from Telegram, Slack or
+  the console (« Répondu depuis Telegram par Salva. Oui — vas-y… »). An answer
+  relayed in English before the change still wakes its ticket. A session told a
+  language is now told to ask its questions in it as well, even on a ticket
+  written in another, with `RESULT:`, `ok` and `blocked` left as they are.
+
 - **Drafts have a column of their own.** A board that already keeps an option
   for tickets still being written — Master Tickets says `draft` — can name it
   under `[notion.status]` as `draft = "draft"`: the console draws those tickets

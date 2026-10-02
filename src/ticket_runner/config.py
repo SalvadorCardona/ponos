@@ -170,6 +170,10 @@ class Runner:
     # that says nothing leaves each session with the rule its prompt already
     # carries — answer in the language you were written to. See voice.py.
     language: str = ""
+    # The language the console opens in — and the one the pages it serves before
+    # you are in are written in. Empty follows `language`; both empty leave the
+    # browser to say, as it always did. See `interface_language`.
+    app_language: str = ""
     permission_mode: str = "bypassPermissions"
     branch_prefix: str = "ticket/"
     base_branch: str = ""
@@ -255,6 +259,17 @@ class Runner:
     # The least confidence a guess is acted on with. Below it, the ticket is
     # blocked with the question rather than run on a guess.
     classify_confidence: str = "medium"
+
+    def interface_language(self) -> str:
+        """The language the console opens in, as the file says it — or nothing.
+
+        `app_language`, and when that says nothing the reports' own: one line is
+        enough for somebody who reads French everywhere, and two are there for
+        whoever wants their tickets answered in one language and the console in
+        another. Empty when neither says anything, and the console then asks the
+        browser. Read down to a language by `voice.understood`.
+        """
+        return self.app_language or self.language
 
     def forces_validation(self, kind: str) -> bool:
         """Is a ticket of that type validated without waiting for anybody?"""
@@ -862,6 +877,7 @@ def load(path: Path | None = None) -> Config:
         # speaks, and the difference between "nothing was said" and "English was
         # asked for" is one the loader must not flatten.
         language=str(runner_raw.get("language", defaults.language)).strip(),
+        app_language=str(runner_raw.get("app_language", defaults.app_language)).strip(),
         permission_mode=str(runner_raw.get("permission_mode", defaults.permission_mode)).strip(),
         branch_prefix=str(runner_raw.get("branch_prefix", defaults.branch_prefix)),
         base_branch=str(runner_raw.get("base_branch", defaults.base_branch)).strip(),

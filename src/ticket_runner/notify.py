@@ -35,8 +35,9 @@ OBJECT = "/org/freedesktop/Notifications"
 
 # `default` is the action a click on the body of a notification triggers, by the
 # freedesktop specification; the label is for a desktop that draws actions as
-# buttons too. Written as a GVariant array, which is what `gdbus` reads.
-ACTIONS = '["default", "Open the ticket"]'
+# buttons too, and the run hands it over in its own language — see `voice.py`.
+# This one is what a notification sent from anywhere else says.
+ACTION = "Open the ticket"
 
 # How long the child follows its notification. A desktop that keeps notifications
 # in a tray only says one was closed when you clear it, which can be days — and a
@@ -45,9 +46,11 @@ ACTIONS = '["default", "Open the ticket"]'
 LIFETIME = 3600
 
 
-def send(title: str, body: str, *, urgent: bool = False, link: str = "") -> bool:
+def send(
+    title: str, body: str, *, urgent: bool = False, link: str = "", action: str = ACTION
+) -> bool:
     """One line on screen — and, with `link`, one that takes you to the ticket."""
-    if link and _hand_over(title, body, urgent=urgent, link=link):
+    if link and _hand_over(title, body, urgent=urgent, link=link, action=action):
         return True
     return _plain(title, body, urgent=urgent)
 
@@ -79,7 +82,7 @@ def _icon(urgent: bool) -> str:
     return "dialog-warning" if urgent else "dialog-information"
 
 
-def _hand_over(title: str, body: str, *, urgent: bool, link: str) -> bool:
+def _hand_over(title: str, body: str, *, urgent: bool, link: str, action: str = ACTION) -> bool:
     """Give the notification to a child that outlives this run.
 
     The child is this very module, run as one: it posts the notification, waits
@@ -97,7 +100,7 @@ def _hand_over(title: str, body: str, *, urgent: bool, link: str) -> bool:
         subprocess.Popen(
             [
                 sys.executable, "-m", "ticket_runner.notify",
-                link, title, body, "urgent" if urgent else "normal",
+                link, title, body, "urgent" if urgent else "normal", action,
             ],
             env=environment,
             start_new_session=True,
@@ -112,7 +115,7 @@ def _hand_over(title: str, body: str, *, urgent: bool, link: str) -> bool:
 # -- the child ----------------------------------------------------------------
 
 
-def follow(link: str, title: str, body: str, *, urgent: bool) -> None:
+def follow(link: str, title: str, body: str, *, urgent: bool, action: str = ACTION) -> None:
     """Post the notification, then open `link` if somebody clicks it.
 
     The watcher is started before the notification, because the identifier is
@@ -121,7 +124,7 @@ def follow(link: str, title: str, body: str, *, urgent: bool) -> None:
     notification: being told late is the point, being told never is not.
     """
     watcher = _watch()
-    identifier = _post(title, body, urgent=urgent) if watcher else ""
+    identifier = _post(title, body, urgent=urgent, action=action) if watcher else ""
     if not identifier:
         if watcher:
             watcher.terminate()
@@ -160,7 +163,7 @@ def _watch() -> subprocess.Popen | None:
         return None
 
 
-def _post(title: str, body: str, *, urgent: bool) -> str:
+def _post(title: str, body: str, *, urgent: bool, action: str = ACTION) -> str:
     """Show the notification, and return the identifier the desktop gave it.
 
     `--` before the arguments because the expiry is `-1`, "for as long as the
@@ -175,7 +178,7 @@ def _post(title: str, body: str, *, urgent: bool) -> str:
                 "--method", f"{BUS}.Notify",
                 "--",
                 _text(APP), "0", _text(_icon(urgent)), _text(title), _text(body),
-                ACTIONS, f"{{'urgency': <byte {2 if urgent else 1}>}}", "-1",
+                f'["default", {_text(action)}]', f"{{'urgency': <byte {2 if urgent else 1}>}}", "-1",
             ],
             check=False,
             timeout=10,
@@ -220,4 +223,9 @@ def _clicked(watcher: subprocess.Popen, identifier: str) -> bool:
 
 
 if __name__ == "__main__":  # the detached child, started by `send`
-    follow(sys.argv[1], sys.argv[2], sys.argv[3], urgent=sys.argv[4] == "urgent")
+    follow(
+        sys.argv[1], sys.argv[2], sys.argv[3],
+        urgent=sys.argv[4] == "urgent",
+        # A child started by an older parent, mid-update, has no label to read.
+        action=sys.argv[5] if len(sys.argv) > 5 else ACTION,
+    )

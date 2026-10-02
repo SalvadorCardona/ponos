@@ -803,6 +803,9 @@ export const FRENCH: Record<string, string> = {
   "Language of the reports": "Langue des comptes rendus",
   "What the runner writes on tickets and sends to your phone, and the language sessions are asked to answer in. Not set: reports in English, and each session answers in the ticket's language.":
     "Ce que le runner écrit sur les tickets et envoie sur votre téléphone, et la langue dans laquelle on demande aux sessions de répondre. Non choisie : comptes rendus en anglais, et chaque session répond dans la langue du ticket.",
+  "Language of the console": "Langue de la console",
+  "The language the console opens in, until you pick one with the FR / EN select — that choice stays with the browser. Not set: the language of the reports, or else the browser's.":
+    "La langue dans laquelle la console s'ouvre, jusqu'à ce que vous en choisissiez une avec le sélecteur FR / EN — ce choix reste dans le navigateur. Non choisie : la langue des comptes rendus, ou à défaut celle du navigateur.",
   English: "Anglais",
   French: "Français",
   "Test mode (changes nothing)": "Mode test (ne modifie rien)",

@@ -64,7 +64,7 @@ IMMUTABLE = "public, max-age=31536000, immutable"
 # request that accepts it, and kept: the files only change when the code does,
 # and the code changing is a restart.
 COMPRESSIBLE = ("text/", "application/javascript", "application/json", "image/svg+xml")
-_compressed: dict[tuple[Path, int], bytes] = {}
+_compressed: dict[tuple[Path, int, str], bytes] = {}
 
 # A header no cross-origin form, image or script tag can set. Its presence is
 # what tells "the console asked this" from "some page you had open asked this".
@@ -714,11 +714,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._fail(404, f"no such file: {name}")
         kind = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
         body = target.read_bytes()
+        marked = ""
+        if name == "index.html":
+            marked = self._configured()
+            body = configured(body, marked)
         extra: dict[str, str] = {}
         if kind.startswith(COMPRESSIBLE):
             extra["Vary"] = "Accept-Encoding"
             if accepts_gzip(self.headers.get("Accept-Encoding") or ""):
-                key = (target, target.stat().st_mtime_ns)
+                key = (target, target.stat().st_mtime_ns, marked)
                 if key not in _compressed:
                     _compressed[key] = gzip.compress(body, compresslevel=9, mtime=0)
                 body = _compressed[key]
@@ -797,7 +801,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(401, page.encode(), "text/html; charset=utf-8")
 
     def _language(self) -> str:
-        return language_of(self.headers.get("Accept-Language") or "")
+        """The language these pages are written in: the file's, else the browser's."""
+        return self._configured() or language_of(self.headers.get("Accept-Language") or "")
+
+    def _configured(self) -> str:
+        """The language the configuration opens the console in, or "" for none."""
+        asked = self.api.config.runner.interface_language()
+        return voice.understood(asked) if asked else ""
 
     def _token_whereabouts(self) -> str:
         """Where this console's token can be read, on this machine, as HTML."""
@@ -968,6 +978,20 @@ def language_of(header: str) -> str:
         if tag.split("-")[0].lower() in voice.LANGUAGES:
             return voice.understood(tag)
     return voice.DEFAULT
+
+
+def configured(page: bytes, language: str) -> bytes:
+    """The console's page, carrying the language the configuration opens it in.
+
+    Written into the page rather than asked for over the API, because the
+    console picks its language before it draws anything — a first paint in
+    English, redrawn in French a request later, is the flash this avoids. An
+    attribute on `<html>`, read by `frontend/src/lib/i18n.ts`, and only as a
+    default: a language somebody picked in the select stays theirs.
+    """
+    if not language:
+        return page
+    return re.sub(rb"<html\b", f'<html data-language="{language}"'.encode(), page, count=1)
 
 
 def _words(language: str):
