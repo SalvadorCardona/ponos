@@ -357,7 +357,7 @@ class Reports(Base):
                         channel.acknowledge(reply, self.voice.say("nothing-waiting"))
                     continue
                 try:
-                    self.client.comment(reply.ticket, channels.answer(reply))
+                    self.client.comment(reply.ticket, channels.answer(reply, self.voice))
                 except store.StoreError as error:
                     self.say(f"    ! the answer could not be written to Notion: {error}")
                     channel.acknowledge(reply, self.voice.say("notion-refused", error=error))
@@ -506,7 +506,9 @@ class Reports(Base):
         credits.hold(outcome.resets_at)
         when = credits.when(outcome.resets_at)
         self.say(f"  ⏸ out of credit — nothing is run until {when}")
-        self._announce("Ponos is out of credit", f"Back to work at {when}.")
+        self._announce(
+            self.voice.say("out-of-credit"), self.voice.say("out-of-credit-detail", when=when)
+        )
 
     def _requeue(
         self,
@@ -609,8 +611,8 @@ class Reports(Base):
             if credits.release(what="reserve"):
                 self.say(f"  ▶ {used:.0f}% of the subscription spent — carrying on")
                 self._announce(
-                    "Ponos has credit again",
-                    f"{used:.0f}% of the subscription spent — back to work.",
+                    self.voice.say("credit-again"),
+                    self.voice.say("credit-again-detail", used=f"{used:.0f}"),
                 )
             return 0.0
         # A window that names no moment still stops the runner; it simply stops
@@ -624,9 +626,10 @@ class Reports(Base):
                 f"nothing new until {when}"
             )
             self._announce(
-                "Ponos is leaving you the rest",
-                f"{used:.0f}% of the subscription spent, {reserve}% reserved — "
-                f"nothing new is started before {when}.",
+                self.voice.say("reserve-reached"),
+                self.voice.say(
+                    "reserve-reached-detail", used=f"{used:.0f}", reserve=reserve, when=when
+                ),
             )
         return until
 

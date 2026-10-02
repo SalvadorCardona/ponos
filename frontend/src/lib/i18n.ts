@@ -15,12 +15,16 @@ import { count, setNumberLocale } from "./numbers"
  * handful of words the packages under the console say differently. French is
  * the other dictionary, and it lives in `french.ts`.
  *
- * Nobody is asked which one they read. The browser already says — `Accept-
- * Language` is the setting somebody actually made — and where it says nothing
- * useful the time zone answers for it: a machine set to Europe/Paris is a
- * machine whose owner reads French, whatever the browser was installed in.
- * The choice is then one line in `localStorage`, like the theme, and the
- * select in the header is how you take it back.
+ * Nobody is asked which one they read. The configuration may already say —
+ * `runner.app_language`, or the reports' language when that is empty — and the
+ * server writes it on `<html data-language>` before the page is drawn. Where
+ * it says nothing the browser does — `Accept-Language` is the setting somebody
+ * actually made — and where that says nothing useful the time zone answers for
+ * it: a machine set to Europe/Paris is a machine whose owner reads French,
+ * whatever the browser was installed in. The choice is then one line in
+ * `localStorage`, like the theme, and the select in the header is how you take
+ * it back — a pick made there outranks the file, since it was made later and
+ * by the person reading.
  *
  * What is *not* translated here is everything that comes from somewhere else:
  * a ticket's title is Notion's, a column's name is the board's, the output of
@@ -107,6 +111,12 @@ export function detect(): Language {
   return "en"
 }
 
+/** What the configuration opens the console in, if it says anything. */
+function configured(): Language | null {
+  const said = document.documentElement.dataset.language ?? ""
+  return known(said) ? said : null
+}
+
 function remembered(): Language {
   try {
     const kept = localStorage.getItem(KEY)
@@ -115,7 +125,7 @@ function remembered(): Language {
     // Storage switched off: the browser is asked again on every load, which is
     // the same answer it gave the first time.
   }
-  return detect()
+  return configured() ?? detect()
 }
 
 let language: Language = remembered()

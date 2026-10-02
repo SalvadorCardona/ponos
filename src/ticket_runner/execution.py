@@ -197,12 +197,13 @@ class Execution(Base):
             worktree = git.add_worktree(project.path, job.workdir, job.branch, job.base)
         except git.GitError as error:
             return self._fail(ticket, self.voice.say("no-worktree"), str(error))
-        if worktree.note:
+        if worktree.reused:
             # A ticket that has run before: said out loud, because the session
             # about to start is continuing somebody's work rather than opening
-            # on an empty branch, and the comment should carry that too.
-            self.say("    · " + worktree.note.replace("`", ""))
-            job.notes.append(worktree.note)
+            # on an empty branch, and the comment should carry that too — the
+            # journal in English, like the rest of it, the comment in its voice.
+            self.say("    · " + voice_module.Voice().branch_note(worktree).replace("`", ""))
+            job.notes.append(self.voice.branch_note(worktree))
             job.resumed = worktree.reused
 
         try:
@@ -309,11 +310,8 @@ class Execution(Base):
                     ),
                 )
             if self.config.runner.open_pull_request:
-                body = (
-                    f"{outcome.summary}\n\n"
-                    f"---\nNotion ticket: {ticket.url}\n"
-                    f"Claude Code session: `{outcome.session_id}`\n"
-                    f"Opened by ticket-runner ({commits} commit{'s' if commits > 1 else ''})."
+                body = said.pull_request_body(
+                    outcome.summary, ticket.url, outcome.session_id, commits
                 )
                 try:
                     pull_request = git.open_pull_request(

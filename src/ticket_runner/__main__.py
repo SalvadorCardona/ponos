@@ -18,7 +18,7 @@ from pathlib import Path
 from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
-from . import kinds, store
+from . import kinds, store, voice
 from . import provision
 from . import schedules as schedules_module
 from . import session, state, systemd
@@ -685,6 +685,7 @@ def command_doctor(args: argparse.Namespace) -> int:
     except config_module.ConfigError as error:
         bad(str(error).splitlines()[0])
         problems += 1
+    _doctor_languages(configuration.runner)
 
     title("Tools")
     for binary, why in (("git", "required"), ("claude", "required"), ("gh", "for pull requests")):
@@ -1047,6 +1048,28 @@ def command_doctor(args: argparse.Namespace) -> int:
         return 1
     print(f"\n{GREEN}Everything is in place.{RESET}")
     return 0
+
+
+def _doctor_languages(settings: config_module.Runner) -> None:
+    """Which language the reports and the console are in — and a name nobody speaks.
+
+    A language the runner does not know is read as English rather than refused,
+    which is right for a run and wrong to keep quiet about: `de` would otherwise
+    look like a setting that does nothing.
+    """
+    names = {"en": "English", "fr": "French"}
+    for key, asked in (("language", settings.language), ("app_language", settings.app_language)):
+        if asked and not voice.known(asked):
+            warn(f'runner.{key} = "{asked}" is not a language spoken here — read as English')
+    reports = names[voice.understood(settings.language)] if settings.language else "English"
+    shown = settings.interface_language()
+    console = names[voice.understood(shown)] if shown else "the browser's language"
+    told = (
+        f"sessions told to write in {reports}"
+        if settings.language
+        else "sessions answer in the ticket's language"
+    )
+    print(f"  {DIM}reports in {reports} ({told}) · console in {console}{RESET}")
 
 
 def _doctor_answerers(channel: channels.Channel, settings: config_module.Notify) -> None:

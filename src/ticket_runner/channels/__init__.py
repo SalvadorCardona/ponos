@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import conversation, disk
+from .. import disk, voice
 from ..config import Notify, state_dir
 
 # How many questions a channel remembers, so that a reply arriving tomorrow
@@ -155,30 +155,32 @@ def _opens(sentence: str, word: str) -> bool:
     return sentence == word or sentence.startswith(f"{word} ") or sentence.startswith(f"{word},")
 
 
-def answer(reply: Reply) -> str:
+def answer(reply: Reply, said: voice.Voice | None = None) -> str:
     """The comment a reply becomes, written for the session that will read it.
 
     A bare "oui" means nothing to an agent reading the ticket a minute later —
     it has no idea it is being approved. So the verdict is spelled out, and
     whatever else was said is kept underneath, untouched: the word is a
-    shortcut, not a translation.
+    shortcut, not a translation. Spelled out in the runner's language, whatever
+    language the word was typed in — `decide` understands both.
     """
+    said = said or voice.Voice()
     verdict = decide(reply.text)
-    said = " ".join(reply.text.split())
+    text = " ".join(reply.text.split())
     # The opening words are `conversation.RELAYED`: they are what tells the next
     # run that this comment is yours rather than the runner's own, and therefore
     # that it wakes the ticket.
     lines = [
-        f"{conversation.RELAYED}{reply.channel.title()}"
-        + (f" by {reply.who}" if reply.who else "")
+        said.say("relayed", channel=reply.channel.title())
+        + (said.say("relayed-by", who=reply.who) if reply.who else "")
         + "."
     ]
     if verdict == "yes":
-        lines.append("Yes — go ahead with what you proposed.")
+        lines.append(said.say("relayed-yes"))
     elif verdict == "no":
-        lines.append("No — do not do that.")
-    if said and (not verdict or len(said.split()) > 1):
-        lines.append(said)
+        lines.append(said.say("relayed-no"))
+    if text and (not verdict or len(text.split()) > 1):
+        lines.append(text)
     return "\n".join(lines)
 
 

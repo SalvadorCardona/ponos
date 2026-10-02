@@ -147,7 +147,9 @@ class Base:
         self, title: str, body: str, *, urgent: bool = False, link: str = ""
     ) -> None:
         if self.config.notify.desktop and not self.dry_run:
-            notify.send(title, body, urgent=urgent, link=link)
+            notify.send(
+                title, body, urgent=urgent, link=link, action=self.voice.say("open-ticket")
+            )
 
     def _announce(self, title: str, body: str) -> None:
         """Something about the runner itself, said everywhere you are reachable.

@@ -185,7 +185,10 @@ class Recurrence(Base):
         try:
             self.client.append_markdown(
                 page_id,
-                f"*Born of the “{schedule.name}” schedule, {stamp}* — {schedule.page.url}\n"
+                self.voice.say(
+                    "born-of-schedule", name=schedule.name, stamp=stamp, url=schedule.page.url
+                )
+                + "\n"
                 + (f"\n{brief}\n" if brief.strip() else ""),
             )
         except store.StoreError as error:

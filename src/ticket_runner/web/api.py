@@ -1039,9 +1039,9 @@ class Api:
             raise ValueError("nothing to say")
         me = self.runner.myself()
         comments = self.runner.client.comments(page_id)
-        self.runner.client.comment(
-            page_id, f"{conversation.RELAYED}the console.\n{text}", _thread(comments, me)
-        )
+        said = self.runner.voice
+        relayed = said.say("relayed", channel=said.say("relayed-console"))
+        self.runner.client.comment(page_id, f"{relayed}.\n{text}", _thread(comments, me))
         self.runner.forget_comments(page_id)
         message = {
             "role": "you",

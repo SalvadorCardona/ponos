@@ -43,7 +43,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from . import disk, store
+from . import disk, store, voice
 from .config import state_dir
 
 # What to call it when you want its attention. Configurable — `notion.mention` —
@@ -66,8 +66,10 @@ ANSWERS = 5
 # you, from your phone, and it has to wake a blocked ticket exactly as the same
 # words typed into Notion would. Shared with `channels` rather than spelled
 # twice, because the day the sentence changes in one place and not the other,
-# every answer given from a phone stops arriving.
-RELAYED = "Answered from "
+# every answer given from a phone stops arriving. Every language's opening, not
+# only the configured one: the answers given before `runner.language` changed
+# are still on the board, and still yours.
+RELAYED = voice.openings("relayed")
 
 # A comment is a comment. Past this, the answer is a document, and a document
 # belongs in the page rather than under it.
