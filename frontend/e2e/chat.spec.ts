@@ -54,9 +54,11 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
 
 test("Stop ends the turn, says so, and the conversation carries on", async ({ page }) => {
   await openConsole(page)
-  const resume = page.getByText(/claude --resume /)
-  await expect(resume).toBeVisible()
-  const session = (await resume.textContent())!.replace(/^.*claude --resume /, "")
+  // The card no longer shows `claude --resume`: the session is read where the
+  // drawer reads it, and has to be the same one once Stop has come and gone.
+  const sessionOf = async () => (await (await page.request.get("/api/chat")).json()).session_id as string
+  const session = await sessionOf()
+  expect(session).toBeTruthy()
 
   await ask(page, "take it slowly")
   await expect(page.getByText("fixing an error…")).toBeVisible({ timeout: 10_000 })
@@ -73,7 +75,7 @@ test("Stop ends the turn, says so, and the conversation carries on", async ({ pa
 
   await ask(page, "just the count, then")
   await expect(page.getByText("Resumed, and done. The board has 13 tickets.")).toBeVisible()
-  await expect(page.getByText(/claude --resume /)).toContainText(session)
+  expect(await sessionOf()).toBe(session)
 })
 
 test("Escape from the empty field stops the turn, and leaves the drawer open", async ({ page }) => {
