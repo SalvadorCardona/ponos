@@ -83,6 +83,11 @@ def _report_of(answer: str) -> str:
     return report if len(report) <= 3000 else report[:3000].rsplit("\n", 1)[0] + "\n…"
 
 
+def _repository(url: str) -> str:
+    """The repository a pull request belongs to: its address up to `/pull/`."""
+    return url.split("/pull/")[0]
+
+
 def _named(checks: list[str]) -> str:
     """Check names, the way a report quotes them."""
     return ", ".join(f"`{name}`" for name in checks)
@@ -336,6 +341,7 @@ class Delivery(Base):
     def _merged(self, ticket: Ticket, url: str, *facts: str, notes: tuple = ()) -> dict:
         """Done, and said so: the pull request is in."""
         state.forget_rebases(ticket.id)
+        self._landed_in(url)
         said = self.voice
         self.say(f"  ✓ {ticket.title} — pull request merged, moved to done")
         self._set(
@@ -400,6 +406,7 @@ class Delivery(Base):
                 later = (behind or checks == "pending") and self.validated_column()
             else:
                 state.forget_rebases(job.ticket.id)
+                self._landed_in(url)
                 return "", False
         self.say(
             f"    ! {url} not merged: {refusal}"
@@ -489,6 +496,7 @@ class Delivery(Base):
         project = self._project_of(ticket)
         if not branch or not project.is_code:
             return self._refused(ticket, url, refusal)
+        self._forgiven(ticket, url)
         if state.rebases(ticket.id) >= MOST_REBASES:
             return self._too_often(ticket, url, base)
         workdir = state_dir() / "scratch" / f"rebase-{short_id(ticket.id)}"
@@ -510,7 +518,7 @@ class Delivery(Base):
         if failure:
             self.say(f"    ! {branch} not replayed: {failure}")
             return self._refused(ticket, url, refusal, failure)
-        count = state.rebased(ticket.id)
+        count = self._replayed(ticket, url)
         replayed = self.voice.say("merge-rebased", branch=branch, base=base)
         method = self.config.runner.merge_method
         try:
@@ -527,6 +535,40 @@ class Delivery(Base):
         return self._merged(
             ticket, url, self.voice.say("merged-with", method=method), notes=(replayed,)
         )
+
+    def _landed_in(self, url: str) -> None:
+        """One more pull request this runner has merged into that repository."""
+        repository = _repository(url)
+        with self._landed_lock:
+            self._landed[repository] = self._landed.get(repository, 0) + 1
+
+    def _forgiven(self, ticket: Ticket, url: str) -> None:
+        """Strike off the replays this runner's own merges made necessary.
+
+        `MOST_REBASES` is there for a base that *somebody else* keeps moving.
+        A board that validates ten pull requests on one repository moves the
+        base itself: each merge leaves the nine others behind — and, when they
+        all touch the changelog or a generated bundle, conflicting — so the
+        fourth in line was replayed twice and blocked as "`main` keeps moving
+        faster", while all that moved it was the queue it stood in (01/10/2026:
+        three tickets blocked that way in five minutes). That queue is finite
+        and loses one pull request at every merge: if this runner has merged
+        into the repository since the ticket was last replayed, the ticket's
+        count starts again. Each such pardon needs a merge of its own, so a
+        base moved by anyone else still runs out of replays as before.
+        """
+        repository = _repository(url)
+        with self._landed_lock:
+            landed = self._landed.get(repository, 0)
+            last = self._replayed_after.get(ticket.id)
+        if last is not None and landed > last:
+            state.forget_rebases(ticket.id)
+
+    def _replayed(self, ticket: Ticket, url: str) -> int:
+        """`state.rebased`, noting how many merges of this runner it came after."""
+        with self._landed_lock:
+            self._replayed_after[ticket.id] = self._landed.get(_repository(url), 0)
+        return state.rebased(ticket.id)
 
     def _too_often(self, ticket: Ticket, url: str, base: str) -> dict:
         """A base that moves faster than the replays: asked, rather than chased."""
@@ -683,7 +725,8 @@ class Delivery(Base):
                     note=said.paragraphs(facts, aside),
                 )
             return self._fail(ticket, said.say("push-refused"), failure, note=aside)
-        count = state.rebased(ticket.id)
+        self._forgiven(ticket, url)
+        count = self._replayed(ticket, url)
         record = said.paragraphs(facts, told)
         git.comment_pull_request(url, f"Ponos — {record}", accounts)
         checks, checked = self._checked(url, job.workdir, job.base)

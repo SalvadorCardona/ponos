@@ -4148,6 +4148,8 @@ def _board_runner(
     runner._me = ""
     runner._identity_error = ""
     runner._ledger_lock = threading.Lock()
+    runner._landed, runner._replayed_after = {}, {}
+    runner._landed_lock = threading.Lock()
     runner._ledger = conversation.Ledger(
         database=Path(tempfile.mkdtemp()) / "ponos.db"
     )
@@ -9806,6 +9808,47 @@ def a_base_that_keeps_moving_is_replayed_twice_then_asked_about():
     assert passes[-1][0]["status"] == "blocked", passes
     said = runner.client.comments_written[-1]
     assert "2 times" in said and "`main`" in said, said
+
+
+@case
+def a_base_moved_by_the_runners_own_merges_is_not_held_against_the_ticket():
+    """Ten pull requests validated on one repository: the queue is not "a base that keeps moving".
+
+    Each merge the runner makes leaves the others behind. Between two replays
+    of this ticket the runner merged a sibling into the same repository, so the
+    replay is owed to its own queue and the count starts again: the ticket is
+    replayed a third time and merged, not blocked. With nothing merged by the
+    runner in between, the limit holds — see the case above.
+    """
+    url = "https://github.com/x/y/pull/1"
+    page = _reviewed("pqueued", "Validated", url)
+    replayed: list[tuple] = []
+    refusals = ["not mergeable"] * 5
+
+    def merge(url: str, method: str = "squash", accounts=None) -> str:
+        from ponos import git as git_module
+
+        if refusals:
+            raise git_module.GitError(f"gh pr merge: Pull Request is {refusals.pop()}")
+        return "merged"
+
+    with _state_home():
+        runner = _board_runner([page], {"blocked": "Blocked"})
+        runner._project_of = lambda ticket: projects.Project("Site", Path("/repo"))
+        passes = []
+        for sibling in (2, 3, 4):
+            with _github({url: "OPEN"}, merge=merge), _git_answering(
+                pull_request_branches=lambda url, accounts=None: ("ticket/x-9d2cb790", "main"),
+                replay_pushed=lambda *args, **kwargs: replayed.append(args) or "",
+            ):
+                passes.append(runner.deliver())
+            if passes[-1]:
+                break
+            # A sibling of the same repository, merged by this runner meanwhile.
+            runner._landed_in(f"https://github.com/x/y/pull/{sibling}")
+
+    assert len(replayed) == 3, (replayed, passes)
+    assert passes[-1][0]["status"] == "done", passes
 
 
 def _reading_checks(verdicts: list[str], failing: list[list[str]], on_base: list[str], rerun: bool = True):

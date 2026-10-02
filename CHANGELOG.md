@@ -724,6 +724,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   refusal about a review or the branch's rules, still waits in review; so does
   everything on a board with no *Validated* column.
 - **The e2e of a ticket's discussion no longer fails when it runs while the gestures e2e has a ticket set aside**: it looks for the mark on the card of the ticket that asked a question, instead of counting every Blocked card on the shared board.
+- **A queue of validated pull requests no longer blocks itself.** Ten pull
+  requests validated on one repository move its base on their own: each merge
+  leaves the others behind — and conflicting, when they all touch the
+  changelog or the console's built files — so the third or fourth in line was
+  replayed twice and blocked as "`main` keeps moving faster than its pull
+  request can be replayed onto it" (three tickets in five minutes on
+  01/10/2026). A replay is no longer held against a ticket when the runner
+  itself merged into that repository since the ticket's last replay: its count
+  starts again. A base moved by anyone else still stops after two replays.
+
 - **The console's browser tests pass again, in parallel, and two at a time.**
   For anyone changing the console: `npm run test:e2e` gives the chat tests a
   server of their own, so a turn they leave running no longer meets the
