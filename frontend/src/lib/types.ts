@@ -27,7 +27,10 @@ export interface Ticket {
   status: string
   column: ColumnKey
   project: string
+  /** The project's kind of work, `code` or `document`. */
   kind: string
+  /** The ticket's own type, as the board spells it: Code, Writing, External action… */
+  type: string
   priority: string
   model: string
   progress: string
@@ -64,6 +67,8 @@ export interface Board {
   /** What a new ticket may be given beside its title, for the columns this
    * board has: a column it lacks is not a key here. */
   choices?: Partial<Record<"priority" | "type" | "model", { value: string; label: string }[]>>
+  /** What a ticket with no model of its own runs on: `runner.model`, empty for Claude Code's own. */
+  model?: string
   /** Which board the stream sent, for the changes that follow it. */
   version?: number
 }

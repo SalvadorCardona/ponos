@@ -58,3 +58,23 @@ test("a ticket opened by its address, before the board is there, is read once to
   await page.waitForTimeout(1500)
   expect(reads).toHaveLength(1)
 })
+
+test("a ticket's page says its type, model and cost, shows its brief, and folds the rest", async ({ page }) => {
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.goto(`/?view=console/tickets/read/${LONG}`)
+  await expect(page.getByText("Part 40")).toBeAttached()
+
+  // Always there, even before anything ran: what it is, on what, for how much.
+  for (const label of ["type", "model", "spent", "priority", "created"])
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  await expect(page.getByText("default", { exact: false }).first()).toBeVisible()
+
+  // A ticket that is not running opens with its session and its discussion folded.
+  const live = page.locator('[data-slot="ticket-live-toggle"]')
+  const talk = page.locator('[data-slot="ticket-talk-toggle"]')
+  await expect(live).toHaveAttribute("data-state", "closed")
+  await expect(talk).toHaveAttribute("data-state", "closed")
+  await live.click()
+  await expect(live).toHaveAttribute("data-state", "open")
+  await expect(page.getByText("No journal is left for this ticket", { exact: false })).toBeVisible()
+})

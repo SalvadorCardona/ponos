@@ -1,14 +1,14 @@
 import * as React from "react"
-import { ArrowLeft, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
+import { ArrowLeft, ChevronRightIcon, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
 import { toast } from "sonner"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useConsole } from "@/hooks/use-console"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useConsole, useSteps } from "@/hooks/use-console"
 import { why } from "@/lib/api"
-import { useT } from "@/lib/i18n"
+import { counted, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import type { TicketDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -21,7 +21,7 @@ import {
 } from "@/resources/tickets"
 
 import { EmptyState } from "./empty-state"
-import { Fact, Facts } from "./frame"
+import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
 import { MOOD, Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
@@ -49,12 +49,14 @@ import {
  * banner, and the metadata as a ruled grid — because six facts in a row of pills is six pills, where six
  * facts in a grid is a thing you can read down.
  *
- * Under them, three tabs: the brief, the session, and the discussion. The
- * session is live while the ticket is in progress, which is when somebody
- * opens it to see what it is doing, so it is the tab a running ticket opens on.
- * The discussion is counted, and it is the tab a ticket waiting on you opens
- * on — blocked, or with a question nobody has answered — because that is the
- * one thing on the page you came to do something about.
+ * Under them, the brief, always there, and two sections that fold under it:
+ * the session and the discussion. Tabs made the reader pick one of three and
+ * lose the other two; folded, all three are on one page and the headings still
+ * say what is in each. The session is live while the ticket is in progress,
+ * which is when somebody opens it to see what it is doing, so it is open then.
+ * The discussion is counted, and it opens on a ticket waiting on you —
+ * blocked, or with a question nobody has answered — because that is the one
+ * thing on the page you came to do something about.
  *
  * The way back to the board and the title are the header's, as on every page
  * of the console; the page drew its own under it, and said both twice. The
@@ -110,41 +112,11 @@ export function TicketPage() {
               would say them a second time, one line above. */}
           <TicketActions ticket={ticket} className="-mx-1" />
 
-          {/* A fact is drawn when the ticket has it. A board made by hand has
-              no duration, no due date, no agent column, and a row of "—" said
-              so on every ticket, as though something had gone missing. */}
-          <Facts className="mt-4">
-            <Fact label={t("project")}>
-              {ticket.project || t("no project — a document")}
-            </Fact>
-            {ticket.priority ? <Fact label={t("priority")}>{ticket.priority}</Fact> : null}
-            {ticket.model ? <Fact label={t("model")}>{ticket.model}</Fact> : null}
-            {typeof ticket.cost === "number" && ticket.cost ? (
-              <Fact label={t("spent")}>{money(ticket.cost)}</Fact>
-            ) : null}
-            {/* What the run cost in time, next to what it cost in money — from
-                the board's column, or from the session's log where the board
-                has none (see `Api.ticket`). */}
-            {typeof ticket.duration === "number" && ticket.duration ? (
-              <Fact label={t("took")}>{lasted(ticket.duration)}</Fact>
-            ) : null}
-            {ago(ticket.created) ? <Fact label={t("created")}>{ago(ticket.created)}</Fact> : null}
-            {ticket.scheduled ? <Fact label={t("scheduled")}>{when(ticket.scheduled)}</Fact> : null}
-            {/* Which machine has it, for the days two of them share a board
-                — and the other half of the answer to "why has nothing
-                happened": nobody claimed it. */}
-            {ticket.runner ? (
-              <Fact label={t("taken by")}>
-                <span className="font-mono text-xs" title={ticket.runner}>
-                  {ticket.runner}
-                </span>
-              </Fact>
-            ) : null}
-          </Facts>
+          <TicketFacts ticket={ticket} />
 
           {/* Chosen once per ticket, not every time the column moves: a
-              tab that switched itself under the reader would lose them. */}
-          <TicketTabs
+              section that folded itself under the reader would lose them. */}
+          <TicketBody
             key={ticket.id}
             ticket={ticket}
             brief={brief}
@@ -224,16 +196,103 @@ function useBrief(page: TicketDetail | undefined) {
   }
 }
 
-/* The brief, the session, the discussion.
+/* What the page says about the ticket, as a ruled grid.
+ *
+ * Six of them always: what kind of work it is, on what, at what price, are
+ * the first three questions about any ticket, and a cell that came and went
+ * with the run hid them exactly while one was going on. What the ticket does
+ * not have yet says "—". The rest — how long it took, where it went, which
+ * machine has it — is drawn when the ticket has it: a board made by hand has
+ * no duration and no agent column, and a row of "—" said so on every ticket.
+ */
+function TicketFacts({ ticket }: { ticket: TicketDetail }) {
+  const { board } = useConsole()
+  const t = useT()
+  const none = <span className="text-muted-foreground">—</span>
+  const created = ago(ticket.created)
+  const pull = ticket.pull_request.match(/\/pull\/(\d+)/)?.[1]
+  return (
+    <Facts className="mt-4">
+      <Fact label={t("project")}>{ticket.project || t("no project — a document")}</Fact>
+      {/* As the board spells it: Code, Writing, External action, Publication. */}
+      <Fact label={t("type")}>{ticket.type || none}</Fact>
+      <Fact label={t("priority")}>{ticket.priority || none}</Fact>
+      {/* The column empty is not "no model": it is the one the runner passes
+          for it, or Claude Code's own when the configuration names none. */}
+      <Fact label={t("model")}>
+        {ticket.model || (
+          <span>
+            {board.model || t("Claude Code's own")}
+            <span className="text-muted-foreground font-normal"> · {t("default")}</span>
+          </span>
+        )}
+      </Fact>
+      {/* Written on the ticket when its session ends: the stream a session
+          writes says what it cost only in its last line. */}
+      <Fact label={t("spent")}>
+        {typeof ticket.cost === "number" && ticket.cost ? money(ticket.cost) : none}
+      </Fact>
+      <Fact label={t("created")}>{created || none}</Fact>
+      {/* What the run cost in time, next to what it cost in money — from
+          the board's column, or from the session's log where the board
+          has none (see `Api.ticket`). */}
+      {typeof ticket.duration === "number" && ticket.duration ? (
+        <Fact label={t("took")}>{lasted(ticket.duration)}</Fact>
+      ) : null}
+      {ticket.pull_request ? (
+        <Fact label={t("pull request")}>
+          <a
+            href={ticket.pull_request}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-2 hover:underline"
+          >
+            {pull ? `#${pull}` : ticket.pull_request}
+          </a>
+        </Fact>
+      ) : null}
+      {ticket.session ? (
+        <Fact label={t("session")}>
+          {ticket.session_link ? (
+            <a
+              href={ticket.session_link}
+              className="font-mono text-xs underline-offset-2 hover:underline"
+              title={ticket.session}
+            >
+              {ticket.session.slice(0, 8)}
+            </a>
+          ) : (
+            <span className="font-mono text-xs" title={ticket.session}>
+              {ticket.session.slice(0, 8)}
+            </span>
+          )}
+        </Fact>
+      ) : null}
+      {ticket.scheduled ? <Fact label={t("scheduled")}>{when(ticket.scheduled)}</Fact> : null}
+      {/* Which machine has it, for the days two of them share a board
+          — and the other half of the answer to "why has nothing
+          happened": nobody claimed it. */}
+      {ticket.runner ? (
+        <Fact label={t("taken by")}>
+          <span className="font-mono text-xs" title={ticket.runner}>
+            {ticket.runner}
+          </span>
+        </Fact>
+      ) : null}
+    </Facts>
+  )
+}
+
+/* The brief, then the session and the discussion, folded under it.
  *
  * The discussion arrives after the page — it is a second question to the board
  * — so a ticket whose question is still unanswered is known to be waiting only
- * once it has. The tab follows it then, unless the reader has already picked
- * one; and it never leaves the discussion by itself, since an answer sent from
- * it is exactly what makes the ticket stop waiting. `talking` says the
- * discussion held is this ticket's, and not still the last one's.
+ * once it has. The discussion opens then, unless the reader has already folded
+ * or unfolded it; and it never folds by itself, since an answer sent from it is
+ * exactly what makes the ticket stop waiting. `talking` says the discussion
+ * held is this ticket's, and not still the last one's.
  */
-function TicketTabs({
+function TicketBody({
   ticket,
   brief,
   talking,
@@ -243,80 +302,135 @@ function TicketTabs({
   talking: boolean
 }) {
   const { talk, talkWaiting } = useConsole()
+  const { sessions } = useSteps()
   const t = useT()
+  const running = ticket.column === "running"
   const waiting = ticket.column === "blocked" || (talking && talkWaiting)
-  const [tab, setTab] = React.useState(
-    waiting ? "talk" : ticket.column === "running" ? "live" : "brief"
-  )
+  const [live, setLive] = React.useState(running)
+  const [discussion, setDiscussion] = React.useState(waiting)
   const picked = React.useRef(false)
   React.useEffect(() => {
-    if (waiting && !picked.current) setTab("talk")
+    if (waiting && !picked.current) setDiscussion(true)
   }, [waiting])
   // What was said, not a line saying the discussion could not be read.
   const count = talking ? talk.filter((message) => message.role !== "error").length : 0
+  const steps = sessions.find((candidate) => candidate.source === ticket.short)?.count ?? 0
 
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => {
-        picked.current = true
-        setTab(value)
-      }}
-      className="mt-6"
-    >
-      <TabsList>
-        <TabsTrigger value="brief">{t("the brief")}</TabsTrigger>
-        <TabsTrigger value="live" className="gap-1.5">
-          {ticket.column === "running" ? <Pulse /> : null}
-          {t("live")}
-        </TabsTrigger>
-        <TabsTrigger value="talk" data-slot="ticket-talk-tab" className="gap-1.5">
-          {waiting ? <MessageCircleQuestion className="text-tr-amber" /> : null}
-          {t("discussion")}
-          {count ? (
-            <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[0.7rem] tabular-nums">
-              {count}
-            </span>
-          ) : null}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="brief" className="mt-2">
-        {brief.content === undefined ? (
-          brief.problem !== undefined ? (
-            <EmptyState
-              robot="error"
-              title={t("This ticket could not be read.")}
-              action={
-                <Button variant="outline" size="sm" onClick={brief.again}>
-                  <RotateCw />
-                  {t("Try again")}
-                </Button>
-              }
-            >
-              {brief.problem || t("The server gave no reason.")}
-            </EmptyState>
+    <>
+      <section className="mt-6">
+        <Eyebrow>{t("the brief")}</Eyebrow>
+        <div className="mt-2">
+          {brief.content === undefined ? (
+            brief.problem !== undefined ? (
+              <EmptyState
+                robot="error"
+                title={t("This ticket could not be read.")}
+                action={
+                  <Button variant="outline" size="sm" onClick={brief.again}>
+                    <RotateCw />
+                    {t("Try again")}
+                  </Button>
+                }
+              >
+                {brief.problem || t("The server gave no reason.")}
+              </EmptyState>
+            ) : (
+              <div className="flex flex-col gap-2" aria-busy="true">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            )
+          ) : brief.content ? (
+            <Markdown text={brief.content} />
           ) : (
-            <div className="flex flex-col gap-2" aria-busy="true">
-              <Skeleton className="h-3 w-full" />
-              <Skeleton className="h-3 w-5/6" />
-              <Skeleton className="h-3 w-2/3" />
-            </div>
-          )
-        ) : brief.content ? (
-          <Markdown text={brief.content} />
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            {t("The page is empty: the title is the whole brief.")}
-          </p>
-        )}
-      </TabsContent>
-      <TabsContent value="live" className="mt-2">
+            <p className="text-muted-foreground text-sm">
+              {t("The page is empty: the title is the whole brief.")}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <Fold
+        open={live}
+        onOpenChange={setLive}
+        slot="ticket-live-toggle"
+        title={t("live")}
+        badge={
+          <>
+            {running ? <Pulse /> : null}
+            {steps ? (
+              <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
+                {counted(steps, "{{count}} step", "{{count}} steps")}
+              </span>
+            ) : null}
+          </>
+        }
+      >
         <TicketLive ticket={ticket} />
-      </TabsContent>
-      <TabsContent value="talk" className="mt-2">
+      </Fold>
+
+      <Fold
+        open={discussion}
+        onOpenChange={(open) => {
+          picked.current = true
+          setDiscussion(open)
+        }}
+        slot="ticket-talk-toggle"
+        title={t("discussion")}
+        badge={
+          <>
+            {waiting ? <MessageCircleQuestion className="text-tr-amber size-4" /> : null}
+            {count ? (
+              <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[0.7rem] tabular-nums">
+                {count}
+              </span>
+            ) : null}
+          </>
+        }
+      >
         <TicketTalk />
-      </TabsContent>
-    </Tabs>
+      </Fold>
+    </>
+  )
+}
+
+/* One folded section of the page: a heading that opens it, what is worth
+ * knowing before opening it beside the title, and what is in it — drawn only
+ * while it is open. */
+function Fold({
+  open,
+  onOpenChange,
+  slot,
+  title,
+  badge,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  slot: string
+  title: string
+  badge: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange} className="mt-6 border-t pt-4">
+      <CollapsibleTrigger
+        data-slot={slot}
+        className="focus-visible:ring-ring/50 flex w-full items-center gap-1.5 rounded-md text-left outline-none focus-visible:ring-2"
+      >
+        <ChevronRightIcon
+          className={cn(
+            "text-muted-foreground size-4 shrink-0 transition-transform",
+            open && "rotate-90"
+          )}
+        />
+        <Eyebrow>{title}</Eyebrow>
+        {badge}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-3">{children}</CollapsibleContent>
+    </Collapsible>
   )
 }
 

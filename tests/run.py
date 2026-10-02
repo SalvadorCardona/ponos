@@ -10697,7 +10697,7 @@ def a_session_is_followed_on_its_ticket_rather_than_on_a_page_of_sessions():
     """The live page listed sessions by the id of their log, and nothing more.
 
     `24f9704c` said nothing of the ticket it was: the session is read where the
-    ticket is — a tab of its page, a line on its card — and the page is gone.
+    ticket is — a section of its page, a line on its card — and the page is gone.
     Its address still leads somewhere: a link somebody kept lands on the board.
     """
     assert not (FRONTEND / "src/resources/live.tsx").exists(), "the live page is back"
@@ -10708,7 +10708,7 @@ def a_session_is_followed_on_its_ticket_rather_than_on_a_page_of_sessions():
     assert 'live: "/?view=console/tickets/list"' in router, "/?page=live no longer reaches the board"
     page = (FRONTEND / "src/components/console/ticket-page.tsx").read_text(encoding="utf-8")
     assert "<TicketLive" in page, "a ticket's page no longer shows its session"
-    assert 'ticket.column === "running" ? "live"' in page, "a running ticket opens on its brief"
+    assert "React.useState(running)" in page, "a running ticket opens with its session folded"
     tickets = (FRONTEND / "src/resources/tickets.tsx").read_text(encoding="utf-8")
     assert "<CardLive" in tickets, "a running card no longer says what it is doing"
     assert "<RunnerStrip" in tickets, "the runner's figures are nowhere on the board"

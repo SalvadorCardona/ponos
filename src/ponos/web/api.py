@@ -247,7 +247,14 @@ class Api:
         # console says "No status" in whichever language it is in.
         if any(item["column"] == "other" for item in tickets):
             columns.append({"key": "other", "name": ""})
-        return {"tickets": tickets, "validate": offers, "columns": columns, "choices": self._choices()}
+        return {
+            "tickets": tickets,
+            "validate": offers,
+            "columns": columns,
+            "choices": self._choices(),
+            # What a ticket with no model of its own runs on — empty, the CLI's.
+            "model": self.config.runner.model,
+        }
 
     def _choices(self) -> dict[str, list[dict[str, str]]]:
         """What a new ticket may be given beside its title: priority, type, model.
@@ -302,6 +309,8 @@ class Api:
             "column": names.get(status, "other"),
             "project": (project or {}).get("name", ""),
             "kind": (project or {}).get("kind", ""),
+            # The ticket's type as the board spells it — `kind` is the project's.
+            "type": str(store.read(page, settings.prop("type")) or ""),
             "priority": str(store.read(page, settings.prop("priority")) or ""),
             "model": str(store.read(page, settings.prop("model")) or ""),
             "progress": str(store.read(page, settings.prop("progress")) or ""),
