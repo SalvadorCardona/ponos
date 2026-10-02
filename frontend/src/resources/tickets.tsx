@@ -909,6 +909,8 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       column,
       project: project?.name ?? "",
       kind: project?.kind ?? "",
+      // The key was sent; the card says it as the board spells it.
+      type: currentBoard()?.choices?.type?.find((choice) => choice.value === fresh.type)?.label ?? "",
       priority: String(fresh.priority ?? ""),
       model: String(fresh.model ?? ""),
       progress: "",

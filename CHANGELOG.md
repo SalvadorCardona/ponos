@@ -487,6 +487,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   and the detail stays in `ponos logs -f` and the console. The three-hundred
   ceiling now counts paragraphs, so a long session no longer loses its last
   words to its tool calls.
+- **A ticket's page says everything at the top, and has no tabs any more.** The
+  grid always shows the type (as the board spells it: Code, Writing, External
+  action, Publication), the model and the cost, beside the project, priority and
+  creation date — a ticket without a model of its own shows the one
+  `runner.model` gives it, marked *default*, and a cost not known yet reads "—"
+  instead of hiding the cell; the duration, the pull request and the session
+  follow when there are some. Under it the brief is always on screen, and *live*
+  and *discussion* fold beneath it: the session is open while a run is going,
+  with its green dot and its step count in the heading, and the discussion is
+  counted and opens by itself when the ticket waits on you.
 - **Renamed to Ponos — everywhere, not just on the cover.** The product had
   taken the name; now the rest follows: the repository is
   `SalvadorCardona/ponos`, the command is `ponos`, the Python package is
