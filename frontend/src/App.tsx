@@ -13,6 +13,7 @@ import {
 
 import { CommandPalette } from "@/components/console/command-palette"
 import { TalkDrawer } from "@/components/console/talk-drawer"
+import { useTicketWindow } from "@/components/console/ticket-window"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ConsoleProvider, useConsole } from "@/hooks/use-console"
@@ -91,15 +92,17 @@ function Console() {
   const { params, moved } = useRoute()
   const board = useBoard()
   const { ticket, openTicket, closeTicket } = useConsole()
+  const windowed = useTicketWindow()
 
-  // The address says which ticket is open; the board says what it is, so the
+  // The address says which ticket is open — or the window over the board,
+  // which leaves the address on the board; the board says what it is, so the
   // discussion loads while the page is still being read.
   const ticketId =
     (params.resourceId ?? TICKETS) === TICKETS &&
     params.resourceAction === ActionList.read &&
     params.id
       ? String(params.id)
-      : null
+      : windowed
   React.useEffect(() => {
     if (!ticketId) {
       closeTicket()

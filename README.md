@@ -1817,7 +1817,11 @@ there is one — and a board that names its `draft` option draws those apart, un
 edge with more beyond it shows a fade and an arrow. The *table* tab shows the same tickets
 as rows, one column per property.
 
-**A card is a way in.** Click one and the ticket becomes a page: the brief you wrote, the
+**A card is a way in.** Click one — or a ticket's title in the table — and the ticket opens
+in a window over the board, the whole screen on a phone; its header has its short id, its
+title, a button to its full page and a cross (Escape closes it too), and the board is
+where you left it underneath. The full page has an address of its own, the one a shared
+link, the palette and a notification open. Either way it is the brief you wrote, the
 report a run appended, the notes in between — the page under the card, as the runner
 reads it — with its links out (Notion, the pull request, the session) and the gestures it
 offers where it stands. Under the facts, three tabs: the brief, **live** — the one a

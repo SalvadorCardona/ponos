@@ -305,6 +305,22 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
 
+  /* A ticket's window, the whole screen on a phone: a ticket is a page to
+     read, and a phone has no board beside it to keep in view. Said after the
+     rule above, which would otherwise keep a margin round it. */
+  @media (width < 40rem) {
+    [data-slot="dialog-content"][data-ticket-window] {
+      inset: 0;
+      translate: none;
+      width: 100%;
+      max-width: none;
+      height: 100dvh;
+      max-height: none;
+      border: 0;
+      border-radius: 0;
+    }
+  }
+
   /* A project's form, the whole screen on a phone. The package's drawer comes
      up from the bottom there, 85% of the height with a gap and rounded corners
      around it — room for the list to show above, which a phone has none of,

@@ -4,6 +4,7 @@ import {
   ActionList,
   BooleanInputController,
   SelectInputController,
+  useFormContext,
   type FormInterface,
   type InputControllerComponentInterface,
 } from "react-data-form"
@@ -42,6 +43,7 @@ import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip, every } from "@/components/console/runner-strip"
 import { CardLive } from "@/components/console/session-log"
 import { TicketHead, TicketPage } from "@/components/console/ticket-page"
+import { TicketWindow, opensInTheWindow } from "@/components/console/ticket-window"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useConsole } from "@/hooks/use-console"
@@ -365,13 +367,26 @@ const StatusCell: InputControllerComponentInterface = ({ formInput }) => {
   )
 }
 
+/* The title, in the table, as the way into the ticket — the window over the
+ * list, as a card's title is. */
+const TitleCell: InputControllerComponentInterface = ({ formInput }) => {
+  const id = String((useFormContext().form.originalData as TicketItem | undefined)?.id ?? "")
+  const title = String(formInput.value ?? "")
+  if (!id) return <>{title}</>
+  return (
+    <Link to={ticketHref(id)} onClick={opensInTheWindow(id)} className="font-medium hover:underline">
+      {title}
+    </Link>
+  )
+}
+
 /* The columns of the table layout. Read only: a ticket is moved on the board,
  * not typed into here. The headings go through the dictionary on their way to
  * the page, and the two cells that are a number on the card — what it cost and
  * how long it took — are read from the words `item` writes them in. */
 const rowForm: FormInterface = {
   inputs: {
-    title: { label: "Ticket", readonly: true },
+    title: { label: "Ticket", readonly: true, controller: TitleCell },
     project: { label: "Project", readonly: true },
     status: { label: "Status", readonly: true, controller: StatusCell },
     priority: { label: "Priority", readonly: true },
@@ -384,8 +399,9 @@ const rowForm: FormInterface = {
 
 /* -- one card ------------------------------------------------------------- */
 
-/* How a ticket is drawn on the board. The card is the way into the ticket's
- * page — its title is the link, and so is the id over it.
+/* How a ticket is drawn on the board. The card is the way into the ticket —
+ * its title is the link, and so is the id over it; a click opens it in a
+ * window over the board (see `TicketWindow`).
  *
  * Read top to bottom it answers, in order: which one is this, how long has it
  * been sitting there, what is it, what is said about it, what is it doing,
@@ -406,6 +422,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   const { resource } = useCurrentViewResourceContext()
   if (!ticket) return null
   const href = generateLinkByResource({ resource, resourceAction: ActionList.read, id: ticket.id })
+  const open = opensInTheWindow(ticket.id)
 
   return (
     <div
@@ -416,7 +433,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
     >
       <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
         <TicketRobot column={ticket.column} size={20} className="-my-1 shrink-0" />
-        <Link to={href} className="shrink-0 font-medium tracking-wide hover:underline">
+        <Link to={href} onClick={open} className="shrink-0 font-medium tracking-wide hover:underline">
           #{ticket.short}
         </Link>
         {/* Waiting on you: a run that asks a question lands in the blocked
@@ -426,6 +443,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         {ticket.column === "blocked" ? (
           <Link
             to={href}
+            onClick={open}
             data-slot="ticket-waiting"
             className="bg-tr-amber/15 text-tr-amber inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 font-sans font-semibold hover:underline"
           >
@@ -437,7 +455,11 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         <span className="text-muted-foreground min-w-0 truncate">{ago(ticket.created)}</span>
       </div>
 
-      <Link to={href} className="text-[0.93rem] leading-snug font-semibold break-words hover:underline">
+      <Link
+        to={href}
+        onClick={open}
+        className="text-[0.93rem] leading-snug font-semibold break-words hover:underline"
+      >
         {ticket.title}
       </Link>
 
@@ -480,9 +502,15 @@ function BoardTop() {
   latest.current = fetchData
   React.useEffect(() => subscribeBoard(() => latest.current()), [])
   // The figures are the board's: a ticket's page is drawn under the same
-  // `top`, and has its own column to say what it is doing.
+  // `top`, and has its own column to say what it is doing. So is the window a
+  // ticket opens in over the list — once, for every card and row of it.
   if (!isLoading || currentBoard())
-    return resourceAction === ActionList.list ? <RunnerStrip /> : null
+    return resourceAction === ActionList.list ? (
+      <>
+        <RunnerStrip />
+        <TicketWindow />
+      </>
+    ) : null
   return (
     <div className="bg-background fixed inset-0 z-[51] flex flex-col items-center justify-center gap-3">
       <Robot state="thinking" size={96} />
@@ -924,7 +952,7 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
         },
       },
       {
-        ...tableViewOptionFactory({ id: "table", behavior: { rowActions: [ActionList.read] } }),
+        ...tableViewOptionFactory({ id: "table", behavior: { rowActions: [] } }),
         get name() {
           return t("table")
         },
@@ -942,9 +970,11 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       // sentence that names one of them is wrong half the time.
       description:
         "Your board, live. Drop a card in another column and the runner is told.",
-      // A row of the table opens the ticket, as a card does. Without it the
-      // table is a list you cannot get out of.
-      behavior: { rowActions: [ActionList.read] },
+      // A row of the table opens the ticket by its title, as a card does, in
+      // the window over the list (see `TitleCell`). The package's own read
+      // button left the list for the page, and would have been a second way
+      // in that does something else.
+      behavior: { rowActions: [] },
       // `top` said again: the package merges a view over the resource's one
       // key by key, so a `components` here replaces the whole of it — and
       // without `BoardTop` the list never rereads the board the stream moves.
