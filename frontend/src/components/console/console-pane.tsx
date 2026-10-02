@@ -1,16 +1,17 @@
 import * as React from "react"
-import { CopyIcon, PaperclipIcon, SquarePenIcon } from "lucide-react"
-import { toast } from "sonner"
+import { PaperclipIcon, PlusIcon, SquarePenIcon } from "lucide-react"
+import { ActionList } from "react-data-form"
+import { generateLinkByResource, useNavigate } from "react-resource-view"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useConsole, type Entry } from "@/hooks/use-console"
 import { api } from "@/lib/api"
-import { counted, currentLanguage, useT } from "@/lib/i18n"
+import { currentLanguage, useT } from "@/lib/i18n"
+import { tickets } from "@/resources/tickets"
 
 import { Composer, type ComposerHandle } from "./composer"
-import { Eyebrow } from "./frame"
-import { Flow, Rich } from "./text"
+import { Flow } from "./text"
 import { Thinking } from "./thinking"
 import { Line, Transcript } from "./transcript"
 import { Turn } from "./turn"
@@ -35,6 +36,7 @@ const carriesFiles = (event: React.DragEvent) => event.dataTransfer.types.includ
 export function ConsolePane() {
   const { transcript, busy, stopping, submit, resetChat, stopChat, runner } = useConsole()
   const t = useT()
+  const navigate = useNavigate()
   const composer = React.useRef<ComposerHandle>(null)
   const [dragging, setDragging] = React.useState(false)
   const chat = runner?.chat
@@ -55,13 +57,8 @@ export function ConsolePane() {
     composer.current?.focus()
   }, [busy])
 
-  const copyResume = () => {
-    if (!chat?.resume_command) return
-    void navigator.clipboard
-      ?.writeText(chat.resume_command)
-      .then(() => toast.success(t("Copied"), { description: chat.resume_command }))
-      .catch(() => {})
-  }
+  const newTicket = () =>
+    void navigate({ to: generateLinkByResource({ resource: tickets, resourceAction: ActionList.create }) })
 
   return (
     <div
@@ -88,46 +85,22 @@ export function ConsolePane() {
         composer.current?.add(Array.from(event.dataTransfer.files))
       }}
     >
-      {/* Room at the right for the drawer's own close and its full-screen
-          switch, which float over this corner: a heading that ran under them
-          would be a heading with a cross in the middle of it. */}
-      <div className="flex items-start gap-2 border-b py-2.5 pr-12 pl-3.5 sm:pr-20">
-        <div className="min-w-0 flex-1">
-          <Eyebrow>{t("the workspace")}</Eyebrow>
-          <h3 className="mt-1 text-base leading-tight font-semibold tracking-[-0.01em]">
-            {t("Talking to your machine")}
-          </h3>
-          <p className="text-muted-foreground mt-1 text-xs">
-            {/* One sentence, one key: split around the `>` it was two halves
-                that a translation could not reorder. */}
-            <Rich
-              text={t(
-                "A sentence reaches your repositories and the board; a line that starts with `>` reaches the CLI."
-              )}
-            />
-          </p>
-          {/* Which session this is, said quietly: it is what `claude --resume`
-              needs, and nothing a conversation needs to be looking at. */}
-          {chat?.session_id ? (
-            <button
-              type="button"
-              onClick={copyResume}
-              title={t("Copy the command that resumes this conversation in a terminal")}
-              className="text-muted-foreground/80 hover:text-foreground mt-1 flex max-w-full items-center gap-1 font-mono text-[0.68rem]"
-            >
-              <span className="truncate">
-                {`${counted(chat.turns, "{{count}} turn", "{{count}} turns")} · ${chat.resume_command}`}
-              </span>
-              <CopyIcon className="size-3 shrink-0" />
-            </button>
-          ) : null}
-        </div>
+      {/* Only what can be done from here: the drawer already says where it
+          is. Room at the right for the drawer's own close and its full-screen
+          switch, which float over this corner. A new ticket lands in Ready by
+          default — the form's own switch sends it to the drafts instead. */}
+      <div className="flex items-center gap-2 border-b py-2 pr-12 pl-3.5 sm:pr-20">
+        <Button size="sm" onClick={newTicket}>
+          <PlusIcon />
+          {t("New ticket")}
+        </Button>
+        <span className="flex-1" />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon-sm"
-              className="-mt-0.5 opacity-70 hover:opacity-100"
+              className="opacity-70 hover:opacity-100"
               aria-label={t("start a new conversation")}
               disabled={busy}
               onClick={resetChat}
