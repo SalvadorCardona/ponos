@@ -87,7 +87,7 @@ it stops being one:
 
 RESULT: ok — <what you changed, in one sentence>
 RESULT: blocked — <what is missing to decide>
-"""
+{asking}"""
 
 
 DOCUMENT = """\
@@ -135,7 +135,7 @@ it stops being one:
 
 RESULT: ok — <what you produced, in one sentence>
 RESULT: blocked — <what is missing to decide>
-"""
+{asking}"""
 
 DELIVERY = """\
 A ticket {scope} has been validated: a human read what came back and said yes. \
@@ -176,7 +176,7 @@ it stops being one:
 
 RESULT: ok — <what you published and where, with the link if there is one>
 RESULT: blocked — <what stopped you, or what is missing to do it>
-"""
+{asking}"""
 
 
 CONVERSATION = """\
@@ -279,8 +279,31 @@ it stops being one:
 
 RESULT: ok — <what you resolved, in one sentence>
 RESULT: blocked — <what conflicts, and the question it raises>
-"""
+{asking}"""
 
+
+# What a blocked session hands over, on top of its RESULT line. The runner lays
+# the comment out from these — see question.py — so the session chooses the kind
+# of answer it needs, and never the words around it.
+ASKING = """
+If you end blocked, write these lines just before the final line — the runner \
+turns them into the question somebody answers from a phone, one line each:
+
+DONE: <what is done, in a few words, with a Markdown link to the pull request \
+or the page when there is one — or `nothing`>
+WHY: <why you stop, in one short sentence, in the words of the person reading \
+it rather than in yours: "I am not allowed to merge into main", not a log line>
+QUESTION: <the question itself, one sentence>
+MODE: <yes-no, choice or free>
+OPTION: <one concrete answer — for `choice` only: two to four of them, one per \
+line, the one you would pick first>
+
+Take `yes-no` when one word is enough to carry on, and put the question so that \
+yes means you go ahead; `choice` when there are a few concrete roads, so that \
+answering with a number is enough; `free` only when no option makes sense, and \
+then say in the question exactly what to give. Checks, logs and what you tried \
+stay in your report, not in these lines.
+"""
 
 # What a session is told when it is picked back up where an exhausted quota left
 # it. Deliberately not the whole prompt again: this session has the ticket, the
@@ -393,6 +416,7 @@ def build(
         url=url,
         resumed=resumed,
         kind=f"\n{kind}" if kind else "",
+        asking=ASKING,
     )
     if kind and "{kind}" not in template:
         # A prompt file of your own, older than the types: see the docstring.

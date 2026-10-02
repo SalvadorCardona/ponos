@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import channels, conversation, credits, session, state, store, sync
+from . import question as question_module
 from . import voice as voice_module
 from .base import Base
 from .ticket import Job, Ticket
@@ -257,7 +258,18 @@ class Reports(Base):
         me = self.myself()
         lines: list[str] = []
         budget = COMMENT_CHARS
-        for comment in reversed(comments[-COMMENT_LIMIT:]):
+        window = comments[-COMMENT_LIMIT:]
+        # The question each comment was written under — the last report's, when
+        # it asked one — so that a “2” reaches the next session as the option it
+        # names rather than as a digit nobody remembers the list of.
+        under: list[question_module.Question | None] = []
+        asked: question_module.Question | None = None
+        for comment in window:
+            under.append(asked)
+            if voice_module.is_report(comment.text):
+                asked = question_module.found(comment.text)
+        for index in reversed(range(len(window))):
+            comment = window[index]
             text = comment.text
             if conversation.ours(comment, me) and not voice_module.is_report(text):
                 # Something the runner said in a thread rather than reported.
@@ -268,18 +280,34 @@ class Reports(Base):
             elif voice_module.is_report(text):
                 # Our own report. Its first two lines hold the verdict and the
                 # sentence under it; anything after is a link and, on the
-                # reports older runs wrote, the machinery they ended on.
-                text = " ".join("\n".join(voice_module.plain(text).splitlines()[:2]).split())
+                # reports older runs wrote, the machinery they ended on. A
+                # question is the exception: it is said whole, with its options.
+                text = self._reported(voice_module.plain(text))
                 who = "a previous run"
             else:
                 text = " ".join(text.split())
                 who = "the ticket's author"
+                meant = question_module.meant(
+                    question_module.read(conversation.said(comment.text), under[index])
+                )
+                if meant:
+                    text = f"{text} (read as: {meant})"
             line = f"{who}: {text}"
             budget -= len(line)
             if budget < 0:
                 break
             lines.append(line)
         return list(reversed(lines))
+
+    @staticmethod
+    def _reported(text: str) -> str:
+        """A report as the next session reads it: one line, the question whole."""
+        asked = question_module.found(text)
+        if not asked:
+            return " ".join("\n".join(text.splitlines()[:2]).split())
+        told = text.split("\n\n", 1)[0].splitlines()
+        told = told[: -2 if asked.mode == "choice" else -1]
+        return " ".join(" ".join(told).split()) + f" — asked: {question_module.context(asked)}"
 
     # -- what reaches you, wherever you are -----------------------------------
 
@@ -299,10 +327,11 @@ class Reports(Base):
         actually have on you. Same words as the comment — the same verdict, the
         same sentence under it — because a Notion notification and a Telegram
         one are the same event reaching you twice, and telling it twice in two
-        ways is how you end up reading both. One line longer in the second,
-        because a message you can answer has to say so — and both carry the
-        ticket's page, because a notification you then have to go and find is a
-        notification you do not act on.
+        ways is how you end up reading both. A question is the same lines too —
+        what is done, why it stops, what to answer — so a message you can
+        answer already says how; and both carry the ticket's page, because a
+        notification you then have to go and find is a notification you do not
+        act on.
 
         `event` is which of them you asked to be told about — `notify.events` —
         and `verdict` is what is being said, which is not the same question: a
@@ -315,10 +344,9 @@ class Reports(Base):
         settings = self.config.notify
         if self.dry_run or not settings.remote or not settings.wants(event):
             return
-        invitation = "\n\n" + said.say("answer-here") if ask else ""
         channels.announce(
             settings,
-            f"{voice_module.MARKS[verdict]} {headline}\n{body}{invitation}\n{ticket.url}",
+            f"{voice_module.MARKS[verdict]} {headline}\n{body}\n{ticket.url}",
             ticket=ticket.page.id,
             title=ticket.title,
             ask=ask,
@@ -357,7 +385,9 @@ class Reports(Base):
                         channel.acknowledge(reply, self.voice.say("nothing-waiting"))
                     continue
                 try:
-                    self.client.comment(reply.ticket, channels.answer(reply, self.voice))
+                    self.client.comment(
+                        reply.ticket, channels.answer(reply, self.voice, self.asked(reply.ticket))
+                    )
                 except store.StoreError as error:
                     self.say(f"    ! the answer could not be written to Notion: {error}")
                     channel.acknowledge(reply, self.voice.say("notion-refused", error=error))
@@ -368,6 +398,20 @@ class Reports(Base):
                 channel.acknowledge(reply, self.voice.say("noted", title=label))
         return answered
 
+    def asked(self, page_id: str) -> question_module.Question | None:
+        """The question a ticket is waiting on, read off its last report.
+
+        Only the last one: a ticket that asked, was answered and has reported
+        since is waiting on nothing, and an old question must not turn today's
+        “2” into an option of yesterday's list. Unreadable comments are no
+        question — the answer is still written, as it was typed.
+        """
+        try:
+            comments = self.comments(page_id)
+        except store.StoreError:
+            return None
+        return question_module.waiting(comment.text for comment in comments)
+
     # -- the endings that are not a result -------------------------------------
 
     def _fail(
@@ -377,49 +421,87 @@ class Reports(Base):
         detail: str = "",
         *,
         blocked: bool = False,
-        question: str = "",
+        question: str | question_module.Question | None = "",
         note: str = "",
     ) -> dict:
         """A run that did not get there, said in as few lines as it takes.
 
-        A blocked ticket opens on the **question**, because that is the thing
-        somebody has to read and answer; a failed one opens on the reason, and
-        says under it what the session said before it stopped. `note` is where
-        the rest went — the folded block, usually, and the trace itself on a
-        ticket that has no such block: see `_filed`.
+        A blocked ticket is laid out as its **question** — what is done, why it
+        stops, what to answer: see question.py — because that is the thing
+        somebody has to read and answer. The question is the session's own when
+        it wrote one, and otherwise whatever the caller asks, as a free one. A
+        failed ticket opens on the reason, and says under it what the session
+        said before it stopped. `note` is where the rest went — the folded
+        block, usually, and the trace itself on a ticket that has no such block:
+        see `_filed`.
         """
-        outcome = "blocked" if blocked else "failed"
+        if blocked:
+            return self._block(ticket, reason, detail, question, note)
         said = self.voice
         self.say(f"    ✗ {ticket.title} — {reason}")
-        asked = question.strip() if blocked and question.strip() else said.sentence(reason)
-        # A blocked ticket is a question, and a question is the one thing worth
-        # waking somebody for — so it travels with what the agent actually
-        # asked, not with the runner's own summary of the situation.
-        self._tell(
-            outcome,
-            ticket,
-            outcome,
-            said.brief(asked),
-            urgent=not blocked,
-            ask=blocked,
-        )
-        self._set(ticket, **{self.config.notion.prop("status"): self.config.notion.state(outcome)})
-        # A blocked ticket has the invitation to answer under its question, and
-        # the detail only when it says something the question does not — which
-        # on most of these roads it does not, the question *being* the detail.
-        under = said.brief(detail)
-        if blocked:
-            under = "" if under == said.brief(asked) else under
+        asked = said.sentence(reason)
+        self._tell("failed", ticket, "failed", said.brief(asked), urgent=True)
+        self._set(ticket, **{self.config.notion.prop("status"): self.config.notion.state("failed")})
         self._comment(
             ticket,
-            said.report(
-                said.verdict(outcome, said.brief(asked)),
+            said.report(said.verdict("failed", said.brief(asked)), said.brief(detail), note),
+        )
+        return {"ticket": ticket.title, "id": ticket.id, "status": "failed", "reason": reason}
+
+    def _block(
+        self,
+        ticket: Ticket,
+        reason: str,
+        detail: str,
+        question: str | question_module.Question | None,
+        note: str,
+    ) -> dict:
+        """A ticket that stopped on a question, asked in four lines at most.
+
+        Nothing under it says how to answer — the question does, by its kind —
+        and nothing says where the rest is: the folded block is on the same
+        page, and pointing at it was one more line between the reader and the
+        question. A note that *is* the rest, because the page has no such
+        block, and a detail the question does not already say, go under a
+        blank line, where `question.found` knows not to look.
+        """
+        said = self.voice
+        self.say(f"    ✗ {ticket.title} — {reason}")
+        # The session's own question already says everything its RESULT line
+        # did; one the runner asks on its behalf may leave a detail out.
+        under = said.brief(detail)
+        if isinstance(question, question_module.Question):
+            under = ""
+        else:
+            question = question_module.Question(
+                ask=str(question or "").strip() or said.sentence(reason)
+            )
+        lines = said.question(question)
+        done = said.brief(question.done)
+        # A blocked ticket is a question, and a question is the one thing worth
+        # waking somebody for — so it travels with what the agent actually
+        # asked, laid out the same way, not with the runner's own summary.
+        self._tell(
+            "blocked",
+            ticket,
+            "blocked",
+            "\n".join(line for line in (done, *lines) if line),
+            ask=True,
+        )
+        self._set(ticket, **{self.config.notion.prop("status"): self.config.notion.state("blocked")})
+        if under == said.brief(question.ask):
+            under = ""
+        if note.strip() == said.say("trace-in-page"):
+            note = ""
+        self._comment(
+            ticket,
+            said.paragraphs(
+                said.report(said.verdict("blocked", done), *lines),
                 under,
-                said.say("answer-here") if blocked else "",
                 note,
             ),
         )
-        return {"ticket": ticket.title, "id": ticket.id, "status": outcome, "reason": reason}
+        return {"ticket": ticket.title, "id": ticket.id, "status": "blocked", "reason": reason}
 
     def _guarded(
         self, ticket: Ticket, work: Callable[..., dict | None], *arguments: object

@@ -499,6 +499,20 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   recognised as this machine's. Old commits, pull requests and releases keep
   the name they were made under.
 
+- **A blocked ticket asks a real question, in four lines at most.** The comment
+  used to be the session's last sentence in one block, under the same footer
+  every time — *an answer here or on your phone, yes, no, or a sentence* — and
+  never said what “yes” would do. Now the session chooses the kind of answer it
+  needs and the runner lays it out, one line per idea: what is done, with its
+  link; why it stops, in your words; then the question — *yes / no*, a numbered
+  choice of two to four options on one line, or a free question that says what
+  to give. The footer and the pointer to the folded block are gone; the checks
+  and the logs stay in that block. `2`, *la 2*, *la deuxième*, an option's own
+  words, *oui* or a sentence are all understood, and the next run is told the
+  question and the option you chose — whether you answered in Notion, from
+  Telegram or Slack, or in the console. The same lines reach your phone, links
+  in a comment are clickable in Notion, and it all follows `runner.language`.
+
 - **Notion takes one band on the site, not four rows.** *Your board in
   Notion* is now a sentence and the `init` command beside a single window that
   chains the three films — his report on the ticket, a text written into it, the

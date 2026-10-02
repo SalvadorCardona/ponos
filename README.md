@@ -1603,11 +1603,12 @@ lands on the ticket.**
    the runner                  your phone                   the ticket
 
    blocked ────────▶  🙋 Stuck · Le header
-                      Which header — the dashboard
-                      one or the public site?
+                      The ticket names two headers.
+                      Which one goes?
+                      1. The dashboard's · 2. The public site's
                       notion.so/…
                                    │
-                                   │  “celui du dashboard”
+                                   │  “2”
                                    ▼
                       ✓ noted on “Le header”  ──────▶  a comment on the page
                                                        │
@@ -2420,7 +2421,16 @@ them on the program's normal path:
   treated as a failure.
 - **An ambiguous ticket is not guessed.** The prompt explicitly asks the agent to answer
   `RESULT: blocked` and stop rather than decide in your place. The ticket goes to the
-  `blocked` status with the question in a comment.
+  `blocked` status with the question in a comment — laid out by the runner, one line per
+  idea: what is done (with its link), why it stops, then the question in one of three
+  kinds the session chooses. **Yes-no** ends on `→ yes / no`; **choice** numbers two to
+  four options on one line, so that `2`, *la 2* or the option's own words answer it;
+  **free** is the question alone, saying what to give. The session hands these over as
+  `DONE:`, `WHY:`, `QUESTION:`, `MODE:` and `OPTION:` lines before its `RESULT`; the
+  checks and the logs stay in the folded block. However it arrives — in Notion, from
+  Telegram or Slack, from the console — the answer reaches the next run with the
+  question and the option it chose. A prompt file of your own that does not ask for these
+  lines blocks as before, with its `RESULT` line as a free question.
 - **A failing ticket takes only itself down.** The others in the same run carry on. Its
   worktree is kept for the post-mortem, and the session ID reopens the conversation
   exactly where it stopped: `claude --resume <id>`. The next attempt picks that same

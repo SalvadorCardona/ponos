@@ -26,6 +26,7 @@ from . import voice as voice_module
 from .base import Base
 from .config import PRIORITIES
 from .projects import Project
+from .question import Question
 # The one reading of a Notion date in the project. It lives beside the calendar
 # because a date on a ticket and a date on a schedule mean the same thing, and
 # two readings of them that drift apart is a bug nobody would ever find.
@@ -428,13 +429,9 @@ class Board(Base):
                 )
                 interrupted = said.say("publication-interrupted", origin=origin)
                 self._set(ticket, **{status_property: self.config.notion.state("blocked")})
-                self._comment(
-                    ticket,
-                    said.report(
-                        said.verdict("blocked", interrupted), said.say("answer-here")
-                    ),
-                )
-                self._tell("blocked", ticket, "blocked", said.sentence(interrupted), ask=True)
+                asked = said.question(Question(ask=said.sentence(interrupted)))
+                self._comment(ticket, said.report(said.verdict("blocked"), *asked))
+                self._tell("blocked", ticket, "blocked", "\n".join(asked), ask=True)
                 state.release(ticket.id)
                 recovered += 1
                 continue

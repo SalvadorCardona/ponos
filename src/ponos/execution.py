@@ -247,7 +247,7 @@ class Execution(Base):
                 reason,
                 detail,
                 blocked=outcome.blocked,
-                question=detail if outcome.blocked else "",
+                question=(outcome.question or detail) if outcome.blocked else "",
                 note=self._filed(job, outcome, kept),
             )
 
@@ -462,7 +462,7 @@ class Execution(Base):
                 reason,
                 detail,
                 blocked=outcome.blocked or not content,
-                question=detail,
+                question=outcome.question or detail,
                 note=self._filed(job, outcome, kept),
             )
 
