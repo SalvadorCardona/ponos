@@ -4291,7 +4291,7 @@ def _asking(question: object, language: str = "fr") -> tuple[Runner, str, list[s
 
 @case
 def a_yes_no_question_says_the_two_words_that_answer_it():
-    from ticket_runner import question
+    from ponos import question
     asked = question.Question(
         ask="Je fusionne et je déploie ?",
         mode="yes-no",
@@ -4317,7 +4317,7 @@ def a_yes_no_question_says_the_two_words_that_answer_it():
 
 @case
 def a_choice_is_numbered_on_one_line_so_that_a_number_answers_it():
-    from ticket_runner import question
+    from ponos import question
     _, comment, _ = _asking(
         question.Question(
             ask="Qui fusionne ?",
@@ -4339,7 +4339,7 @@ def a_choice_is_numbered_on_one_line_so_that_a_number_answers_it():
 
 @case
 def a_free_question_stands_alone_and_says_what_to_give():
-    from ticket_runner import question
+    from ponos import question
     _, comment, _ = _asking(question.Question(ask="Quelle URL pour le site de Wizaplace ?"))
     assert comment == "🙋 Bloqué\nQuelle URL pour le site de Wizaplace ?", comment
     # A question the runner asks on its own behalf is a free one, and its
@@ -4350,7 +4350,7 @@ def a_free_question_stands_alone_and_says_what_to_give():
 
 @case
 def a_blocked_comment_reaches_notion_with_real_line_breaks_and_a_link():
-    from ticket_runner import question
+    from ponos import question
     _, comment, _ = _asking(question.parse(PR_58))
     pieces = notion._comment_text(comment)
     drawn = "".join(piece["text"]["content"] for piece in pieces)
@@ -4369,7 +4369,7 @@ def a_blocked_comment_reaches_notion_with_real_line_breaks_and_a_link():
 @case
 def the_pull_request_58_comes_back_as_a_clear_choice_in_four_lines():
     """The 02/10 comment, played again: a choice, and nothing else."""
-    from ticket_runner import question
+    from ponos import question
     asked = question.parse(PR_58)
     assert asked and asked.mode == "choice", asked
     _, comment, _ = _asking(asked)
@@ -4387,7 +4387,7 @@ def the_pull_request_58_comes_back_as_a_clear_choice_in_four_lines():
 
 @case
 def a_session_that_wrote_no_question_blocks_the_way_it_always_did():
-    from ticket_runner import question
+    from ponos import question
     assert question.parse("RESULT: blocked — quel en-tête ?") is None
     found = question.parse("**QUESTION:** On publie ?\n- MODE: yes/no\nRESULT: blocked — x")
     assert found and (found.ask, found.mode) == ("On publie ?", "yes-no"), found
@@ -4397,7 +4397,7 @@ def a_session_that_wrote_no_question_blocks_the_way_it_always_did():
 
 @case
 def an_answer_is_read_as_the_option_it_names_whatever_its_shape():
-    from ticket_runner import question
+    from ponos import question
     choice = question.Question(
         ask="Qui fusionne ?",
         mode="choice",
@@ -4421,7 +4421,7 @@ def an_answer_is_read_as_the_option_it_names_whatever_its_shape():
 
 @case
 def an_answer_from_a_phone_is_written_as_the_option_it_chose():
-    from ticket_runner import question
+    from ponos import question
     _, comment, _ = _asking(question.parse(PR_58))
     said = voice.Voice("fr")
     asked = question.waiting([comment])
@@ -4449,7 +4449,7 @@ def an_answer_from_a_phone_is_written_as_the_option_it_chose():
 
 @case
 def the_next_run_is_told_the_question_and_what_the_answer_chose():
-    from ticket_runner import question
+    from ponos import question
     _, comment, _ = _asking(question.parse(PR_58))
     _, lines = _runner_reading([comment, "la 2"])
     assert lines == [
