@@ -28,7 +28,7 @@ import type {
  *
  * Two things every request here carries, and neither is decoration:
  *
- * - `X-Ticket-Runner: 1`. The server refuses a write without it, because a page
+ * - `X-Ponos: 1`. The server refuses a write without it, because a page
  *   you have open in another tab can post a form to this port with your cookie
  *   attached but cannot set a header of its own without a preflight this server
  *   never answers. The header is the difference between "the console asked" and
@@ -36,7 +36,7 @@ import type {
  * - `credentials: "same-origin"`, which is what sends that cookie at all.
  */
 
-const GUARD = { "X-Ticket-Runner": "1" }
+const GUARD = { "X-Ponos": "1" }
 
 export class ApiError extends Error {
   readonly status: number

@@ -140,7 +140,7 @@ export function ContextPane() {
             page: drawn.where,
           })}
           <br />
-          <code className="font-mono text-xs">ticket-runner init &lt;page-url&gt;</code>{" "}
+          <code className="font-mono text-xs">ponos init &lt;page-url&gt;</code>{" "}
           {t("builds it.")}
         </EmptyState>
       ) : (

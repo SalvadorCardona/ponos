@@ -1,0 +1,909 @@
+"""What the runner says on a ticket, and the language it says it in.
+
+Three kinds of text come out of a run, and only one of them is written here.
+The **work** — a summary, a document, an answer in a thread — is written by the
+session, and `prompt.py` is where it is told which language to write it in. The
+**journal** on the terminal is written for whoever is watching a terminal, and
+that person is standing in front of the machine. What is left is what the runner
+says *on the ticket*: the report under a finished one, the question a blocked
+one asks, the line that reaches a phone. That is this module.
+
+Two decisions hold it together.
+
+- **A language is a setting, and English is what it falls back on.**
+  `runner.language` names it; a locale, a language written out in full, a
+  capitalised code all read down to one of the two spoken here, and anything
+  unrecognised is English rather than a failure — a typo in a language name is
+  not a reason for a ticket to come back unreported. An empty setting is the
+  runner as it always was, and that is the point of it being empty.
+- **The first line of a comment is a notification.** Notion pushes a comment to
+  the phone as it stands, cut after two or three lines, so the first line is all
+  there is: it gets a mark, the verdict as an action — *to review*, *stuck* —
+  and the figures that place it, and nothing else. One sentence follows, cut at
+  `BRIEF` characters, then a link if there is one. What used to be under that —
+  the host that wrote it, the session id, the log path — is not lost, it is read
+  off the board's own columns and off the folded block the run leaves on the
+  page, which is where somebody looks on the rare day a run went wrong.
+
+Nothing the runner writes where you read it is spelled anywhere else — not the
+body of the pull requests it opens, not the note about a branch a ticket already
+had, not the answer it relays from your phone. `git.py` hands back facts and the
+run says them here, so that a module about git never has to learn that there is
+such a thing as a language. What stays English is the journal and the CLI, and
+what a session is told: those are read in front of the machine, or by a model.
+And an error is quoted as it came — git's, Notion's, or the diagnosis of a
+project nobody could find, which `ponos projects` prints word for word:
+the sentence around it is translated, the evidence is not.
+
+Adding a language is adding a column to `_SAID`. The keys stay English, because
+the code that calls them is English, and a key nobody translated shows up as a
+`KeyError` the first time it is said rather than as a sentence in the wrong
+language six months later.
+"""
+
+from __future__ import annotations
+
+import re
+
+from . import legacy
+
+# The two the runner speaks. English is less a default than the language the
+# tool was written in: everything it says was written there first.
+LANGUAGES = ("en", "fr")
+DEFAULT = "en"
+
+# What a configuration file may reasonably say for each of them.
+_SPELLINGS = {
+    "en": ("en", "eng", "english", "anglais"),
+    "fr": ("fr", "fra", "fre", "french", "français", "francais"),
+}
+
+
+# How long a sentence may be under a verdict. Two hundred characters is about
+# what a phone shows before it gives up, and the prompt asks for one sentence:
+# this is what happens when it is answered with three.
+BRIEF = 200
+
+# The mark every report opens with, one per verdict. It is read by a person at a
+# glance — green is nothing to do, the hand is a question — and by the runner, as
+# the thing that tells its own comment from your answer: see `is_report`.
+MARKS = {
+    "review": "✅",
+    "read": "✅",
+    "merged": "✅",
+    "published": "✅",
+    "prepared": "✅",
+    "classified": "🏷️",
+    "blocked": "🙋",
+    "failed": "⚠️",
+    "waiting": "⏸️",
+    "requeued": "↩️",
+}
+
+# How every report opened until the marks arrived: `<old name>@<host> — `.
+# Still recognised, and only recognised — nothing writes it any more. A board
+# does not start over when the runner is updated, and the comments already on it
+# have to keep being read as ours. A migration filet too: those reports were
+# signed with the name Ponos had before the rename.
+SIGNATURE = f"{legacy.OLD}@"
+
+
+def is_report(text: str) -> bool:
+    """Was this comment written by a run, rather than by a person?
+
+    The honest answer is `conversation.ours`, which asks Notion who wrote it.
+    This is the fallback for the boards where Notion will not say — an
+    integration without *Read user information* — and it reads the only thing a
+    report has that an answer does not: the mark it opens with.
+    """
+    said = str(text or "").lstrip()
+    return said.startswith(tuple(MARKS.values())) or said.startswith(SIGNATURE)
+
+
+def plain(text: str) -> str:
+    """A report without the host an older run signed it with.
+
+    Reports made before the marks open with `<old name>@laptop — done.`, and
+    the host is exactly the part nobody needs — least of all the session about
+    to read the thread back as context.
+    """
+    first, newline, rest = str(text or "").partition("\n")
+    if first.lstrip().startswith(SIGNATURE):
+        first = first.split("—", 1)[-1].strip()
+    return first + newline + rest
+
+
+def line(error: object) -> str:
+    """The first line of an error, which is the part meant for a human."""
+    return str(error).splitlines()[0] if str(error).strip() else ""
+
+
+def _wanted(raw: str) -> str:
+    return str(raw or "").strip().lower().replace("_", "-").split("-")[0]
+
+
+def known(raw: str) -> bool:
+    """Does the file name one of the two — rather than something read as English?"""
+    return any(_wanted(raw) in spellings for spellings in _SPELLINGS.values())
+
+
+def understood(raw: str) -> str:
+    """The language a file asked for, as one of the two this speaks.
+
+    `fr`, `FR`, `fr-FR`, `french`, `Français` all mean the same thing, and so
+    does the region nobody meant to specify: only what comes before the dash is
+    read. Anything else is English — see the module's second paragraph.
+    """
+    wanted = _wanted(raw)
+    for language, spellings in _SPELLINGS.items():
+        if wanted in spellings:
+            return language
+    return DEFAULT
+
+
+# One entry per thing the runner has to say, in every language it says it in.
+# Grouped as a run goes: the verdict a report opens with, the facts that place
+# it, what a failure is called, and what reaches a phone.
+_SAID: dict[str, dict[str, str]] = {
+    # -- the verdict, which is the notification -------------------------------
+    # One word each, and each one says what is expected *of you*: “done” was
+    # true and useless, since it left the reader to work out whether anything
+    # was being asked. Every one of these is preceded by its mark — see `MARKS`
+    # — and followed by the figures that place it.
+    "verdict-review": {"en": "To review", "fr": "À relire"},
+    "verdict-read": {"en": "To read", "fr": "À lire"},
+    "verdict-merged": {"en": "Merged", "fr": "Fusionnée"},
+    "verdict-published": {"en": "Published", "fr": "Publié"},
+    "verdict-prepared": {"en": "To validate", "fr": "À valider"},
+    "verdict-classified": {"en": "Classified", "fr": "Classé"},
+    "verdict-blocked": {"en": "Stuck", "fr": "Bloqué"},
+    "verdict-failed": {"en": "Failed", "fr": "Échec"},
+    "verdict-waiting": {"en": "Waiting", "fr": "En attente"},
+    "verdict-requeued": {"en": "Back in the queue", "fr": "Remis dans la file"},
+    # -- the facts that go on the same line -----------------------------------
+    # Short enough to be read in a row, and in the order somebody reads them:
+    # where the work is, how much of it there is, what it took.
+    "pull-request": {"en": "PR #{number}", "fr": "PR #{number}"},
+    "on-branch": {"en": "branch `{branch}`", "fr": "branche `{branch}`"},
+    "in-the-page": {"en": "answer in the page", "fr": "réponse dans la page"},
+    "nothing-published": {"en": "nothing published", "fr": "rien de publié"},
+    "confidence": {"en": "{level} confidence", "fr": "confiance {level}"},
+    "confidence-low": {"en": "low", "fr": "faible"},
+    "confidence-medium": {"en": "medium", "fr": "moyenne"},
+    "confidence-high": {"en": "high", "fr": "élevée"},
+    "merged-with": {"en": "{method} merge", "fr": "fusion en {method}"},
+    "merged-before": {"en": "already merged", "fr": "déjà fusionnée"},
+    "forced-validation": {
+        "en": "Validated automatically (Force validated: {kind})",
+        "fr": "Validation automatique (Force validated : {kind})",
+    },
+    "credits-out": {
+        "en": "out of credit, back in “{status}” until {when}",
+        "fr": "crédits épuisés, retour dans « {status} » jusqu'à {when}",
+    },
+    "abandoned": {
+        "en": "nobody was working on it any more, {minutes} after the last trace",
+        "fr": "plus personne ne s'en occupait, {minutes} après la dernière trace",
+    },
+    # -- the one sentence under a verdict -------------------------------------
+    "answer-here": {
+        "en": "An answer here or on your phone — yes, no, or a sentence — and it runs "
+        "again on the next pass.",
+        "fr": "Une réponse ici ou sur ton téléphone — oui, non, ou une phrase — et il "
+        "repart au prochain passage.",
+    },
+    "trace-in-page": {
+        "en": "What it did is in the folded block at the bottom of the page.",
+        "fr": "Ce qu'il a fait est dans le bloc replié en bas de la page.",
+    },
+    "trace": {
+        "en": "To pick the session back up: `{resume}`{picker}. Its log is `{log}`.",
+        "fr": "Pour reprendre la session : `{resume}`{picker}. Son journal est `{log}`.",
+    },
+    "trace-picker": {
+        "en": ", or from `claude` in `{home}`",
+        "fr": ", ou depuis `claude` dans `{home}`",
+    },
+    "classified-fix": {
+        "en": "Wrong? Change the {property} column — a type somebody chose is never "
+        "overwritten.",
+        "fr": "C'est faux ? Change la colonne {property} — un type choisi à la main "
+        "n'est jamais écrasé.",
+    },
+    "prepared-next": {
+        "en": "Move it to {validated} and it goes out as it stands; until then, nothing "
+        "has left this machine.",
+        "fr": "Passe-le en {validated} et il part tel quel ; d'ici là, rien n'a quitté "
+        "cette machine.",
+    },
+    # -- a ticket that did not ------------------------------------------------
+    "kind-unknown": {
+        "en": "I could not tell what kind of ticket this is",
+        "fr": "je n'ai pas su dire de quel type est ce ticket",
+    },
+    "kind-unsure": {
+        "en": "I am not sure what kind of ticket this is",
+        "fr": "je ne suis pas sûr du type de ce ticket",
+    },
+    "kind-hesitant": {
+        "en": "I hesitate between two types, and one of them acts on the world",
+        "fr": "j'hésite entre deux types, et l'un d'eux agit sur le monde",
+    },
+    "kind-question": {
+        "en": "Which type is it — {choices}? Choose it in the {property} column; nothing "
+        "runs until then.",
+        "fr": "De quel type est-il — {choices} ? Choisis-le dans la colonne {property} ; "
+        "rien ne s'exécute d'ici là.",
+    },
+    "kind-question-between": {
+        "en": "{first} or {second}? Choose it in the {property} column; nothing runs until "
+        "then. In doubt, I would take {prudent}.",
+        "fr": "{first} ou {second} ? Choisis-le dans la colonne {property} ; rien ne "
+        "s'exécute d'ici là. Dans le doute, je retiendrais {prudent}.",
+    },
+    "no-project": {
+        "en": "I could not find its project on this machine",
+        "fr": "je n'ai pas trouvé son projet sur cette machine",
+    },
+    "unreadable": {
+        "en": "I could not read what the ticket says",
+        "fr": "je n'ai pas réussi à lire ce que dit le ticket",
+    },
+    "empty-ticket": {
+        "en": "there is nothing here to work from — no title, and no description",
+        "fr": "il n'y a rien pour commencer — ni titre, ni description",
+    },
+    "empty-ticket-detail": {
+        "en": "A title, or the template's headings filled in, and back to the ready column.",
+        "fr": "Un titre, ou les rubriques du modèle remplies, et retour dans la colonne prête.",
+    },
+    "no-session": {
+        "en": "the Claude session would not start",
+        "fr": "la session Claude n'a pas voulu démarrer",
+    },
+    "crashed": {
+        "en": "the runner itself broke while handling this ticket",
+        "fr": "le runner lui-même a cassé en traitant ce ticket",
+    },
+    "no-worktree": {
+        "en": "I could not make the worktree to work in",
+        "fr": "je n'ai pas pu créer le worktree pour travailler",
+    },
+    "asked-something": {
+        "en": "the session stopped to ask you something",
+        "fr": "la session s'est arrêtée pour poser une question",
+    },
+    "session-failed": {
+        "en": "the session did not make it to the end",
+        "fr": "la session n'est pas allée au bout",
+    },
+    "no-answer": {
+        "en": "the session stopped without writing an answer",
+        "fr": "la session s'est arrêtée sans écrire de réponse",
+    },
+    "no-answer-detail": {
+        "en": "{summary}\n\nNothing was written to ANSWER.md.",
+        "fr": "{summary}\n\nRien n'a été écrit dans ANSWER.md.",
+    },
+    "nothing-committed": {
+        "en": "the session called itself done without committing anything",
+        "fr": "la session s'est déclarée terminée sans un seul commit",
+    },
+    "push-refused": {
+        "en": "the commits are there, but pushing them was refused",
+        "fr": "les commits sont là, mais leur push a été refusé",
+    },
+    "push-refused-detail": {
+        "en": "The branch `{branch}` is kept here, so nothing is lost.",
+        "fr": "La branche `{branch}` est conservée ici, donc rien n'est perdu.",
+    },
+    "answer-not-written": {
+        "en": "I could not write the answer into the ticket",
+        "fr": "je n'ai pas pu écrire la réponse dans le ticket",
+    },
+    "answer-on-disk": {
+        "en": "It is still on disk, at `{path}`.",
+        "fr": "Elle est toujours sur le disque, dans `{path}`.",
+    },
+    "not-published": {
+        "en": "it was validated, but publishing it did not work",
+        "fr": "il a été validé, mais la publication n'a pas fonctionné",
+    },
+    "pull-request-closed": {
+        "en": "it was validated, but its pull request was closed rather than merged",
+        "fr": "il a été validé, mais sa pull request a été fermée au lieu d'être fusionnée",
+    },
+    "pull-request-closed-detail": {
+        "en": "{url}\n\nReopen it, or bring the ticket back to the ready column.",
+        "fr": "{url}\n\nÀ rouvrir, ou à ramener le ticket dans la colonne prête.",
+    },
+    "pull-request-closed-question": {
+        "en": "Its pull request was closed rather than merged: {url}",
+        "fr": "Sa pull request a été fermée au lieu d'être fusionnée : {url}",
+    },
+    "merge-refused": {
+        "en": "the pull request would not merge",
+        "fr": "la pull request n'a pas voulu fusionner",
+    },
+    "merge-rebased": {
+        "en": (
+            "The merge was refused for being behind, so `{branch}` was replayed onto "
+            "`{base}` and pushed again."
+        ),
+        "fr": (
+            "La fusion a été refusée parce que la branche était en retard : `{branch}` a "
+            "été rejouée sur `{base}` puis repoussée."
+        ),
+    },
+    "forced-postponed": {
+        "en": "The credit reserve is reached: it goes out on the first pass that has credit again.",
+        "fr": "La réserve de crédits est atteinte : il part au premier passage qui en a de nouveau.",
+    },
+    "forced-merge-refused": {
+        "en": "Not merged, left in review: {error}",
+        "fr": "Pas fusionnée, laissée en relecture : {error}",
+    },
+    "forced-merge-postponed": {
+        "en": "Merge postponed to the next pass, left validated: {reason}",
+        "fr": "Fusion reportée au passage suivant, laissée validée : {reason}",
+    },
+    "forced-behind": {
+        "en": "its branch is behind its base",
+        "fr": "sa branche est en retard sur sa base",
+    },
+    "forced-conflicting": {
+        "en": "its branch conflicts with its base",
+        "fr": "sa branche est en conflit avec sa base",
+    },
+    "forced-checks-red": {
+        "en": "its checks fail",
+        "fr": "ses vérifications échouent",
+    },
+    "merge-refused-question": {
+        "en": "GitHub refused the merge: {error}",
+        "fr": "GitHub a refusé la fusion : {error}",
+    },
+    "rebased-too-often": {
+        "en": "`{base}` keeps moving faster than its pull request can be replayed onto it",
+        "fr": "`{base}` avance plus vite que sa pull request ne peut être rejouée dessus",
+    },
+    "rebased-too-often-question": {
+        "en": (
+            "Its branch was replayed onto `{base}` {count} times and still does not merge, "
+            "because `{base}` moves in between. Merge it by hand, or move it back to "
+            "validated for another try?"
+        ),
+        "fr": (
+            "Sa branche a été rejouée {count} fois sur `{base}` et ne fusionne toujours "
+            "pas, parce que `{base}` bouge entre-temps. La fusionner à la main, ou la "
+            "remettre en validé pour un nouvel essai ?"
+        ),
+    },
+    # -- a validated merge whose conflicts a session resolved ------------------
+    "conflict-facts": {
+        "en": "`{branch}` replayed onto `{base}` at `{onto}` — in conflict: {files}.",
+        "fr": "`{branch}` rejouée sur `{base}` à `{onto}` — en conflit : {files}.",
+    },
+    "conflict-none": {"en": "nothing, in the end", "fr": "rien, finalement"},
+    "conflicts-resolved": {"en": "conflicts resolved", "fr": "conflits résolus"},
+    "conflict-open": {
+        "en": "its pull request conflicts with `{base}`, and the conflict needs a decision",
+        "fr": "sa pull request est en conflit avec `{base}`, et le conflit demande une décision",
+    },
+    "conflict-unfinished": {
+        "en": "the conflicts were not fully resolved",
+        "fr": "les conflits n'ont pas été entièrement résolus",
+    },
+    "conflict-unfinished-question": {
+        "en": "The session said it had resolved the conflicts, but {problem}. Nothing was pushed.",
+        "fr": "La session dit avoir résolu les conflits, mais {problem}. Rien n'a été poussé.",
+    },
+    "unfinished-rebase": {
+        "en": "the rebase was left in progress",
+        "fr": "le rebase est resté en cours",
+    },
+    "unfinished-markers": {
+        "en": "conflict markers are still in {files}",
+        "fr": "des marqueurs de conflit restent dans {files}",
+    },
+    "unfinished-base": {
+        "en": "the branch is not on top of `{base}`",
+        "fr": "la branche n'est pas au-dessus de `{base}`",
+    },
+    "unfinished-dirty": {
+        "en": "changes were left uncommitted",
+        "fr": "des modifications n'ont pas été commitées",
+    },
+    "conflict-aside": {
+        "en": "The branch as far as it got is pushed on its own, as `{branch}`.",
+        "fr": "La branche, telle qu'elle en est, est poussée à part, sous `{branch}`.",
+    },
+    "pushed-over": {
+        "en": "somebody pushed to `{branch}` since the runner last did",
+        "fr": "quelqu'un a poussé sur `{branch}` depuis le dernier passage du runner",
+    },
+    "pushed-over-question": {
+        "en": (
+            "Commits were pushed to `{branch}` by someone else while its conflicts were "
+            "being resolved. They were not overwritten: which of the two should win?"
+        ),
+        "fr": (
+            "Quelqu'un a poussé des commits sur `{branch}` pendant la résolution de ses "
+            "conflits. Ils n'ont pas été écrasés : laquelle des deux doit l'emporter ?"
+        ),
+    },
+    "checks-red": {
+        "en": "its conflicts were resolved, but its checks fail",
+        "fr": "ses conflits ont été résolus, mais ses vérifications échouent",
+    },
+    "checks-red-question": {
+        "en": "The resolution is pushed, and the pull request's checks fail on it: {url}",
+        "fr": "La résolution est poussée, et les vérifications de la pull request échouent : {url}",
+    },
+    "checks-passed": {"en": "CI: green.", "fr": "CI : verte."},
+    "checks-failed": {"en": "CI: red.", "fr": "CI : rouge."},
+    "checks-flaky": {
+        "en": "CI: red on {names}, green once run again — a flaky test, not this pull request.",
+        "fr": "CI : rouge sur {names}, verte une fois relancée — un test instable, pas cette pull request.",
+    },
+    "checks-inherited": {
+        "en": (
+            "CI: red on {names}, which `{base}` fails too — inherited, not caused by this "
+            "pull request, so it is merged all the same."
+        ),
+        "fr": (
+            "CI : rouge sur {names}, que `{base}` échoue aussi — héritée, pas causée par "
+            "cette pull request, qui est donc fusionnée quand même."
+        ),
+    },
+    "checks-failed-on": {
+        "en": "CI: red on {names}, where `{base}` is not.",
+        "fr": "CI : rouge sur {names}, là où `{base}` ne l'est pas.",
+    },
+    "checks-pending": {
+        "en": "CI: still running when the merge was asked.",
+        "fr": "CI : encore en cours au moment de la fusion.",
+    },
+    "checks-none": {"en": "CI: none to wait for.", "fr": "CI : aucune à attendre."},
+    "base-moved-again": {
+        "en": "Pushed, but the base moved again in the meantime: replayed once more on the next pass.",
+        "fr": "Poussée, mais la base a encore bougé entre-temps : rejouée à nouveau au prochain passage.",
+    },
+    "no-pull-request": {
+        "en": "it was validated, but there is no pull request to merge",
+        "fr": "il a été validé, mais il n'y a aucune pull request à fusionner",
+    },
+    "no-pull-request-detail": {
+        "en": (
+            "Its project — {project} — is a repository, so there is nothing to publish "
+            "either. Was the pull request ever opened?"
+        ),
+        "fr": (
+            "Son projet — {project} — est un dépôt, donc il n'y a rien à publier non "
+            "plus. La pull request a-t-elle seulement été ouverte ?"
+        ),
+    },
+    "no-pull-request-question": {
+        "en": "This ticket was validated but carries no pull request.",
+        "fr": "Ce ticket a été validé mais ne porte aucune pull request.",
+    },
+    "worktree-kept": {
+        "en": "The worktree is kept as it was left: `{path}`, on branch `{branch}`.",
+        "fr": "Le worktree est conservé tel quel : `{path}`, sur la branche `{branch}`.",
+    },
+    "workdir-kept": {
+        "en": "The working directory is kept as it was left: `{path}`.",
+        "fr": "Le répertoire de travail est conservé tel quel : `{path}`.",
+    },
+    "no-pull-request-opened": {
+        "en": "The pull request could not be opened: {error}",
+        "fr": "La pull request n'a pas pu être ouverte : {error}",
+    },
+    "rebased-onto": {
+        "en": "The branch was replayed onto `{base}` before the pull request was opened.",
+        "fr": "La branche a été rejouée sur `{base}` avant l'ouverture de la pull request.",
+    },
+    "rebase-refused": {
+        "en": (
+            "The branch could not be replayed onto `{base}` — {error}. The pull request "
+            "is opened as it stands, and shows the conflict."
+        ),
+        "fr": (
+            "La branche n'a pas pu être rejouée sur `{base}` — {error}. La pull request "
+            "est ouverte telle quelle et montre le conflit."
+        ),
+    },
+    # -- a run with nothing left to spend -------------------------------------
+    "credit-spent-kept": {
+        "en": "What the session had already committed is kept on `{branch}`.",
+        "fr": "Ce que la session avait déjà commité est conservé sur `{branch}`.",
+    },
+    "credit-parked": {
+        "en": "nothing was started for it, and nothing is wrong with it: "
+              "the credit comes back at {when}",
+        "fr": "rien n'a été lancé pour lui, et rien ne cloche de son côté : "
+              "le crédit revient à {when}",
+    },
+    # -- a run that died in the middle ---------------------------------------
+    "abandoned-requeued": {
+        "en": "I am picking it up again from the start.",
+        "fr": "Je le reprends depuis le début.",
+    },
+    # -- a branch a ticket already had ----------------------------------------
+    # Facts only git has, said here rather than by `git.py`: the worktree it
+    # hands back carries them bare, and the run says them in its own words.
+    "branch-there": {
+        "en": "Branch `{branch}` was already there ({why}, {commits})",
+        "fr": "La branche `{branch}` existait déjà ({why}, {commits})",
+    },
+    "branch-held": {"en": "its worktree was still there", "fr": "son worktree était encore là"},
+    "branch-left": {"en": "an earlier attempt left it", "fr": "une tentative précédente l'a laissée"},
+    "branch-pushed": {
+        "en": "it was pushed but never merged",
+        "fr": "elle a été poussée mais jamais fusionnée",
+    },
+    "branch-own-commits": {"en": "{count} commit(s)", "fr": "{count} commit(s)"},
+    "branch-no-commit": {"en": "no commit of its own", "fr": "aucun commit à elle"},
+    "branch-rebased": {
+        "en": "{was}, rebased onto `{start}` and picked up where it stopped.",
+        "fr": "{was}, rejouée sur `{start}` et reprise là où elle s'était arrêtée.",
+    },
+    "branch-as-it-stands": {
+        "en": (
+            "{was} and is reused as it stands: it does not replay onto `{start}` — "
+            "{failure}. Whatever it is behind on is for this session to deal with."
+        ),
+        "fr": (
+            "{was} et est reprise telle quelle : elle ne se rejoue pas sur `{start}` — "
+            "{failure}. Le retard qu'elle a, c'est à cette session de s'en occuper."
+        ),
+    },
+    # -- what a pull request is opened with -----------------------------------
+    "pull-request-body": {
+        "en": (
+            "{summary}\n\n---\nNotion ticket: {url}\nClaude Code session: `{session}`\n"
+            "Opened by ponos ({commits})."
+        ),
+        "fr": (
+            "{summary}\n\n---\nTicket Notion : {url}\nSession Claude Code : `{session}`\n"
+            "Ouverte par ponos ({commits})."
+        ),
+    },
+    # -- a ticket born of a schedule ------------------------------------------
+    "born-of-schedule": {
+        "en": "*Born of the “{name}” schedule, {stamp}* — {url}",
+        "fr": "*Né de la récurrence « {name} », {stamp}* — {url}",
+    },
+    # -- the folded block, when it is longer than it is worth ------------------
+    "too-many-steps": {
+        "en": "more than {count} steps — the rest is in the log",
+        "fr": "plus de {count} étapes — la suite est dans le journal",
+    },
+    # -- talking in a thread --------------------------------------------------
+    "no-reply": {
+        "en": "I could not answer this one: {error}.\nIts log is `{log}`.",
+        "fr": "Je n'ai pas réussi à répondre à celle-ci : {error}.\nSon journal est `{log}`.",
+    },
+    "said-nothing": {
+        "en": "the session ended without saying anything",
+        "fr": "la session s'est terminée sans rien dire",
+    },
+    # -- what reaches a phone -------------------------------------------------
+    # The title of a desktop or Telegram notification, where the ticket has to
+    # be named — Notion puts the page's own name above the comment, and these
+    # two have nothing but what they are handed. The words are the verdicts'.
+    "headline": {"en": "{verdict} · {title}", "fr": "{verdict} · {title}"},
+    "publication-interrupted": {
+        "en": "its publication was interrupted — did it go out? If not, back to “{origin}”",
+        "fr": "sa publication a été interrompue — est-elle partie ? Sinon, retour "
+        "dans « {origin} »",
+    },
+    # -- about the runner itself, wherever you are reachable ------------------
+    "out-of-credit": {"en": "Ponos is out of credit", "fr": "Ponos n'a plus de crédit"},
+    "out-of-credit-detail": {"en": "Back to work at {when}.", "fr": "Retour au travail à {when}."},
+    "credit-again": {"en": "Ponos has credit again", "fr": "Ponos a de nouveau du crédit"},
+    "credit-again-detail": {
+        "en": "{used}% of the subscription spent — back to work.",
+        "fr": "{used} % de l'abonnement consommé — retour au travail.",
+    },
+    "reserve-reached": {
+        "en": "Ponos is leaving you the rest",
+        "fr": "Ponos te laisse le reste",
+    },
+    "reserve-reached-detail": {
+        "en": (
+            "{used}% of the subscription spent, {reserve}% reserved — nothing new is "
+            "started before {when}."
+        ),
+        "fr": (
+            "{used} % de l'abonnement consommé, {reserve} % en réserve — rien de nouveau "
+            "ne démarre avant {when}."
+        ),
+    },
+    # The button a desktop draws under a notification that has a ticket to open.
+    "open-ticket": {"en": "Open the ticket", "fr": "Ouvrir le ticket"},
+    # -- answering from Telegram or Slack -------------------------------------
+    # A relayed answer opens on where it came from, and that opening is what
+    # tells the next run it is yours — see `openings`, which reads every
+    # language's, since a board keeps the answers given before a change of mind.
+    "relayed": {"en": "Answered from {channel}", "fr": "Répondu depuis {channel}"},
+    "relayed-by": {"en": " by {who}", "fr": " par {who}"},
+    "relayed-console": {"en": "the console", "fr": "la console"},
+    "relayed-yes": {
+        "en": "Yes — go ahead with what you proposed.",
+        "fr": "Oui — vas-y avec ce que tu as proposé.",
+    },
+    "relayed-no": {"en": "No — do not do that.", "fr": "Non — ne fais pas ça."},
+    "noted": {
+        "en": "✓ noted on “{title}” — it runs again in a moment.",
+        "fr": "✓ noté sur « {title} » — il repart dans un instant.",
+    },
+    "nothing-waiting": {
+        "en": (
+            "Nothing here is waiting on an answer — reply under the question itself, "
+            "or name the ticket."
+        ),
+        "fr": (
+            "Rien n'attend de réponse ici — répondre sous la question elle-même, "
+            "ou nommer le ticket."
+        ),
+    },
+    "notion-refused": {
+        "en": "Notion refused that answer: {error}",
+        "fr": "Notion a refusé cette réponse : {error}",
+    },
+    # -- counted things -------------------------------------------------------
+    # Both languages happen to make their plural the same way here, which is
+    # luck and not a rule: the day one of them does not, this is where it says so.
+    "commit": {"en": "{count} commit", "fr": "{count} commit"},
+    "commits": {"en": "{count} commits", "fr": "{count} commits"},
+    "block": {"en": "{count} block", "fr": "{count} bloc"},
+    "blocks": {"en": "{count} blocks", "fr": "{count} blocs"},
+    "step": {"en": "{count} step", "fr": "{count} étape"},
+    "steps": {"en": "{count} steps", "fr": "{count} étapes"},
+    "minute": {"en": "{count} minute", "fr": "{count} minute"},
+    "minutes": {"en": "{count} minutes", "fr": "{count} minutes"},
+    "under-a-minute": {"en": "under a minute", "fr": "moins d'une minute"},
+    # -- the folded block a run leaves on the page ----------------------------
+    # Its title, while the session runs and once it is over. A failed run calls
+    # it a trace, because that is what somebody opens it for.
+    "live": {"en": "Live", "fr": "En cours"},
+    "live-trace": {"en": "Trace", "fr": "Trace"},
+    "live-interrupted": {"en": "interrupted", "fr": "interrompu"},
+    "live-stopped": {"en": "stopped", "fr": "arrêté"},
+    "live-blocked": {"en": "it asked a question", "fr": "il a posé une question"},
+    "live-waiting": {
+        "en": "out of credit — it will be picked up again",
+        "fr": "crédits épuisés — il sera repris",
+    },
+    # -- what the session is told to write in ---------------------------------
+    # Not a report: the sentence handed to `prompt.build`, which is why it is
+    # written *to* the session and not about it — and why both rows are in
+    # English. A prompt is written in one language whatever it asks for, and a
+    # brief that switched languages halfway would be one more thing for the
+    # session to interpret.
+    "instruction": {
+        "en": (
+            "Write in English — your report, any question you ask, the final line below, "
+            "and anything you write back into the ticket — even when the ticket is written "
+            "in another language; only the words `RESULT:`, `ok` and `blocked` stay as "
+            "they are. Code, commit messages and identifiers keep the language the "
+            "repository already uses."
+        ),
+        "fr": (
+            "Write in French — your report, any question you ask, the final line below, "
+            "and anything you write back into the ticket — even when the ticket is written "
+            "in another language; only the words `RESULT:`, `ok` and `blocked` stay as "
+            "they are. Code, commit messages and identifiers keep the language the "
+            "repository already uses."
+        ),
+    },
+    "instruction-reply": {
+        "en": "Answer in English, whatever language the message you are answering is in.",
+        "fr": "Answer in French, whatever language the message you are answering is in.",
+    },
+}
+
+
+def openings(key: str) -> tuple[str, ...]:
+    """How a phrase begins, in every language — what comes before its first blank.
+
+    For the sentences that are *recognised* as well as written: the board keeps
+    what was said in English the day before `runner.language` turned to French,
+    and those still have to be read as what they were.
+    """
+    return tuple(dict.fromkeys(text.split("{", 1)[0] for text in _SAID[key].values()))
+
+
+class Voice:
+    """The runner's own words, in the language the configuration asked for.
+
+    Built from what the file literally says rather than from the language that
+    was read out of it, because those are two different questions: `fr` and `en`
+    both name a language, while *nothing at all* also says the sessions were
+    never told what to write in — see `instruction`.
+    """
+
+    def __init__(self, language: str = "") -> None:
+        self.asked = str(language or "").strip()
+        self.language = understood(self.asked)
+
+    # -- the sentence itself -------------------------------------------------
+
+    def say(self, key: str, **values: object) -> str:
+        """One thing the runner has to say, filled in."""
+        return _SAID[key][self.language].format(**values)
+
+    def count(self, number: int, thing: str) -> str:
+        """“3 commits”, “1 commit” — the noun's key is its singular."""
+        return self.say(thing if abs(number) == 1 else f"{thing}s", count=number)
+
+    def minutes(self, seconds: float) -> str:
+        """How long something took, said the way a person would.
+
+        “18.2 min” is a measurement; nobody reports their afternoon to the tenth
+        of a minute. Under a minute it stops being a number at all.
+        """
+        if seconds < 60:
+            return self.say("under-a-minute")
+        return self.count(round(seconds / 60), "minute")
+
+    def money(self, dollars: float) -> str:
+        """A price, with the currency where each language puts it."""
+        if self.language == "fr":
+            return f"{dollars:.2f} $".replace(".", ",")
+        return f"${dollars:.2f}"
+
+    # -- a report under a ticket ---------------------------------------------
+
+    def facts(self, *facts: object) -> str:
+        """The figures that place a verdict, in the order somebody reads them.
+
+        Where the work is, how much of it there is, what it took — separated by
+        a middle dot, because a comma would read as a sentence and this is a
+        row of labels.
+        """
+        return " · ".join(said for fact in facts if (said := str(fact or "").strip()))
+
+    def verdict(self, name: str, *facts: object) -> str:
+        """The first line of a report, which is the notification.
+
+        A mark, one word saying what is expected of you, and the figures. It has
+        about eighty characters before a phone stops showing it, so nothing else
+        goes here — and nothing at all goes in front of it, which is the whole
+        difference with the reports that opened on the name of a machine.
+        """
+        said = f"{MARKS[name]} {self.say('verdict-' + name)}"
+        placed = self.facts(*facts)
+        return f"{said} — {placed}" if placed else said
+
+    def headline(self, name: str, title: str) -> str:
+        """A notification's title: the same verdict, and what it is about.
+
+        Notion writes the page's name above the comment it pushes; a desktop
+        notification and a Telegram message have only what they are handed, so
+        the ticket is named here — and named with the verdict the comment opens
+        on, so that the two read as one thing said twice.
+        """
+        return self.say("headline", verdict=self.say("verdict-" + name), title=title)
+
+    def report(self, headline: str, *lines: object) -> str:
+        """One comment: the verdict, one sentence, one link. In that order.
+
+        Three lines, and the order is the point — a reader who stops after the
+        first has the decision, one who stops after the second has the story,
+        and the third is where they go. A run that went wrong is allowed one
+        more, saying where the rest of it is, because that is the day somebody
+        needs it.
+        """
+        return "\n".join(said for line in (headline, *lines) if (said := str(line or "").strip()))
+
+    def brief(self, text: object, limit: int = BRIEF) -> str:
+        """What the session said, cut on a word rather than mid-syllable.
+
+        The prompt asks for one sentence and mostly gets one; asking is not
+        enforcing, and a report is not the place to find out. Cut here, once,
+        rather than by whatever is showing it.
+        """
+        flat = " ".join(str(text or "").split())
+        if len(flat) <= limit:
+            return flat
+        return flat[:limit].rsplit(" ", 1)[0].rstrip(" ,;:—-") + "…"
+
+    def paragraphs(self, *parts: object) -> str:
+        """Whatever is worth saying, one paragraph each, blanks dropped.
+
+        Most of what goes under a report is optional — a note, a kept worktree,
+        a price — and a message assembled with f-strings around things that may
+        be empty ends up with the blank lines to prove it.
+        """
+        return "\n\n".join(said for part in parts if (said := str(part or "").strip()))
+
+    def sentence(self, text: str) -> str:
+        """A reason, read as a sentence rather than as a label.
+
+        The reasons are written lowercase and unpunctuated because that is how
+        they read in the journal — “✗ Le header — the session did not make it to
+        the end”. On a ticket they are the first thing said, and the first thing
+        said is a sentence.
+        """
+        text = text.strip()
+        if not text:
+            return ""
+        return text[:1].upper() + text[1:] + ("" if text[-1] in ".!?…" else ".")
+
+    def spent(self, seconds: float, cost: float) -> tuple[str, ...]:
+        """What the run took, as facts for a verdict line rather than a sentence.
+
+        Two of them, not three: the turn count is on the board already, in its
+        own column, and a notification has room for what changes a decision.
+        """
+        return (self.minutes(seconds), self.money(cost) if cost else "")
+
+    def pull_request(self, url: str) -> str:
+        """“PR #19”, which is how anybody refers to one out loud.
+
+        The URL says the same thing in seventy characters, and a verdict line has
+        about eighty in all — so the number goes on that line and the URL goes on
+        its own, where it is a link to click rather than a fact to read.
+        """
+        found = re.search(r"/pull/(\d+)", str(url or ""))
+        return self.say("pull-request", number=found.group(1)) if found else ""
+
+    def trace(self, resume: str, log: object, home: object = "") -> str:
+        """Where to go when the report is not enough: the session, then the log."""
+        picker = self.say("trace-picker", home=home) if home else ""
+        return self.say("trace", resume=resume, picker=picker, log=log)
+
+    def branch_note(self, worktree: object) -> str:
+        """What a ticket's comment says about a branch it already had, or nothing.
+
+        Read off a `git.Worktree` — its facts, not a sentence: see its docstring.
+        A branch drawn fresh says nothing, which is the ordinary case.
+        """
+        if not getattr(worktree, "reused", False):
+            return ""
+        carried = int(getattr(worktree, "carried", 0) or 0)
+        was = self.say(
+            "branch-there",
+            branch=getattr(worktree, "branch", ""),
+            why=self.say(f"branch-{getattr(worktree, 'why', '') or 'left'}"),
+            commits=(
+                self.say("branch-own-commits", count=carried)
+                if carried
+                else self.say("branch-no-commit")
+            ),
+        )
+        start = getattr(worktree, "start", "")
+        if failure := getattr(worktree, "failure", ""):
+            return self.say("branch-as-it-stands", was=was, start=start, failure=failure)
+        return self.say("branch-rebased", was=was, start=start)
+
+    def pull_request_body(self, summary: str, url: str, session: str, commits: int) -> str:
+        """What a pull request the runner opens says under the session's summary."""
+        return self.say(
+            "pull-request-body",
+            summary=summary,
+            url=url,
+            session=session,
+            commits=self.count(commits, "commit"),
+        )
+
+    # -- what the session is told --------------------------------------------
+
+    def instruction(self, *, reply: bool = False) -> str:
+        """The language a session is told to write in, or nothing at all.
+
+        Nothing when the configuration says nothing, and that is the whole of
+        the default: a runner nobody has configured behaves exactly as it did,
+        which for a session means the rule its prompt already carries — write in
+        the language of the ticket, of the message, of whoever is being answered.
+
+        `reply` is the same sentence for a session that is talking rather than
+        working: it has no report to write and no ticket to write back into, and
+        the one thing it has to be told is the one thing that is otherwise
+        decided by the message it answers.
+        """
+        if not self.asked:
+            return ""
+        return self.say("instruction-reply" if reply else "instruction")

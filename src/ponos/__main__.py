@@ -1,0 +1,1699 @@
+"""The command line interface.
+
+`run` is what the systemd timer calls; everything else exists so you can find
+out what it did without reading a systemd journal.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from datetime import datetime
+
+from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
+from . import kinds, legacy, store, voice
+from . import provision
+from . import schedules as schedules_module
+from . import session, state, systemd
+from . import update as update_module
+from . import workspace as workspace_module
+from .projects import Resolver
+from .runner import Runner
+from .ticket import short_id
+
+BOLD, DIM, GREEN, RED, YELLOW, RESET = "", "", "", "", "", ""
+if sys.stdout.isatty():
+    BOLD, DIM = "\033[1m", "\033[2m"
+    GREEN, RED, YELLOW, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[0m"
+
+# The command is `ponos`, the product Ponos: argparse and `--version` say the
+# first, sentences the second.
+PRODUCT = "ponos"
+NAME = "Ponos"
+TAGLINE = "Turns ready Notion tickets into Claude Code sessions."
+
+
+def ok(message: str) -> None:
+    print(f"  {GREEN}✓{RESET} {message}")
+
+
+def bad(message: str) -> None:
+    print(f"  {RED}✗{RESET} {message}")
+
+
+def warn(message: str) -> None:
+    print(f"  {YELLOW}!{RESET} {message}")
+
+
+def title(message: str) -> None:
+    print(f"{BOLD}{message}{RESET}")
+
+
+def _names(reference: str, filename: str) -> bool:
+    """Does this log belong to that ticket, however the ID was pasted?
+
+    A full ID, a dashed one, a URL, or just the short form all have to work —
+    log files are named by the ticket's *last* eight characters, which is not
+    what someone copying an ID from Notion has in hand.
+    """
+    probe = reference.strip().rstrip("/").rsplit("/", 1)[-1].rsplit("-", 1)[-1].replace("-", "")
+    forms = {probe, probe[-8:]} if len(probe) >= 8 else {probe}
+    return any(form and form in filename for form in forms)
+
+
+def _colour(status: str) -> str:
+    """Blocked is not a failure: it is a ticket waiting for you."""
+    return {"done": GREEN, "failed": RED, "blocked": YELLOW}.get(status, DIM)
+
+
+def load_config() -> config_module.Config:
+    try:
+        configuration = config_module.load()
+        configuration.require_usable()
+        return configuration
+    except config_module.ConfigError as error:
+        print(f"{RED}error:{RESET} {error}", file=sys.stderr)
+        raise SystemExit(2) from error
+
+
+# -- commands ----------------------------------------------------------------
+
+
+def command_run(args: argparse.Namespace) -> int:
+    configuration = load_config()
+    runner = Runner(
+        configuration, dry_run=args.dry_run, announce_idle=sys.stdout.isatty()
+    )
+    try:
+        with state.lock():
+            results = runner.tick(limit=args.limit, reference=args.ticket or "")
+    except state.Busy as error:
+        print(f"{DIM}{error}{RESET}")
+        return 0
+    except store.StoreError as error:
+        print(f"{RED}the board:{RESET} {error}", file=sys.stderr)
+        return 1
+    failures = sum(1 for result in results if result.get("status") == "failed")
+    # The timer should only see a failure if the whole run failed: one ticket
+    # out of three going wrong is not a service outage.
+    return 1 if results and failures == len(results) else 0
+
+
+def command_list(args: argparse.Namespace) -> int:
+    configuration = load_config()
+    runner = Runner(configuration, quiet=True)
+    tickets, waiting = runner.queue()
+    # The validated column keeps a calendar of its own: what you have accepted
+    # and dated is waiting to go out, exactly as a dated ready ticket is waiting
+    # to run. One list, or the half of it that is shown lies about the other.
+    rows = [(ticket, moment, "") for ticket, moment in waiting]
+    rows += [(ticket, moment, " · validated") for ticket, moment in runner.scheduled()]
+    rows.sort(key=lambda row: row[1])
+    # And what is not written yet: a schedule is as much a thing about to happen
+    # as a dated ticket is. Showing one without the other would be half a
+    # calendar, and the half that surprises you is always the other one.
+    births = sorted(
+        (
+            schedule
+            for schedule in runner.schedules()
+            if schedule.active and schedule.next and not schedule.problem
+        ),
+        key=lambda schedule: schedule.next,
+    ) if configuration.runner.schedule else []
+    if not tickets and not rows and not births:
+        print("No ticket ready.")
+        return 0
+    if tickets:
+        title(f"{len(tickets)} ticket(s) to handle, in the order they will run")
+    for position, ticket in enumerate(tickets, 1):
+        relation = store.read(ticket.page, configuration.notion.prop("project")) or []
+        project, kind = "?", ""
+        if relation:
+            try:
+                resolved = runner.resolver.resolve(runner.client, relation[0])
+                project = resolved.name
+                kind = "code" if resolved.is_code else "document"
+            except (LookupError, store.StoreError):
+                project = f"{YELLOW}project not found{RESET}"
+        badges = [
+            str(store.read(ticket.page, configuration.notion.prop(key)) or "")
+            for key in ("priority", "model")
+        ]
+        tail = " · ".join([part for part in [project, kind, *badges] if part])
+        print(f"  {position}. {ticket.title}\n     {DIM}{tail}{RESET}\n     {DIM}{ticket.url}{RESET}")
+
+    now = datetime.now().astimezone()
+    if rows:
+        title(f"\n{len(rows)} ticket(s) waiting for their date")
+        for ticket, moment, note in rows:
+            print(f"  {ticket.title}\n     {DIM}{_when(moment, now)}{note}{RESET}")
+
+    if births:
+        title(f"\n{len(births)} ticket(s) not written yet")
+        for schedule in births:
+            cadence = " · ".join(
+                part for part in (schedule.cadence, schedule.day, schedule.at) if part
+            )
+            print(
+                f"  {schedule.name}\n"
+                f"     {DIM}{_when(schedule.next, now)} · {cadence}{RESET}"
+            )
+    return 0
+
+
+def _when(moment: datetime, now: datetime) -> str:
+    """“2026-09-14 09:00 — in 6 days”, the way `list` says a date."""
+    delay = moment - now
+    hours = delay.total_seconds() / 3600
+    if hours < 0:
+        return f"{moment.strftime('%Y-%m-%d %H:%M')} — overdue"
+    near = f"in {hours:.0f} h" if hours < 48 else f"in {delay.days} days"
+    return f"{moment.strftime('%Y-%m-%d %H:%M')} — {near}"
+
+
+def command_schedules(args: argparse.Namespace) -> int:
+    """What repeats, when it next happens, and how the last one went.
+
+    `--run` is what makes the thing tryable: a schedule you have just written
+    should not need you to wait until Monday to find out what it produces.
+    """
+    configuration = load_config()
+    runner = Runner(configuration, quiet=True)
+    try:
+        rows = runner.schedules()
+    except store.StoreError as error:
+        print(f"{RED}the board:{RESET} {error}", file=sys.stderr)
+        return 1
+
+    if not runner.workspace.schedules:
+        print("Nothing repeats here.")
+        print(
+            f"  {DIM}no “{configuration.notion.page('schedules')}” page in the workspace"
+            f" — ponos init <page-url> builds it{RESET}"
+        )
+        return 0
+    if args.run:
+        return _run_schedule(runner, rows, args.run, force=args.force)
+    if not rows:
+        print("Nothing repeats here yet — the schedules database is empty.")
+        return 0
+
+    now = datetime.now().astimezone()
+    title(f"{len(rows)} schedule(s)")
+    for schedule in rows:
+        mark = f"{GREEN}✓{RESET}" if schedule.active else f"{DIM}·{RESET}"
+        cadence = schedule.cadence or f"{YELLOW}no cadence{RESET}"
+        when = " ".join(part for part in (schedule.day, schedule.at) if part)
+        print(f"  {mark} {schedule.name}  {DIM}{cadence}{(' · ' + when) if when else ''}{RESET}")
+        if schedule.problem:
+            print(f"     {YELLOW}{schedule.problem}{RESET}")
+            continue
+        if not schedule.active:
+            print(f"     {DIM}unticked — nothing is born{RESET}")
+            continue
+        nxt = _when(schedule.next, now) if schedule.next else "not computed yet"
+        last = schedule.last.strftime("%Y-%m-%d %H:%M") if schedule.last else "never"
+        print(f"     {DIM}next {nxt} · last {last}{RESET}")
+        if schedule.last_ticket:
+            state_of = "still open" if runner._busy(schedule) else "finished"  # noqa: SLF001
+            print(f"     {DIM}last occurrence: {state_of}{RESET}")
+    if not configuration.runner.schedule:
+        warn("runner.schedule = false — none of this runs")
+    return 0
+
+
+def _run_schedule(
+    runner: Runner, rows: list[schedules_module.Schedule], reference: str, *, force: bool
+) -> int:
+    """Make one schedule's ticket now, without waiting for its hour."""
+    wanted = reference.strip().lower()
+    matches = [row for row in rows if row.name.lower() == wanted] or [
+        row for row in rows if wanted in row.name.lower()
+    ]
+    if not matches:
+        bad(f"no schedule named “{reference}”")
+        print(f"    {DIM}{', '.join(row.name for row in rows) or 'the database is empty'}{RESET}")
+        return 1
+    if len(matches) > 1:
+        warn(f"{len(matches)} schedules match “{reference}” — name one of them:")
+        for row in matches:
+            print(f"    {row.name}")
+        return 1
+
+    schedule = matches[0]
+    if schedule.problem:
+        bad(f"{schedule.name} — {schedule.problem}")
+        return 1
+    # The overlap rule holds here too: triggering by hand is still an
+    # occurrence, and two of them open at once is the thing it exists to stop.
+    # `--force` is how you say you meant it.
+    if not force and runner._busy(schedule):  # noqa: SLF001
+        warn(f"{schedule.name} — its last ticket is still open")
+        print(f"    {DIM}ponos schedules --run “{schedule.name}” --force{RESET}")
+        return 1
+    entry = runner._born(schedule)  # noqa: SLF001
+    if not entry:
+        return 1
+    # `Next` is left where it is: triggering by hand borrows an occurrence, it
+    # does not move the rhythm. The one it was already due is skipped by the
+    # overlap rule if this ticket is still open when it comes round.
+    runner._mark(  # noqa: SLF001
+        schedule,
+        {runner.config.notion.prop("last_run"): datetime.now().astimezone()},
+    )
+    state.record(entry)
+    ok(f"{entry['ticket']} — created, waiting in “{runner.config.notion.state('ready')}”")
+    return 0
+
+
+def command_projects(args: argparse.Namespace) -> int:
+    configuration = load_config()
+    runner = Runner(configuration, quiet=True)
+    seen: dict[str, None] = {}
+    for ticket in runner.client.query(runner.database):
+        for page_id in store.read(ticket, configuration.notion.prop("project")) or []:
+            seen.setdefault(page_id, None)
+    if not seen:
+        print("No project referenced by any ticket.")
+        return 0
+    title(f"Referenced projects ({len(seen)})")
+    failed = 0
+    for page_id in seen:
+        try:
+            project = runner.resolver.resolve(runner.client, page_id)
+            where = project.path if project.is_code else f"{DIM}document — no repository{RESET}"
+            if project.is_stale:
+                # Resolved, and its tickets run — on a fallback. Neither a
+                # tick nor a cross: the repository is right, the page is not.
+                warn(f"{project.name} → {where}\n    {project.note}")
+            else:
+                ok(f"{project.name} → {where}")
+        except (LookupError, store.StoreError) as error:
+            failed += 1
+            bad(str(error).replace("\n", "\n    "))
+    return 1 if failed else 0
+
+
+def command_sync(args: argparse.Namespace) -> int:
+    """Reconcile the Notion board and the Markdown one, and say what moved.
+
+    A pass already does this on its own when `storage.mode = "both"`. This is
+    for the two moments a pass is no help: the first reconciliation, where you
+    want to watch what a full board does before it does it to both copies, and
+    after an editing session in the files, where waiting for the timer is a
+    silly way to find out whether the frontmatter was readable.
+    """
+    from . import sync as sync_module
+
+    configuration = load_config()
+    if args.journal:
+        entries = sync_module.journal(args.number)
+        if not entries:
+            print("Nothing has been synchronised yet.")
+            return 0
+        title(f"The last {len(entries)} entries")
+        for entry in entries:
+            mark = {
+                "conflict": YELLOW, "deleted-in-notion": YELLOW, "deleted-in-markdown": YELLOW,
+                "drift": YELLOW, "write-failed": YELLOW,
+            }
+            colour = mark.get(entry.get("what", ""), DIM)
+            said = " — " + entry["detail"] if entry.get("detail") else ""
+            print(
+                f"  {entry.get('at', '')[:16]}  {colour}{entry.get('what', '')}{RESET}  "
+                f"{entry.get('title') or entry.get('page', '')}{DIM}{said}{RESET}"
+            )
+        return 0
+
+    if configuration.storage.mode != "both":
+        bad(f'storage.mode is "{configuration.storage.mode}" — there is only one board to read')
+        print(f"  {DIM}set storage.mode = \"both\" to keep Notion and Markdown in step{RESET}")
+        return 2
+
+    backend = store.open(configuration)
+    title("Reconciling")
+    report = backend.synchronise(configuration.notion)
+    for problem in report.problems:
+        bad(problem)
+    for entry in report.carried:
+        ok(f"{entry.what}  {entry.title or entry.page}")
+    for entry in report.conflicts:
+        warn(f"{entry.title or entry.page} — {entry.detail}")
+    for entry in report.deletions:
+        warn(f"{entry.title or entry.page} — {entry.detail}")
+    if not report:
+        print(f"  {DIM}nothing to carry across — the two boards agree{RESET}")
+    print(
+        f"\n{len(report.carried)} carried, {len(report.conflicts)} conflict(s), "
+        f"{len(report.deletions)} deletion(s) — journal: {sync_module.journal_path()}"
+    )
+    return 1 if report.problems else 0
+
+
+def command_history(args: argparse.Namespace) -> int:
+    entries = state.history(args.number)
+    if not entries:
+        print("No ticket handled yet.")
+        return 0
+    for entry in entries:
+        status = entry.get("status", "?")
+        colour = _colour(status)
+        seconds = entry.get("seconds")
+        timing = f" {DIM}({seconds / 60:.0f} min){RESET}" if isinstance(seconds, (int, float)) else ""
+        cost = entry.get("cost_usd")
+        price = f" {DIM}(${float(cost):.2f}){RESET}" if isinstance(cost, (int, float)) else ""
+        line = f"  {colour}{status:<7}{RESET} {entry.get('at', '')}  {entry.get('ticket', '')}{timing}{price}"
+        print(line)
+        detail = entry.get("pull_request") or entry.get("reason") or ""
+        if detail:
+            print(f"          {DIM}{detail}{RESET}")
+    return 0
+
+
+def command_status(args: argparse.Namespace) -> int:
+    try:
+        configuration = config_module.load()
+    except config_module.ConfigError as error:
+        bad(str(error))
+        return 2
+
+    title("Services")
+    if shutil.which("systemctl"):
+        _timer_line(systemd.read())
+        # The console runs by default, so its absence is worth a line: nothing
+        # about a ticket goes wrong when it is down, you simply have no board.
+        console = subprocess.run(
+            ["systemctl", "--user", "is-active", "ponos-web.service"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        (ok if console == "active" else warn)(
+            f"ponos-web.service: {console or 'not installed'}"
+        )
+        if console == "active":
+            print(f"    {DIM}http://{configuration.web.host}:{configuration.web.port}{RESET}")
+        else:
+            print(f"    {DIM}ponos enable   to start it{RESET}")
+    else:
+        warn("no systemd — the runner only runs on demand")
+
+    held = state.running()
+    if held:
+        warn(f"a run is in progress ({held})")
+    else:
+        ok("no run in progress")
+
+    # A runner that is on, has tickets and does nothing looks broken. It is not:
+    # the subscription's window is spent — or down to the share you asked to
+    # keep — and the wait is the point. Both are said, because they stop
+    # different things: the first stops everything, the second only what would
+    # start a session.
+    until = credits.held()
+    if until:
+        warn(f"out of credit — nothing is run until {credits.when(until)}")
+    reserved = credits.held(what="reserve")
+    reading = credits.used()
+    if reserved:
+        warn(
+            f"{configuration.runner.credit_reserve_percent}% of the subscription is "
+            f"held in reserve — nothing new is started until {credits.when(reserved)}"
+        )
+    elif reading is None:
+        warn("how much of the subscription is spent could not be read — the reserve is idle")
+    else:
+        ok(
+            f"{reading[0]:.0f}% of the subscription spent, "
+            f"{configuration.runner.credit_reserve_percent}% held in reserve"
+        )
+
+    title("Board")
+    try:
+        configuration.require_usable()
+        runner = Runner(configuration, quiet=True)
+        counts: dict[str, int] = {}
+        for page in runner.client.query(runner.database):
+            name = str(store.read(page, configuration.notion.prop("status")) or "—")
+            counts[name] = counts.get(name, 0) + 1
+        if not counts:
+            print(f"  {DIM}no ticket{RESET}")
+        ready_state = configuration.notion.state("ready")
+        for name, number in sorted(counts.items(), key=lambda item: -item[1]):
+            highlight = GREEN if name == ready_state else DIM
+            print(f"  {highlight}{number:>3}{RESET}  {name}")
+    except (config_module.ConfigError, store.StoreError) as error:
+        bad(f"Notion unreachable: {str(error).splitlines()[0]}")
+
+    title("Recent tickets")
+    entries = state.history(5)
+    if not entries:
+        print(f"  {DIM}none{RESET}")
+    for entry in entries:
+        status = entry.get("status", "?")
+        seconds = entry.get("seconds")
+        timing = f" {DIM}({seconds / 60:.0f} min){RESET}" if isinstance(seconds, (int, float)) else ""
+        print(f"  {_colour(status)}{status:<7}{RESET} {entry.get('ticket', '')}{timing}")
+        detail = entry.get("pull_request") or entry.get("reason") or ""
+        if detail:
+            print(f"          {DIM}{str(detail)[:90]}{RESET}")
+
+    spend = sum(float(entry.get("cost_usd") or 0) for entry in state.history(10_000))
+    if spend:
+        print(f"\n  {DIM}reported spend so far: ${spend:.2f}{RESET}")
+    return 0
+
+
+def command_logs(args: argparse.Namespace) -> int:
+    logs = sorted(state.logs_dir().glob("*.jsonl"))
+    if not logs:
+        print("No log yet.")
+        return 0
+    target = logs[-1]
+    if args.ticket:
+        matches = [path for path in logs if _names(args.ticket, path.name)]
+        if not matches:
+            print(f"No log for {args.ticket}", file=sys.stderr)
+            return 1
+        target = matches[-1]
+    print(f"{DIM}{target}{RESET}", file=sys.stderr)
+    if args.raw:
+        print(target.read_text(encoding="utf-8", errors="replace"))
+        return 0
+    handle = target.open(encoding="utf-8", errors="replace")
+    try:
+        while True:
+            line = handle.readline()
+            if not line:
+                if not args.follow:
+                    return 0
+                time.sleep(0.5)
+                continue
+            rendered = _render(line)
+            if rendered:
+                print(rendered, flush=True)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        handle.close()
+
+
+def _render(line: str) -> str:
+    """One line of the stream-json feed, reduced to what reads."""
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return ""
+    kind = event.get("type")
+    if kind == "assistant":
+        pieces = []
+        for block in event.get("message", {}).get("content", []):
+            if block.get("type") == "text" and block.get("text", "").strip():
+                pieces.append(block["text"].strip())
+            elif block.get("type") == "tool_use":
+                name = block.get("name", "?")
+                target = block.get("input", {})
+                hint = target.get("file_path") or target.get("command") or target.get("pattern") or ""
+                pieces.append(f"{DIM}· {name} {str(hint)[:100]}{RESET}")
+        return "\n".join(pieces)
+    if kind == "result":
+        cost = event.get("total_cost_usd") or 0
+        return f"{BOLD}— end —{RESET} {event.get('num_turns', 0)} turns · ${cost:.3f}"
+    return ""
+
+
+def command_init(args: argparse.Namespace) -> int:
+    """Build the whole Notion side from one page link.
+
+    The only thing asked of the user beforehand is the one thing no API can do:
+    share a page with the integration. An integration cannot grant itself
+    access, so that click is the floor — everything past it is done here.
+    """
+    try:
+        configuration = config_module.load()
+    except config_module.ConfigError as error:
+        bad(str(error))
+        return 2
+
+    token = (args.token or configuration.notion.token).strip()
+    if not token or token == config_module.PLACEHOLDER:
+        bad("no Notion token yet")
+        print(
+            f"    {DIM}create an internal integration at "
+            f"https://www.notion.so/my-integrations{RESET}\n"
+            f"    {DIM}then: ponos init <page-url> --token ntn_…{RESET}"
+        )
+        return 2
+
+    page = config_module.identifier(args.page)
+    if not config_module.is_identifier(page):
+        bad(f"“{args.page}” does not contain a Notion page ID")
+        print(f"    {DIM}copy the page's link: ··· → Copy link{RESET}")
+        return 2
+
+    client = notion.Client(token)
+
+    title("Page")
+    try:
+        target = client.page(page)
+    except store.StoreError as error:
+        bad(f"unreachable: {str(error).splitlines()[0]}")
+        warn("open the page in Notion → ··· → Connections → add your integration")
+        return 1
+    ok(f"“{target.title or page}”")
+
+    title("Workspace")
+    try:
+        report = provision.provision(
+            client, configuration.notion, page, demo=not args.no_demo
+        )
+    except store.StoreError as error:
+        # The API's validation errors say what is wrong on the lines after the
+        # first one; cutting them off leaves “body failed validation. Fix one:”.
+        first, *rest = str(error).splitlines()
+        bad(first)
+        for line in rest:
+            print(f"    {DIM}{line}{RESET}")
+        warn("what was built is kept: run the same command again once it is fixed")
+        return 1
+    for verb, what in report.steps:
+        if verb == "created":
+            ok(what)
+        elif verb == "kept":
+            _kept(what)
+        else:
+            warn(what)
+
+    title("Configuration")
+    if args.token:
+        config_module.write_notion_value(configuration.path, "token", token)
+        ok("token saved")
+    if config_module.write_notion_value(configuration.path, "workspace", report.workspace):
+        ok(f"workspace = {report.workspace} — written to {configuration.path}")
+    else:
+        ok(f"workspace already pointed here ({report.workspace})")
+    if configuration.notion.tickets_database:
+        warn(
+            "notion.tickets_database is still set and wins over the workspace — "
+            "clear it unless you meant it"
+        )
+
+    print(
+        f"\n{BOLD}ready.{RESET}\n\n"
+        f"  Check it end to end:\n\n    {BOLD}ponos doctor{RESET}\n\n"
+        f"  {DIM}board{RESET}    {target.url}\n"
+        f"  {DIM}next{RESET}     write a ticket, move it to "
+        f"“{configuration.notion.state('ready')}”, and wait for the next pass\n"
+    )
+    return 0
+
+
+def _kept(message: str) -> None:
+    """Already there, and left alone. Worth one dim line, not a green tick."""
+    print(f"  {DIM}·{RESET} {message}")
+
+
+def _timer_line(timer: systemd.Timer) -> None:
+    """One line for the timer, and it is red when the timer will never fire.
+
+    `enabled` is what `is-enabled` says, and it stayed true for the two hours the
+    runner was silent: the timer was loaded, active, and had no next run. That
+    state is the fault, and it is the only visible sign of it.
+    """
+    if timer.stalled:
+        bad("ponos.timer: enabled, but no next run — it will never fire again")
+        print(f"    {DIM}ponos enable   to restart it{RESET}")
+    elif timer.enabled == "enabled":
+        ok("ponos.timer: enabled" + (" — a run is in progress" if timer.running else ""))
+    else:
+        warn(f"ponos.timer: {timer.enabled}")
+    if timer.row:
+        print(f"    {DIM}{timer.row}{RESET}")
+
+
+def _doctor_columns(schema: dict[str, str], settings: config_module.Notion) -> int:
+    """Every column the runner works with, and what is off when one is not there.
+
+    All of them count, the optional ones too. Optional meant that the runner
+    carries on without them — and it does, silently: a board with no agent
+    column ran for months with every claim unsigned, and this said it in
+    yellow among a dozen other lines in yellow, which is to say not at all.
+    What a missing column switches off is a problem to fix or a column to
+    rename in `[notion.properties]`, and either way it is a decision.
+    """
+    problems = 0
+    for key, (kinds_accepted, cost) in store.COLUMNS.items():
+        name = settings.prop(key)
+        kind = schema.get(name)
+        if kind is None:
+            bad(f"“{name}” missing — {cost}")
+            problems += 1
+        elif kind not in kinds_accepted:
+            bad(f"“{name}” is a {kind}, expected {' or '.join(kinds_accepted)} — {cost}")
+            problems += 1
+        else:
+            ok(f"“{name}” ({kind})")
+    if problems:
+        print(
+            f"  {DIM}ponos init adds the missing ones; a column under "
+            f"another name is renamed in [notion.properties]{RESET}"
+        )
+    return problems
+
+
+def command_doctor(args: argparse.Namespace) -> int:
+    problems = 0
+
+    title("Configuration")
+    try:
+        configuration = config_module.load()
+        ok(f"{configuration.path}")
+    except config_module.ConfigError as error:
+        bad(str(error))
+        return 2
+    try:
+        configuration.require_usable()
+        ok(
+            "Notion token and tickets database are set"
+            if configuration.storage.notion
+            else f'storage.mode = "{configuration.storage.mode}" — nothing else is required'
+        )
+    except config_module.ConfigError as error:
+        bad(str(error).splitlines()[0])
+        problems += 1
+    _doctor_languages(configuration.runner)
+
+    title("Tools")
+    for binary, why in (("git", "required"), ("claude", "required"), ("gh", "for pull requests")):
+        path = shutil.which(binary)
+        if path:
+            version = git.run([binary, "--version"]).out.splitlines()[0] if binary != "gh" else "present"
+            ok(f"{binary} — {version}")
+        else:
+            (bad if why == "required" else warn)(f"{binary} missing ({why})")
+            problems += 1 if why == "required" else 0
+    if shutil.which("gh"):
+        authed = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
+        (ok if authed.returncode == 0 else warn)(
+            "gh authenticated" if authed.returncode == 0 else "gh not authenticated: gh auth login"
+        )
+        # The one place where a `[github]` line that names an account nobody
+        # logged in is worth saying out loud: everywhere else it falls back on
+        # the active account, which is deliberate — a ticket does not fail over
+        # a line of configuration — and silent by the same token.
+        for owner, account in sorted(configuration.github.items()):
+            if git.account_token(account):
+                ok(f"{owner}/* — worked as {account}")
+            else:
+                warn(f"{owner}/* — gh is not signed in as {account}: gh auth login")
+                problems += 1
+
+    settings = configuration.runner
+    if settings.rebase and settings.resolve_conflicts:
+        excepted = settings.resolve_conflicts_except.strip()
+        left = f", except on {excepted}" if excepted else ""
+        ok(
+            f"a validated merge that conflicts is resolved by "
+            f"{settings.resolve_model or 'the ticket’s own model'}{left}"
+        )
+    else:
+        why = "runner.rebase" if not settings.rebase else "runner.resolve_conflicts"
+        warn(f"{why} is off — a validated merge that conflicts blocks its ticket")
+    # Not a problem, since it is a choice — but the one setting that lets work
+    # leave the machine for good without anybody having read it, so it is said.
+    forced = [kind for kind in kinds.KINDS if settings.forces_validation(kind)]
+    if forced:
+        warn(
+            f"force validated: {', '.join(forced)} — merged or published as soon as "
+            "the session succeeds, without waiting for review"
+        )
+        if "code" in forced and not (settings.push and settings.open_pull_request):
+            warn("runner.force_validated_code is on, but no pull request is opened to merge")
+
+    title("Version")
+    print(f"  {DIM}Ponos {__version__} — releases: CHANGELOG.md{RESET}")
+    channel = configuration.runner.update_channel
+    status = update_module.check(channel=channel)
+    if status.reason:
+        warn(status.reason)
+    elif status.stale:
+        available = f"{status.tag} ({status.latest[:8]})" if status.tag else status.latest[:8]
+        warn(f"{status.current[:8]} installed, {available} available")
+    else:
+        newest = f"{status.tag}, " if status.tag else ""
+        ok(f"newest version installed ({newest}{status.current[:8]})")
+    following = (
+        "every commit of the branch it was installed from"
+        if channel == "main"
+        else "the newest release tag (vX.Y.Z), never a commit in between"
+    )
+    print(f"  {DIM}runner.update_channel = \"{channel}\" — follows {following}{RESET}")
+    if configuration.runner.auto_update:
+        every = configuration.runner.update_interval_seconds
+        print(f"  {DIM}checked by a run every {every}s (runner.auto_update){RESET}")
+    else:
+        print(f"  {DIM}runner.auto_update = false — ponos update to do it by hand{RESET}")
+
+    title("Notifications")
+    settings = configuration.notify
+    if not settings.desktop:
+        print(f"  {DIM}desktop notifications off{RESET}")
+    elif shutil.which("notify-send"):
+        ok("desktop — notify-send")
+    else:
+        warn("desktop notifications asked for, but notify-send is missing")
+    live = channels.open(settings)
+    if not live:
+        print(
+            f"  {DIM}no messaging channel — [notify.telegram] or [notify.slack] "
+            f"to be told, and to answer, from your phone{RESET}"
+        )
+    for channel in live:
+        try:
+            ok(f"{channel.name} — {channel.check()}")
+        except channels.ChannelError as error:
+            bad(f"{channel.name} — {error}")
+            problems += 1
+        _doctor_answerers(channel, settings)
+    if live:
+        moments = ", ".join(settings.events) or "nothing"
+        print(f"  {DIM}sent on: {moments}{RESET}")
+        print(
+            f"  {DIM}"
+            + (
+                "answers come back as comments on the ticket"
+                if settings.replies
+                else "replies not read (notify.replies = false)"
+            )
+            + f"{RESET}"
+        )
+
+    title("Console")
+    # "We have a sign-in, and the page still asks me for a token" is the
+    # ordinary shape of a console whose `web.email` and `web.password` were
+    # never both set — the sign-in is dormant until they are, and the token
+    # never goes away anyway. Said here rather than left to be guessed from a
+    # login page that does not appear.
+    address = f"http://{configuration.web.host}:{configuration.web.port}"
+    email, password = configuration.web.email, configuration.web.password
+    if email and password:
+        ok(f"{address} — opened by signing in as {email}")
+        print(f"  {DIM}the token keeps working: a script, and serve --print-token{RESET}")
+    else:
+        ok(f"{address} — opened with its token (ponos serve --print-token)")
+        if email or password:
+            warn(
+                "half a sign-in: web.email without web.password, or the other way "
+                "round, is not a way in"
+            )
+        print(f"  {DIM}web.email and web.password — the two — to sign in instead{RESET}")
+    # What a message typed there can carry, and the two things that need
+    # something this machine may not have: a video needs ffmpeg to be looked at,
+    # and dictation needs somebody to transcribe it.
+    ok(
+        f"attachments up to {configuration.web.attachment_max_mb} MB a file, "
+        f"kept {configuration.web.attachment_days} day(s)"
+    )
+    if shutil.which("ffmpeg"):
+        ok("ffmpeg — a video sent to the workspace is looked at through its frames")
+    else:
+        warn("ffmpeg missing — a video sent to the workspace cannot be looked at")
+    if configuration.openrouter.key:
+        ok(f"dictation — transcribed by {configuration.openrouter.transcription_model}")
+    else:
+        print(f"  {DIM}dictation off — it is transcribed by OpenRouter: openrouter.key{RESET}")
+
+    title("Repositories")
+    root = configuration.runner.workspace_root
+    if root.is_dir():
+        resolver = Resolver(root, configuration.projects, configuration.github)
+        index = resolver._index()  # noqa: SLF001 — diagnostics
+        count = sum(len(repos) for repos in index.values())
+        ok(f"{root} — {count} repository(ies) found")
+    else:
+        bad(f"{root} does not exist (runner.workspace_root)")
+        problems += 1
+
+    title("Disk")
+    held = cleanup.sizes()
+    print(
+        f"  {config_module.state_dir()} — "
+        + ", ".join(f"{place} {cleanup.human(size)}" for place, size in held.items())
+    )
+    days = configuration.runner.log_retention_days
+    if days <= 0:
+        warn("runner.log_retention_days = 0 — nothing is ever tidied on its own")
+    elif configuration.runner.clean_done_worktrees:
+        ok(
+            f"tidied once a day: logs, and the worktrees of tickets done, "
+            f"older than {days} day(s)"
+        )
+    else:
+        ok(f"logs older than {days} day(s) dropped once a day")
+        print(
+            f"  {DIM}runner.clean_done_worktrees = false — worktrees stay until "
+            f"ponos clean --force{RESET}"
+        )
+    last = cleanup.tidied_at()
+    if last:
+        print(f"  {DIM}last tidied {datetime.fromtimestamp(last):%Y-%m-%d %H:%M}{RESET}")
+
+    if problems:
+        print(f"\n{RED}{problems} problem(s) to fix.{RESET}")
+        return 1
+
+    title("Storage")
+    storage = configuration.storage
+    client = store.open(configuration)
+    if storage.markdown:
+        ok(f"markdown board at {storage.path}")
+        if not storage.path.is_dir():
+            print(f"  {DIM}not created yet — the first write makes it{RESET}")
+        if storage.mode == "both":
+            print(
+                f"  {DIM}mirrored with Notion, {storage.conflict} wins a conflict"
+                f"{' — reconciled on every pass' if storage.on_every_pass else ''}"
+                f"{RESET}"
+            )
+    if storage.notion:
+        try:
+            ok(f"connected to Notion as “{client.my_name() or 'integration'}”")
+        except store.StoreError as error:
+            bad(f"token refused: {error}")
+            return 1
+    else:
+        print(f"  {DIM}storage.mode = \"markdown\" — Notion is never asked anything{RESET}")
+
+    if storage.notion and configuration.notion.workspace:
+        title("Notion workspace")
+    try:
+        space = workspace_module.resolve(client, configuration.notion)
+    except store.StoreError as error:
+        for line in str(error).splitlines():
+            bad(line.strip())
+        if storage.notion:
+            warn("every page must be shared with the integration (··· menu → Connections)")
+        return 1
+    database = space.tickets
+
+    if storage.notion and configuration.notion.workspace:
+        listed = ", ".join(f"“{name}”" for name in sorted(space.rows)) or "nothing"
+        ok(f"{len(space.rows)} page(s): {listed}")
+        for message in space.warnings:
+            warn(message)
+        if space.context:
+            first = space.context.strip().splitlines()[0]
+            ok(
+                f"“{configuration.notion.page('context')}” — {len(space.context)} characters "
+                f"in every prompt: {DIM}{first[:60]}{RESET}"
+            )
+        for key in ("projects", "agents", "schedules"):
+            if resolved := getattr(space, key):
+                ok(f"“{configuration.notion.page(key)}” → database {resolved}")
+
+    title("Tickets database")
+    try:
+        schema = client.schema(database)
+    except store.StoreError as error:
+        bad(f"unreachable: {str(error).splitlines()[0]}")
+        warn("the database must be shared with the integration (··· menu → Connections)")
+        return 1
+    ok(f"readable — {len(schema)} property(ies)")
+    reference = configuration.notion.tickets_database or configuration.notion.page("tickets")
+    if storage.notion and database != reference:
+        warn(f"resolved from “{reference}” to database {database}")
+
+    problems += _doctor_columns(schema, configuration.notion)
+
+    title("Statuses")
+    options = client.options(database, configuration.notion.prop("status"))
+    if not options:
+        warn("the status property offers no options — nothing to check against")
+    else:
+        for key in ("ready", "running", "review", "validated", "done", "failed", "blocked"):
+            wanted = configuration.notion.state(key)
+            if wanted in options:
+                ok(f"{key:<9} → “{wanted}”")
+            elif key == "validated":
+                # The one status a board is allowed not to have: without it
+                # there is no validation gesture, and nothing breaks — you merge
+                # the pull request yourself, as every board did before it.
+                warn(
+                    f"{key:<9} → “{wanted}” not offered — no column to validate from, "
+                    "so nothing is merged or published for you. `init` adds it"
+                )
+            else:
+                bad(f"{key:<9} → “{wanted}” is not offered by the database")
+                problems += 1
+        # The one status the runner never writes nor reads, and that nothing
+        # defaults: named, it has to be an option the board already offers, and
+        # one apart from the runner's own — a draft that is `ready` is taken.
+        draft = configuration.notion.state("draft")
+        moved = [
+            configuration.notion.state(key)
+            for key in ("ready", "running", "review", "validated", "done", "failed", "blocked")
+        ]
+        if not draft:
+            print(f"  {DIM}draft     → none named — a ticket being written has no status{RESET}")
+        elif draft in moved:
+            bad(f"draft     → “{draft}” is also a status the runner moves tickets through")
+            problems += 1
+        elif draft in options:
+            ok(f"draft     → “{draft}” — never picked up")
+        else:
+            bad(f"draft     → “{draft}” is not offered by the database")
+            problems += 1
+        print(f"  {DIM}available: {', '.join(options)}{RESET}")
+
+    type_column = configuration.notion.prop("type")
+    if type_column in schema:
+        title("Types")
+        offered = client.options(database, type_column)
+        for key in ("code", "writing", "external", "publication"):
+            names = configuration.notion.kind_names(key)
+            found = next((name for name in names if name in offered), "")
+            if found:
+                ok(f"{key:<11} → “{found}”")
+            else:
+                # Not a problem: Notion adds a select option the first time a
+                # value is written into it. Said so it is not a surprise.
+                warn(f"{key:<11} → “{names[0]}” not offered yet — added the first time it is written")
+        runner_settings = configuration.runner
+        if runner_settings.classify:
+            model = runner_settings.classify_model or "the CLI's default model"
+            ok(
+                f"an empty {type_column} is classified by {model}, acted on from "
+                f"{runner_settings.classify_confidence} confidence"
+            )
+        else:
+            warn(f"runner.classify is off — a ticket with no {type_column} runs by its project")
+
+    title("Schedules database")
+    problems += _doctor_schedules(client, configuration, space)
+
+    title("Comments")
+    # The one capability that is off by default, and the one whose absence is
+    # silent: a ticket runs perfectly well while its discussion is invisible.
+    sample = client.query(database)[:1]
+    if not sample:
+        print(f"  {DIM}no ticket yet — nothing to read a discussion on{RESET}")
+    else:
+        try:
+            client.comments(sample[0].id)
+            ok("comments readable — answers wake a ticket, and can be answered back")
+        except store.StoreError as error:
+            if "403" in str(error):
+                bad("comments not readable — an answer in a comment reaches nothing")
+                warn(
+                    "notion.so/my-integrations → your integration → "
+                    "Capabilities → Read comments (and Insert comments)"
+                )
+                problems += 1
+            else:
+                warn(f"comments could not be read: {str(error).splitlines()[0]}")
+    if configuration.runner.reply:
+        spellings = ", ".join(
+            conversation.names(configuration.notion.mention, client.my_name())
+        )
+        ok(f"it answers when you write to it — {spellings}")
+        print(
+            f"  {DIM}every {configuration.runner.reply_interval_seconds}s, "
+            f"{configuration.runner.reply_scan} page(s) a pass, "
+            f"permission_mode = {configuration.runner.reply_permission_mode}{RESET}"
+        )
+    else:
+        print(f"  {DIM}runner.reply = false — a comment can wake a ticket, not start a talk{RESET}")
+
+    title("Model")
+    ok(f"claude: {session.available() or 'missing'}")
+    interval = configuration.runner.interval_seconds
+    print(f"  {DIM}one run every {interval}s (ponos enable to apply a change){RESET}")
+    if shutil.which("systemctl"):
+        timer = systemd.read()
+        _timer_line(timer)
+        problems += 1 if timer.stalled else 0
+    print(f"  {DIM}permission_mode = {configuration.runner.permission_mode}{RESET}")
+    if configuration.runner.progress:
+        every = configuration.runner.progress_interval_seconds
+        print(f"  {DIM}live steps written into the ticket every {every}s{RESET}")
+    else:
+        print(f"  {DIM}runner.progress = false — the ticket says nothing until the end{RESET}")
+
+    if problems:
+        print(f"\n{RED}{problems} problem(s) to fix.{RESET}")
+        return 1
+    print(f"\n{GREEN}Everything is in place.{RESET}")
+    return 0
+
+
+def _doctor_languages(settings: config_module.Runner) -> None:
+    """Which language the reports and the console are in — and a name nobody speaks.
+
+    A language the runner does not know is read as English rather than refused,
+    which is right for a run and wrong to keep quiet about: `de` would otherwise
+    look like a setting that does nothing.
+    """
+    names = {"en": "English", "fr": "French"}
+    for key, asked in (("language", settings.language), ("app_language", settings.app_language)):
+        if asked and not voice.known(asked):
+            warn(f'runner.{key} = "{asked}" is not a language spoken here — read as English')
+    reports = names[voice.understood(settings.language)] if settings.language else "English"
+    shown = settings.interface_language()
+    console = names[voice.understood(shown)] if shown else "the browser's language"
+    told = (
+        f"sessions told to write in {reports}"
+        if settings.language
+        else "sessions answer in the ticket's language"
+    )
+    print(f"  {DIM}reports in {reports} ({told}) · console in {console}{RESET}")
+
+
+def _doctor_answerers(channel: channels.Channel, settings: config_module.Notify) -> None:
+    """Who may answer on this channel — said, because an answer can run code.
+
+    An answer becomes a comment, a comment wakes a ticket, and a ticket runs a
+    session with `bypassPermissions`. Nobody named is anybody who can write
+    there: fine in a private chat, a door left open in a group or a channel.
+    """
+    if not settings.replies:
+        return
+    table = f"notify.{channel.name}"
+    if channel.allowed:
+        ok(
+            f"{channel.name} — answers read from {len(channel.allowed)} user(s) only "
+            f"({table}.allowed_users)"
+        )
+        return
+    chat = str(settings.telegram.get("chat", "")) if channel.name == "telegram" else ""
+    if channel.name == "telegram" and chat and not chat.startswith("-"):
+        print(f"  {DIM}telegram — a private chat: only you write in it{RESET}")
+        return
+    warn(
+        f"{channel.name} — anybody who can write there can answer, and an answer can wake "
+        f"a ticket: {table}.allowed_users narrows it to named people"
+    )
+
+
+def _doctor_schedules(
+    client: store.Store,
+    configuration: config_module.Config,
+    space: workspace_module.Workspace,
+) -> int:
+    """The Schedules database, and what would keep a ticket from being born.
+
+    Optional throughout: an installation without the database is an installation
+    where nothing repeats, which is a fine way to run and worth one grey line
+    rather than a warning. Returns the number of problems found — none of which
+    a board that ignores the feature can have.
+    """
+    database = space.schedules
+    if not database:
+        print(f"  {DIM}no schedules database — nothing repeats here{RESET}")
+        print(
+            f"  {DIM}ponos init <page-url> adds it; "
+            f"a board without it runs exactly as before{RESET}"
+        )
+        return 0
+    if not configuration.runner.schedule:
+        warn("runner.schedule = false — the database is read by nobody")
+
+    settings = configuration.notion
+    try:
+        schema = client.schema(database)
+    except store.StoreError as error:
+        warn(f"unreadable: {str(error).splitlines()[0]}")
+        return 0
+    ok(f"readable — {len(schema)} property(ies)")
+    for key, preferred, why in (
+        ("cadence", "select", "Hourly, Daily, Weekly or Monthly"),
+        ("at", "rich_text", "the hour it happens at, written 09:00"),
+        ("day", "rich_text", "Monday for a weekly one, 1 to 31 for a monthly one"),
+        ("active", "checkbox", "unticked stops it without deleting anything"),
+        ("next_run", "date", "written by the runner: when the next ticket is born"),
+        ("last_run", "date", "written by the runner: when the last one was"),
+        ("last_ticket", "relation", "written by the runner: how it knows the last one is over"),
+        ("project", "relation", "the project every ticket it makes points at"),
+        ("model", "select", "the model every ticket it makes runs on"),
+        ("priority", "select", "the priority every ticket it makes carries"),
+    ):
+        name = settings.prop(key)
+        kind = schema.get(name)
+        if kind is None:
+            warn(f"“{name}” missing — {why}")
+        elif kind != preferred:
+            ok(f"“{name}” ({kind}) — {preferred} would be better: {why}")
+        else:
+            ok(f"“{name}” ({kind})")
+
+    try:
+        rows = [schedules_module.read(page, settings) for page in client.query(database)]
+    except store.StoreError as error:
+        warn(f"the schedules could not be read: {str(error).splitlines()[0]}")
+        return 0
+    if not rows:
+        print(f"  {DIM}no schedule written yet{RESET}")
+        return 0
+
+    problems = 0
+    now = datetime.now().astimezone()
+    for schedule in rows:
+        if schedule.problem:
+            bad(f"“{schedule.name}” — {schedule.problem}")
+            problems += 1
+            continue
+        if not schedule.active:
+            print(f"  {DIM}·{RESET} {DIM}“{schedule.name}” unticked{RESET}")
+            continue
+        # A `Next` a day behind is not a schedule running late: it is a runner
+        # that has stopped, and this is the only place that would say so.
+        if schedule.next and (now - schedule.next).total_seconds() > 86400:
+            bad(
+                f"“{schedule.name}” — due since "
+                f"{schedule.next.strftime('%Y-%m-%d %H:%M')} and never born: "
+                "the runner is not passing"
+            )
+            problems += 1
+            continue
+        when = schedule.next.strftime("%Y-%m-%d %H:%M") if schedule.next else "on the next pass"
+        ok(f"“{schedule.name}” — {schedule.cadence.lower()}, next {when}")
+    return problems
+
+
+def command_config(args: argparse.Namespace) -> int:
+    path = config_module.config_path()
+    if not path.exists():
+        print(f"{path} does not exist — run install.sh again", file=sys.stderr)
+        return 1
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or "nano"
+    return subprocess.call([editor, str(path)])
+
+
+def command_notify(args: argparse.Namespace) -> int:
+    """Prove the channel works, before a question depends on it.
+
+    A messaging channel is the one part of the runner that fails silently by
+    design — nothing about a ticket goes wrong when the message does not
+    arrive, you simply never hear about it. So it gets a command of its own,
+    and it is the first thing to run after filling the token in.
+    """
+    try:
+        configuration = config_module.load()
+    except config_module.ConfigError as error:
+        print(f"{RED}error:{RESET} {error}", file=sys.stderr)
+        return 2
+    settings = configuration.notify
+
+    if args.pair:
+        return _pair(configuration, settings)
+
+    live = channels.open(settings)
+    if not live:
+        warn("no channel configured")
+        print(
+            f"  {DIM}[notify.telegram] token + chat, or [notify.slack] token + channel"
+            f"\n  ponos config   to fill them in"
+            f"\n  ponos notify --pair   to find your Telegram chat id{RESET}"
+        )
+        return 1
+
+    text = args.message or (
+        "Ponos speaking. Questions arrive here, and what you answer "
+        "lands on the ticket."
+    )
+    problems = 0
+    for channel in live:
+        try:
+            who = channel.check()
+        except channels.ChannelError as error:
+            bad(f"{channel.name} — {error}")
+            problems += 1
+            continue
+        if channel.send(text):
+            ok(f"{channel.name} — {who}")
+        else:
+            bad(f"{channel.name} — connected as {who}, but the message was refused")
+            problems += 1
+    if problems:
+        return 1
+    print(f"\n{DIM}replies come back on the next run (ponos run){RESET}")
+    return 0
+
+
+def _pair(configuration: config_module.Config, settings: config_module.Notify) -> int:
+    """Find the Telegram chat id by reading who has written to the bot.
+
+    A chat id is the one value of this configuration nobody can look up: the
+    usual advice is to paste your token into somebody else's bot, which is the
+    same as handing them the channel. Saying hello to your own bot and reading
+    it back costs one GET and trusts no one.
+    """
+    from .channels import telegram as telegram_module
+
+    token = settings.telegram.get("token", "")
+    if not token:
+        bad("[notify.telegram] token is not set")
+        print(f"  {DIM}@BotFather → /newbot → paste the token into the configuration{RESET}")
+        return 1
+    try:
+        found = telegram_module.chats(token)
+    except channels.ChannelError as error:
+        bad(f"Telegram refused: {error}")
+        return 1
+    if not found:
+        warn("nobody has written to this bot in the last 24 hours")
+        print(f"  {DIM}open the chat with your bot, say anything, and run this again{RESET}")
+        return 1
+    if len(found) > 1:
+        warn(f"{len(found)} chats have written to this bot — pick one and set it by hand:")
+        for identifier, name in found:
+            print(f"  {identifier}  {DIM}{name}{RESET}")
+        return 1
+    identifier, name = found[0]
+    config_module.write_value(configuration.path, "notify.telegram", "chat", identifier)
+    ok(f"paired with “{name}” ({identifier}) — written to {configuration.path}")
+    print(f"  {DIM}ponos notify   to send yourself a first message{RESET}")
+    return 0
+
+
+def _branch_kept(
+    repo: Path, worktree: Path, branch: str, base: str, accounts: dict[str, str] | None = None
+) -> str:
+    """Why this branch must outlive its worktree — empty when nothing is lost.
+
+    A branch is named after the ticket's ID, so it is the same one on every
+    attempt: one left behind by a failure makes `add_worktree` refuse the ticket
+    for good. Removing it is therefore the point of `clean` — but that refusal
+    is also what protects a session's work, so the branch only goes when it is
+    established that nobody else holds what is on it.
+    """
+    if git.has_ref(repo, f"origin/{branch}"):
+        url = git.pull_request_on(repo, branch, accounts)
+        if url:
+            return f"it is pushed and its pull request is open — {url}"
+    if not git.has_ref(repo, f"origin/{base}") and not git.has_ref(repo, base):
+        return f"there is no {base} here to compare it against"
+    ahead = git.commits_ahead(worktree, base)
+    if ahead:
+        return f"{ahead} commit(s) of its own are absent from {base}"
+    if git.is_dirty(worktree):
+        return "the worktree has changes that were never committed"
+    return ""
+
+
+def _sweep(directories: list[Path]) -> None:
+    """Remove what `clean --force` was asked to, the run lock held."""
+    try:
+        configuration = config_module.load()
+        configured_base, accounts = configuration.runner.base_branch, configuration.github
+    except config_module.ConfigError:
+        configured_base, accounts = "", {}
+    for directory in directories:
+        # Only a repository that lists this directory as one of its worktrees
+        # is touched — see `git.repository_of`. Anything else is a directory,
+        # and goes as one.
+        repo = git.repository_of(directory)
+        if not (repo and repo.exists()):
+            shutil.rmtree(directory, ignore_errors=True)
+            print(f"  removed {directory}")
+            continue
+        branch = git.git(["rev-parse", "--abbrev-ref", "HEAD"], directory).out
+        # A detached HEAD names no branch — `HEAD` is what git answers then, and
+        # there is nothing to remove afterwards.
+        branch = "" if branch == "HEAD" else branch
+        kept = (
+            _branch_kept(
+                repo, directory, branch, configured_base or git.default_branch(repo), accounts
+            )
+            if branch
+            else ""
+        )
+        git.remove_worktree(repo, directory)
+        print(f"  removed {directory}")
+        if not branch:
+            continue
+        if kept:
+            warn(f"branch {branch} kept — {kept}")
+            print(
+                f"    {DIM}that ticket cannot run again while it is there:"
+                f" git -C {repo} branch -D {branch}{RESET}"
+            )
+            continue
+        dropped = git.delete_branch(repo, branch)
+        if dropped.ok:
+            print(f"  removed branch {branch}")
+        else:
+            warn(f"branch {branch} kept — {dropped.err or dropped.out}")
+
+
+def command_clean(args: argparse.Namespace) -> int:
+    """Remove what failures left behind: worktrees, branches and scratch dirs."""
+    state_root = config_module.state_dir()
+    directories = [
+        directory
+        for parent in ("worktrees", "scratch")
+        if (state_root / parent).exists()
+        for directory in sorted((state_root / parent).iterdir())
+    ]
+    if not directories:
+        print("Nothing left behind.")
+        return 0
+    title(f"{len(directories)} directory(ies) kept")
+    for directory in directories:
+        repo = git.repository_of(directory)
+        branch = git.git(["rev-parse", "--abbrev-ref", "HEAD"], directory).out if repo else ""
+        print(f"  {directory}  {DIM}{branch or 'no repository'}{RESET}")
+    if not args.force:
+        print(f"\n{DIM}ponos clean --force to remove them{RESET}")
+        return 0
+    # Under the run lock, or not at all: a worktree kept by a failure and the
+    # worktree a session is working in right now sit side by side, and nothing
+    # on disk tells them apart. A run in progress is the one moment `clean`
+    # must not choose between them.
+    try:
+        with state.lock():
+            _sweep(directories)
+            removed = state.prune_logs(args.days)
+            if removed:
+                print(f"  removed {removed} log file(s) older than {args.days} days")
+            # The scratch directory a conversation runs in, for a ticket with no
+            # repository. Kept while the runner still remembers the page — that
+            # is what makes the next question land in the same Claude session.
+            talks = conversation.clean_talks(
+                {short_id(page) for page in conversation.Ledger.load().known_pages()}
+            )
+            if talks:
+                print(f"  removed {talks} conversation directory(ies)")
+    except state.Busy:
+        bad("a run is in progress, and some of these are the worktrees it works in")
+        print(f"  {DIM}try again once it has finished — ponos status says when{RESET}")
+        return 1
+    return 0
+
+
+def command_update(args: argparse.Namespace) -> int:
+    """What a run does once an hour, on demand and out loud."""
+    try:
+        settings = config_module.load().runner
+    except config_module.ConfigError:
+        settings = config_module.Runner()
+    status = update_module.check(channel=settings.update_channel)
+    if status.reason:
+        bad(status.reason)
+        return 1
+    if not status.stale:
+        newest = f"{status.tag}, " if status.tag else ""
+        ok(f"already on the newest version ({newest}{status.current[:8]})")
+        return 0
+    print(f"  {update_module.describe(status)}")
+    if args.check:
+        print(f"  {DIM}ponos update to apply it{RESET}")
+        return 0
+    error = update_module.apply(status, settings.interval_seconds)
+    if error:
+        bad(error)
+        return 1
+    ok(f"updated to {status.tag or status.latest[:8]}")
+    return 0
+
+
+def command_open(args: argparse.Namespace) -> int:
+    """Handle a ponos:// link. The desktop calls this on a click."""
+    try:
+        return session.open_link(args.uri)
+    except (ValueError, FileNotFoundError) as error:
+        print(f"{RED}error:{RESET} {error}", file=sys.stderr)
+        return 1
+
+
+def command_serve(args: argparse.Namespace) -> int:
+    """The web console: the board, this CLI and a chat, in one page."""
+    from . import web
+
+    # Loaded, not required to be usable: the console is where an installation
+    # becomes usable — its first connection asks for the Notion token and the
+    # page — so refusing to start without them made that page unreachable, and
+    # the systemd unit restart forever on a fresh install. A file that is
+    # missing or does not parse still stops it: there is nothing to edit then.
+    try:
+        configuration = config_module.load()
+    except config_module.ConfigError as error:
+        print(f"{RED}error:{RESET} {error}", file=sys.stderr)
+        return 2
+    if args.print_token:
+        print(web.token(configuration))
+        return 0
+    return web.serve(configuration, host=args.host or "", port=args.port or 0)
+
+
+def command_timer(args: argparse.Namespace) -> int:
+    """Both units at once: the timer that runs tickets, and the console.
+
+    They are enabled and disabled together because they are the same answer to
+    "is the runner on this machine running" — a console left behind by a
+    `disable` would keep showing a board nothing is picking up.
+    """
+    if not shutil.which("systemctl"):
+        print("systemd not available", file=sys.stderr)
+        return 1
+    if args.command == "disable":
+        code = subprocess.call(
+            ["systemctl", "--user", "disable", "--now", "ponos.timer"]
+        )
+        subprocess.call(
+            ["systemctl", "--user", "disable", "--now", "ponos-web.service"]
+        )
+        return code
+
+    try:
+        configuration = config_module.load()
+    except config_module.ConfigError as error:
+        print(f"{RED}error:{RESET} {error}", file=sys.stderr)
+        return 2
+    interval = configuration.runner.interval_seconds
+    update_module.write_units(interval)
+    subprocess.call(["systemctl", "--user", "daemon-reload"])
+    # Enabled, then restarted rather than `--now`: a timer that is already
+    # active is left alone by `--now`, and a timer left alone keeps the next
+    # run it had — which, after the fault this exists to cure, is none. A
+    # restart gives OnActiveSec its starting point; the service, if one is
+    # running, is not the timer's to stop and carries on.
+    code = subprocess.call(["systemctl", "--user", "enable", "ponos.timer"])
+    if code == 0:
+        code = subprocess.call(["systemctl", "--user", "restart", "ponos.timer"])
+    if code == 0:
+        every = f"{interval}s" if interval < 120 else f"{interval // 60} min"
+        ok(f"timer enabled — one run every {every}")
+    console = subprocess.call(
+        ["systemctl", "--user", "enable", "--now", "ponos-web.service"]
+    )
+    if console == 0:
+        ok(f"console enabled — http://{configuration.web.host}:{configuration.web.port}")
+    else:
+        warn("the console's unit refused to start — journalctl --user -u ponos-web")
+    return code
+
+
+# -- entry point -------------------------------------------------------------
+
+
+def banner_lines() -> list[tuple[str, str]]:
+    """What the frame holds: every line as (plain, coloured).
+
+    The two are kept side by side because escape codes take no room on screen —
+    a frame measured with them in it comes out crooked the moment colours are
+    on, which is exactly when somebody is looking at it.
+    """
+    lines = [
+        (
+            f"{NAME} {__version__}",
+            f"{BOLD}{NAME}{RESET} {GREEN}{__version__}{RESET}",
+        ),
+        (TAGLINE, f"{DIM}{TAGLINE}{RESET}"),
+    ]
+    # Read from the stamp a run already wrote, never by asking the remote: a
+    # welcome screen is not the place to spend a network round trip.
+    status = update_module.remembered()
+    if status.stale:
+        waiting = f"{status.latest[:8]} is waiting — ponos update"
+        lines.append((waiting, f"{YELLOW}{waiting}{RESET}"))
+    return lines
+
+
+def banner() -> str:
+    """The product and its version, framed."""
+    lines = banner_lines()
+    width = max(len(plain) for plain, _ in lines)
+    drawn = [f"  {DIM}╭─{'─' * width}─╮{RESET}"]
+    for plain, coloured in lines:
+        drawn.append(f"  {DIM}│{RESET} {coloured}{' ' * (width - len(plain))} {DIM}│{RESET}")
+    drawn.append(f"  {DIM}╰─{'─' * width}─╯{RESET}")
+    return "\n".join(drawn)
+
+
+def commands_of(parser: argparse.ArgumentParser) -> list[tuple[str, str]]:
+    """Every verb and the one line that says what it does, in the order declared."""
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return [(choice.dest, choice.help or "") for choice in action._choices_actions]
+    return []
+
+
+def welcome(parser: argparse.ArgumentParser) -> None:
+    """What a bare `ponos` shows: the product, its version, its verbs.
+
+    Not argparse's usage block. Somebody typing the name alone is looking at
+    the thing for the first time, or checking what they installed — both are
+    answered better by the version and a list of commands in plain columns.
+    """
+    print()
+    print(banner())
+    print()
+    commands = commands_of(parser)
+    width = max((len(name) for name, _ in commands), default=0)
+    title("  Commands")
+    for name, help_text in commands:
+        print(f"    {name.ljust(width)}  {DIM}{help_text}{RESET}")
+    print()
+    print(f"  {DIM}ponos <command> --help says what a command takes.{RESET}")
+    print(f"  {DIM}Start with:{RESET} ponos doctor")
+    print()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=PRODUCT,
+        description=TAGLINE,
+    )
+    parser.add_argument("--version", action="version", version=f"{PRODUCT} {__version__}")
+    subparsers = parser.add_subparsers(dest="command")
+
+    run = subparsers.add_parser("run", help="handle the ready tickets (one run)")
+    run.add_argument("--ticket", help="URL or ID of one ticket, whatever its status")
+    run.add_argument("--limit", type=int, help="maximum number of tickets for this run")
+    run.add_argument("--dry-run", action="store_true", help="show without changing anything")
+    run.set_defaults(function=command_run)
+
+    listing = subparsers.add_parser("list", help="list the ready tickets")
+    listing.set_defaults(function=command_list)
+
+    scheduling = subparsers.add_parser("schedules", help="what comes back on its own, and when")
+    scheduling.add_argument("--run", metavar="NAME", help="make its ticket now, without waiting")
+    scheduling.add_argument(
+        "--force", action="store_true", help="with --run: even if the last one is still open"
+    )
+    scheduling.set_defaults(function=command_schedules)
+
+    projects = subparsers.add_parser("projects", help="check the project → repository mapping")
+    projects.set_defaults(function=command_projects)
+
+    syncing = subparsers.add_parser("sync", help="reconcile the Notion board and the Markdown one")
+    syncing.add_argument(
+        "--journal", action="store_true", help="show what past reconciliations did"
+    )
+    syncing.add_argument("-n", "--number", type=int, default=30, help="with --journal: how many")
+    syncing.set_defaults(function=command_sync)
+
+    status = subparsers.add_parser("status", help="timer, console, current run, recent tickets")
+    status.set_defaults(function=command_status)
+
+    history = subparsers.add_parser("history", help="tickets already handled")
+    history.add_argument("-n", "--number", type=int, default=20)
+    history.set_defaults(function=command_history)
+
+    logs = subparsers.add_parser("logs", help="follow a session")
+    logs.add_argument("ticket", nargs="?", help="the ticket's ID, in any form")
+    logs.add_argument("-f", "--follow", action="store_true")
+    logs.add_argument("--raw", action="store_true", help="the raw JSON stream")
+    logs.set_defaults(function=command_logs)
+
+    doctor = subparsers.add_parser("doctor", help="full diagnostics")
+    doctor.set_defaults(function=command_doctor)
+
+    initialise = subparsers.add_parser(
+        "init", help="create the Notion databases from one page link"
+    )
+    initialise.add_argument("page", help="URL of the Notion page to build under")
+    initialise.add_argument("--token", help="Notion integration token, saved to the configuration")
+    initialise.add_argument(
+        "--no-demo", action="store_true", help="do not create the demonstration ticket"
+    )
+    initialise.set_defaults(function=command_init)
+
+    configure = subparsers.add_parser("config", help="open the configuration")
+    configure.set_defaults(function=command_config)
+
+    updating = subparsers.add_parser("update", help="move the installation to the newest version")
+    updating.add_argument("--check", action="store_true", help="say what is available, change nothing")
+    updating.set_defaults(function=command_update)
+
+    opener = subparsers.add_parser("open", help="open a ponos:// session link")
+    opener.add_argument("uri", help="ponos://session/<id>?cwd=<path>")
+    opener.set_defaults(function=command_open)
+
+    serving = subparsers.add_parser("serve", help="the web console: board, command line and chat")
+    serving.add_argument("--host", help="what to bind (default: web.host, 127.0.0.1)")
+    serving.add_argument("--port", type=int, help="what port to listen on (default: web.port)")
+    serving.add_argument(
+        "--print-token", action="store_true", help="print the console's token and exit"
+    )
+    serving.set_defaults(function=command_serve)
+
+    notifying = subparsers.add_parser(
+        "notify", help="send yourself a test message, or pair a Telegram chat"
+    )
+    notifying.add_argument("message", nargs="?", help="what to send (default: a test line)")
+    notifying.add_argument(
+        "--pair", action="store_true", help="find the Telegram chat id and save it"
+    )
+    notifying.set_defaults(function=command_notify)
+
+    clean = subparsers.add_parser("clean", help="remove worktrees left by failures")
+    clean.add_argument("--force", action="store_true")
+    clean.add_argument("--days", type=int, default=14, help="also drop logs older than this")
+    clean.set_defaults(function=command_clean)
+
+    for name, help_text in (
+        ("enable", "apply runner.interval_seconds, start the timer and the console"),
+        ("disable", "stop the timer and the console"),
+    ):
+        timer = subparsers.add_parser(name, help=help_text)
+        timer.set_defaults(function=command_timer)
+
+    return parser
+
+
+def subcommands() -> tuple[str, ...]:
+    """The verbs this parser offers — which is what the console is allowed to run.
+
+    Read from the parser rather than written down a second time: a command added
+    above is a command the web console offers, without anybody having to
+    remember to say so twice.
+    """
+    parser = build_parser()
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return tuple(sorted(action.choices))
+    return ()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not getattr(args, "function", None):
+        welcome(parser)
+        return 0
+    try:
+        return args.function(args)
+    except KeyboardInterrupt:
+        return 130
+
+
+if __name__ == "__main__":
+    # Here rather than in `main`, which the tests call: only a real launch
+    # moves an installation's directories.
+    legacy.migrate()
+    raise SystemExit(main())

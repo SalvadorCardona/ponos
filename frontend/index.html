@@ -10,7 +10,14 @@
   /* Before the first paint, or the console flashes white on the way to dark.
      Dark is the default because the console it replaces had no other. */
   try {
-    var kept = localStorage.getItem("ticket-runner-theme");
+    /* Migration filet: what this browser kept before the rename, under the
+       old prefix, is taken over once — theme, language, widths, columns. */
+    ["theme", "language", "talk-width", "board-empty-columns"].forEach(function (key) {
+      var old = localStorage.getItem("ticket-runner-" + key);
+      if (old !== null && localStorage.getItem("ponos-" + key) === null) localStorage.setItem("ponos-" + key, old);
+      localStorage.removeItem("ticket-runner-" + key);
+    });
+    var kept = localStorage.getItem("ponos-theme");
     document.documentElement.classList.toggle("dark", kept !== "light");
   } catch (error) { /* a browser with storage switched off still gets dark */ }
 </script>

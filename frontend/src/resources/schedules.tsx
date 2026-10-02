@@ -412,7 +412,7 @@ function NoSchedule() {
   return drawn && !drawn.database ? (
     <EmptyState icon={CalendarOff} title={t("Nothing repeats here")}>
       {t("This workspace has no “{{page}}” page.", { page })}{" "}
-      <code className="font-mono text-xs">ticket-runner init &lt;page-url&gt;</code>{" "}
+      <code className="font-mono text-xs">ponos init &lt;page-url&gt;</code>{" "}
       {t("builds it.")}
     </EmptyState>
   ) : (

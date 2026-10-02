@@ -1,4 +1,4 @@
-"""The console the browser tests open: a real `ticket-runner serve`, on a board of files.
+"""The console the browser tests open: a real `ponos serve`, on a board of files.
 
 Real rather than a page with its API stubbed, because what these tests guard is
 what the page does once the server has answered — how tall it is, whether it
@@ -37,7 +37,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ticket_runner import files  # noqa: E402
+from ponos import files  # noqa: E402
 
 # The token the tests open the console with: a board of fixtures has nothing to guard.
 TOKEN = "e2e"
@@ -69,7 +69,7 @@ def board(root: Path) -> None:
     )
     comments = root / "comments"
     comments.mkdir()
-    question = {"id": "q1", "at": "2026-09-30T10:00:00+00:00", "by": "ticket-runner", "discussion": "q1"}
+    question = {"id": "q1", "at": "2026-09-30T10:00:00+00:00", "by": "ponos", "discussion": "q1"}
     (comments / f"{ASKING}.md").write_text(
         files.render(question, "🙋 Question\nWhich header, the dashboard's or the site's?"), encoding="utf-8"
     )
@@ -138,7 +138,7 @@ say({{"type": "result", "result": answer, "session_id": session, "total_cost_usd
 
 def main() -> None:
     port = sys.argv[1] if len(sys.argv) > 1 else "8790"
-    here = Path(tempfile.mkdtemp(prefix="ticket-runner-e2e-"))
+    here = Path(tempfile.mkdtemp(prefix="ponos-e2e-"))
     board(here / "board")
     config = here / "config.toml"
     config.write_text(
@@ -148,7 +148,7 @@ def main() -> None:
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
     ).stdout.strip()
-    stamp = here / "state" / "ticket-runner" / "update.json"
+    stamp = here / "state" / "ponos" / "update.json"
     stamp.parent.mkdir(parents=True)
     stamp.write_text(json.dumps({"checked_at": 0, "current": head, "latest": NEWER, "tag": ""}))
     bin = here / "bin"
@@ -159,11 +159,11 @@ def main() -> None:
     os.environ.update(
         PATH=f"{bin}{os.pathsep}{os.environ.get('PATH', '')}",
         HOME=str(here / "home"),
-        TICKET_RUNNER_CONFIG=str(config),
+        PONOS_CONFIG=str(config),
         XDG_STATE_HOME=str(here / "state"),
         PYTHONPATH=str(ROOT / "src"),
     )
-    os.execvp(sys.executable, [sys.executable, "-m", "ticket_runner", "serve", "--port", port])
+    os.execvp(sys.executable, [sys.executable, "-m", "ponos", "serve", "--port", port])
 
 
 if __name__ == "__main__":

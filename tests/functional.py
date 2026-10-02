@@ -17,7 +17,7 @@ remote stand in for GitHub; a `claude` and a `gh` at the head of `PATH` do what
 the real ones do, minus the thinking and the network. The runner is told none of
 it: it loads a configuration, reads its board and works. The one thing it cannot
 guess is where Notion lives, and that is the single seam added to the code —
-`TICKET_RUNNER_NOTION_API`, see `notion.endpoint`.
+`PONOS_NOTION_API`, see `notion.endpoint`.
 
 Nothing here leaves the machine, and nothing is written outside a temporary
 directory: `XDG_STATE_HOME` moves with the test, and takes the worktrees, the
@@ -45,10 +45,10 @@ from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ticket_runner import config as C  # noqa: E402
-from ticket_runner import images, notion, store  # noqa: E402
-from ticket_runner.config import PRIORITIES  # noqa: E402
-from ticket_runner.runner import Runner  # noqa: E402
+from ponos import config as C  # noqa: E402
+from ponos import images, notion, store  # noqa: E402
+from ponos.config import PRIORITIES  # noqa: E402
+from ponos.runner import Runner  # noqa: E402
 
 CASES = []
 ROOT = Path(__file__).resolve().parents[1]
@@ -119,7 +119,7 @@ class Board:
         # Every request this Notion could not answer, so that a run is never
         # silently short of one: most roads in `notion.py` swallow a refusal.
         self.refused: list[str] = []
-        self.me = {"object": "user", "id": _ident(), "name": "Ticket Runner", "type": "bot"}
+        self.me = {"object": "user", "id": _ident(), "name": "Ponos", "type": "bot"}
 
     # -- building a board ----------------------------------------------------
 
@@ -989,7 +989,7 @@ def bench(**overrides: object):
     included — so two scenarios never share a board, a state directory or a
     branch, and a scenario that fails leaves the machine as it found it.
     """
-    with tempfile.TemporaryDirectory(prefix="ticket-runner-functional-") as directory:
+    with tempfile.TemporaryDirectory(prefix="ponos-functional-") as directory:
         root = Path(directory)
         _binaries(root / "bin")
         with _notion_server() as (api, board):
@@ -1006,6 +1006,7 @@ def bench(**overrides: object):
                 # are emptied before each pass — see the fake `gh`.
                 "FAKE_GH_STATE": str(root / "logs" / "github.jsonl"),
                 "XDG_STATE_HOME": str(root / "state"),
+                "XDG_CONFIG_HOME": str(root / "config"),
                 "PATH": f"{root / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
                 "FAKE_CLAUDE_FAIL": "",
                 "FAKE_CLAUDE_KIND": "",
@@ -1078,7 +1079,7 @@ def a_code_ticket_comes_back_as_a_pull_request():
         assert page in opened[0]["body"], "the pull request does not link back to the ticket"
         assert machine.board.value(ticket, "Pull Request") == opened[0]["url"]
 
-        assert str(machine.board.value(ticket, "Runner") or "").startswith("ticket-runner@")
+        assert str(machine.board.value(ticket, "Runner") or "").startswith("ponos@")
         assert machine.board.value(ticket, "Session"), "the session was not written onto the ticket"
         assert machine.board.value(ticket, "Duration") is not None
 
@@ -1115,7 +1116,7 @@ def a_writing_ticket_is_answered_in_its_page_and_touches_no_repository():
         sessions = machine.sessions()
         assert len(sessions) == 1, sessions
         assert "On écrit court." in sessions[0]["prompt"], "the project's brief never reached it"
-        state = Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner"
+        state = Path(os.environ["XDG_STATE_HOME"]) / "ponos"
         assert not (state / "worktrees").exists(), "a document ticket made a worktree"
         assert not list((state / "scratch").glob("*")), "its scratch directory was left behind"
 
@@ -1416,7 +1417,7 @@ def a_session_that_fails_leaves_a_readable_ticket_and_no_worktree():
         assert "rien à faire ici" in said[-1], said[-1]
 
         assert not machine.worktrees(repository), machine.worktrees(repository)
-        worktrees = Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner" / "worktrees"
+        worktrees = Path(os.environ["XDG_STATE_HOME"]) / "ponos" / "worktrees"
         assert not list(worktrees.glob("*")), "the worktree is still on disk"
         assert not machine.pull_requests(), "a failed session still opened a pull request"
         assert machine.branches(repository) == ["main"], machine.branches(repository)
@@ -1488,7 +1489,7 @@ def a_validated_merge_refused_for_being_behind_is_replayed_and_lands():
         landed = machine.files_on(repository, "main")
         assert "OTHER.md" in landed and "FAKE.md" in landed, landed
         # And the replay left nothing behind: the worktree it needed is gone.
-        scratch = Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner" / "scratch"
+        scratch = Path(os.environ["XDG_STATE_HOME"]) / "ponos" / "scratch"
         assert not list(scratch.glob("rebase-*")), list(scratch.glob("rebase-*"))
         assert not machine.worktrees(repository), machine.worktrees(repository)
         said = machine.board.said(ticket)
@@ -1544,7 +1545,7 @@ def a_validated_merge_that_conflicts_is_resolved_and_lands_with_both_changes():
 
         assert branch in machine.branches(repository)
         assert not machine.worktrees(repository), machine.worktrees(repository)
-        scratch = Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner" / "scratch"
+        scratch = Path(os.environ["XDG_STATE_HOME"]) / "ponos" / "scratch"
         assert not list(scratch.glob("resolve-*")), list(scratch.glob("resolve-*"))
 
 
@@ -1700,7 +1701,7 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
     started then, and one started after, must run whole on one version — and
     the one held must finish on the version it started on, still on disk.
     """
-    from ticket_runner import update
+    from ponos import update
 
     with bench() as machine:
         home = machine.root / "home"
@@ -1722,9 +1723,9 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
         _git(["clone", str(remote), str(app)], machine.root)
         # The launcher as install.sh writes it, and a PATH with no systemctl on
         # it: the units of the machine running the test are not the test's.
-        launcher = home / ".local" / "bin" / "ticket-runner"
+        launcher = home / ".local" / "bin" / "ponos"
         launcher.parent.mkdir(parents=True)
-        launcher.write_text((ROOT / "bin" / "ticket-runner.in").read_text()
+        launcher.write_text((ROOT / "bin" / "ponos.in").read_text()
                             .replace("@APP_DIR@", str(app)).replace("@PYTHON@", sys.executable))
         launcher.chmod(0o755)
         tools = machine.root / "tools"
@@ -1734,7 +1735,7 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
         environment = {
             "HOME": str(home),
             "PATH": os.pathsep.join([str(launcher.parent), str(machine.root / "bin"), str(tools)]),
-            "TICKET_RUNNER_CONFIG": str(machine.config),
+            "PONOS_CONFIG": str(machine.config),
             "FAKE_CLAUDE_HOLD": str(hold),
         }
 
@@ -1754,13 +1755,13 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
 
             # The incident's shape: a module that needs a name only the new
             # version of another one has.
-            store_py = work / "src/ticket_runner/store.py"
+            store_py = work / "src/ponos/store.py"
             store_py.write_text(store_py.read_text() + "\nHANDOVER = 'v2'\n")
-            runner_py = work / "src/ticket_runner/runner.py"
+            runner_py = work / "src/ponos/runner.py"
             runner_py.write_text(runner_py.read_text().replace(
                 "from .ticket import Ticket\n",
                 "from .ticket import Ticket\nfrom .store import HANDOVER  # noqa: F401\n", 1))
-            init_py = work / "src/ticket_runner/__init__.py"
+            init_py = work / "src/ponos/__init__.py"
             init_py.write_text(init_py.read_text().replace('__version__ = "', '__version__ = "9.', 1))
             second = land("two")
 
@@ -1785,7 +1786,7 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
 
             # The held pass started on the old version; it is still whole on disk.
             previous = app.with_name(f"app-{first[:12]}")
-            assert "HANDOVER" not in (previous / "src/ticket_runner/store.py").read_text(), (
+            assert "HANDOVER" not in (previous / "src/ponos/store.py").read_text(), (
                 "the version a pass was running on was written over"
             )
             hold.touch()

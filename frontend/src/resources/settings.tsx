@@ -354,14 +354,14 @@ function SettingsHead() {
   const latest = React.useRef(fetchData)
   latest.current = fetchData
   React.useEffect(() => {
-    // Another tab saved, or `ticket-runner config` did. Read it again — unless
+    // Another tab saved, or `ponos config` did. Read it again — unless
     // a section is in the middle of an edit, which is not something to take
     // away from you.
     const listener = () => {
       if (!somethingIsEdited()) void latest.current()
     }
-    window.addEventListener("ticket-runner:settings", listener)
-    return () => window.removeEventListener("ticket-runner:settings", listener)
+    window.addEventListener("ponos:settings", listener)
+    return () => window.removeEventListener("ponos:settings", listener)
   }, [])
 
   if (!drawn)

@@ -37,14 +37,14 @@ import { ConsolePane } from "./console-pane"
  * event rather than a value in the console's context, for the same reason the
  * settings are reread on one: whoever asks does not have to be near whoever
  * answers. */
-const OPENED = "ticket-runner:talk"
+const OPENED = "ponos:talk"
 
 /** Open the drawer, from anywhere on the page. */
 export const openTalk = () => window.dispatchEvent(new Event(OPENED))
 
 /* Opened or closed, whichever it is not: the palette's entry, which says the
  * same thing as the shortcut. */
-const TOGGLED = "ticket-runner:talk-toggle"
+const TOGGLED = "ponos:talk-toggle"
 
 /** Open the drawer if it is closed, close it if it is open. */
 export const toggleTalk = () => window.dispatchEvent(new Event(TOGGLED))
@@ -58,7 +58,7 @@ export const toggleTalk = () => window.dispatchEvent(new Event(TOGGLED))
  * kept in `localStorage` like the theme, because a width you chose once is the
  * width you want the next time. On a phone none of this applies: the drawer is
  * the whole screen, as it always was. */
-const WIDTH_KEY = "ticket-runner-talk-width"
+const WIDTH_KEY = "ponos-talk-width"
 const NARROWEST = 360
 /** The board keeps this much of itself visible beside a dragged drawer. */
 const MARGIN = 48

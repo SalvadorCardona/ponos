@@ -15,7 +15,7 @@ const LIST = "/?view=console/schedules/list"
 test.use({ viewport: { width: 390, height: 844 }, locale: "fr-FR" })
 
 async function open(page: Page) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto(LIST)
   await expect(page.getByText("Test email")).toBeVisible()
 }

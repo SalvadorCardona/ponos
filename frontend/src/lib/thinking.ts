@@ -58,7 +58,7 @@ export function doing(steps: readonly StepLike[]): Doing {
       return { key: "fixing an error…" }
     case "Bash":
     case "Command":
-      if (/^ticket-runner\b/.test(detail)) return { key: "looking at the board…" }
+      if (/^ponos\b/.test(detail)) return { key: "looking at the board…" }
       if (/^git\b/.test(detail)) return { key: "looking at the history…" }
       if (TESTS.test(detail)) return { key: "running the tests…" }
       return { key: "running a command…" }

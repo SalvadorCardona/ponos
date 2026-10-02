@@ -6,7 +6,7 @@ sers-t'en pour toute question de comportement ou de configuration.
 
 ## Le projet, en deux phrases
 
-`ticket-runner` exécute des tickets Notion avec Claude Code : un ticket passé
+`ponos` exécute des tickets Notion avec Claude Code : un ticket passé
 en *Ready* devient une session Claude, sur un `git worktree` jetable propre à
 ce ticket, et revient en pull request ou en page Notion publiée. Le cœur tourne
 en continu sur la machine de l'utilisateur ; un console web optionnelle et des
@@ -39,7 +39,7 @@ Frontend, depuis `frontend/` :
 
 ```sh
 npm install
-npm run build   # tsc -b && vite build — écrit dans ../src/ticket_runner/web/static
+npm run build   # tsc -b && vite build — écrit dans ../src/ponos/web/static
 npm run lint    # tsc -b --noEmit
 npm run test:e2e  # Playwright dans le Chrome installé, sur un vrai `serve` et un board jetable
 npm test        # node --test src/lib/*.test.ts — la logique de la barre de message, sans navigateur
@@ -52,16 +52,16 @@ npm run dev     # serveur de dev avec hot reload, proxy /api vers un console dé
 vers `main` : le job cœur relance `python3 tests/run.py` puis
 `python3 tests/functional.py` sous Python 3.11 et 3.13, sans installer quoi que
 ce soit ; le job frontend ne se déclenche que si `frontend/**` ou
-`src/ticket_runner/web/**` a changé, et y
+`src/ponos/web/**` a changé, et y
 fait `npm ci`, `npm run lint`, `npm test`, `npm run build` (sous Node 24),
-échoue si `src/ticket_runner/web/static` diffère de ce que le build vient
+échoue si `src/ponos/web/static` diffère de ce que le build vient
 d'écrire, puis lance `npm run test:e2e`.
 `release.yml` reste séparé, ne se déclenche que sur un tag, et relance les deux
 suites.
 
 ## Arborescence utile
 
-- `src/ticket_runner/` — le cœur. Un run reste **un seul objet**, découpé par
+- `src/ponos/` — le cœur. Un run reste **un seul objet**, découpé par
   responsabilité : `base.py` porte son état (le board, caches, voix) et
   son docstring explique la forme choisie ; `runner.py` ne garde que la passe
   (`tick`, `_work`) ; chaque chapitre a son module — `board.py` (lire le
@@ -71,14 +71,14 @@ suites.
   `recurrence.py` (les tickets qui reviennent seuls), `replies.py` (répondre
   aux commentaires), `reports.py` (ce qui s'écrit sur un ticket et ce qui
   atteint ton téléphone), `ticket.py` (`Ticket` et `Job`, sans dépendance).
-- `src/ticket_runner/` — autour du run : `config.py`, `store.py` (la couture
+- `src/ponos/` — autour du run : `config.py`, `store.py` (la couture
   vers un tableau, quel qu'il soit) et les trois qui la remplissent —
   `notion.py`, `files.py` (le board en fichiers Markdown), `sync.py` (les deux
   en phase) —, `git.py`, `session.py`, `voice.py` (les mots et la langue),
   `channels/` (Telegram, Slack), `web/` (serveur de la console et API ;
   `web/console.py` tient la conversation avec l'espace de travail, et
   `web/attachments.py` les fichiers qu'un message y emporte).
-- `src/ticket_runner/web/static/` — **généré**, pas du code source à modifier
+- `src/ponos/web/static/` — **généré**, pas du code source à modifier
   à la main (voir Pièges connus).
 - `frontend/` — sous-projet React/TypeScript/Vite de la console web. La barre
   de message est un composant réutilisable,
@@ -86,18 +86,18 @@ suites.
   (fichiers acceptés, collage, bouton d'envoi, autocomplétion `>`) vivent dans
   `frontend/src/lib/composer.ts`, qui n'importe rien pour que `node --test` le
   lise tel quel.
-- `bin/ticket-runner.in` — gabarit du script installé par `install.sh`
+- `bin/ponos.in` — gabarit du script installé par `install.sh`
   (`@APP_DIR@` et `@PYTHON@` y sont substitués).
 - `tests/run.py` — toute la suite de tests du cœur, sans framework.
 - `tests/functional.py` — les tests du parcours complet, avec leurs doublures :
   un faux Notion en local (`http.server`), un dépôt git et son remote bare, un
   `claude` et un `gh` en tête du `PATH`. Le seul point d'injection côté cœur est
-  `TICKET_RUNNER_NOTION_API` (voir `notion.endpoint`).
+  `PONOS_NOTION_API` (voir `notion.endpoint`).
 - `systemd/` — gabarits des unités (`.service.in`, `.timer.in`) posées par
   `install.sh` pour le timer et la console.
-- `desktop/` — gabarit du handler `ticket-runner://` enregistré sur le bureau.
-- `diagrams/` — `ticket-runner.architecture.json` est la source du diagramme ;
-  `architecture.html` et `ticket-runner.png` en sont générés, voir le README
+- `desktop/` — gabarit du handler `ponos://` enregistré sur le bureau.
+- `diagrams/` — `ponos.architecture.json` est la source du diagramme ;
+  `architecture.html` et `ponos.png` en sont générés, voir le README
   ("Regenerating it").
 
 ## Conventions de code et de commit
@@ -122,14 +122,14 @@ suites.
 
 ## Pièges connus
 
-- **`src/ticket_runner/web/static/` est un artefact commité, pas du code à
+- **`src/ponos/web/static/` est un artefact commité, pas du code à
   éditer à la main.** Il est réécrit intégralement par `npm run build` depuis
   `frontend/` — le runner s'installe avec `python3` et `git` seulement, donc ce
   répertoire doit rester dans le dépôt et à jour à chaque changement de la
   console.
 - **`diagrams/architecture.html` ne s'édite jamais directement.** Il est
   généré par l'outil `archify` à partir de
-  `diagrams/ticket-runner.architecture.json`, qui est le fichier à modifier.
+  `diagrams/ponos.architecture.json`, qui est le fichier à modifier.
 - **Ne jamais toucher au dépôt principal de l'utilisateur.** Chaque ticket
   travaille sur un `git worktree` jetable et sa propre branche ; le code du
   runner qui manipule des worktrees (`git.py`, `execution.py`) doit préserver
@@ -150,7 +150,7 @@ suites.
   l'une sans l'autre casse un test.
 - **`config.example.toml` documente chaque clé en commentaire.** Une nouvelle
   clé de configuration sans son commentaire, ou sans mise à jour de
-  `ticket-runner doctor`, part du mauvais pied.
+  `ponos doctor`, part du mauvais pied.
 - **Pas de `pyproject.toml` : ne pas en ajouter.** Une dépendance externe pour
   le cœur, même petite, va à l'encontre du choix documenté dans
   `tests/run.py`.

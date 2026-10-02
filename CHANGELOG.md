@@ -463,6 +463,42 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **Renamed to Ponos — everywhere, not just on the cover.** The product had
+  taken the name; now the rest follows: the repository is
+  `SalvadorCardona/ponos`, the command is `ponos`, the Python package is
+  `ponos`, the variables are `PONOS_*`, the systemd units are `ponos.timer`,
+  `ponos.service` and `ponos-web.service`, the session links are `ponos://`,
+  and everything on disk lives under `~/.config/ponos`, `~/.local/state/ponos`
+  and `~/.local/share/ponos`. The site moves to
+  [cardona.digital/ponos](https://cardona.digital/ponos/); the old address
+  redirects. **Nothing is lost on the way**, and an installation moves over in
+  one step:
+
+  1. From a terminal of your own — not from a ticket, whose session runs under
+     the service this stops — run `sh scripts/migrate-to-ponos.sh` from a
+     checkout of this version (or simply `install.sh` again). It waits for the
+     pass in progress, stops `ticket-runner.timer` and `ticket-runner-web`,
+     removes their units, and installs Ponos.
+  2. On its first launch, Ponos moves `~/.config/ticket-runner` and
+     `~/.local/state/ticket-runner` under the new name — history, worktrees
+     (git is told where they went), the Claude Code sessions filed under them,
+     the console's sign-in — and says so in one line. Paths in `config.toml`
+     that pointed into them are rewritten; nothing else in the file is.
+  3. Rename your own `TICKET_RUNNER_*` variables to `PONOS_*` when it suits
+     you: until then the old ones are read, with one warning saying which.
+
+  The automatic update cannot cross this one on its own — the version
+  installed checks a new one by importing the old package name, and refuses
+  it — so it keeps running the previous version, safely, until step 1.
+
+  **Kept for the transition, and removed in 0.3.0:** a hidden `ticket-runner`
+  command that says it was renamed and runs `ponos`, the old variables, the
+  move of the old directories, old `ticket-runner://` links and the console
+  cookie and preferences of a browser signed in before the rename, and the
+  tickets whose Runner column or reports still carry the old name — still
+  recognised as this machine's. Old commits, pull requests and releases keep
+  the name they were made under.
+
 - **Notion takes one band on the site, not four rows.** *Your board in
   Notion* is now a sentence and the `init` command beside a single window that
   chains the three films — his report on the ticket, a text written into it, the

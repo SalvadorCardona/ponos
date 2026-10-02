@@ -1,6 +1,6 @@
 import * as React from "react"
 
-const KEY = "ticket-runner-theme"
+const KEY = "ponos-theme"
 
 export type Theme = "dark" | "light"
 

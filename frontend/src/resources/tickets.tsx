@@ -613,7 +613,7 @@ const COLUMN_MIN = "min-w-[17.5rem]"
 /* Whether the empty columns are drawn anyway, as the last person at this
  * browser left it. Hidden by default: on a board with three columns at "rien",
  * those three took as much room as the ones with work in them. */
-const EMPTY_KEY = "ticket-runner-board-empty-columns"
+const EMPTY_KEY = "ponos-board-empty-columns"
 
 function useEmptyColumnsShown() {
   const [shown, setShown] = React.useState(() => {

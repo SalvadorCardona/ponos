@@ -32,7 +32,7 @@ import "./i18n"
 export const SCOPE = "console"
 
 const ticketDialect: ApiDialectInterface = {
-  name: "ticket-runner",
+  name: "ponos",
   buildRequest(operation) {
     // Every resource declares its own reads and writes; nothing builds a
     // request from the path alone.

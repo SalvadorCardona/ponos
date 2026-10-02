@@ -14,8 +14,8 @@
  * sheet of the frames to look at instead (with `--keep`).
  *
  * What is filmed is the console as this checkout builds it (`PYTHONPATH=src`,
- * `src/ticket_runner/web/static` as the last `npm run build` left it), served
- * by `ticket-runner serve` on a throwaway Markdown board — the demonstration
+ * `src/ponos/web/static` as the last `npm run build` left it), served
+ * by `ponos serve` on a throwaway Markdown board — the demonstration
  * board of docs/console/*.webp, three projects and a few tickets — and driven
  * by headless Chrome ($CHROME, or google-chrome) over the DevTools protocol, as
  * scripts/measure-console.mjs does. Nothing of yours is read or written: the
@@ -58,7 +58,7 @@ const HEIGHT = 800;
 const TOKEN = 'film-console';
 const TITLE = 'Add a FAQ to the pricing page';
 
-const scratch = mkdtempSync(join(tmpdir(), 'ticket-runner-film-'));
+const scratch = mkdtempSync(join(tmpdir(), 'ponos-film-'));
 const children = [];
 const stop = () => {
   for (const child of children) child.kill('SIGTERM');
@@ -75,7 +75,7 @@ process.on('SIGINT', () => process.exit(130));
 const SEED = `
 import datetime, sys
 from pathlib import Path
-from ticket_runner import files
+from ponos import files
 
 board = files.Board(Path(sys.argv[1]))
 prop = board.settings().prop
@@ -110,8 +110,8 @@ print(projects["Landing page"])
 const RUN = `
 import json, sys, time, urllib.request
 from pathlib import Path
-from ticket_runner import files, state
-from ticket_runner.ticket import short_id
+from ponos import files, state
+from ponos.ticket import short_id
 
 board = files.Board(Path(sys.argv[1]))
 prop = board.settings().prop
@@ -122,7 +122,7 @@ page = ""
 
 def refresh():
     request = urllib.request.Request(base + "/api/refresh", data=b"{}", method="POST", headers={
-        "Content-Type": "application/json", "X-Ticket-Runner": "1", "Cookie": "ticket_runner_token=" + token})
+        "Content-Type": "application/json", "X-Ponos": "1", "Cookie": "ponos_token=" + token})
     urllib.request.urlopen(request).read()
 
 def write(event):
@@ -192,11 +192,11 @@ async function stage(theme) {
     PATH: `${join(scratch, 'bin')}:${process.env.PATH}`,
     HOME: join(here, 'home'),
     PYTHONPATH: join(root, 'src'),
-    TICKET_RUNNER_CONFIG: config,
+    PONOS_CONFIG: config,
     XDG_STATE_HOME: join(here, 'state'),
   };
   execFileSync('python3', ['-c', SEED, board], { env });
-  const server = spawn('python3', ['-m', 'ticket_runner', 'serve', '--port', String(port)], {
+  const server = spawn('python3', ['-m', 'ponos', 'serve', '--port', String(port)], {
     cwd: root,
     env,
     stdio: 'ignore',
@@ -356,9 +356,9 @@ listeners.set('Page.screencastFrame', ({ data, metadata, sessionId }) => {
 
 async function film(theme) {
   const { base, play, close } = await stage(theme);
-  await send('Network.setCookie', { name: 'ticket_runner_token', value: TOKEN, url: base });
+  await send('Network.setCookie', { name: 'ponos_token', value: TOKEN, url: base });
   const { identifier } = await send('Page.addScriptToEvaluateOnNewDocument', {
-    source: `localStorage.setItem("ticket-runner-theme", ${JSON.stringify(theme)}); localStorage.setItem("ticket-runner-language", "en");`,
+    source: `localStorage.setItem("ponos-theme", ${JSON.stringify(theme)}); localStorage.setItem("ponos-language", "en");`,
   });
   await send('Page.navigate', { url: `${base}/` });
   await until(() => evaluate(`!!(${card('Fix rounding on VAT totals')})`), 'the board');

@@ -325,8 +325,8 @@ export const FRENCH: Record<string, string> = {
     "Une récurrence écrite ici est un ticket qui revient tout seul.",
   Close: "Fermer",
   Link: "Lien",
-  "timer switched off — ticket-runner enable": "minuterie arrêtée — ticket-runner enable",
-  "timer not installed — ticket-runner enable": "minuterie non installée — ticket-runner enable",
+  "timer switched off — ponos enable": "minuterie arrêtée — ponos enable",
+  "timer not installed — ponos enable": "minuterie non installée — ponos enable",
   "timer masked in systemd": "minuterie masquée dans systemd",
   "timer on, with no next run": "minuterie active, sans prochaine passe",
   "no systemd on this machine": "pas de systemd sur cette machine",
@@ -747,8 +747,8 @@ export const FRENCH: Record<string, string> = {
   // by the test suite. In the order the page draws them.
 
   "Notion connection": "Connexion à Notion",
-  "The Notion integration that reads and writes your board. `ticket-runner init <page-url>` fills all of this in for you: come here only to fix it by hand.":
-    "L'intégration Notion qui lit et écrit votre tableau. `ticket-runner init <page-url>` remplit tout ceci pour vous : ne venez ici que pour corriger à la main.",
+  "The Notion integration that reads and writes your board. `ponos init <page-url>` fills all of this in for you: come here only to fix it by hand.":
+    "L'intégration Notion qui lit et écrit votre tableau. `ponos init <page-url>` remplit tout ceci pour vous : ne venez ici que pour corriger à la main.",
   "Integration token": "Jeton d'intégration",
   "The secret starting with `ntn_`, from notion.so/profile/integrations. Share your workspace page with the integration too: a token alone sees nothing.":
     "Le secret qui commence par `ntn_`, depuis notion.so/profile/integrations. Partagez aussi votre page d'espace de travail avec l'intégration : un jeton seul ne voit rien.",
@@ -780,8 +780,8 @@ export const FRENCH: Record<string, string> = {
     "Une page modifiée dans Notion et dans les fichiers depuis la dernière synchronisation : la modification la plus récente l'emporte, l'autre est gardée dans le journal de synchronisation.",
   "Keep the most recent": "Garder la plus récente",
   "Sync before every check of the board": "Synchroniser avant chaque consultation du tableau",
-  "Only for Both. Off: the two only sync when you run `ticket-runner sync`.":
-    "Seulement pour Les deux. Désactivé : ils ne se synchronisent que lorsque vous lancez `ticket-runner sync`.",
+  "Only for Both. Off: the two only sync when you run `ponos sync`.":
+    "Seulement pour Les deux. Désactivé : ils ne se synchronisent que lorsque vous lancez `ponos sync`.",
 
   "Running tickets": "Exécution des tickets",
   "How often the board is checked, how many tickets run at once, and how long each one may take.":
@@ -792,8 +792,8 @@ export const FRENCH: Record<string, string> = {
   "Check the board every (seconds)": "Consulter le tableau toutes les (secondes)",
   "The delay between two looks for Ready tickets. 10 starts a ticket within ten seconds; a look that finds nothing costs one request.":
     "Le délai entre deux recherches de tickets prêts. 10 démarre un ticket en moins de dix secondes ; une recherche qui ne trouve rien coûte une requête.",
-  "`ticket-runner enable` writes it into the systemd timer":
-    "`ticket-runner enable` l'écrit dans la minuterie systemd",
+  "`ponos enable` writes it into the systemd timer":
+    "`ponos enable` l'écrit dans la minuterie systemd",
   "Tickets in parallel": "Tickets en parallèle",
   "How many Claude sessions run at the same time. Each is a full session: 2 suits a laptop.":
     "Combien de sessions Claude tournent en même temps. Chacune est une session complète : 2 convient à un portable.",
@@ -891,8 +891,8 @@ export const FRENCH: Record<string, string> = {
   "After a resolved conflict, or with automatic validation. 0 does not wait — GitHub still refuses a merge a required check has not passed.":
     "Après un conflit résolu, ou avec la validation automatique. 0 n'attend pas — GitHub refuse quand même une fusion qu'une vérification obligatoire n'a pas validée.",
   "Keep a failed ticket's work folder": "Garder le dossier de travail d'un ticket en échec",
-  "Its worktree stays as the session left it, for you to look at. `ticket-runner clean --force` removes them.":
-    "Son worktree reste tel que la session l'a laissé, pour que vous l'examiniez. `ticket-runner clean --force` les supprime.",
+  "Its worktree stays as the session left it, for you to look at. `ponos clean --force` removes them.":
+    "Son worktree reste tel que la session l'a laissé, pour que vous l'examiniez. `ponos clean --force` les supprime.",
 
   "Project folders": "Dossiers des projets",
   "Which folder on this machine holds a Notion project's repository. Only needed when it is not found on its own: a `path` or `github` property on the project page does the same, for every machine.":
@@ -959,8 +959,8 @@ export const FRENCH: Record<string, string> = {
   "Your replies on Telegram or Slack become comments on the ticket. Off: messages are sent, replies are ignored.":
     "Vos réponses sur Telegram ou Slack deviennent des commentaires sur le ticket. Désactivé : les messages partent, les réponses sont ignorées.",
   "Telegram bot token": "Jeton du bot Telegram",
-  "From @BotFather (/newbot). `ticket-runner notify --pair` then finds the chat ID.":
-    "Chez @BotFather (/newbot). `ticket-runner notify --pair` trouve ensuite l'identifiant de la discussion.",
+  "From @BotFather (/newbot). `ponos notify --pair` then finds the chat ID.":
+    "Chez @BotFather (/newbot). `ponos notify --pair` trouve ensuite l'identifiant de la discussion.",
   "Telegram chat ID": "Identifiant de la discussion Telegram",
   "Only this chat is read: anybody can write to a bot.":
     "Seule cette discussion est lue : n'importe qui peut écrire à un bot.",
@@ -1034,16 +1034,16 @@ export const FRENCH: Record<string, string> = {
   "The console is then at `http://127.0.0.1:<port>`.":
     "La console est alors à l'adresse `http://127.0.0.1:<port>`.",
   "Console token": "Jeton de la console",
-  "Empty: one is drawn once and kept in `~/.local/state/ticket-runner/web/token`. Needed to listen beyond this machine.":
-    "Vide : un jeton est tiré une fois et gardé dans `~/.local/state/ticket-runner/web/token`. Nécessaire pour écouter au-delà de cette machine.",
+  "Empty: one is drawn once and kept in `~/.local/state/ponos/web/token`. Needed to listen beyond this machine.":
+    "Vide : un jeton est tiré une fois et gardé dans `~/.local/state/ponos/web/token`. Nécessaire pour écouter au-delà de cette machine.",
   "the console has to be restarted, and this page reopened with the new token":
     "la console doit être redémarrée, et cette page rouverte avec le nouveau jeton",
   "Sign-in email": "Adresse e-mail de connexion",
-  "With a password, the console asks for the two instead of the token. `TICKET_RUNNER_WEB_EMAIL` wins over it.":
-    "Avec un mot de passe, la console demande les deux au lieu du jeton. `TICKET_RUNNER_WEB_EMAIL` l'emporte.",
+  "With a password, the console asks for the two instead of the token. `PONOS_WEB_EMAIL` wins over it.":
+    "Avec un mot de passe, la console demande les deux au lieu du jeton. `PONOS_WEB_EMAIL` l'emporte.",
   "Sign-in password": "Mot de passe de connexion",
-  "`TICKET_RUNNER_WEB_PASSWORD` wins over it. Changing it signs every browser out; the token keeps working, for scripts.":
-    "`TICKET_RUNNER_WEB_PASSWORD` l'emporte. Le changer déconnecte tous les navigateurs ; le jeton continue de marcher, pour les scripts.",
+  "`PONOS_WEB_PASSWORD` wins over it. Changing it signs every browser out; the token keeps working, for scripts.":
+    "`PONOS_WEB_PASSWORD` l'emporte. Le changer déconnecte tous les navigateurs ; le jeton continue de marcher, pour les scripts.",
   "Send a dictated message right away": "Envoyer un message dicté aussitôt",
   "Off: the transcription waits in the field, to be read over first. Dictation needs the OpenRouter key.":
     "Désactivé : la transcription attend dans le champ, pour être relue d'abord. La dictée demande la clé OpenRouter.",

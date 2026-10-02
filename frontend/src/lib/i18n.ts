@@ -40,7 +40,7 @@ export const LANGUAGES: { code: Language; flag: string; name: string }[] = [
   { code: "fr", flag: "🇫🇷", name: "Français" },
 ]
 
-const KEY = "ticket-runner-language"
+const KEY = "ponos-language"
 
 /* The words the packages say, in the console's own. A board with nothing on it
  * is not "No data yet", and the action called `read` is `Open`. */

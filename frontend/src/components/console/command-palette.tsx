@@ -48,7 +48,7 @@ import { toggleTalk } from "./talk-drawer"
  * reading it from here would be a circle.
  */
 
-const OPENED = "ticket-runner:palette"
+const OPENED = "ponos:palette"
 
 /** Open the palette, from anywhere on the page — the button in the bar. */
 export const openPalette = () => window.dispatchEvent(new Event(OPENED))

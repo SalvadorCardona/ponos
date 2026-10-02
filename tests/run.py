@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The pure part of ticket-runner, under assertions.
+"""The pure part of ponos, under assertions.
 
     python3 tests/run.py
 
@@ -36,27 +36,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ticket_runner import config as C  # noqa: E402
-from ticket_runner import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
-from ticket_runner import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
-from ticket_runner import schedules, session, state, store, sync, systemd  # noqa: E402
-from ticket_runner import files, images  # noqa: E402
-from ticket_runner.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
-from ticket_runner import update, voice, workspace  # noqa: E402
-from ticket_runner import ticket as ticket_module  # noqa: E402
-from ticket_runner.runner import Runner  # noqa: E402
-from ticket_runner import __version__  # noqa: E402
-from ticket_runner.__main__ import _names, banner, subcommands, welcome  # noqa: E402
-from ticket_runner.__main__ import main as cli_main  # noqa: E402
-from ticket_runner.__main__ import build_parser  # noqa: E402
-from ticket_runner.web import api as web_api  # noqa: E402
-from ticket_runner.web import attachments as web_attachments  # noqa: E402
-from ticket_runner.web import console as web_console  # noqa: E402
-from ticket_runner.web import settings as web_settings  # noqa: E402
-from ticket_runner.web import live as web_live  # noqa: E402
-from ticket_runner.web import statistics as web_statistics  # noqa: E402
-from ticket_runner.ticket import short_id, slugify  # noqa: E402
-from ticket_runner.projects import _normalise  # noqa: E402
+from ponos import config as C  # noqa: E402
+from ponos import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
+from ponos import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
+from ponos import schedules, session, state, store, sync, systemd  # noqa: E402
+from ponos import files, images  # noqa: E402
+from ponos.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
+from ponos import legacy, update, voice, workspace  # noqa: E402
+from ponos import ticket as ticket_module  # noqa: E402
+from ponos.runner import Runner  # noqa: E402
+from ponos import __version__  # noqa: E402
+from ponos.__main__ import _names, banner, subcommands, welcome  # noqa: E402
+from ponos.__main__ import main as cli_main  # noqa: E402
+from ponos.__main__ import build_parser  # noqa: E402
+from ponos.web import api as web_api  # noqa: E402
+from ponos.web import attachments as web_attachments  # noqa: E402
+from ponos.web import console as web_console  # noqa: E402
+from ponos.web import settings as web_settings  # noqa: E402
+from ponos.web import live as web_live  # noqa: E402
+from ponos.web import statistics as web_statistics  # noqa: E402
+from ponos.ticket import short_id, slugify  # noqa: E402
+from ponos.projects import _normalise  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -121,7 +121,7 @@ def remotes_normalise_to_owner_and_name():
         assert _normalise(url) == "salvadorcardona/trader-ia", url
         # One reading of a reference, shared: the owner the account is chosen
         # by is the owner the project index files the clone under.
-        from ticket_runner import git as git_module
+        from ponos import git as git_module
 
         assert git_module.owner(url) == _normalise(url).split("/")[0], url
     assert _normalise("SalvadorCardona/trader-ia") == "salvadorcardona/trader-ia"
@@ -474,7 +474,7 @@ def a_merge_method_gh_would_refuse_never_reaches_it():
     assert _config('[runner]\nmerge_method = "MERGE"\n').runner.merge_method == "merge"
     assert _config('[runner]\nmerge_method = "fast-forward"\n').runner.merge_method == "squash"
 
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     assert set(git_module.MERGE_FLAGS) == set(C.MERGE_METHODS)
 
@@ -831,9 +831,9 @@ def a_bare_page_becomes_the_whole_board():
     board = _Board()
     report = provision.provision(board, _settings(), "root")
 
-    assert report.workspace == "db-ticket-runner"
+    assert report.workspace == "db-ponos"
     assert report.tickets == "db-tickets"
-    rows = board._rows["db-ticket-runner"]
+    rows = board._rows["db-ponos"]
     assert set(rows) == {"Tickets", "Projects", "Agents", "Context", "Schedules"}
 
     schema = board._schemas["db-tickets"]
@@ -884,7 +884,7 @@ def init_completes_a_board_that_predates_a_column():
     changelog telling its owner to add it by hand.
     """
     board = _Board(
-        databases={"root": {"ticket-runner": "dir"}, "page-tickets": {"Tickets": "db-tickets"}},
+        databases={"root": {"ponos": "dir"}, "page-tickets": {"Tickets": "db-tickets"}},
         rows={"dir": {"Tickets": "page-tickets"}},
         schemas={"db-tickets": {"Name": {"title": {}}, "Status": {"select": {"options": [
             {"name": "Ready", "color": "blue"}, {"name": "Mine", "color": "purple"},
@@ -910,7 +910,7 @@ def a_real_status_column_is_reported_rather_than_patched():
     "Blocked", weeks later, at the end of a session.
     """
     board = _Board(
-        databases={"root": {"ticket-runner": "dir"}, "page-tickets": {"Tickets": "db-tickets"}},
+        databases={"root": {"ponos": "dir"}, "page-tickets": {"Tickets": "db-tickets"}},
         rows={"dir": {"Tickets": "page-tickets"}},
         schemas={"db-tickets": {"Name": {"title": {}}, "Status": {"status": {"options": [
             {"name": "Ready"}, {"name": "In progress"},
@@ -927,7 +927,7 @@ def a_real_status_column_is_reported_rather_than_patched():
 @case
 def a_column_someone_retyped_is_left_alone():
     board = _Board(
-        databases={"root": {"ticket-runner": "dir"}, "page-tickets": {"Tickets": "db-tickets"}},
+        databases={"root": {"ponos": "dir"}, "page-tickets": {"Tickets": "db-tickets"}},
         rows={"dir": {"Tickets": "page-tickets"}},
         schemas={"db-tickets": {"Name": {"title": {}}, "Cost": {"rich_text": {}}}},
     )
@@ -1085,7 +1085,7 @@ def a_report_opens_on_what_is_expected_of_you_and_says_it_in_three_lines():
         assert len(first) <= 80, "a phone shows about that much, and then stops"
         assert len(report.splitlines()) == 3
         assert report.endswith("https://github.com/x/y/pull/1")
-        assert "ticket-runner@" not in report and "claude --resume" not in report
+        assert "ponos@" not in report and "claude --resume" not in report
 
     assert voice.Voice().spent(90.0, 0.0) == ("2 minutes", ""), "no price, nothing to say"
     assert voice.Voice().verdict("failed") == "⚠️ Failed", "and no facts, no dash"
@@ -1114,8 +1114,8 @@ def a_report_is_told_from_an_answer_by_the_mark_it_opens_with():
     assert not voice.is_report("Celui du dashboard, pas du site public.")
     # A board does not start over when the runner is updated: the reports
     # already on it opened with a host, and are still ours.
-    assert voice.is_report("ticket-runner@laptop — done.\nFait.")
-    assert voice.plain("ticket-runner@laptop — done.\nFait.") == "done.\nFait."
+    assert voice.is_report(f"{legacy.OLD}@laptop — done.\nFait.")
+    assert voice.plain(f"{legacy.OLD}@laptop — done.\nFait.") == "done.\nFait."
     assert voice.plain("✅ To review — PR #1") == "✅ To review — PR #1"
 
 
@@ -1207,7 +1207,7 @@ def _bare_runner(client) -> Runner:
     runner = Runner.__new__(Runner)
     runner.client = client
     runner.config = _config("")
-    runner.agent_label = "ticket-runner@laptop"
+    runner.agent_label = "ponos@laptop"
     runner.quiet = True
     runner._comments = {}
     runner._usage_warned = False
@@ -1226,7 +1226,7 @@ def _runner_reading(texts: list[str], error: str = "") -> tuple[Runner, list[str
 @case
 def a_question_a_run_asked_comes_back_with_its_answer():
     _, lines = _runner_reading([
-        "ticket-runner@laptop — blocked.\nThe ticket does not say which header.\n\n"
+        f"{legacy.OLD}@laptop — blocked.\nThe ticket does not say which header.\n\n"
         "Session: `abc-123` — `claude --resume abc-123`\nLog: /home/x/log.jsonl",
         "Celui du dashboard, pas du site public.",
     ])
@@ -1288,10 +1288,10 @@ def a_ticket_no_run_of_ours_ever_touched_is_left_alone():
     assert not _answered(["Une question posée avant qu'aucun run n'y touche."])
     # A report no longer says which machine wrote it — the board's own Runner
     # column does, and it is what a second machine reads to leave this alone.
-    assert not _answered([DONE, "et pour le footer ?"], agent="ticket-runner@vps"), (
+    assert not _answered([DONE, "et pour le footer ?"], agent="ponos@vps"), (
         "a ticket handled by another host is that host's to pick up"
     )
-    assert _answered([DONE, "et pour le footer ?"], agent="ticket-runner@laptop")
+    assert _answered([DONE, "et pour le footer ?"], agent="ponos@laptop")
     assert not _answered([REPORT, "réponse"], error="403 API token does not have access")
 
 
@@ -1327,7 +1327,7 @@ def _said(text: str, *, by: str = "human", thread: str = "d1", ident: str = "") 
 
 def _pending(comments: list[notion.Comment], mention: str = "") -> list[conversation.Thread]:
     return conversation.waiting(
-        comments, me=ME, spellings=conversation.names(mention, "Ticket Runner")
+        comments, me=ME, spellings=conversation.names(mention, "Ponos")
     )
 
 
@@ -1357,7 +1357,7 @@ def a_comment_with_no_thread_of_its_own_is_not_lumped_with_the_others():
 @case
 def replying_under_its_report_is_how_you_talk_to_it():
     pending = _pending([
-        _said("ticket-runner@laptop — done.\nFait.", by=ME),
+        _said(f"{legacy.OLD}@laptop — done.\nFait.", by=ME),
         _said("pourquoi ce nom de branche ?"),
     ])
     assert [thread.last.text for thread in pending] == ["pourquoi ce nom de branche ?"]
@@ -1371,14 +1371,14 @@ def naming_it_reaches_it_in_a_thread_it_never_spoke_in():
     assert len(_pending([_said("@claude tu en penses quoi ?", thread="d9")])) == 1
     # The word is yours to choose, and its own name always works.
     assert len(_pending([_said("@ia une idée ?", thread="d9")], mention="@ia")) == 1
-    assert len(_pending([_said("Ticket Runner, une idée ?", thread="d9")])) == 1
+    assert len(_pending([_said("Ponos, une idée ?", thread="d9")])) == 1
 
 
 @case
 def it_never_answers_itself():
     """The one failure mode here that would never stop on its own."""
     conversed = [
-        _said("ticket-runner@laptop — done.\nFait.", by=ME),
+        _said(f"{legacy.OLD}@laptop — done.\nFait.", by=ME),
         _said("pourquoi ?"),
         _said("parce que la branche existait déjà.", by=ME),
     ]
@@ -1402,15 +1402,15 @@ def a_question_it_has_already_answered_is_not_answered_twice():
 @case
 def naming_it_asks_for_words_where_a_bare_answer_asks_for_work():
     """The `blocked` loop is untouched; the mention is what opts out of it."""
-    report = "ticket-runner@laptop — blocked.\nQuel en-tête ?"
+    report = f"{legacy.OLD}@laptop — blocked.\nQuel en-tête ?"
     assert _answered([report, "celui du dashboard."]), "a plain answer still runs the ticket"
     assert not _answered([report, "@claude pourquoi tu demandes ?"])
-    assert not _answered([report, "Ticket Runner, pourquoi tu demandes ?"])
+    assert not _answered([report, "Ponos, pourquoi tu demandes ?"])
 
 
 @case
 def the_name_is_stripped_from_the_message_but_only_where_it_is_a_salutation():
-    spellings = conversation.names("", "Ticket Runner")
+    spellings = conversation.names("", "Ponos")
     assert conversation.strip_mention("@claude pourquoi ?", spellings) == "pourquoi ?"
     assert conversation.strip_mention("@claude — pourquoi ?", spellings) == "pourquoi ?"
     kept = "demande à claude ce qu'il en pense"
@@ -1430,7 +1430,7 @@ class _KnownCommentClient:
         return ME
 
     def my_name(self) -> str:
-        return "Ticket Runner"
+        return "Ponos"
 
 
 def _knowing(comments: list[notion.Comment]) -> Runner:
@@ -1445,7 +1445,7 @@ def _ticket():
     return type("T", (), {"page": notion.Page(id="p", url="", title="t")})()
 
 
-REPORT_BY_US = _said("ticket-runner@laptop — blocked.\nQuel en-tête ?", by=ME)
+REPORT_BY_US = _said(f"{legacy.OLD}@laptop — blocked.\nQuel en-tête ?", by=ME)
 
 
 @case
@@ -1500,14 +1500,14 @@ def its_own_answers_are_not_read_back_as_yours():
 @case
 def a_thread_transcript_tells_its_two_voices_apart():
     thread = conversation.threads([
-        _said("ticket-runner@laptop — done.", by=ME),
+        _said(f"{legacy.OLD}@laptop — done.", by=ME),
         _said("pourquoi ?"),
         _said("parce que.", by=ME),
         _said("et sinon ?"),
     ])[0]
     lines = conversation.transcript(thread, ME)
     assert lines == [
-        "you: ticket-runner@laptop — done.",
+        f"you: {legacy.OLD}@laptop — done.",
         "them: pourquoi ?",
         "you: parce que.",
     ], lines
@@ -1565,7 +1565,7 @@ class _ThreadClient:
         return self.pages[page_id]
 
     def my_name(self) -> str:
-        return "Ticket Runner"
+        return "Ponos"
 
 
 def _talking(pages: dict[str, list[notion.Comment]], *, claimed: set[str] = frozenset(), scan=20):
@@ -1583,7 +1583,7 @@ def _talking(pages: dict[str, list[notion.Comment]], *, claimed: set[str] = froz
 
 
 REPLIED_TO = [
-    _said("ticket-runner@laptop — done.\nFait.", by=ME),
+    _said(f"{legacy.OLD}@laptop — done.\nFait.", by=ME),
     _said("pourquoi ce nom de branche ?"),
 ]
 
@@ -1599,7 +1599,7 @@ def a_ticket_about_to_run_is_left_to_the_run_that_will_read_it():
 @case
 def a_pass_answers_one_thread_per_page_and_stops_at_five():
     two = [
-        _said("ticket-runner@laptop — done.", by=ME, thread="d1"),
+        _said(f"{legacy.OLD}@laptop — done.", by=ME, thread="d1"),
         _said("pourquoi ?", thread="d1"),
         _said("@claude et ici ?", thread="d2"),
     ]
@@ -1887,8 +1887,8 @@ def project_keys_match_what_claude_code_writes_on_disk():
         "-home-salva-workspace-labo-trader-ia"
     )
     assert session.project_key(
-        Path("/home/salva/.local/state/ticket-runner/worktrees/trader-ia-3ca45168")
-    ) == "-home-salva--local-state-ticket-runner-worktrees-trader-ia-3ca45168"
+        Path("/home/salva/.local/state/ponos/worktrees/trader-ia-3ca45168")
+    ) == "-home-salva--local-state-ponos-worktrees-trader-ia-3ca45168"
 
 
 @case
@@ -1919,7 +1919,7 @@ def a_deep_link_survives_a_round_trip():
     assert parsed.netloc == "session"
     assert parsed.path.strip("/") == "0486a9fd-44f6-4fff-9dee-9e58bc4062ba"
     assert parse_qs(parsed.query)["cwd"][0] == "/home/me/my work"
-    assert session.deep_link("abc") == "ticket-runner://session/abc"
+    assert session.deep_link("abc") == "ponos://session/abc"
 
 
 @case
@@ -1979,11 +1979,11 @@ def a_link_cannot_slip_an_option_into_ssh_or_claude():
     """
     identifier = "0486a9fd-44f6-4fff-9dee-9e58bc4062ba"
     for uri in (
-        f"ticket-runner://session/{identifier}?host=-oProxyCommand=touch%20/tmp/owned",
-        f"ticket-runner://session/{identifier}?host=me%40box%20-oProxyCommand=x",
-        f"ticket-runner://session/{identifier}?host=me;id",
-        "ticket-runner://session/--dangerously-skip-permissions",
-        "ticket-runner://session/abc$(id)",
+        f"ponos://session/{identifier}?host=-oProxyCommand=touch%20/tmp/owned",
+        f"ponos://session/{identifier}?host=me%40box%20-oProxyCommand=x",
+        f"ponos://session/{identifier}?host=me;id",
+        "ponos://session/--dangerously-skip-permissions",
+        "ponos://session/abc$(id)",
     ):
         try:
             session.resume_command(uri)
@@ -1999,7 +1999,7 @@ def a_link_cannot_slip_an_option_into_ssh_or_claude():
             session.deep_link(identifier, "/srv/work/app", "salva@vps.example.org")
         )
         _, bracketed = session.resume_command(
-            f"ticket-runner://session/{identifier}?host=me%40%5B::1%5D"
+            f"ponos://session/{identifier}?host=me%40%5B::1%5D"
         )
     finally:
         session.shutil.which = original
@@ -2080,8 +2080,8 @@ def the_console_starts_on_the_file_install_sh_leaves():
     with _state_home(), tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "config.toml"
         shutil.copy(example, path)
-        previous = os.environ.get("TICKET_RUNNER_CONFIG")
-        os.environ["TICKET_RUNNER_CONFIG"] = str(path)
+        previous = os.environ.get("PONOS_CONFIG")
+        os.environ["PONOS_CONFIG"] = str(path)
         printed, errors = io.StringIO(), io.StringIO()
         try:
             with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(errors):
@@ -2094,9 +2094,9 @@ def the_console_starts_on_the_file_install_sh_leaves():
                     raise AssertionError("run went ahead with no Notion token")
         finally:
             if previous is None:
-                os.environ.pop("TICKET_RUNNER_CONFIG", None)
+                os.environ.pop("PONOS_CONFIG", None)
             else:
-                os.environ["TICKET_RUNNER_CONFIG"] = previous
+                os.environ["PONOS_CONFIG"] = previous
         assert printed.getvalue().strip(), "a token to open the console with"
         assert "notion.token" in errors.getvalue()
 
@@ -2196,7 +2196,7 @@ def the_api_is_notions_unless_a_test_says_otherwise():
     """The one seam `tests/functional.py` needs, and what it must not become.
 
     An installation talks to Notion and to nowhere else: the variable is unset,
-    and an empty one is as good as unset — otherwise a `TICKET_RUNNER_NOTION_API=`
+    and an empty one is as good as unset — otherwise a `PONOS_NOTION_API=`
     left in a unit file would point a real runner at nothing at all.
     """
     previous = os.environ.get(notion.API_ENV)
@@ -2253,14 +2253,14 @@ def properties_are_read_back_as_plain_python():
             "Empty": {"type": "status", "status": None},
             "Cost": {"type": "number", "number": 0.42},
             "Project": {"type": "relation", "relation": [{"id": "abc"}]},
-            "Session": {"type": "url", "url": "ticket-runner://session/x"},
+            "Session": {"type": "url", "url": "ponos://session/x"},
         },
     )
     assert notion.read(page, "Status") == "Done"
     assert notion.read(page, "Empty") is None
     assert notion.read(page, "Cost") == 0.42
     assert notion.read(page, "Project") == ["abc"]
-    assert notion.read(page, "Session") == "ticket-runner://session/x"
+    assert notion.read(page, "Session") == "ponos://session/x"
     assert notion.read(page, "Absent") is None
 
 
@@ -2325,7 +2325,7 @@ def a_bare_date_means_the_start_of_that_day_here():
     """Not midnight UTC: a ticket dated "30 August" starts on the 30th, locally."""
     from datetime import datetime
 
-    from ticket_runner.schedules import scheduled_for
+    from ponos.schedules import scheduled_for
 
     moment = scheduled_for("2026-08-30")
     assert moment is not None and moment.tzinfo is not None
@@ -2335,7 +2335,7 @@ def a_bare_date_means_the_start_of_that_day_here():
 
 @case
 def a_date_with_a_time_keeps_its_offset():
-    from ticket_runner.schedules import scheduled_for
+    from ponos.schedules import scheduled_for
 
     moment = scheduled_for("2026-08-30T14:30:00.000+02:00")
     assert moment is not None
@@ -2346,7 +2346,7 @@ def a_date_with_a_time_keeps_its_offset():
 @case
 def an_unreadable_date_never_holds_a_ticket_back():
     """A value the runner cannot parse must not silently freeze a ticket."""
-    from ticket_runner.schedules import scheduled_for
+    from ponos.schedules import scheduled_for
 
     assert scheduled_for(None) is None
     assert scheduled_for("") is None
@@ -2361,7 +2361,7 @@ def notion_truncates_a_datetime_to_the_minute():
     it names. Worth pinning: a future change here would look like the runner
     firing early.
     """
-    from ticket_runner.schedules import scheduled_for
+    from ponos.schedules import scheduled_for
 
     stored = scheduled_for("2026-08-28T14:48:00.000+02:00")
     assert stored is not None and (stored.hour, stored.minute, stored.second) == (14, 48, 0)
@@ -2530,7 +2530,7 @@ def _recurring(pages, *, tickets=None, refuses="", schedule=True, dry_run=False)
         notify=C.Notify(desktop=False),
     )
     runner._workspace = workspace.Workspace(tickets="db-tickets", schedules="db-schedules")
-    runner.agent_label = "ticket-runner@laptop"
+    runner.agent_label = "ponos@laptop"
     runner.quiet = True
     runner.dry_run = dry_run
     return runner
@@ -2744,7 +2744,7 @@ def _state_home():
     previous = os.environ.get("XDG_STATE_HOME")
     os.environ["XDG_STATE_HOME"] = tempfile.mkdtemp()
     try:
-        yield Path(os.environ["XDG_STATE_HOME"]) / "ticket-runner"
+        yield Path(os.environ["XDG_STATE_HOME"]) / "ponos"
     finally:
         if previous is None:
             os.environ.pop("XDG_STATE_HOME", None)
@@ -2895,9 +2895,9 @@ def an_update_puts_the_console_on_the_code_it_just_installed():
         ran = asked.read_text().splitlines()
 
     assert error == "", error
-    restarts = [line for line in ran if "ticket-runner-web.service" in line]
+    restarts = [line for line in ran if "ponos-web.service" in line]
     assert restarts, "the console is left running the code the update replaced"
-    assert restarts[0] == "--user try-restart ticket-runner-web.service", (
+    assert restarts[0] == "--user try-restart ponos-web.service", (
         "a plain restart would start a console somebody stopped on purpose"
     )
     assert ran.index(restarts[0]) > ran.index("--user daemon-reload"), (
@@ -2967,7 +2967,7 @@ def a_version_that_does_not_start_is_taken_back_and_one_that_does_is_kept():
     back to the commit it replaced when it does not.
     """
     with _installable() as (commit, app, first):
-        broken = commit("broken", lambda work: (work / "src/ticket_runner/__main__.py").write_text(
+        broken = commit("broken", lambda work: (work / "src/ponos/__main__.py").write_text(
             "this is not python\n"))
         status = update.check(app, "main")
         assert status.stale and status.latest == broken
@@ -2981,7 +2981,7 @@ def a_version_that_does_not_start_is_taken_back_and_one_that_does_is_kept():
         assert not app.with_name(f"app-{broken[:12]}").exists(), "the broken version was kept"
 
         fixed = commit("fixed", lambda work: shutil.copy(
-            ROOT / "src/ticket_runner/__main__.py", work / "src/ticket_runner/__main__.py"))
+            ROOT / "src/ponos/__main__.py", work / "src/ponos/__main__.py"))
         status = update.check(app, "main")
         assert update.install(status, 600, app) == ""
         assert _head(app) == fixed
@@ -2995,7 +2995,7 @@ def a_version_that_does_not_start_is_taken_back_and_one_that_does_is_kept():
         assert _head(app) == third
         assert not previous.exists(), "every version ever installed is kept"
         assert _head(app.with_name(f"app-{fixed[:12]}")) == fixed, "the previous one is gone"
-        launcher = Path(os.environ["HOME"]) / ".local/bin/ticket-runner"
+        launcher = Path(os.environ["HOME"]) / ".local/bin/ponos"
         assert str(app) in launcher.read_text(), "the launcher still points at the old sources"
         assert not update.waiting(app).stale, (
             "the header still offered the update it had just installed"
@@ -3032,7 +3032,7 @@ class _FakeUpdate:
         self.status = update.Status(current="a" * 40, latest="b" * 40)
 
     def __enter__(self):
-        from ticket_runner.web import upgrade as web_upgrade
+        from ponos.web import upgrade as web_upgrade
 
         self.module = web_upgrade.update_module
         self.kept = {name: getattr(self.module, name) for name in ("waiting", "check", "install")}
@@ -3065,7 +3065,7 @@ def an_update_from_the_console_waits_for_the_ticket_in_flight():
     timer's next pass finds it busy and claims nothing. Called off while it
     waits, nothing is installed; a chat turn is waited for as well.
     """
-    from ticket_runner.web import upgrade as web_upgrade
+    from ponos.web import upgrade as web_upgrade
 
     with _state_home(), _FakeUpdate() as fake:
         said: list[dict] = []
@@ -3113,7 +3113,7 @@ def an_update_from_the_console_waits_for_the_ticket_in_flight():
 
 @case
 def a_failed_update_from_the_console_says_why_and_restarts_nothing():
-    from ticket_runner.web import upgrade as web_upgrade
+    from ponos.web import upgrade as web_upgrade
 
     with _state_home(), _FakeUpdate("the new version does not start: boom — back on aaaaaaaa"):
         restarted: list[int] = []
@@ -3128,7 +3128,7 @@ def a_failed_update_from_the_console_says_why_and_restarts_nothing():
         assert "failed:" in web_upgrade.log_path().read_text(encoding="utf-8"), "no log to read"
         assert not restarted, "the console was restarted onto a version that was taken back"
         offer = upgrade.offer(local=False)
-        assert offer["available"] and not offer["automatic"] and offer["command"] == "ticket-runner update"
+        assert offer["available"] and not offer["automatic"] and offer["command"] == "ponos update"
 
 
 @case
@@ -3139,7 +3139,7 @@ def the_update_endpoint_answers_only_this_machine_and_the_console_page():
     import urllib.error
     import urllib.request
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     started: list[int] = []
 
@@ -3169,7 +3169,7 @@ def the_update_endpoint_answers_only_this_machine_and_the_console_page():
         except urllib.error.HTTPError as error:
             return error.code
 
-    guard = {"X-Ticket-Runner": "1"}
+    guard = {"X-Ponos": "1"}
     try:
         assert post("/api/update") == 403, "a form posted from another page"
         assert post("/api/update", Origin="http://evil.example", **guard) == 403
@@ -3245,8 +3245,8 @@ def a_copy_of_a_secret_is_private_before_it_holds_anything():
     readable by the group for the moment in between — the configuration holds
     the Notion token, the bot tokens and the console's password.
     """
-    from ticket_runner import disk
-    from ticket_runner.web import server as web_server
+    from ponos import disk
+    from ponos.web import server as web_server
 
     created: list[tuple[str, int]] = []
     original = disk.os.open
@@ -3287,7 +3287,7 @@ def a_claim_is_written_whole_or_not_at_all():
     An empty `claims.json` reads as "no claim", and a validated ticket without
     its claim comes back from a crash as work to redo.
     """
-    from ticket_runner import disk
+    from ponos import disk
 
     with _state_home():
         state.claim("a" * 32, "Validated")
@@ -3331,7 +3331,7 @@ def a_timer_with_no_next_run_is_stalled_rather_than_enabled():
     starved = systemd.describe(
         "enabled",
         "SubState=elapsed\nNextElapseUSecRealtime=\nNextElapseUSecMonotonic=infinity\n",
-        "NEXT LEFT LAST PASSED UNIT ACTIVATES\n- - Mon 2026-09-07 13:57:17 CEST 2h ago ticket-runner.timer ticket-runner.service\n",
+        "NEXT LEFT LAST PASSED UNIT ACTIVATES\n- - Mon 2026-09-07 13:57:17 CEST 2h ago ponos.timer ponos.service\n",
     )
     assert starved.stalled and starved.label == "stalled"
     assert starved.row.startswith("- -"), "the list-timers line travels with the verdict"
@@ -3361,7 +3361,7 @@ def the_timer_counts_from_its_own_start():
         units = update.write_units(600, ROOT)
     finally:
         os.environ["HOME"] = previous
-    timer = (units / "ticket-runner.timer").read_text()
+    timer = (units / "ponos.timer").read_text()
     for directive in ("OnActiveSec=600s", "OnBootSec=600s", "OnUnitActiveSec=600s"):
         assert directive in timer, directive
     assert "@" not in timer, "a placeholder left in the unit"
@@ -3804,7 +3804,7 @@ def a_ticket_that_raises_fails_alone_and_the_pass_goes_on():
 def a_git_command_that_hangs_is_a_failure_git_callers_already_read():
     """`subprocess.TimeoutExpired` was caught nowhere: a fetch on a remote that
     stopped answering raised through every caller up to the pass itself."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     result = git_module.run([sys.executable, "-c", "import time; print('begun', flush=True); time.sleep(30)"], timeout=1)
     assert not result.ok and result.code == git_module.TIMED_OUT, result
@@ -3816,7 +3816,7 @@ def an_account_gh_did_not_know_is_asked_again_once_it_might():
     """A token found is kept; a refusal is kept for a minute and no more — the
     console lives for weeks, and a `gh auth login` typed after one failed lookup
     has to be heard without a restart."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     answers = [git_module.Result(1, "", "not logged in"), git_module.Result(0, "gho-new", "")]
     asked: list[list[str]] = []
@@ -3853,7 +3853,7 @@ def a_ticket_waiting_for_credit_goes_before_one_that_never_started():
     session_id = "11111111-2222-3333-4444-555555555555"
     # Still ready — it never went anywhere. The tick is the only difference.
     parked = _ticked(_ready("p-parked"))
-    parked.properties["Session"] = {"type": "url", "url": f"ticket-runner://session/{session_id}"}
+    parked.properties["Session"] = {"type": "url", "url": f"ponos://session/{session_id}"}
     with _state_home(), _usage(_windows(10)):
         runner = _reserving([_ready("p-fresh"), parked])
         queued = runner.queue()[0]
@@ -4033,7 +4033,7 @@ def a_template_only_body_counts_as_blank():
     They are not blank text, so without this they would travel into the prompt
     as noise and stop the "everything is in the title" fallback from firing.
     """
-    from ticket_runner.ticket import is_blank
+    from ponos.ticket import is_blank
 
     assert is_blank("## Ce qu'il faut faire\n## Où\n## Comment on saura\n")
     assert is_blank("")
@@ -4127,7 +4127,7 @@ def _board_runner(
         notify=C.Notify(desktop=False),
     )
     runner._workspace = workspace.Workspace(tickets="db")
-    runner.agent_label = "ticket-runner@laptop"
+    runner.agent_label = "ponos@laptop"
     runner.quiet = True
     runner.dry_run = False
     runner._claimed = set()
@@ -4150,7 +4150,7 @@ def _github(states: dict[str, str], merge=None, blockers: dict[str, str] | None 
     `blockers` is what GitHub says stands in a pull request's way before a merge
     is asked — see `git.merge_blocker`. Nothing, unless a test says otherwise.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     asked, original = git_module.pull_request_state, git_module.merge_pull_request
     blocker = git_module.merge_blocker
@@ -4273,10 +4273,10 @@ def what_the_runner_writes_on_github_and_on_a_schedules_ticket_follows_the_langu
     body = said.pull_request_body("Le header est parti.", "https://notion.so/t", "abc", 3)
     assert body == (
         "Le header est parti.\n\n---\nTicket Notion : https://notion.so/t\n"
-        "Session Claude Code : `abc`\nOuverte par ticket-runner (3 commits)."
+        "Session Claude Code : `abc`\nOuverte par ponos (3 commits)."
     ), body
     assert voice.Voice().pull_request_body("s", "u", "abc", 1).endswith(
-        "Opened by ticket-runner (1 commit)."
+        "Opened by ponos (1 commit)."
     ), "and English says what it always said"
     assert said.say("born-of-schedule", name="Veille", stamp="2026-10-02", url="u") == (
         "*Né de la récurrence « Veille », 2026-10-02* — u"
@@ -4290,7 +4290,7 @@ def what_the_runner_writes_on_github_and_on_a_schedules_ticket_follows_the_langu
 def the_console_opens_in_the_language_the_file_names_and_follows_the_reports_by_default():
     """One line — `language = "fr"` — is enough to have everything in French;
     `app_language` is for whoever wants the two apart."""
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     settings = C.Runner()
     assert settings.interface_language() == "", "nothing said: the browser decides"
@@ -4350,7 +4350,7 @@ def _validating(
     refuses: str = "",
 ):
     """Run `deliver` against a fake board, a fake GitHub, and no session."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     runner = _board_runner(pages, status, options)
     merges: list[tuple[str, str]] = []
@@ -4598,7 +4598,7 @@ def a_validated_date_that_cannot_be_read_never_holds_a_publication_back():
 
 @case
 def what_the_validated_column_is_holding_back_is_listed():
-    """`ticket-runner list` shows the whole calendar, both columns of it."""
+    """`ponos list` shows the whole calendar, both columns of it."""
     runner = _board_runner(
         [
             _dated(_reviewed("plater", "Validated", None), _in(days=3)),
@@ -4620,7 +4620,7 @@ def a_publication_a_crash_interrupted_comes_back_as_a_question():
         title="Le post",
         properties={
             "Status": {"type": "status", "status": {"name": "In progress"}},
-            "Runner": {"type": "rich_text", "rich_text": [{"plain_text": "ticket-runner@laptop"}]},
+            "Runner": {"type": "rich_text", "rich_text": [{"plain_text": "ponos@laptop"}]},
         },
         raw={"last_edited_time": "2020-01-01T00:00:00.000+00:00"},
     )
@@ -4644,7 +4644,7 @@ def a_ticket_claimed_from_ready_is_still_put_back_in_the_queue():
         title="Le header",
         properties={
             "Status": {"type": "status", "status": {"name": "In progress"}},
-            "Runner": {"type": "rich_text", "rich_text": [{"plain_text": "ticket-runner@laptop"}]},
+            "Runner": {"type": "rich_text", "rich_text": [{"plain_text": "ponos@laptop"}]},
         },
         raw={"last_edited_time": "2020-01-01T00:00:00.000+00:00"},
     )
@@ -4681,7 +4681,7 @@ def a_board_without_a_runner_column_still_gets_its_abandoned_tickets_back():
 
 @case
 def a_ticket_this_run_holds_is_never_put_back():
-    runner = _board_runner([_in_progress("p-held", None), _in_progress("p-signed", "ticket-runner@laptop")], {})
+    runner = _board_runner([_in_progress("p-held", None), _in_progress("p-signed", "ponos@laptop")], {})
     runner.client.columns = {"Runner": "rich_text"}
     runner._claimed = {"pheld", "psigned"}  # `Ticket.id`, dashes dropped
     with _state_home():
@@ -4694,8 +4694,8 @@ def with_a_runner_column_only_this_hosts_tickets_come_back():
     """Unchanged where the board can say who took a ticket."""
     runner = _board_runner(
         [
-            _in_progress("p-mine", "ticket-runner@laptop"),
-            _in_progress("p-theirs", "ticket-runner@desktop"),
+            _in_progress("p-mine", "ponos@laptop"),
+            _in_progress("p-theirs", "ponos@desktop"),
             _in_progress("p-unsigned", None),
         ],
         {},
@@ -4740,7 +4740,7 @@ def a_write_to_a_column_the_board_lacks_is_said_once_a_run():
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         for page in ("p1", "p2", "p3"):
-            runner.client.update("db", page, {"Status": "In progress", "Runner": "ticket-runner@laptop"})
+            runner.client.update("db", page, {"Status": "In progress", "Runner": "ponos@laptop"})
             runner.client.update("db", page, {"Progress": "reading the code"})
     said = out.getvalue().splitlines()
     assert len(said) == 2, said
@@ -4751,13 +4751,13 @@ def a_write_to_a_column_the_board_lacks_is_said_once_a_run():
                for body in runner.client.patched[::2]), "the status still goes through"
     runner._unwritten = set()  # what `tick` does: the next run says it again
     with contextlib.redirect_stdout(out):
-        runner.client.update("db", "p4", {"Runner": "ticket-runner@laptop"})
+        runner.client.update("db", "p4", {"Runner": "ponos@laptop"})
     assert out.getvalue().count("“Runner”") == 2
 
 
 @case
 def doctor_names_every_column_the_board_lacks_and_counts_it():
-    from ticket_runner.__main__ import _doctor_columns
+    from ponos.__main__ import _doctor_columns
 
     settings = C.Notion(properties=dict(C._DEFAULT_PROPERTIES))
     complete = {settings.prop(key): kinds_accepted[0] for key, (kinds_accepted, _) in store.COLUMNS.items()}
@@ -4773,7 +4773,7 @@ def doctor_names_every_column_the_board_lacks_and_counts_it():
     said = re.sub(r"\x1b\[[0-9;]*m", "", out.getvalue())
     assert "✗ “Runner” missing — which machine took a ticket is not written" in said, said
     assert "✗ “Progress” missing — nothing says what a session is doing" in said, said
-    assert "ticket-runner init adds the missing ones" in said
+    assert "ponos init adds the missing ones" in said
 
     retyped = {**complete, "Cost": "rich_text"}
     out = io.StringIO()
@@ -5157,7 +5157,7 @@ class _OneRepository:
     """A resolver for a board whose single project is a repository."""
 
     def resolve(self, client, page_id: str, *, clone: bool = False) -> projects.Project:
-        return projects.Project(name="ticket-runner", path=Path("/repo"))
+        return projects.Project(name="ponos", path=Path("/repo"))
 
 
 def _nameless(title: str, body: str, refuse: bool = False):
@@ -5225,7 +5225,7 @@ def a_project_found_by_a_fallback_says_so_on_the_ticket():
     class _StaleRepository:
         def resolve(self, client, page_id: str, *, clone: bool = False) -> projects.Project:
             return projects.Project(
-                name="ticket-runner",
+                name="ponos",
                 path=Path("/repo"),
                 note="Repository found by its origin remote, x/y, but a more explicit "
                 "declaration is wrong: /old, from the project's Path property, is not "
@@ -5252,7 +5252,7 @@ def a_repository_the_run_had_to_fetch_is_said_on_the_ticket():
         def resolve(self, client, page_id: str, *, clone: bool = False) -> projects.Project:
             self.asked.append(clone)
             return projects.Project(
-                name="ticket-runner",
+                name="ponos",
                 path=Path("/repo"),
                 cloned="`Salva/site` was nowhere under ~/workspace — cloned into /repo.",
             )
@@ -6249,7 +6249,7 @@ def the_console_takes_a_file_as_a_raw_body_and_serves_it_back_sandboxed():
     import urllib.error
     import urllib.request
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     with _chat("[web]\nattachment_max_mb = 1\n") as chat:
         api = _bare_api(_TalkClient([]))
@@ -6261,7 +6261,7 @@ def the_console_takes_a_file_as_a_raw_body_and_serves_it_back_sandboxed():
         def post(path: str, body: bytes, guard: bool = True, kind: str = "image/png"):
             headers = {"Authorization": "Bearer tok", "Content-Type": kind}
             if guard:
-                headers["X-Ticket-Runner"] = "1"
+                headers["X-Ponos"] = "1"
             request = urllib.request.Request(base + path, data=body, headers=headers, method="POST")
             try:
                 with urllib.request.urlopen(request, timeout=5) as response:
@@ -6566,7 +6566,7 @@ def a_notion_that_will_not_answer_reaches_the_console_as_a_notice():
 @case
 def a_session_identifier_is_read_from_either_shape_of_the_column():
     """A URL column holds a link, a text column holds the bare ID. Same session."""
-    from ticket_runner.web.api import _session_id
+    from ponos.web.api import _session_id
 
     identifier = "6f1c2b70-1c39-4f0a-9a52-1f3c1a2b3c4d"
     assert _session_id(identifier) == identifier
@@ -6578,7 +6578,7 @@ def a_session_identifier_is_read_from_either_shape_of_the_column():
 @case
 def the_console_only_listens_beyond_localhost_when_told_to():
     """Behind the port sits bypassPermissions: a generated token is not consent."""
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     configuration = C.Config(
         notion=C.Notion(token="ntn_x", tickets_database="a" * 32),
@@ -6615,7 +6615,7 @@ def an_email_and_a_password_are_a_way_into_the_console():
     the machine, and a browser that had to sign in again every morning would be
     the token all over again.
     """
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     assert web_server.sign_in(_web_config(), "tok") is None
     assert web_server.sign_in(_web_config(email="me@example.com"), "tok") is None, (
@@ -6646,7 +6646,7 @@ def a_token_in_the_address_is_taken_out_and_the_destination_left_in():
     """
     from urllib.parse import parse_qs
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     assert web_server.landing("token=abc") == "/", "nothing else to say: the console opens"
     assert web_server.landing("") == "/"
@@ -6665,11 +6665,11 @@ def a_token_in_the_address_is_taken_out_and_the_destination_left_in():
 def the_sign_in_page_asks_the_way_the_console_does():
     """It posts rather than navigates, and carries the header every write does.
 
-    A form that navigated could not set `X-Ticket-Runner`, which is what tells a
+    A form that navigated could not set `X-Ponos`, which is what tells a
     request from the console apart from one a page you had open made — so the
     page written here has to agree with the constant the server checks.
     """
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     assert web_server.GUARD_HEADER in web_server.SIGN_IN, "the login would be refused as CSRF"
     assert "/api/login" in web_server.SIGN_IN
@@ -6689,7 +6689,7 @@ def the_first_connection_is_offered_until_somebody_says_how_to_get_in():
     them: nobody chose it, and it is the very secret the first connection is
     there to stop somebody having to go and find.
     """
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     bare = _web_config()
     assert web_server.claimable(bare, None), "a console nobody decided anything about"
@@ -6734,8 +6734,8 @@ def the_first_connection_writes_the_whole_installation_at_once():
     closes the page behind it: once the email and the password are in, the
     console is claimed and this is not a way in any more.
     """
-    from ticket_runner.web import server as web_server
-    from ticket_runner.web import setup as web_setup
+    from ponos.web import server as web_server
+    from ponos.web import setup as web_setup
 
     path, _ = _saved()
     api = _Fresh(path)
@@ -6772,7 +6772,7 @@ def a_first_connection_that_cannot_be_signed_into_later_is_refused():
     runner that runs code on this machine — so the floor is said in the form
     rather than discovered by whoever grinds against it.
     """
-    from ticket_runner.web import setup as web_setup
+    from ponos.web import setup as web_setup
 
     path, _ = _saved()
     before = path.read_text(encoding="utf-8")
@@ -6893,7 +6893,7 @@ def the_open_curve_starts_from_the_board_as_it_stood_and_ends_on_it():
         _card("gone", "done", "2026-07-01T09:00:00.000Z", edited="2026-09-03T09:00:00.000Z"),
         _card("quick", "done", "2026-09-02T09:00:00.000Z", edited="2026-09-02T18:00:00.000Z"),
         _card("new", "ready", "2026-09-04T09:00:00.000Z", project="Opoil"),
-        _card("failed", "failed", "2026-09-04T12:00:00.000Z", project="ticket-runner"),
+        _card("failed", "failed", "2026-09-04T12:00:00.000Z", project="ponos"),
     ]
     history = [
         {"at": "2026-09-02T12:00:00+00:00", "id": "quick", "status": "done", "cost_usd": 1.5},
@@ -6910,7 +6910,7 @@ def the_open_curve_starts_from_the_board_as_it_stood_and_ends_on_it():
     assert {item["name"]: item["count"] for item in figures["projects"]} == {
         "": 1,
         "Opoil": 1,
-        "ticket-runner": 1,
+        "ponos": 1,
     }
     assert {item["key"]: item["count"] for item in figures["statuses"]} == {
         "done": 1,
@@ -6982,7 +6982,7 @@ def a_message_typed_at_a_ticket_is_a_comment_in_your_own_voice():
     that never ends on its own.
     """
     report = notion.Comment(
-        "ticket-runner@laptop — blocked.\nWhich header?",
+        f"{legacy.OLD}@laptop — blocked.\nWhich header?",
         discussion_id="d-report",
         created_by="runner-id",
     )
@@ -7022,7 +7022,7 @@ def the_discussion_of_a_ticket_reads_as_a_conversation():
     """The ticket's terminal is the page's comments, said by who said them."""
     client = _TalkClient([
         notion.Comment(
-            "ticket-runner@laptop — blocked.\nWhich header?",
+            f"{legacy.OLD}@laptop — blocked.\nWhich header?",
             created_time="2026-08-30T10:00:00.000Z",
             discussion_id="d-report",
             created_by="runner-id",
@@ -7534,7 +7534,7 @@ def the_pages_before_the_console_speak_the_browsers_language():
     has a label that names it, rather than a greyed example that vanishes the
     moment somebody starts typing.
     """
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     assert web_server.language_of("fr-FR,fr;q=0.9,en;q=0.8") == "fr"
     assert web_server.language_of("de-DE,en-GB;q=0.7") == "en"
@@ -7554,7 +7554,7 @@ def the_pages_before_the_console_speak_the_browsers_language():
 @case
 def the_gate_says_where_this_machines_token_actually_is():
     """`~/.local/state/…` printed as a constant was wrong wherever XDG_STATE_HOME is set."""
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     previous = os.environ.get("XDG_STATE_HOME")
     os.environ["XDG_STATE_HOME"] = "/srv/elsewhere"
@@ -7565,7 +7565,7 @@ def the_gate_says_where_this_machines_token_actually_is():
             os.environ.pop("XDG_STATE_HOME", None)
         else:
             os.environ["XDG_STATE_HOME"] = previous
-    assert "/srv/elsewhere/ticket-runner/web/token" in page
+    assert "/srv/elsewhere/ponos/web/token" in page
     assert "~/.local/state" not in page
 
 
@@ -7580,7 +7580,7 @@ def a_write_refused_before_its_body_is_read_closes_the_connection():
     """
     import socket as sockets
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     api = _bare_api(_TalkClient([]))
     console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
@@ -7590,7 +7590,7 @@ def a_write_refused_before_its_body_is_read_closes_the_connection():
         port = console.server_address[1]
         with sockets.create_connection(("127.0.0.1", port), timeout=5) as connection:
             connection.sendall(
-                b"POST /api/refresh HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Ticket-Runner: 1\r\n"
+                b"POST /api/refresh HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Ponos: 1\r\n"
                 b"Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"
                 b"GET /api/state HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
             )
@@ -7610,14 +7610,14 @@ def a_write_refused_before_its_body_is_read_closes_the_connection():
 def a_client_that_hangs_up_mid_answer_leaves_no_trace():
     """A tab closed while its board was on the way is not an error.
 
-    The journal of `ticket-runner-web.service` held 38 tracebacks by 1 October
+    The journal of `ponos-web.service` held 38 tracebacks by 1 October
     2026, two per closed tab: the `BrokenPipeError` of the write, then the 500
     the route's `except Exception` tried to send on the same dead socket.
     """
     import io
     import socket as sockets
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     done = threading.Event()
 
@@ -8324,7 +8324,7 @@ def an_answer_from_a_phone_becomes_the_comment_that_wakes_the_ticket():
     page, text = runner.client.written[0]
     assert page == TICKET
     assert "go ahead" in text
-    assert not text.startswith("ticket-runner@"), (
+    assert not text.startswith("ponos@"), (
         "signed as ours, the answer would close the ticket instead of waking it"
     )
     assert stub.said and "Le header" in stub.said[0], "an answer nobody confirms is a phone call"
@@ -8440,7 +8440,7 @@ def a_desktop_notification_takes_you_to_the_ticket_it_names():
         )
     assert len(launched) == 1, "the plain notification is not sent on top of the clickable one"
     command = launched[0]
-    assert command[1:3] == ["-m", "ticket_runner.notify"], (
+    assert command[1:3] == ["-m", "ponos.notify"], (
         "the click is waited for beside the run, never inside it"
     )
     assert command[3:] == [
@@ -8549,7 +8549,7 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
 @contextmanager
 def _git_answering(**answers):
     """git and gh, replaced by what they would have said."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     original = {name: getattr(git_module, name) for name in answers}
     for name, replacement in answers.items():
@@ -8569,7 +8569,7 @@ def _cleaning(worktrees: dict[str, dict]) -> tuple[str, list[str]]:
     `gh` finds on it, how many commits it has of its own, and whether anything
     in it was never committed.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     deleted: list[str] = []
     with _state_home() as state_root, tempfile.TemporaryDirectory() as repository:
@@ -8603,8 +8603,8 @@ def _cleaning(worktrees: dict[str, dict]) -> tuple[str, list[str]]:
         pushed = {f"origin/{f['branch']}" for f in worktrees.values() if f.get("pushed")}
         requests = {f["branch"]: f.get("pull_request", "") for f in worktrees.values()}
         printed = io.StringIO()
-        previous = os.environ.get("TICKET_RUNNER_CONFIG")
-        os.environ["TICKET_RUNNER_CONFIG"] = str(repo / "nothing.toml")
+        previous = os.environ.get("PONOS_CONFIG")
+        os.environ["PONOS_CONFIG"] = str(repo / "nothing.toml")
         try:
             with _git_answering(
                 git=raw,
@@ -8619,9 +8619,9 @@ def _cleaning(worktrees: dict[str, dict]) -> tuple[str, list[str]]:
                 assert cli_main(["clean", "--force"]) == 0
         finally:
             if previous is None:
-                os.environ.pop("TICKET_RUNNER_CONFIG", None)
+                os.environ.pop("PONOS_CONFIG", None)
             else:
-                os.environ["TICKET_RUNNER_CONFIG"] = previous
+                os.environ["PONOS_CONFIG"] = previous
     return _plain(printed.getvalue()), deleted
 
 
@@ -8648,7 +8648,7 @@ def a_scratch_directory_never_speaks_for_the_repository_around_it():
     """`git rev-parse` in a directory that is no repository climbs to its
     parents — and the state directory may well sit inside one. `clean` would
     then prune that repository's worktrees and delete its branches."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     with tempfile.TemporaryDirectory() as directory:
         outer = Path(directory) / "home"
@@ -8657,7 +8657,7 @@ def a_scratch_directory_never_speaks_for_the_repository_around_it():
         subprocess.run(["git", "init", "--quiet", "-b", "main", str(outer)], **quiet)
         identity = ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"]
         subprocess.run(["git", *identity, "-C", str(outer), "commit", "--quiet", "--allow-empty", "-m", "one"], **quiet)
-        scratch = outer / ".local" / "state" / "ticket-runner" / "scratch" / "deliver-1a2b3c4d"
+        scratch = outer / ".local" / "state" / "ponos" / "scratch" / "deliver-1a2b3c4d"
         scratch.mkdir(parents=True)
         assert git_module.repository_of(scratch) is None, "a scratch directory is no worktree"
 
@@ -8744,7 +8744,7 @@ def _worktree_for(
     Returns what `add_worktree` answered — or the GitError it raised — and every
     command it ran, which is where the interesting part of this lives.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     commands: list[list[str]] = []
 
@@ -8926,7 +8926,7 @@ def the_retention_can_be_turned_off():
 
 @case
 def the_console_measures_the_disk_and_cleans_only_between_runs():
-    from ticket_runner.web import api as web_api
+    from ponos.web import api as web_api
 
     with _state_home() as root:
         _aged(root / "scratch" / "notes-1a2b3c4d", 30)
@@ -9008,7 +9008,7 @@ def a_worktree_kept_for_a_post_mortem_is_worked_in_again():
     Nothing needs creating there — the branch is already checked out where the
     ticket wants it. Asking git for it again would only be told that it is.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     made, commands = _worktree_for(
         refs=("main", "origin/main", "refs/heads/ticket/le-header-9d2cb790"),
@@ -9030,7 +9030,7 @@ def a_branch_held_by_another_worktree_is_never_taken_from_it():
     is in there is someone's work in progress, and moving its branch out from
     under it would break both. The message says where it is and how to let go.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     made, _commands = _worktree_for(
         refs=("main", "origin/main", "refs/heads/ticket/le-header-9d2cb790"),
@@ -9069,7 +9069,7 @@ def a_replay_still_happens_where_git_has_no_identity_of_its_own():
     request would not merge — true, and not the reason. The identity is a
     fallback: a machine that has one of its own keeps committing under it.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     with tempfile.TemporaryDirectory() as home:
         repo = Path(home) / "repo"
@@ -9109,7 +9109,7 @@ def a_repository_is_worked_under_the_account_its_owner_names():
     designates it is the owner, read off whatever the caller has in hand: a
     remote, a pull request URL, or `owner/name` as a project page spells it.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     for reference in (
         "https://github.com/Animalink/site/pull/12",
@@ -9150,7 +9150,7 @@ def a_gh_call_about_a_repository_carries_that_account_and_nothing_else():
     credential helper it installs reads too, which is how the push and the pull
     request that follows it go out as the same account.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     seen: list[dict] = []
 
@@ -9190,7 +9190,7 @@ def only_a_merge_a_rebase_could_answer_is_retried():
     review still missing, a branch whose policy forbids this merge: pushing the
     branch again would spend a CI run to be refused in the same words.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     for refusal in (
         "gh pr merge: Pull request is not mergeable: the merge commit cannot be cleanly created",
@@ -9216,7 +9216,7 @@ def a_merge_refused_for_being_behind_is_replayed_and_asked_again():
     asked once more — and the ticket says so rather than coming back as a
     question.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     runner = _board_runner(
         [_reviewed("pbehind", "Validated", "https://github.com/x/y/pull/1")], {}
@@ -9252,7 +9252,7 @@ def a_merge_refused_for_being_behind_is_replayed_and_asked_again():
 @case
 def a_merge_refused_for_anything_else_is_still_a_question():
     """Nothing is pushed again to answer a review that has not happened."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     runner = _board_runner(
         [_reviewed("preview", "Validated", "https://github.com/x/y/pull/1")], {}
@@ -9275,7 +9275,7 @@ def a_merge_refused_for_anything_else_is_still_a_question():
 @case
 def a_replay_that_conflicts_leaves_the_merge_refused():
     """The branch goes back as it was, and the ticket asks rather than guesses."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     runner = _board_runner(
         [_reviewed("pconflict", "Validated", "https://github.com/x/y/pull/1")], {}
@@ -9308,7 +9308,7 @@ def github_calling_a_pull_request_conflicting_is_heard_before_any_merge():
     repository that wants branches up to date — is replayed before the merge is
     asked at all: asking would only earn the refusal it has already announced.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     url = "https://github.com/x/y/pull/1"
     runner = _board_runner([_reviewed("pdirty", "Validated", url)], {})
@@ -9379,14 +9379,14 @@ def a_base_that_keeps_moving_is_replayed_twice_then_asked_about():
     leaves the ticket validated for the next pass — and on the second refusal
     stops chasing: the ticket asks, and says why.
     """
-    from ticket_runner import delivery
+    from ponos import delivery
 
     url = "https://github.com/x/y/pull/1"
     page = _reviewed("pmoving", "Validated", url)
     replayed: list[tuple] = []
 
     def merge(url: str, method: str = "squash", accounts=None) -> str:
-        from ticket_runner import git as git_module
+        from ponos import git as git_module
 
         raise git_module.GitError("gh pr merge: Pull Request is not mergeable")
 
@@ -9478,7 +9478,7 @@ def _forcing(checks: str, refuses: str = "", blocker: str = "", options=None):
     """`_force_merge` after a CI that said `checks`: what it answered, and the merges asked."""
     from types import SimpleNamespace
 
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     url = "https://github.com/x/y/pull/1"
     runner = _board_runner([], {}, options)
@@ -9532,7 +9532,7 @@ def a_forced_merge_that_is_a_question_still_waits_in_review():
 @case
 def the_checks_gh_lists_are_read_into_names_and_runs_to_start_again():
     """`gh pr checks --json` and `gh run rerun`, as the runner asks them."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     listed = [
         {"name": "frontend", "bucket": "fail",
@@ -9573,7 +9573,7 @@ def the_checks_gh_lists_are_read_into_names_and_runs_to_start_again():
 
 @case
 def a_resolution_report_is_what_the_session_wrote_above_its_verdict():
-    from ticket_runner import delivery
+    from ponos import delivery
 
     answer = "- `a.py` : les deux gardés\nTests : verts.\n\n**RESULT: ok — résolu**"
     assert delivery._report_of(answer) == "- `a.py` : les deux gardés\nTests : verts."
@@ -9595,7 +9595,7 @@ def conflicts_are_resolved_everywhere_but_where_the_file_says_not():
 @case
 def a_directory_holding_work_is_not_cleared_to_make_room():
     """Uncommitted changes under the ticket's path outrank the ticket."""
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     made, _commands = _worktree_for(commits=0, dirty=True, path_exists=True)
     assert isinstance(made, git_module.GitError)
@@ -9611,7 +9611,7 @@ def only_a_replayed_branch_is_ever_force_pushed():
     later. `--force-with-lease`, never `--force`: origin moving under us is
     still a refusal.
     """
-    from ticket_runner import git as git_module
+    from ponos import git as git_module
 
     sent: list[list[str]] = []
 
@@ -9738,7 +9738,7 @@ def _plain(text: str) -> str:
 
 @case
 def a_bare_command_line_presents_the_product_and_its_version():
-    """`ticket-runner`, typed alone, is somebody's first look at what they installed.
+    """`ponos`, typed alone, is somebody's first look at what they installed.
 
     So it answers the two questions that come with that — what is this, and
     which version am I on — before it lists the verbs. The frame is drawn from
@@ -9766,7 +9766,7 @@ def a_waiting_update_is_said_on_the_welcome_screen():
     """The one thing worth adding to a version number: that it is not the newest.
 
     Read from the stamp a run already wrote — a welcome screen that fetched
-    would be a network round trip for every `ticket-runner` typed by mistake.
+    would be a network round trip for every `ponos` typed by mistake.
     """
     with _state_home():
         update.remember(update.Status(current="a" * 40, latest="b" * 40))
@@ -9774,7 +9774,7 @@ def a_waiting_update_is_said_on_the_welcome_screen():
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             welcome(build_parser())
-        assert "ticket-runner update" in _plain(buffer.getvalue())
+        assert "ponos update" in _plain(buffer.getvalue())
 
 
 @case
@@ -9794,7 +9794,7 @@ def the_console_header_and_the_command_line_agree_on_the_version():
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STATIC = ROOT / "src/ticket_runner/web/static"
+STATIC = ROOT / "src/ponos/web/static"
 FRONTEND = ROOT / "frontend"
 
 
@@ -9819,7 +9819,7 @@ def _built(extension: str) -> Path:
 def the_console_ships_its_built_bundle():
     """A clone of this repository is a console that opens, with nothing built.
 
-    `ticket-runner` installs by cloning and running `python3`. If the bundle
+    `ponos` installs by cloning and running `python3`. If the bundle
     lived only in `frontend/` and were built on the way in, the install would
     need Node — which is exactly the dependency this tool exists without.
     """
@@ -9847,7 +9847,7 @@ def the_console_is_downloaded_once_and_compressed():
     """
     import urllib.request
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     api = _bare_api(_TalkClient([]))
     console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
@@ -9894,21 +9894,21 @@ def the_console_is_downloaded_once_and_compressed():
 def the_console_and_the_landing_page_draw_one_robot():
     """The mascot is one file, and the console bundles it rather than a copy.
 
-    The landing page loads `docs/mascot/ticket-runner-robot.js` from a <script>
+    The landing page loads `docs/mascot/ponos-robot.js` from a <script>
     tag; the console imports that very module through Vite, and takes its
     favicon from the same directory. A second copy of the drawing would be a
     robot that changes on one page and not on the other.
     """
-    mascot = ROOT / "docs/mascot/ticket-runner-robot.js"
+    mascot = ROOT / "docs/mascot/ponos-robot.js"
     assert mascot.is_file(), "the mascot's one source is gone"
     copies = [
         path
-        for path in ROOT.rglob("ticket-runner-robot.js")
+        for path in ROOT.rglob("ponos-robot.js")
         if "node_modules" not in path.parts and path != mascot
     ]
     assert not copies, f"a copy of the mascot: {copies}"
     robot = (FRONTEND / "src/components/console/robot.tsx").read_text(encoding="utf-8")
-    assert '"@mascot/ticket-runner-robot.js"' in robot, "the console draws a robot of its own"
+    assert '"@mascot/ponos-robot.js"' in robot, "the console draws a robot of its own"
     vite = (FRONTEND / "vite.config.ts").read_text(encoding="utf-8")
     assert '"../docs/mascot"' in vite, "@mascot no longer points at the landing page's file"
     page = (FRONTEND / "index.html").read_text(encoding="utf-8")
@@ -9951,7 +9951,7 @@ def the_console_and_the_landing_page_share_one_set_of_tokens():
         # A whole word: `IntersectionObserver` is not the old face.
         assert not re.search(rf"(?<!\w){re.escape(gone)}(?!\w)", page), f"{gone} is the old identity"
     assert "family=DM+Sans" in page and "JetBrains+Mono" in page, "the site does not load the console's faces"
-    assert "ticket-runner-theme" in page and "prefers-color-scheme" in page, "the site has no light and dark"
+    assert "ponos-theme" in page and "prefers-color-scheme" in page, "the site has no light and dark"
 
 
 @case
@@ -9968,7 +9968,7 @@ def the_landing_page_opens_on_ponos_and_tells_the_loop_in_seven_sections():
     assert 0 < len(sections) <= 7, f"{len(sections)} sections — the site is a manual again"
     hero = page.split("<section", 2)[1]
     assert 'id="top"' in hero.split(">", 1)[0], "the page does not open on its hero"
-    assert "<ticket-runner-robot" in hero and "Ponos" in hero, "Ponos is not on the first screen"
+    assert "<ponos-robot" in hero and "Ponos" in hero, "Ponos is not on the first screen"
     assert "Write the ticket." in hero and "It comes back done." in hero, "the promise is not the headline"
     title = re.search(r"<title>(.*?)</title>", page).group(1)
     assert "Write the ticket. It comes back done." in title
@@ -9996,7 +9996,7 @@ def the_heros_picture_is_the_loop_and_ends_on_your_decision():
     assert "Ponos" in steps[1][1], "the second step is not Ponos's"
     assert ">Validate<" in figure and ">Run again<" in figure, "the decision has lost one of its two buttons"
     assert "flow-link to-you" in figure and "your note" in figure, "the way back to Ponos is gone"
-    assert "<ticket-runner-robot" in figure
+    assert "<ponos-robot" in figure
     statuses = re.findall(r'<span class="status[^"]*">([^<]+)</span>', figure)
     assert statuses == ["Ready"], f"the ticket of step one moves on: {statuses}"
     label = re.search(r'role="img" aria-label="([^"]+)"', figure).group(1)
@@ -10057,9 +10057,9 @@ def ponos_is_named_on_the_site_in_the_readme_and_in_the_console():
     shell = (FRONTEND / "src/components/console/shell.tsx").read_text(encoding="utf-8")
     mark = shell.split("export function Mark()", 1)[1].split("\n}\n", 1)[0]
     assert 'title="Ponos"' in mark and ">Ponos<" in mark, "the console's robot has no name"
-    mascot = (ROOT / "docs/mascot/ticket-runner-robot.js").read_text(encoding="utf-8")
+    mascot = (ROOT / "docs/mascot/ponos-robot.js").read_text(encoding="utf-8")
     assert "Ponos" in mascot.split("*/", 1)[0], "the component's documentation does not say Ponos"
-    assert "customElements.define('ticket-runner-robot'" in mascot, (
+    assert "customElements.define('ponos-robot'" in mascot, (
         "the tag changed name — pages that embed it would lose their robot"
     )
     assert "<title>Ponos" in (ROOT / "docs/mascot/robot.svg").read_text(encoding="utf-8")
@@ -10141,7 +10141,7 @@ def the_landing_page_and_the_readme_link_to_anchors_that_exist():
         target = target.split("?", 1)[0]
         assert (ROOT / "docs" / target).exists(), f"the site links {target}, which docs/ does not have"
     anchors = _readme_anchors()
-    linked = re.findall(r'href="https://github\.com/SalvadorCardona/ticket-runner#([^"]+)"', page)
+    linked = re.findall(r'href="https://github\.com/SalvadorCardona/ponos#([^"]+)"', page)
     assert linked, "the site no longer points at the documentation"
     for anchor in linked:
         assert anchor == "readme" or anchor in anchors, f"the site links README#{anchor}, which has no such heading"
@@ -10368,7 +10368,7 @@ def the_console_route_of_one_project_is_the_one_the_page_asks_for():
     regular expression. A 404 there reads, in the browser, as a project that
     could not be read.
     """
-    routes = (ROOT / "src/ticket_runner/web/server.py").read_text(encoding="utf-8")
+    routes = (ROOT / "src/ponos/web/server.py").read_text(encoding="utf-8")
     pattern = re.search(r'r"(/api/projects/[^"]+)"', routes)
     assert pattern, "the server no longer routes one project"
     asked = "/api/projects/" + "3eaf7e7b99c04adeae76ac6ecd52cdd0"
@@ -10553,9 +10553,9 @@ def tickets_are_written_and_read_back_as_markdown():
         written = list((board.root / "tickets").glob("*.md"))
         assert len(written) == 1 and written[0].name.startswith("corriger-l-entete-")
 
-        board.update("tickets", page_id, {"Status": "In progress", "Runner": "ticket-runner@here"})
+        board.update("tickets", page_id, {"Status": "In progress", "Runner": "ponos@here"})
         assert store.read(board.page(page_id), "Status") == "In progress"
-        assert store.read(board.page(page_id), "Runner") == "ticket-runner@here"
+        assert store.read(board.page(page_id), "Runner") == "ponos@here"
         # And the body is untouched by a property write.
         assert "Relire la page." in board.blocks_text(page_id)
 
@@ -10584,7 +10584,7 @@ def a_markdown_board_answers_the_filters_the_runner_builds():
 def projects_the_context_and_the_schedules_live_in_files_too():
     """The three things the ticket's UI has to be able to show without Notion."""
     with _board() as board:
-        project = board.create_row("projects", "ticket-runner", {"Repository": "user/repo"})
+        project = board.create_row("projects", "ponos", {"Repository": "user/repo"})
         assert store.read(board.page(project), "Repository") == "user/repo"
 
         board.set_context("Je suis Salvador Cardona, développeur web.")
@@ -10744,7 +10744,7 @@ class _NotionBoard:
         return "notion-user"
 
     def my_name(self):
-        return "Ticket Runner"
+        return "Ponos"
 
     # -- writing -------------------------------------------------------------
 
@@ -11073,7 +11073,7 @@ def the_console_lists_every_project_it_knows_of():
     somebody looking for a page that does not exist.
     """
     with _board() as board:
-        code = board.create_row("projects", "ticket-runner", {"Repository": "user/repo"})
+        code = board.create_row("projects", "ponos", {"Repository": "user/repo"})
         board.create_row("projects", "Site vitrine", {})
         ticket = board.create_row("tickets", "Un ticket", {"Status": "Ready"})
         board.update("tickets", ticket, {"Project": [code]})
@@ -11089,12 +11089,12 @@ def the_console_lists_every_project_it_knows_of():
         assert api.runner.database not in asked, "the tickets are the console's to count"
 
     rows = {project["name"]: project for project in drawn["projects"]}
-    assert set(rows) == {"ticket-runner", "Site vitrine", "Jeu d'usine"}
-    assert rows["ticket-runner"]["kind"] == "code"
-    assert rows["ticket-runner"]["repository"] == "user/repo"
+    assert set(rows) == {"ponos", "Site vitrine", "Jeu d'usine"}
+    assert rows["ponos"]["kind"] == "code"
+    assert rows["ponos"]["repository"] == "user/repo"
     # Counted by the console on the tickets it already holds: a count here was
     # the whole tickets database read again on every call.
-    assert "tickets" not in rows["ticket-runner"]
+    assert "tickets" not in rows["ponos"]
     # No repository declared anywhere: a document project, not a broken one.
     assert rows["Site vitrine"]["kind"] == "document"
     assert rows["Jeu d'usine"]["source"] == "config"
@@ -11112,26 +11112,26 @@ def the_console_opens_a_project_and_writes_it_back():
     be a save that changes nothing anybody can see.
     """
     with _board() as board:
-        page = board.create_row("projects", "ticket-runner", {"github": "user/repo"})
+        page = board.create_row("projects", "ponos", {"github": "user/repo"})
         board.replace_markdown(page, "Écris en français.")
 
         api = _markdown_api(board)
         opened = api.project(page)
-        assert opened["name"] == "ticket-runner"
+        assert opened["name"] == "ponos"
         assert opened["repository"] == "user/repo"
         assert opened["content"] == "Écris en français."
 
         written = api.save_project(
             page,
             {
-                "name": "ticket-runner",
+                "name": "ponos",
                 "repository": "user/autre-repo",
-                "path": "~/workspace/ticket-runner",
+                "path": "~/workspace/ponos",
                 "content": "Écris en français, et jamais de pyproject.",
             },
         )
         assert written["repository"] == "user/autre-repo"
-        assert written["path"] == "~/workspace/ticket-runner"
+        assert written["path"] == "~/workspace/ponos"
         assert written["content"] == "Écris en français, et jamais de pyproject."
         # The column somebody filled in, not a second one beside it.
         assert store.read(board.page(page), "github") == "user/autre-repo"
@@ -11380,7 +11380,7 @@ def an_image_in_a_brief_is_named_for_the_session_and_drawn_by_the_console():
     except LookupError:
         pass
 
-    from ticket_runner.web import server as web_server
+    from ponos.web import server as web_server
 
     api = _bare_api(client)
     console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
@@ -11794,7 +11794,7 @@ def a_markdown_project_keeps_its_picture_beside_it():
 @case
 def the_console_serves_a_picture_as_a_picture_and_never_as_a_page():
     """An SVG opened at the console's own address must not be a page with a script."""
-    routes = (ROOT / "src/ticket_runner/web/server.py").read_text(encoding="utf-8")
+    routes = (ROOT / "src/ponos/web/server.py").read_text(encoding="utf-8")
     assert "sandbox" in routes and "PICTURE_POLICY" in routes
     assert images.sniff(b"<svg xmlns='http://www.w3.org/2000/svg'/>") == "image/svg+xml"
     assert images.sniff(b"<html><script>") == ""
@@ -11803,7 +11803,7 @@ def the_console_serves_a_picture_as_a_picture_and_never_as_a_page():
 
 # -- the console and Notion, kept in step ------------------------------------
 
-from ticket_runner.web import board as web_board  # noqa: E402
+from ponos.web import board as web_board  # noqa: E402
 
 
 class _Minutes:
@@ -12198,6 +12198,110 @@ def a_blocked_ticket_on_a_board_where_failed_is_blocked_too_is_drawn_in_blocked(
     assert [item["column"] for item in board["tickets"]][:2] == ["blocked", "blocked"]
     assert all(item["column"] in drawn for item in board["tickets"]), "no card off the board"
 
+
+
+# -- the rename: an installation from before Ponos was called Ponos -----------
+# Every old name below is the migration filet under test: what an existing
+# installation carries, and what it must not lose.
+
+
+@case
+def an_installation_from_before_the_rename_starts_with_everything_it_had():
+    """Old directories, old variables, an old worktree: the first launch moves them all."""
+    home = Path(tempfile.mkdtemp())
+    old_config = home / ".config" / legacy.OLD
+    old_state = home / ".local" / "state" / legacy.OLD
+    old_config.mkdir(parents=True)
+    (old_config / "config.toml").write_text(
+        f'[storage]\nmode = "markdown"\npath = "~/.local/state/{legacy.OLD}/board"\n'
+    )
+    (old_state / "board").mkdir(parents=True)
+    (old_state / "history.jsonl").write_text(
+        json.dumps({"at": "2026-09-30T10:00:00+00:00", "status": "done", "ticket": "Fix the footer"}) + "\n"
+    )
+    repository = home / "workspace" / "app"
+    repository.mkdir(parents=True)
+    git = lambda *argv, cwd=repository: subprocess.run(  # noqa: E731
+        ["git", *argv], cwd=cwd, capture_output=True, text=True, check=True,
+        env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"},
+    ).stdout
+    git("init", "-q")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    worktree = old_state / "worktrees" / "app-1234abcd"
+    git("worktree", "add", "-q", "-b", "ticket/x", str(worktree))
+    slug = session.project_key(worktree)
+    (home / ".claude" / "projects" / slug).mkdir(parents=True)
+    (home / ".claude" / "projects" / slug / "s1.jsonl").write_text("{}\n")
+
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith(("XDG_", "PONOS_", legacy.OLD_PREFIX))}
+    environment.update(HOME=str(home), PYTHONPATH=str(ROOT / "src"),
+                       **{legacy.OLD_PREFIX + "WEB_EMAIL": "me@example.com"})
+    done = subprocess.run([sys.executable, "-m", "ponos", "history"], env=environment,
+                          capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    assert "Fix the footer" in done.stdout, "the history came along"
+    assert "PONOS_WEB_EMAIL" in done.stderr, "the old variable is read, and said to be renamed"
+    assert "moved" in done.stderr, "and the move is said in one line"
+    state = home / ".local" / "state" / "ponos"
+    assert not old_config.exists() and not old_state.exists()
+    assert (state / "history.jsonl").is_file() and (state / "board").is_dir()
+    assert "~/.local/state/ponos/board" in (home / ".config" / "ponos" / "config.toml").read_text()
+    moved = state / "worktrees" / "app-1234abcd"
+    assert str(moved) in git("worktree", "list"), "the repository knows where its worktree went"
+    assert (home / ".claude" / "projects" / session.project_key(moved) / "s1.jsonl").is_file()
+
+    again = subprocess.run([sys.executable, "-m", "ponos", "history"], env=environment,
+                           capture_output=True, text=True, timeout=60)
+    assert again.returncode == 0 and "moved" not in again.stderr, "and only once"
+
+
+
+@case
+def an_old_variable_is_read_under_its_new_name_unless_the_new_one_is_set():
+    environment = {legacy.OLD_PREFIX + "CONFIG": "/old", legacy.OLD_PREFIX + "TERMINAL": "kitty",
+                   "PONOS_TERMINAL": "foot"}
+    assert legacy.environment(environment) == [legacy.OLD_PREFIX + "CONFIG"]
+    assert environment["PONOS_CONFIG"] == "/old"
+    assert environment["PONOS_TERMINAL"] == "foot", "the new name wins"
+
+
+@case
+def an_old_session_link_opens_the_worktree_where_it_went():
+    previous = os.environ.get("XDG_STATE_HOME")
+    os.environ["XDG_STATE_HOME"] = "/srv/state"
+    try:
+        assert legacy.path(f"/srv/state/{legacy.OLD}/worktrees/app-1") == "/srv/state/ponos/worktrees/app-1"
+        assert legacy.path("/home/me/work/app") == "/home/me/work/app"
+    finally:
+        if previous is None:
+            os.environ.pop("XDG_STATE_HOME", None)
+        else:
+            os.environ["XDG_STATE_HOME"] = previous
+
+
+@case
+def the_old_command_says_it_was_renamed_and_runs_ponos():
+    directory = Path(tempfile.mkdtemp())
+    target = directory / "ponos"
+    target.write_text("#!/bin/sh\necho \"ponos $*\"\n")
+    target.chmod(0o755)
+    alias = directory / "old"
+    alias.write_text((ROOT / "bin" / "former-name.in").read_text().replace("@BIN@", str(target)))
+    alias.chmod(0o755)
+    done = subprocess.run([str(alias), "list", "--all"], capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0
+    assert "renamed ponos" in done.stderr
+    assert done.stdout.strip() == "ponos list --all"
+
+
+@case
+def a_ticket_this_machine_took_before_the_rename_is_still_its_own():
+    runner = object.__new__(Runner)
+    runner.agent_label = "ponos@laptop"
+    assert f"{legacy.OLD}@laptop" in runner.agent_labels
+    assert f"{legacy.OLD}@desktop" not in runner.agent_labels
 
 def main() -> int:
     # Claude Code's own store, pointed at an empty directory for the whole

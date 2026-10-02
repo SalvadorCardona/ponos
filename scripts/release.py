@@ -8,7 +8,7 @@
     python3 scripts/release.py publish [VERSION] the GitHub release, from the tag
 
 The version lives in exactly one place — `__version__` in
-`src/ticket_runner/__init__.py` — and the notes live in exactly one other,
+`src/ponos/__init__.py` — and the notes live in exactly one other,
 `CHANGELOG.md`. Everything else is derived: the tag is `v` and the version, the
 release title is the name and the version, the release body is the changelog
 section. Nothing here invents a number or writes prose; it moves what a human
@@ -34,9 +34,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-INIT = ROOT / "src" / "ticket_runner" / "__init__.py"
+INIT = ROOT / "src" / "ponos" / "__init__.py"
 CHANGELOG = ROOT / "CHANGELOG.md"
-NAME = "ticket-runner"
+NAME = "ponos"
 
 # X.Y.Z, with room for the -rc.1 nobody has needed yet but everybody eventually does.
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$")
