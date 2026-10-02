@@ -46,7 +46,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ponos import config as C  # noqa: E402
-from ponos import images, notion, store  # noqa: E402
+from ponos import db, images, journal, notion, store  # noqa: E402
 from ponos.config import PRIORITIES  # noqa: E402
 from ponos.runner import Runner  # noqa: E402
 
@@ -228,7 +228,7 @@ class Board:
         if route == ("PATCH", "blocks", "*", "children"):
             return 200, {"results": self._append(identifier, body.get("children", []))}
         if route == ("PATCH", "blocks", "*"):
-            return 200, {"object": "block", "id": identifier}
+            return 200, self._retitle(identifier, body)
         if route == ("GET", "comments"):
             page = (query.get("block_id") or [""])[0].replace("-", "")
             return 200, {
@@ -352,7 +352,28 @@ class Board:
                 ]
             self.blocks.setdefault(block_id, []).append(block)
             created.append(block)
+        # Appended under a block — the live report's toggle — rather than a page:
+        # that block now says it has children, as Notion's would.
+        for held in self.blocks.values():
+            for block in held:
+                if block["id"] == block_id and children:
+                    block["has_children"] = True
         return created
+
+    def _retitle(self, block_id: str, body: dict) -> dict:
+        """A block's text rewritten in place — the live report's title moving on."""
+        for held in self.blocks.values():
+            for block in held:
+                if block["id"] != block_id:
+                    continue
+                for kind, payload in body.items():
+                    if kind == block.get("type") and isinstance(payload.get("rich_text"), list):
+                        block[kind]["rich_text"] = [
+                            {**part, "plain_text": part.get("text", {}).get("content", "")}
+                            for part in payload["rich_text"]
+                        ]
+                return block
+        return {"object": "block", "id": block_id}
 
     def _comment(self, body: dict):
         discussion = body.get("discussion_id", "")
@@ -524,6 +545,12 @@ if "say what kind of ticket it is" in prompt:
           "session_id": session, "num_turns": 1, "total_cost_usd": 0.001})
     raise SystemExit(0)
 
+# What a session says on its way, before it says how it ended — the sentence
+# the live report writes into the ticket, and nothing else does.
+narrated = os.environ.get("FAKE_CLAUDE_SAY", "")
+if narrated:
+    emit({"type": "assistant", "message": {"content": [{"type": "text", "text": narrated}]}})
+
 refused = os.environ.get("FAKE_CLAUDE_FAIL", "")
 if refused:
     emit({"type": "result", "subtype": "error_during_execution", "is_error": True,
@@ -585,6 +612,12 @@ if moved and (here / ".git").exists():
     subprocess.run(["git", "push", "origin", "main"], cwd=clone, check=True, capture_output=True)
 
 if (here / ".git").exists():
+    # What a session does on its way, for the journal to keep and the page not
+    # to: a sentence, and the command that follows it.
+    emit({"type": "assistant", "message": {"content": [
+        {"type": "text", "text": "J'écris FAKE.md puis je le commite."},
+        {"type": "tool_use", "name": "Bash", "input": {"command": "git commit -m 'Écrit par la fausse session'"}},
+    ]}})
     (here / "FAKE.md").write_text("the session was here\\n", encoding="utf-8")
     subprocess.run(["git", "add", "FAKE.md"], cwd=here, check=True, capture_output=True)
     subprocess.run(["git", "-c", "user.name=Fake Claude", "-c", "user.email=fake@example.invalid",
@@ -1010,6 +1043,7 @@ def bench(**overrides: object):
                 "PATH": f"{root / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
                 "FAKE_CLAUDE_FAIL": "",
                 "FAKE_CLAUDE_KIND": "",
+                "FAKE_CLAUDE_SAY": "",
                 "FAKE_CLAUDE_RESOLVE": "",
                 "FAKE_GH_REFUSE": "",
                 **{name: str(path) for name, path in logs.items()},
@@ -1088,6 +1122,48 @@ def a_code_ticket_comes_back_as_a_pull_request():
         assert opened[0]["url"] in said[-1], said[-1]
         assert not machine.worktrees(repository), "a worktree was left behind on a run that worked"
 
+        # Every step in the local journal — with the live block off, too: it
+        # is written whatever the board and whatever `runner.progress` says.
+        runs = journal.runs(ticket)
+        assert len(runs) == 1, runs
+        assert runs[0]["status"] == "done" and runs[0]["reason"] == opened[0]["url"], runs[0]
+        assert runs[0]["cost_usd"] == 0.02, runs[0]
+        steps = journal.steps(runs[0]["id"])["steps"]
+        assert [(step["kind"], step["label"]) for step in steps] == [
+            ("said", "J'écris FAKE.md puis je le commite."),
+            ("tool", "Bash"),
+            ("said", "RESULT: ok — un fichier écrit et commité"),
+        ], steps
+        assert "git commit" in steps[1]["detail"], steps[1]
+        db.close()
+
+
+@case
+def the_page_keeps_what_the_agent_said_and_the_journal_every_step():
+    """The ticket gets the gist; the console, reading the journal, gets the rest.
+
+    A sentence and a command, from one session: the sentence goes onto the
+    page, under the live block, and the command does not — it is in the
+    journal, beside the sentence, in the order they came.
+    """
+    with bench(progress=True) as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux, corrige-le.", project)
+
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        page = "\n".join(machine.board.body(key) for key in list(machine.board.blocks))
+        assert "Le titre est faux, corrige-le." in page, page
+        assert "J'écris FAKE.md puis je le commite." in page, page
+        assert "RESULT: ok — un fichier écrit et commité" in page, page
+        assert "git commit" not in page and "Bash" not in page, "a command was written onto the ticket"
+        (run,) = journal.runs(ticket)
+        kinds = [step["kind"] for step in journal.steps(run["id"])["steps"]]
+        assert kinds == ["said", "tool", "said"], kinds
+        db.close()
+
 
 @case
 def a_writing_ticket_is_answered_in_its_page_and_touches_no_repository():
@@ -1119,6 +1195,44 @@ def a_writing_ticket_is_answered_in_its_page_and_touches_no_repository():
         state = Path(os.environ["XDG_STATE_HOME"]) / "ponos"
         assert not (state / "worktrees").exists(), "a document ticket made a worktree"
         assert not list((state / "scratch").glob("*")), "its scratch directory was left behind"
+
+
+@case
+def a_ticket_run_again_is_not_briefed_on_its_previous_run():
+    """Ready a second time: the session reads the brief, not the last run's story.
+
+    Each run leaves its live report on the page, folded in a toggle. A ticket
+    sent back to Ready that handed all of it to its next session would pay for
+    every step of every earlier run, at every run — and hand it old steps to
+    take for instructions. The answer the first run wrote stays: it is part of
+    what the page now says.
+    """
+    with bench(progress=True) as machine:
+        project = machine.project("Lettre d'information", None)
+        ticket = machine.ticket("Rédiger l'édito", "Deux paragraphes sur l'automne.", project)
+
+        with _environ({"FAKE_CLAUDE_SAY": "Je relis d'abord la charte éditoriale."}):
+            results = machine.run()
+        assert results[0]["status"] == "done", results
+        toggles = [
+            block for block in machine.board.blocks[ticket] if block["type"] == "toggle"
+        ]
+        assert len(toggles) == 1 and toggles[0]["has_children"], machine.board.blocks[ticket]
+        story = machine.board.blocks[toggles[0]["id"]]
+        assert any("la charte éditoriale" in str(block) for block in story), story
+
+        machine.move(ticket, "Ready")
+        machine.board.requests.clear()
+        results = machine.run()
+        assert results[0]["status"] == "done", results
+
+        prompt = machine.sessions()[-1]["prompt"]
+        assert "Deux paragraphes sur l'automne." in prompt, prompt
+        assert "La réponse." in prompt, "the answer the first run wrote is still the page's"
+        assert "la charte éditoriale" not in prompt, "the first run's story reached the second"
+        assert f"GET /v1/blocks/{toggles[0]['id']}/children" not in machine.board.requests, (
+            "the first run's toggle was opened to be skipped"
+        )
 
 
 @case

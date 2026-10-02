@@ -27,7 +27,10 @@ export interface Ticket {
   status: string
   column: ColumnKey
   project: string
+  /** The project's kind of work, `code` or `document`. */
   kind: string
+  /** The ticket's own type, as the board spells it: Code, Writing, External action… */
+  type: string
   priority: string
   model: string
   progress: string
@@ -64,6 +67,8 @@ export interface Board {
   /** What a new ticket may be given beside its title, for the columns this
    * board has: a column it lacks is not a key here. */
   choices?: Partial<Record<"priority" | "type" | "model", { value: string; label: string }[]>>
+  /** What a ticket with no model of its own runs on: `runner.model`, empty for Claude Code's own. */
+  model?: string
   /** Which board the stream sent, for the changes that follow it. */
   version?: number
 }
@@ -270,6 +275,37 @@ export interface Step {
   label: string
   detail: string
   said?: boolean
+  /** Where the step stands in its run, and when — only on a step read from the journal. */
+  position?: number
+  at?: string
+}
+
+/** One run of a ticket, as the local journal keeps it — see `journal.py`. */
+export interface Run {
+  id: number
+  ticket: string
+  title: string
+  kind: string
+  project: string
+  agent: string
+  session: string
+  log: string
+  started_at: string
+  /** Null while the run is going on — or when it was killed before it could say. */
+  ended_at: string | null
+  status: "done" | "blocked" | "failed" | "waiting" | "validated" | null | string
+  reason: string
+  cost_usd: number | null
+  steps: number
+}
+
+/** A page of a run's steps. `more`: there are older ones than the first here. */
+export interface RunSteps {
+  run: number
+  count: number
+  steps: Step[]
+  more: boolean
+  ended: boolean
 }
 
 /** `stopped`: a turn of the workspace you ended, and what it had said by then. */

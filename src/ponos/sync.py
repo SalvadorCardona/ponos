@@ -295,8 +295,8 @@ class Mirror:
     def page(self, page_id: str) -> Page:
         return self.primary.page(page_id)
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
-        return self.primary.blocks_text(block_id, depth)
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
+        return self.primary.blocks_text(block_id, depth, live=live)
 
     def comments(self, page_id: str):
         return self.primary.comments(page_id)

@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import subprocess
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -18,7 +19,7 @@ from pathlib import Path
 from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
-from . import db, kinds, legacy, store, voice
+from . import db, journal, kinds, legacy, store, voice
 from . import provision
 from . import schedules as schedules_module
 from . import session, state, systemd
@@ -468,14 +469,53 @@ def command_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _journal_runs(ticket: str = "") -> list[dict]:
+    """A ticket's runs from the local journal, newest first — none if it cannot be read."""
+    try:
+        return journal.runs(ticket)
+    except (db.DatabaseError, sqlite3.Error) as error:
+        print(f"{DIM}(the run journal cannot be read: {error}){RESET}", file=sys.stderr)
+        return []
+
+
+def _print_runs(runs: list[dict]) -> int:
+    """`ponos logs --runs`: one line per run, and the log that holds all of it."""
+    if not runs:
+        print("No run in the journal yet.")
+        return 0
+    for run in runs:
+        status = run["status"] or ("running" if not run["ended_at"] else "?")
+        cost = f" · ${run['cost_usd']:.2f}" if run["cost_usd"] else ""
+        print(
+            f"  {_colour(status)}{status:<9}{RESET} {run['started_at'][:16].replace('T', ' ')}"
+            f"  {short_id(run['ticket'])}  {run['title']}  {DIM}{run['steps']} steps{cost}{RESET}"
+        )
+        detail = run["reason"]
+        if detail:
+            print(f"            {DIM}{str(detail)[:90]}{RESET}")
+        if run["log"]:
+            print(f"            {DIM}{state.logs_dir() / run['log']}{RESET}")
+    return 0
+
+
 def command_logs(args: argparse.Namespace) -> int:
+    if args.runs:
+        return _print_runs(_journal_runs(args.ticket or ""))
     logs = sorted(state.logs_dir().glob("*.jsonl"))
     if not logs:
         print("No log yet.")
         return 0
     target = logs[-1]
     if args.ticket:
-        matches = [path for path in logs if _names(args.ticket, path.name)]
+        # The journal knows a ticket's runs whatever their log is called — a
+        # session started over writes to a second one. The file names are what
+        # is left for runs older than the journal.
+        known = [
+            state.logs_dir() / run["log"]
+            for run in _journal_runs(args.ticket)
+            if run["log"] and (state.logs_dir() / run["log"]).exists()
+        ]
+        matches = known[:1] or [path for path in logs if _names(args.ticket, path.name)][-1:]
         if not matches:
             print(f"No log for {args.ticket}", file=sys.stderr)
             return 1
@@ -1627,6 +1667,9 @@ def build_parser() -> argparse.ArgumentParser:
     logs.add_argument("ticket", nargs="?", help="the ticket's ID, in any form")
     logs.add_argument("-f", "--follow", action="store_true")
     logs.add_argument("--raw", action="store_true", help="the raw JSON stream")
+    logs.add_argument(
+        "--runs", action="store_true", help="list the ticket's runs from the local journal"
+    )
     logs.set_defaults(function=command_logs)
 
     doctor = subparsers.add_parser("doctor", help="full diagnostics")

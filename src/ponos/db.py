@@ -40,7 +40,15 @@ NULL while a run is still going, so a run killed mid-way is findable for what
 it is. A step is one line of what the session did, in order — `position`
 rather than the clock, because two steps can share a second.
 
-Migrations 2 to 8 retire the JSON files that sat beside this one — the history,
+Migration 2 is what filling them taught: a step is `said`, `tool` or `error`,
+and a tool step is two things — the tool, and what it was pointed at — which
+one `text` column could only hold glued together. So `tool` has its own, and
+`cost_usd` says what the run had cost when the step was taken, as far as it
+was known then: Claude Code reports a price at the end of a session, so it is
+NULL until one has ended — the first half of a session picked up again.
+See journal.py for who writes them, and who reads them.
+
+Migrations 3 to 9 retire the JSON files that sat beside this one — the history,
 the claims, the replay counts, the conversations, the credit waits, the
 Markdown mirror's stamps and journal, the index of project pictures — one file
 per migration. Each creates its table, reads the file in, and once that is
@@ -56,6 +64,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -119,7 +128,7 @@ def _runs_and_steps(connection: sqlite3.Connection) -> None:
 
 # -- the JSON files that came before ------------------------------------------
 #
-# Migrations 2 to 8 each take one of the files the runner kept beside this one,
+# Migrations 3 to 9 each take one of the files the runner kept beside this one,
 # make it a table, and read it in once. They read the file themselves rather
 # than through the module that now uses the table: a migration is frozen once
 # released, and the module is not.
@@ -413,6 +422,11 @@ def _images(connection: sqlite3.Connection) -> AfterCommit:
     return _set_aside(source)
 
 
+def _steps_name_their_tool(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE steps ADD COLUMN tool TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE steps ADD COLUMN cost_usd REAL")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -422,6 +436,7 @@ AfterCommit = Callable[[], None]
 Migration = Callable[[sqlite3.Connection], AfterCommit | None]
 MIGRATIONS: tuple[Migration, ...] = (
     _runs_and_steps,
+    _steps_name_their_tool,
     _history,
     _claims,
     _rebases,
@@ -479,6 +494,26 @@ def path_of(connection: sqlite3.Connection) -> str:
     return row[2] if row and row[2] else "the database"
 
 
+def _switch_to_wal(connection: sqlite3.Connection) -> None:
+    """Put the file in WAL mode, waiting out another process doing the same.
+
+    Leaving the rollback journal takes the file to itself, and SQLite answers
+    "database is locked" at once rather than through the busy handler when a
+    second process is reading it in the old mode — which is just what the
+    timer and the console do when they start together on a new file. So the
+    wait the busy timeout gives every other statement is given here by hand.
+    """
+    deadline = time.monotonic() + BUSY_TIMEOUT_MS / 1000
+    while True:
+        try:
+            connection.execute("PRAGMA journal_mode = WAL")
+            return
+        except sqlite3.OperationalError as error:
+            if "locked" not in str(error) or time.monotonic() > deadline:
+                raise
+            time.sleep(0.01)
+
+
 def open_at(location: Path, migrations: Sequence[Migration] = MIGRATIONS) -> sqlite3.Connection:
     """A new connection to `location`, set up and migrated. Prefer `connect()`.
 
@@ -497,7 +532,7 @@ def open_at(location: Path, migrations: Sequence[Migration] = MIGRATIONS) -> sql
         raise DatabaseError(f"cannot open {location}: {error}") from error
     try:
         connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
-        connection.execute("PRAGMA journal_mode = WAL")
+        _switch_to_wal(connection)
         connection.execute("PRAGMA synchronous = NORMAL")
         connection.execute("PRAGMA foreign_keys = ON")
         migrate(connection, migrations)

@@ -25,8 +25,8 @@ Two things keep it from becoming noise, and they are the whole design:
   one paragraph after the other, with its markdown honoured. A failed tool call
   stays off too: the agent's next sentence says what it made of it. The calls
   are still counted in the title and still shown, one at a time, in the board's
-  `Progress` column; their detail is the log's (`ponos logs -f`) and the
-  console's, which `describe` keeps feeding.
+  `Progress` column; their detail is the run journal's (journal.py, which the
+  console reads) and the log's (`ponos logs -f`) — `describe` feeds both.
 
 Nothing here can fail a ticket. Every call to Notion is caught, and a page that
 refuses three writes in a row switches the whole thing off for the rest of the
@@ -35,6 +35,7 @@ session — the work carries on, unreported.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -159,6 +160,36 @@ def describe(event: dict) -> list[Step]:
                     )
                 steps.append(Step("Error", _one_line(content or "")))
     return steps
+
+
+# The titles `Live` gives its toggle, and has given it: “⏳ Live”, “⏳ Live — 4
+# steps · 2 minutes” while it runs, “✓ 12 steps · 9 minutes” once done, “⚠️ Trace
+# — 3 steps · …” when the run went wrong. Bold, all of it, as `_open` writes it.
+_LIVE_TITLE = re.compile(r"⏳ .+|✓ \d+ .+|⚠️ .+ — \d+ .+", re.DOTALL)
+
+
+def is_live(block: dict) -> bool:
+    """Whether a block of a page is one of the toggles this module wrote.
+
+    A ticket keeps the story of every run, and a page read as a brief must not:
+    a ticket sent back to *Ready* would hand its next session the journal of
+    the previous ones — tokens paid for nothing, and old steps an agent can
+    take for instructions. No marker of our own is needed to tell them apart,
+    and an older page has none anyway: the title is the mark, bold from end to
+    end, opening on the sign of a run — and, once it has settled, on how many
+    steps it counted. A
+    toggle somebody wrote by hand rarely looks like that, and costs only itself
+    if it does.
+    """
+    if block.get("type") != "toggle":
+        return False
+    parts = (block.get("toggle") or {}).get("rich_text") or []
+    if not parts or not all((part.get("annotations") or {}).get("bold") for part in parts):
+        return False
+    title = "".join(
+        part.get("plain_text") or (part.get("text") or {}).get("content", "") for part in parts
+    )
+    return bool(_LIVE_TITLE.fullmatch(title.strip()))
 
 
 def _paragraph(step: Step) -> dict:

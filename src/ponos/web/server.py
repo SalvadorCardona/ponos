@@ -46,7 +46,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlparse
 
 from .. import config as config_module
-from .. import legacy, openrouter, store, voice
+from .. import journal, legacy, openrouter, store, voice
 from ..config import Config, state_dir
 from . import attachments, setup
 from .api import Api
@@ -441,6 +441,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.ticket(match.group(1)))
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
                 return self._json(self.api.talk(match.group(1)))
+            if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/runs", route):
+                return self._json(self.api.runs(match.group(1)))
+            if match := re.fullmatch(r"/api/runs/(\d+)/steps", route):
+                try:
+                    pages = {
+                        name: int((query.get(name) or ["0"])[0] or 0)
+                        for name in ("before", "after", "limit")
+                    }
+                except ValueError:
+                    return self._fail(400, "before, after and limit are numbers")
+                return self._json(
+                    self.api.run_steps(
+                        int(match.group(1)),
+                        before=pages["before"],
+                        after=pages["after"],
+                        limit=pages["limit"] or journal.PAGE,
+                    )
+                )
             if route == "/api/logs":
                 return self._json(self.api.logs((query.get("ticket") or [""])[0]))
             if match := re.fullmatch(r"/api/logs/([\w.\-]+)", route):

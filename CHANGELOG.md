@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Every run, and every step of it, in the local database — and the console reads
+  them from there.** Each session on a ticket is a run in `ponos.db`, each step a row
+  (what the agent said, the tool and what it was pointed at, the failures, the time,
+  the cost when known), written as it happens and closed on what the ticket came to.
+  The ticket's **live** tab reads it a page at a time — *Earlier steps* goes back
+  further — follows the run in progress, and offers every earlier run of the ticket,
+  with how it ended and what it cost. The Notion page keeps only the agent's sentences
+  and the result. `ponos logs <ticket> --runs` lists a ticket's runs, and `ponos logs
+  <ticket>` finds its newest log through them. Notion, Markdown or both: the journal
+  is the same.
 - **A local database, `~/.local/state/ponos/ponos.db`, with numbered migrations.**
   The foundation for what the runner will keep about its own runs: SQLite (in
   Python's standard library, so still nothing to install), in WAL mode so the
@@ -487,6 +497,20 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   palette and a notification still open it, and a middle click on a card still
   opens it in a tab. The table's *read* button goes: its title is the way in.
 
+- **A ticket run again is no longer briefed on its earlier runs.** Each run
+  leaves its live block on the page, and a ticket sent back to *Ready* — a
+  retry, an unblocking — used to hand all of them to its next session: tokens
+  paid for steps already taken, and old sentences an agent could read as
+  instructions. The brief is now read without them, wherever a page is read as
+  one — a ticket's session, its reply to a comment, a conflict to resolve, an
+  agent, a project, a schedule — and Notion is not even asked what they hold.
+  The console's view of a ticket leaves them out too, and opens a request
+  lighter for each of them. The report a run ends on — the pull request, the
+  answer written into the page — stays part of the brief. On a Markdown board
+  the story of a run is now written between `<!-- ponos:live -->` and
+  `<!-- /ponos:live -->` and left out the same way; one written before this
+  version has no fence and is still read.
+
 - **A ticket's live block holds only what the agent says.** The page no longer
   gets a bullet per command, file read or edit between the agent's sentences,
   nor a line per failed tool call, nor a rule between paragraphs: only the
@@ -495,6 +519,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   and the detail stays in `ponos logs -f` and the console. The three-hundred
   ceiling now counts paragraphs, so a long session no longer loses its last
   words to its tool calls.
+- **A ticket's page says everything at the top, and has no tabs any more.** The
+  grid always shows the type (as the board spells it: Code, Writing, External
+  action, Publication), the model and the cost, beside the project, priority and
+  creation date — a ticket without a model of its own shows the one
+  `runner.model` gives it, marked *default*, and a cost not known yet reads "—"
+  instead of hiding the cell; the duration, the pull request and the session
+  follow when there are some. Under it the brief is always on screen, and *live*
+  and *discussion* fold beneath it: the session is open while a run is going,
+  with its green dot and its step count in the heading, and the discussion is
+  counted and opens by itself when the ticket waits on you.
 - **Renamed to Ponos — everywhere, not just on the cover.** The product had
   taken the name; now the rest follows: the repository is
   `SalvadorCardona/ponos`, the command is `ponos`, the Python package is
