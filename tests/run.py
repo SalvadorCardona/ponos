@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -40,7 +41,7 @@ from ponos import config as C  # noqa: E402
 from ponos import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
 from ponos import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
 from ponos import schedules, session, state, store, sync, systemd  # noqa: E402
-from ponos import files, images  # noqa: E402
+from ponos import db, files, images  # noqa: E402
 from ponos.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
 from ponos import legacy, update, voice, workspace  # noqa: E402
 from ponos import ticket as ticket_module  # noqa: E402
@@ -12575,6 +12576,158 @@ def a_ticket_this_machine_took_before_the_rename_is_still_its_own():
     runner.agent_label = "ponos@laptop"
     assert f"{legacy.OLD}@laptop" in runner.agent_labels
     assert f"{legacy.OLD}@desktop" not in runner.agent_labels
+
+
+# -- the local database ------------------------------------------------------
+
+
+@case
+def a_new_database_is_brought_to_the_current_schema():
+    with _state_home() as home:
+        try:
+            location, found = db.check()
+            assert location == home / "ponos.db"
+            assert found == len(db.MIGRATIONS) >= 1
+            connection = db.connect()
+            assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+            assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == db.BUSY_TIMEOUT_MS
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            assert {"runs", "steps"} <= tables, tables
+            assert location.stat().st_mode & 0o777 == 0o600
+            with db.transaction() as writing:
+                run = writing.execute(
+                    "INSERT INTO runs (ticket, started_at) VALUES ('abc', '2026-10-02T10:00:00+00:00')"
+                ).lastrowid
+                writing.execute(
+                    "INSERT INTO steps (run, position, at, kind) VALUES (?, 1, '2026-10-02T10:00:01+00:00', 'text')",
+                    (run,),
+                )
+            with db.transaction(immediate=False) as reading:
+                assert reading.execute("SELECT status FROM runs").fetchone()[0] is None, "running: no status yet"
+            assert db.connect() is connection, "one connection per process"
+        finally:
+            db.close()
+
+
+@case
+def a_database_one_migration_behind_is_brought_up_to_date():
+    """Faked with a second migration, since there is only one so far."""
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+    db.open_at(location).close()
+
+    def notes(connection):
+        connection.execute("CREATE TABLE notes (text TEXT)")
+
+    upgraded = db.open_at(location, (*db.MIGRATIONS, notes))
+    try:
+        assert db.version(upgraded) == len(db.MIGRATIONS) + 1
+        upgraded.execute("INSERT INTO notes VALUES ('kept')")
+    finally:
+        upgraded.close()
+    again = db.open_at(location, (*db.MIGRATIONS, notes))
+    try:
+        assert again.execute("SELECT text FROM notes").fetchall() == [("kept",)], "applied once, not twice"
+    finally:
+        again.close()
+
+
+@case
+def a_migration_that_fails_leaves_the_file_as_it_was():
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+    db.open_at(location).close()
+
+    def broken(connection):
+        connection.execute("CREATE TABLE half (x)")
+        raise RuntimeError("halfway")
+
+    try:
+        db.open_at(location, (*db.MIGRATIONS, broken))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("the failure must reach the caller")
+    connection = db.open_at(location)
+    try:
+        assert db.version(connection) == len(db.MIGRATIONS)
+        assert not connection.execute("SELECT 1 FROM sqlite_master WHERE name = 'half'").fetchall()
+    finally:
+        connection.close()
+
+
+@case
+def two_processes_opening_a_new_database_together_both_get_it():
+    """The timer and the console start at once: one migrates, the other finds it done."""
+    home = tempfile.mkdtemp()
+    script = (
+        "import sys; sys.path.insert(0, sys.argv[1]);"
+        "from ponos import db;"
+        "conn = db.connect();"
+        "[conn.execute(\"INSERT INTO runs (ticket, started_at) VALUES ('t', 'now')\") for _ in range(50)];"
+        "print(db.version(conn))"
+    )
+    environment = {**os.environ, "XDG_STATE_HOME": home}
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", script, str(ROOT / "src")],
+            env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        for _ in range(4)
+    ]
+    for process in processes:
+        out, err = process.communicate(timeout=60)
+        assert process.returncode == 0, err
+        assert out.strip() == str(len(db.MIGRATIONS)), out
+    connection = db.open_at(Path(home) / "ponos" / "ponos.db")
+    try:
+        assert connection.execute("SELECT count(*) FROM runs").fetchone()[0] == 200
+    finally:
+        connection.close()
+
+
+@case
+def a_database_newer_than_the_code_is_refused_untouched():
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+    newer = len(db.MIGRATIONS) + 3
+    raw = sqlite3.connect(location)
+    raw.execute(f"PRAGMA user_version = {newer}")
+    raw.close()
+    try:
+        db.open_at(location)
+    except db.TooNew as error:
+        message = str(error)
+        assert f"version {newer}" in message and f"up to {len(db.MIGRATIONS)}" in message, message
+        assert "ponos update" in message
+    else:
+        raise AssertionError("a newer file must be refused")
+    raw = sqlite3.connect(location)
+    try:
+        assert raw.execute("PRAGMA user_version").fetchone()[0] == newer
+        assert not raw.execute("SELECT 1 FROM sqlite_master").fetchall(), "nothing created"
+    finally:
+        raw.close()
+
+
+@case
+def doctor_says_the_database_version_and_refuses_a_newer_one():
+    from ponos.__main__ import _doctor_database
+
+    with _state_home() as home:
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                assert _doctor_database() == 0
+            assert f"schema version {len(db.MIGRATIONS)} of {len(db.MIGRATIONS)}" in out.getvalue()
+            db.close()
+            raw = sqlite3.connect(home / "ponos.db")
+            raw.execute(f"PRAGMA user_version = {len(db.MIGRATIONS) + 1}")
+            raw.close()
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                assert _doctor_database() == 1
+            assert "newer version" in out.getvalue()
+        finally:
+            db.close()
+
 
 def main() -> int:
     # Claude Code's own store, pointed at an empty directory for the whole

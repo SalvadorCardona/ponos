@@ -129,8 +129,8 @@ itself and nothing else. The rest is one chapter per module:
 
 Around them sit the modules a run leans on rather than consists of: `store.py` and the
 two boards behind it (`notion.py`, `files.py`, `sync.py`), `git.py`, `session.py`,
-`voice.py`, `kinds.py` (the four types of ticket, and what counts as a doubt), `progress.py`, `conversation.py`, `schedules.py`, `credits.py`, `channels/`
-and `web/`.
+`voice.py`, `kinds.py` (the four types of ticket, and what counts as a doubt), `progress.py`, `conversation.py`, `schedules.py`, `credits.py`, `db.py` (the local SQLite
+memory, `ponos.db`, and its numbered migrations), `channels/` and `web/`.
 
 ### Regenerating it
 
@@ -2594,6 +2594,12 @@ than the one this guards against.
 Session logs are in `~/.local/state/ponos/logs/` (one `.jsonl` per ticket, the raw
 session stream), the history in `history.jsonl`, and the timer's own journal in
 `journalctl --user -u ponos -f`.
+
+`~/.local/state/ponos/ponos.db` is the runner's local memory — a SQLite file, kept
+beside the board rather than instead of it. Its schema is numbered and brought up to date
+the first time a process opens it; `ponos doctor` opens it and says at which version it
+is, and a file written by a newer Ponos is refused untouched rather than read: update
+Ponos instead.
 
 ---
 
