@@ -5792,16 +5792,47 @@ def what_the_agent_said_is_written_whole_and_not_cut_to_a_bullet():
     live.add(progress.Step("Bash", "npm test"))
     clock.now += 11
     live.flush()
-    # Prose is a paragraph, a tool call is a bullet, and the two are kept apart.
-    assert client.kinds == ["paragraph", "bulleted_list_item"], "no rule before the first word"
+    # Prose is a paragraph; a tool call never reaches the page.
+    assert client.kinds == ["paragraph"]
     assert client.blocks[0] == said.strip()
 
     live.add(steps[0])
     clock.now += 11
     live.flush()
-    assert client.kinds[-2:] == ["divider", "paragraph"]
+    # One paragraph after the other, no rule between them.
+    assert client.kinds == ["paragraph", "paragraph"]
     # The board column shows a line, whatever the page shows.
     assert len(client.properties[-1]) <= progress.LINE
+
+
+@case
+def the_ticket_gets_what_the_agent_said_and_not_each_command():
+    """“Bash · npx vite --port 5199” teaches nothing to whoever reads a ticket.
+
+    The calls stay counted in the title and shown in the board's column; their
+    detail is the log's and the console's. A failed one stays off as well: what
+    the agent says next is what it made of it.
+    """
+    live, client, clock = _reporting()
+    for step in progress.describe(
+        _assistant(
+            {"type": "text", "text": "Le port 5199 est pris ; je prends un autre port."},
+            _tool("Bash", command="npx vite --port 5200"),
+            _tool("Read", file_path="/tmp/portrait.png"),
+            _tool("Edit", file_path="src/style.css"),
+        )
+    ) + progress.describe(
+        {
+            "type": "user",
+            "message": {"content": [{"type": "tool_result", "is_error": True, "content": "exit 1"}]},
+        }
+    ):
+        live.add(step)
+    clock.now += 11
+    live.flush()
+    assert client.blocks == ["Le port 5199 est pris ; je prends un autre port."]
+    assert client.titles[-1].startswith("⏳ Live — 5 steps")
+    assert client.properties[-1] == "Error · exit 1"
 
 
 @case
@@ -5924,10 +5955,11 @@ def the_steps_are_written_on_the_cadence_and_not_before():
         live.add(progress.Step("Read", f"file-{index}.py"))
     assert client.blocks == [], "nothing written before the cadence came round"
 
+    assert client.titles == [], "nothing written before the cadence came round"
+
     clock.now += 6
     live.add(progress.Step("Bash", "pytest"))
-    assert len(client.blocks) == 6, "one write, carrying everything that waited"
-    assert client.titles[-1].startswith("⏳ Live")
+    assert client.titles[-1].startswith("⏳ Live — 6 steps"), "one write, counting all that waited"
     assert client.properties[-1] == "Bash · pytest", "the board column shows the last step"
 
 
@@ -5938,7 +5970,7 @@ def what_is_still_waiting_is_written_when_the_session_ends():
     clock.now += 120
     live.close("removed the header")
 
-    assert client.blocks == ["Edit  src/x.py"]
+    assert client.blocks == []
     assert client.titles[-1] == "✓ 1 step · 2 minutes · removed the header"
     # A finished ticket no longer claims to be doing anything.
     assert client.properties[-1] == ""
@@ -5994,12 +6026,15 @@ def a_session_that_did_nothing_leaves_no_toggle_behind():
 @case
 def the_same_step_twice_in_a_row_is_said_once():
     live, client, clock = _reporting()
+    live.add(progress.Step("Je lis la config.", said=True))
+    live.add(progress.Step("Je lis la config.", said=True))
     live.add(progress.Step("Read", "src/x.py"))
     live.add(progress.Step("Read", "src/x.py"))
     live.add(progress.Step("Read", "src/y.py"))
     clock.now += 11
     live.flush()
-    assert client.blocks == ["Read  src/x.py", "Read  src/y.py"]
+    assert client.blocks == ["Je lis la config."]
+    assert client.titles[-1].startswith("⏳ Live — 3 steps")
 
 
 @case
@@ -6017,18 +6052,30 @@ def a_notion_that_refuses_costs_the_report_and_not_the_ticket():
 def a_reporter_never_writes_more_than_a_page_can_hold():
     live, client, clock = _reporting()
     for index in range(progress.MAX_STEPS + 50):
-        live.add(progress.Step("Read", f"file-{index}.py"))
+        live.add(progress.Step(f"Paragraphe {index}.", said=True))
     clock.now += 11
     live.flush()
-    assert len(client.blocks) == progress.MAX_STEPS + 1, "the steps, then one line saying enough"
+    assert len(client.blocks) == progress.MAX_STEPS + 1, "the prose, then one line saying enough"
     assert client.blocks[-1].startswith("…")
 
-    # Capped is not disabled: the steps stop, the report still says how it ended.
-    live.add(progress.Step("Read", "one-too-many.py"))
+    # Capped is not disabled: the page stops, the title still counts and ends.
+    live.add(progress.Step("Encore un.", said=True))
     clock.now += 11
     live.close("done")
     assert len(client.blocks) == progress.MAX_STEPS + 1
-    assert client.titles[-1].startswith("✓") and client.titles[-1].endswith("· done")
+    assert client.titles[-1].startswith(f"✓ {progress.MAX_STEPS + 51} steps")
+    assert client.titles[-1].endswith("· done")
+
+
+@case
+def tool_calls_by_the_hundred_do_not_cost_the_prose_its_place():
+    live, client, clock = _reporting()
+    for index in range(progress.MAX_STEPS + 50):
+        live.add(progress.Step("Read", f"file-{index}.py"))
+    live.add(progress.Step("Tout est lu ; je lance les tests.", said=True))
+    clock.now += 11
+    live.flush()
+    assert client.blocks == ["Tout est lu ; je lance les tests."]
 
 
 
@@ -11639,7 +11686,7 @@ def an_image_in_a_brief_is_named_for_the_session_and_drawn_by_the_console():
 
 @case
 def the_live_report_writes_its_steps_into_the_file():
-    """A text file has no fold to hide a session's steps in, so it keeps them.
+    """A text file has no fold to hide a session's story in, so it keeps it.
 
     The toggle's title is the one thing lost — there is no line to rewrite in
     place — and `update_block` says so by doing nothing. What must not happen is
@@ -11661,7 +11708,7 @@ def the_live_report_writes_its_steps_into_the_file():
 
         assert not live.disabled
         written = board.blocks_text(page_id)
-        assert "- Read  src/x.py" in written, written
+        assert "src/x.py" not in written, written
         assert "J'ai lu le fichier." in written
         # Cleared on the way out, exactly as on a Notion board.
         assert store.read(board.page(page_id), "Progress") == ""

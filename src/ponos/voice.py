@@ -573,8 +573,8 @@ _SAID: dict[str, dict[str, str]] = {
     },
     # -- the folded block, when it is longer than it is worth ------------------
     "too-many-steps": {
-        "en": "more than {count} steps — the rest is in the log",
-        "fr": "plus de {count} étapes — la suite est dans le journal",
+        "en": "more than {count} paragraphs — the rest is in the log",
+        "fr": "plus de {count} paragraphes — la suite est dans le journal",
     },
     # -- talking in a thread --------------------------------------------------
     "no-reply": {

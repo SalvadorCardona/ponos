@@ -463,6 +463,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A ticket's live block holds only what the agent says.** The page no longer
+  gets a bullet per command, file read or edit between the agent's sentences,
+  nor a line per failed tool call, nor a rule between paragraphs: only the
+  prose, one paragraph after the other. The toggle's title still counts every
+  step and the time spent, the `Progress` column still shows the current one,
+  and the detail stays in `ponos logs -f` and the console. The three-hundred
+  ceiling now counts paragraphs, so a long session no longer loses its last
+  words to its tool calls.
 - **Renamed to Ponos — everywhere, not just on the cover.** The product had
   taken the name; now the rest follows: the repository is
   `SalvadorCardona/ponos`, the command is `ponos`, the Python package is

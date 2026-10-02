@@ -848,10 +848,11 @@ cadence.
 
 Two places, and they answer two different questions.
 
-- **The page** gets one toggle per run — `⏳ Live — 12 steps · 3 minutes` — and under it a
-  bullet per file read and per command run, and what the agent *said* as a paragraph of
-  its own, whole and in its own markdown, under a rule that keeps the two apart. Open it
-  to watch the work; leave it collapsed and its title alone tells you it is moving. When the
+- **The page** gets one toggle per run — `⏳ Live — 12 steps · 3 minutes` — and under it
+  what the agent *said*, one paragraph after the other, whole and in its own markdown.
+  The commands, file reads and edits are counted in the title but never written: their
+  detail is in the log (`ponos logs -f`) and in the console. Open it to follow the
+  work; leave it collapsed and its title alone tells you it is moving. When the
   run ends the toggle settles into `✓ 27 steps · 6 minutes · removed the header`, and
   stays as the story of what happened — or into `⚠️ Trace — 27 steps · 6 minutes`, with the
   command that resumes the session and the path of its log inside, on a run that did not
@@ -863,12 +864,11 @@ Two places, and they answer two different questions.
 
 ```
 ⏳ Live — 12 steps · 3 minutes
-   •  Read    src/app/header.component.html
-   ──────────────────────────────────────────────────────────────────────
    I will remove the banner from the template and the stylesheet rules that
    went with it, then run the tests.
-   •  Edit    src/app/header.component.html
-   •  Bash    npm test -- --watch=false
+
+   The banner is gone and the tests pass. I stop my server and run the full
+   checks.
 ```
 
 A **cadence, not a stream**: a session emits several events a second, and writing each one
@@ -881,11 +881,12 @@ progress = true
 progress_interval_seconds = 10
 ```
 
-What reaches the ticket is a line per tool call — `Bash · npm test`, never the eight
-hundred lines it printed. What the agent *says* is the part a human reads, so it is not
-shortened: it goes down entire, and only a turn of several thousand characters is ever
-cut. Long sessions stop at three hundred steps, with a line saying so: a ticket page is
-not a log file. And a board with no `Progress` column, or an integration
+What reaches the ticket is what the agent *says* — the part a human reads — and nothing
+else: no line per command, file read or edit, and no failed tool call either, since the
+agent's next sentence says what it made of it. It is not shortened: it goes down entire,
+and only a turn of several thousand characters is ever cut. A session that talks past
+three hundred paragraphs stops there, with a line saying so: a ticket page is not a log
+file. And a board with no `Progress` column, or an integration
 that refuses the write, costs the report and nothing else — the ticket runs to its end
 either way.
 
