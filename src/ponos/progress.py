@@ -6,10 +6,11 @@ there all along — `ponos logs -f` streams it — but that means a terminal
 on the machine that runs the tickets, which is not where you are when you glance
 at the board from a phone.
 
-So the steps go **into the ticket**, as they happen. The run appends one toggle
-to the page and drops its steps under it: the page stays as short as it was, and
-the work is one click away. The toggle's own title carries the count and the
-elapsed time, so a collapsed toggle still shows movement.
+So the story goes **into the ticket**, as it happens. The run appends one toggle
+to the page and writes under it what the agent says it is doing: the page stays
+as short as it was, and the gist of the work is one click away. The toggle's own
+title carries the count of steps and the elapsed time, so a collapsed toggle
+still shows movement.
 
 Two things keep it from becoming noise, and they are the whole design:
 
@@ -17,12 +18,15 @@ Two things keep it from becoming noise, and they are the whole design:
   `progress_interval_seconds` (ten by default). A session emits several events a
   second; writing each one would rewrite the page continuously, spend the
   integration's rate limit and produce something nobody can read.
-- **A line per tool call, never the payload.** A tool call becomes “Bash · npm
-  test”, not the eight hundred lines it printed; the log remains the place for
-  everything else. What the agent *said* is not a tool call and is not written
-  like one: it goes down whole, as a paragraph under a rule, with its markdown
-  honoured. Prose cut after two hundred characters stops being worth reading,
-  and a sentence in bold on a bullet reads like shouting.
+- **What was said, never what was done.** The page used to get a bullet per
+  tool call — “Bash · npx vite --port 5199”, “Read /tmp/portrait.png” — between
+  the agent's sentences, and a ticket became a log nobody reads twice: those
+  lines teach nothing to whoever opens it. Only the prose goes down now, whole,
+  one paragraph after the other, with its markdown honoured. A failed tool call
+  stays off too: the agent's next sentence says what it made of it. The calls
+  are still counted in the title and still shown, one at a time, in the board's
+  `Progress` column; their detail is the log's (`ponos logs -f`) and the
+  console's, which `describe` keeps feeding.
 
 Nothing here can fail a ticket. Every call to Notion is caught, and a page that
 refuses three writes in a row switches the whole thing off for the rest of the
@@ -41,7 +45,7 @@ from . import markdown, store, voice as voice_module
 # enough that a page is not rewritten under the reader's eyes.
 CADENCE = 10.0
 
-# How much of a tool step survives into the page. A command, not a file.
+# How much of a tool step survives into the board's column. A command, not a file.
 LINE = 200
 
 # How much of what the agent *said* survives. Generous on purpose: this is the
@@ -49,8 +53,9 @@ LINE = 200
 # a turn so long that a ticket page is the wrong place for it.
 SAID = 5700
 
-# A ceiling on the steps one session writes into its ticket. A long session can
-# make hundreds of tool calls, and a ticket page is not a log file.
+# A ceiling on the paragraphs one session writes into its ticket. A long session
+# can make hundreds of tool calls without one too many, since they stay off the
+# page; but a turn after turn of prose without end is a log file again.
 MAX_STEPS = 300
 
 # Consecutive Notion refusals after which the reporting gives up for good.
@@ -156,30 +161,6 @@ def describe(event: dict) -> list[Step]:
     return steps
 
 
-def _rich(step: Step) -> list[dict]:
-    parts: list[dict] = [
-        {"type": "text", "text": {"content": step.label[:LINE]}, "annotations": {"bold": True}}
-    ]
-    if step.detail:
-        parts.append({"type": "text", "text": {"content": "  "}})
-        parts.append(
-            {
-                "type": "text",
-                "text": {"content": step.detail[:LINE]},
-                "annotations": {"code": True},
-            }
-        )
-    return parts
-
-
-def _bullet(step: Step) -> dict:
-    return {
-        "object": "block",
-        "type": "bulleted_list_item",
-        "bulleted_list_item": {"rich_text": _rich(step)},
-    }
-
-
 def _paragraph(step: Step) -> dict:
     """A sentence the agent wrote, as a sentence — whole, and in its own words.
 
@@ -190,11 +171,6 @@ def _paragraph(step: Step) -> dict:
     for start in range(0, len(step.label), markdown.MAX_CONTENT):
         parts += markdown.inline(step.label[start : start + markdown.MAX_CONTENT])
     return {"object": "block", "type": "paragraph", "paragraph": {"rich_text": parts}}
-
-
-def _divider() -> dict:
-    """The rule that keeps what was said apart from what was done."""
-    return {"object": "block", "type": "divider", "divider": {}}
 
 
 class Live:
@@ -237,6 +213,7 @@ class Live:
         self._last_flush = self.started
         self._last_line = ""
         self._toggle = ""
+        self._paragraphs = 0
         self._failures = 0
         self._capped = False
 
@@ -248,11 +225,11 @@ class Live:
             self.add(step)
 
     def add(self, step: Step) -> None:
-        if self.disabled or self._capped:
+        if self.disabled:
             return
         # Two identical lines in a row say nothing the first one did not: an
-        # agent reading four files in a row would otherwise fill the toggle
-        # with “Read”.
+        # agent saying the same sentence twice would otherwise write it twice,
+        # and the same call made twice would count as two steps.
         previous = self._pending[-1].line if self._pending else self._last_line
         if step.line == previous:
             return
@@ -265,29 +242,26 @@ class Live:
     def flush(self) -> int:
         """Write what has accumulated. Returns how many steps were written."""
         self._last_flush = self.clock()
-        if self.disabled or self._capped or not self._pending:
+        if self.disabled or not self._pending:
             return 0
         steps, self._pending = self._pending, []
-        room = MAX_STEPS - self.written
-        if room <= 0:
-            self._cap()
-            return 0
-        if len(steps) > room:
-            steps = steps[:room]
+        said = [step for step in steps if step.said][: max(0, MAX_STEPS - self._paragraphs)]
 
         if not self._open():
             return 0
-        try:
-            self.client.append_blocks(self._toggle, self._blocks(steps))
-        except store.StoreError as error:
-            self._failed(error)
-            return 0
+        if said:
+            try:
+                self.client.append_blocks(self._toggle, [_paragraph(step) for step in said])
+            except store.StoreError as error:
+                self._failed(error)
+                return 0
         self._failures = 0
         self.written += len(steps)
+        self._paragraphs += len(said)
         self._last_line = steps[-1].line
         self._retitle(f"⏳ {self.heading} — {self._tally()}")
         self._publish(_one_line(self._last_line))
-        if self.written >= MAX_STEPS:
+        if self._paragraphs >= MAX_STEPS:
             self._cap()
         return len(steps)
 
@@ -330,24 +304,6 @@ class Live:
             self._failed(error)
             return False
         return True
-
-    def _blocks(self, steps: list[Step]) -> list[dict]:
-        """The blocks a batch of steps becomes.
-
-        A tool call is a bullet: it is one line, and a list of them is scannable
-        at a glance. Prose is a paragraph, preceded by a rule — which is what
-        turns the toggle from one long list into what it really is, a run of
-        short sections, each headed by what the agent said it was about to do.
-        """
-        blocks: list[dict] = []
-        for step in steps:
-            if not step.said:
-                blocks.append(_bullet(step))
-                continue
-            if blocks or self.written:
-                blocks.append(_divider())
-            blocks.append(_paragraph(step))
-        return blocks
 
     # -- the page -----------------------------------------------------------
 
@@ -418,22 +374,21 @@ class Live:
             self._failed(error)
 
     def _cap(self) -> None:
-        """Enough. The steps stop; the toggle still gets its closing title.
+        """Enough. The paragraphs stop; the count and the title go on.
 
-        A ticket page is not a log file, and a session that makes a thousand
-        tool calls would turn it into one. What stops here is the *steps* — the
-        run carries on, and `close` still says how it ended.
+        A ticket page is not a log file, and a session that talks for hours
+        would turn it into one. What stops here is the *page* — the run carries
+        on, its title keeps counting, and `close` still says how it ended.
         """
         if self._capped:
             return
         self._capped = True
-        self._pending = []
         if not self._toggle:
             return
         try:
             self.client.append_blocks(
                 self._toggle,
-                [_bullet(Step("…", self.words.say("too-many-steps", count=MAX_STEPS)))],
+                [_paragraph(Step("… " + self.words.say("too-many-steps", count=MAX_STEPS)))],
             )
         except store.StoreError:
             pass
