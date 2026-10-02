@@ -330,7 +330,7 @@ class Board(Base):
 
     def _body(self, ticket: Ticket) -> str:
         try:
-            return self.client.blocks_text(ticket.page.id)
+            return self.client.blocks_text(ticket.page.id, live=False)
         except store.StoreError:
             return ""
 

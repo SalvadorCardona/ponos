@@ -377,7 +377,7 @@ class Api:
         held = self._briefs.get(key)
         if held and held[0] == edited:
             return held[1]
-        content = self.runner.client.blocks_text(page_id)
+        content = self.runner.client.blocks_text(page_id, live=False)
         stamp = _instant(edited)
         if self.config.storage.mode != "markdown" and stamp is not None and started >= stamp + 60:
             self._briefs.pop(key, None)
