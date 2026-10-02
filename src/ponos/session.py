@@ -31,6 +31,7 @@ from typing import Callable
 from urllib.parse import parse_qs, quote, urlparse
 
 from . import credits, disk, legacy
+from .question import Question, parse
 
 
 @dataclass
@@ -53,6 +54,9 @@ class Outcome:
     # Ended by whoever started it, on purpose: not a failure, and not an answer.
     # `answer` is what it had said by then; the conversation is still on disk.
     stopped: bool = False
+    # What a blocked session asked, in the parts it was told to hand over —
+    # see question.py. None when it wrote only its RESULT line.
+    question: Question | None = None
 
     @property
     def resume_command(self) -> str:
@@ -293,6 +297,7 @@ def run(
         turns=int(final.get("num_turns") or 0),
         seconds=seconds,
         exhausted=bool(resets_at),
+        question=parse(answer) if blocked else None,
         resets_at=resets_at,
     )
 

@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import disk, voice
+from .. import disk, question, voice
 from ..config import Notify, state_dir
 
 # How many questions a channel remembers, so that a reply arriving tomorrow
@@ -122,40 +122,18 @@ class Ask:
 
 # -- yes, no, and everything else --------------------------------------------
 
-_YES = {
-    "y", "yes", "yep", "yeah", "ok", "okay", "go", "sure", "do it", "ship it",
-    "oui", "ouais", "vas-y", "vas y", "allez", "d'accord", "daccord", "ça marche",
-    "ca marche", "👍", "✅", "👌",
-}
-_NO = {
-    "n", "no", "nope", "nah", "stop", "cancel", "drop it",
-    "non", "nan", "laisse", "laisse tomber", "annule", "👎", "❌", "🚫",
-}
-
 
 def decide(text: str) -> str:
     """"yes", "no", or "" for anything that is not one of those two.
 
-    Only the *first* word is read, and only when it stands alone or opens the
-    sentence: "yes, and rename the column while you are there" is a yes with an
-    instruction attached, while "no idea what you mean" is not a no. The rest of
-    the message travels either way — the verdict never replaces what was said.
+    Read where every answer is read — see `question.decide` — since a reply
+    typed on a phone and one typed under the question in Notion are the same
+    reply.
     """
-    stripped = " ".join(text.strip().lower().split())
-    if not stripped:
-        return ""
-    if any(_opens(stripped, word) for word in _YES):
-        return "yes"
-    if any(_opens(stripped, word) for word in _NO):
-        return "no"
-    return ""
+    return question.decide(text)
 
 
-def _opens(sentence: str, word: str) -> bool:
-    return sentence == word or sentence.startswith(f"{word} ") or sentence.startswith(f"{word},")
-
-
-def answer(reply: Reply, said: voice.Voice | None = None) -> str:
+def answer(reply: Reply, said: voice.Voice | None = None, asked: question.Question | None = None) -> str:
     """The comment a reply becomes, written for the session that will read it.
 
     A bare "oui" means nothing to an agent reading the ticket a minute later —
@@ -165,8 +143,6 @@ def answer(reply: Reply, said: voice.Voice | None = None) -> str:
     language the word was typed in — `decide` understands both.
     """
     said = said or voice.Voice()
-    verdict = decide(reply.text)
-    text = " ".join(reply.text.split())
     # The opening words are `conversation.RELAYED`: they are what tells the next
     # run that this comment is yours rather than the runner's own, and therefore
     # that it wakes the ticket.
@@ -175,13 +151,33 @@ def answer(reply: Reply, said: voice.Voice | None = None) -> str:
         + (said.say("relayed-by", who=reply.who) if reply.who else "")
         + "."
     ]
-    if verdict == "yes":
+    return "\n".join(lines + spelled(reply.text, said, asked))
+
+
+def spelled(text: str, said: voice.Voice, asked: question.Question | None = None) -> list[str]:
+    """An answer, with what it was read as written above it.
+
+    “2” to a choice becomes the option it names, and a yes or a no the sentence
+    that says so; what was typed follows whenever it is more than that one word
+    — « la 2, mais sans déployer » keeps its second half. `asked` is the
+    question it answers, when the ticket has one: without it a number is only a
+    number.
+    """
+    reading = question.read(text, asked)
+    flat = " ".join(text.split())
+    if reading.kind in ("yes", "no") and asked and asked.mode == "choice":
+        # A yes to a list of roads takes none of them: it travels as it was said.
+        reading = question.Reading("free", flat)
+    lines: list[str] = []
+    if reading.kind == "option":
+        lines.append(said.say("relayed-option", number=reading.option, option=reading.label))
+    elif reading.kind == "yes":
         lines.append(said.say("relayed-yes"))
-    elif verdict == "no":
+    elif reading.kind == "no":
         lines.append(said.say("relayed-no"))
-    if text and (not verdict or len(text.split()) > 1):
-        lines.append(text)
-    return "\n".join(lines)
+    if flat and (reading.kind == "free" or len(flat.split()) > 1):
+        lines.append(flat)
+    return lines
 
 
 # -- what a channel remembers ------------------------------------------------

@@ -186,12 +186,9 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "plus personne ne s'en occupait, {minutes} après la dernière trace",
     },
     # -- the one sentence under a verdict -------------------------------------
-    "answer-here": {
-        "en": "An answer here or on your phone — yes, no, or a sentence — and it runs "
-        "again on the next pass.",
-        "fr": "Une réponse ici ou sur ton téléphone — oui, non, ou une phrase — et il "
-        "repart au prochain passage.",
-    },
+    # What follows a yes-no question, on its own line: the two words that
+    # answer it. Recognised too, in every language — see `question.found`.
+    "yes-or-no": {"en": "yes / no", "fr": "oui / non"},
     "trace-in-page": {
         "en": "What it did is in the folded block at the bottom of the page.",
         "fr": "Ce qu'il a fait est dans le bloc replié en bas de la page.",
@@ -634,6 +631,7 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "Oui — vas-y avec ce que tu as proposé.",
     },
     "relayed-no": {"en": "No — do not do that.", "fr": "Non — ne fais pas ça."},
+    "relayed-option": {"en": "Option {number}: {option}.", "fr": "Option {number} : {option}."},
     "noted": {
         "en": "✓ noted on “{title}” — it runs again in a moment.",
         "fr": "✓ noté sur « {title} » — il repart dans un instant.",
@@ -809,6 +807,28 @@ class Voice:
         if len(flat) <= limit:
             return flat
         return flat[:limit].rsplit(" ", 1)[0].rstrip(" ,;:—-") + "…"
+
+    def question(self, asked: object) -> list[str]:
+        """A blocked ticket's question, one line per idea, under its verdict.
+
+        Why it stops, then the question laid out for the answer it wants: a
+        yes-no question carries the two words that answer it, a choice its
+        options numbered on one line — so that “2” is an answer and the comment
+        still fits on a phone — and a free question stands alone. What is done
+        is not here: it goes on the verdict line, which is the notification.
+        See question.py for the three kinds.
+        """
+        ask = self.brief(getattr(asked, "ask", ""))
+        mode = getattr(asked, "mode", "free")
+        if mode == "yes-no":
+            ask = f"{ask} → {self.say('yes-or-no')}"
+        lines = [self.brief(getattr(asked, "why", "")), ask]
+        if mode == "choice":
+            options = getattr(asked, "options", [])
+            lines.append(
+                " · ".join(f"{index}. {self.brief(option, 60)}" for index, option in enumerate(options, 1))
+            )
+        return [line for line in lines if line]
 
     def paragraphs(self, *parts: object) -> str:
         """Whatever is worth saying, one paragraph each, blanks dropped.

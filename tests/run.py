@@ -4236,20 +4236,239 @@ def a_stuck_ticket_in_french_is_stuck_in_french_from_the_first_line_to_the_phone
     finally:
         channels.announce = original
     comment = runner.client.comments_written[0]
-    assert comment == (
-        "🙋 Bloqué — Audit déjà livré et validé : on le refait ?\n"
-        "Une réponse ici ou sur ton téléphone — oui, non, ou une phrase — et il repart "
-        "au prochain passage.\n"
-        "Ce qu'il a fait est dans le bloc replié en bas de la page."
-    ), comment
+    assert comment == "🙋 Bloqué\nAudit déjà livré et validé : on le refait ?", comment
     assert sent and sent[0].startswith("🙋 Bloqué · p-stuck"), sent
     english = voice.Voice("en")
-    for key in ("verdict-blocked", "answer-here", "trace-in-page"):
+    for key in ("verdict-blocked", "yes-or-no", "trace-in-page"):
         assert english.say(key) not in comment + sent[0], key
     # The folded block and the session's footer, said the same way.
     assert said.count(130, "step") + " · " + said.minutes(19 * 60) == "130 étapes · 19 minutes"
     assert said.minutes(20.0) == "moins d'une minute"
     assert said.trace("claude --resume abc", "/tmp/log").startswith("Pour reprendre la session")
+
+
+# -- the question a blocked ticket asks ---------------------------------------
+
+# What the session of the 02/10 ticket would hand over: PR #58 verified and
+# ready, the merge forbidden in its session. The comment it got was one block —
+# what was done, the technical detail and the footer — and no question at all.
+PR_58 = (
+    "J'ai vérifié la PR : build vert, vidéo de 56 s, QR code lisible.\n\n"
+    "DONE: [PR #58](https://github.com/salva/site/pull/58) prête (build ok)\n"
+    "WHY: Je n'ai pas le droit de fusionner sur main.\n"
+    "QUESTION: Qui fusionne la PR #58 ?\n"
+    "MODE: choice\n"
+    "OPTION: Tu fusionnes toi-même\n"
+    "OPTION: Tu m'autorises à fusionner\n"
+    "OPTION: On attend\n\n"
+    "RESULT: blocked — PR #58 prête, la fusion sur main est interdite dans cette session"
+)
+
+
+def _asking(question: object, language: str = "fr") -> tuple[Runner, str, list[str]]:
+    """A ticket blocked on `question`: the comment written, and what reached the phone."""
+    runner = _board_runner([_reviewed("p-stuck", "In progress", None)], {"blocked": "Blocked"})
+    runner.config.runner.language = language
+    runner.config.notify = _config(
+        '[notify]\ndesktop = false\n\n[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n'
+    ).notify
+    sent: list[str] = []
+    original = channels.announce
+    channels.announce = lambda settings, text, **rest: sent.append(text)
+    try:
+        runner._fail(
+            ticket_module.Ticket(runner.client._pages[0]),
+            runner.voice.say("asked-something"),
+            "la session a résumé ça autrement",
+            blocked=True,
+            question=question,
+            note=runner.voice.say("trace-in-page"),
+        )
+    finally:
+        channels.announce = original
+    return runner, runner.client.comments_written[0], sent
+
+
+@case
+def a_yes_no_question_says_the_two_words_that_answer_it():
+    from ponos import question
+    asked = question.Question(
+        ask="Je fusionne et je déploie ?",
+        mode="yes-no",
+        done="PR #58 prête (build ok)",
+        why="Je n'ai pas le droit de fusionner sur main.",
+    )
+    _, comment, sent = _asking(asked)
+    assert comment.split("\n") == [
+        "🙋 Bloqué — PR #58 prête (build ok)",
+        "Je n'ai pas le droit de fusionner sur main.",
+        "Je fusionne et je déploie ? → oui / non",
+    ], comment
+    assert "Une réponse ici" not in comment and "bloc replié" not in comment, "no footer"
+    assert "la session a résumé" not in comment, "the session's own question says it all"
+    assert sent[0].split("\n")[1:4] == [
+        "PR #58 prête (build ok)",
+        "Je n'ai pas le droit de fusionner sur main.",
+        "Je fusionne et je déploie ? → oui / non",
+    ], "the phone gets the same lines"
+    _, english, _ = _asking(asked, "en")
+    assert english.endswith("Je fusionne et je déploie ? → yes / no"), english
+
+
+@case
+def a_choice_is_numbered_on_one_line_so_that_a_number_answers_it():
+    from ponos import question
+    _, comment, _ = _asking(
+        question.Question(
+            ask="Qui fusionne ?",
+            mode="choice",
+            options=["Tu fusionnes toi-même", "Tu m'autorises à fusionner", "On attend"],
+            why="Je n'ai pas le droit de fusionner sur main.",
+        )
+    )
+    assert comment.split("\n") == [
+        "🙋 Bloqué",
+        "Je n'ai pas le droit de fusionner sur main.",
+        "Qui fusionne ?",
+        "1. Tu fusionnes toi-même · 2. Tu m'autorises à fusionner · 3. On attend",
+    ], comment
+    # A choice of one is no choice, and five is a menu.
+    assert question.Question(ask="?", mode="choice", options=["seule"]).mode == "free"
+    assert len(question.Question(ask="?", mode="choice", options=list("abcde")).options) == 4
+
+
+@case
+def a_free_question_stands_alone_and_says_what_to_give():
+    from ponos import question
+    _, comment, _ = _asking(question.Question(ask="Quelle URL pour le site de Wizaplace ?"))
+    assert comment == "🙋 Bloqué\nQuelle URL pour le site de Wizaplace ?", comment
+    # A question the runner asks on its own behalf is a free one, and its
+    # detail still goes under it — after a blank line, out of the question.
+    _, plain, _ = _asking("Quel en-tête ?")
+    assert plain == "🙋 Bloqué\nQuel en-tête ?\n\nla session a résumé ça autrement", plain
+
+
+@case
+def a_blocked_comment_reaches_notion_with_real_line_breaks_and_a_link():
+    from ponos import question
+    _, comment, _ = _asking(question.parse(PR_58))
+    pieces = notion._comment_text(comment)
+    drawn = "".join(piece["text"]["content"] for piece in pieces)
+    assert drawn.count("\n") == 3, "four lines, three breaks, none of them flattened"
+    assert "\\n" not in drawn, "a break, not its escape"
+    linked = [piece for piece in pieces if piece["text"].get("link")]
+    assert linked == [
+        {"type": "text", "text": {"content": "PR #58", "link": {"url": "https://github.com/salva/site/pull/58"}}}
+    ], linked
+    # And read back as it was written, so the console and the next run see the link.
+    read = "".join(notion._written({"plain_text": piece["text"]["content"], **piece}) for piece in pieces)
+    assert read == comment
+    assert notion._comment_text("[x](javascript:alert(1))")[0]["text"].get("link") is None
+
+
+@case
+def the_pull_request_58_comes_back_as_a_clear_choice_in_four_lines():
+    """The 02/10 comment, played again: a choice, and nothing else."""
+    from ponos import question
+    asked = question.parse(PR_58)
+    assert asked and asked.mode == "choice", asked
+    _, comment, _ = _asking(asked)
+    assert comment.split("\n") == [
+        "🙋 Bloqué — [PR #58](https://github.com/salva/site/pull/58) prête (build ok)",
+        "Je n'ai pas le droit de fusionner sur main.",
+        "Qui fusionne la PR #58 ?",
+        "1. Tu fusionnes toi-même · 2. Tu m'autorises à fusionner · 3. On attend",
+    ], comment
+    assert "56 s" not in comment and "QR" not in comment, "the detail stays in the folded block"
+    # What was written is what is read back when the answer arrives.
+    again = question.found(comment)
+    assert (again.mode, again.ask, again.options) == ("choice", asked.ask, asked.options)
+
+
+@case
+def a_session_that_wrote_no_question_blocks_the_way_it_always_did():
+    from ponos import question
+    assert question.parse("RESULT: blocked — quel en-tête ?") is None
+    found = question.parse("**QUESTION:** On publie ?\n- MODE: yes/no\nRESULT: blocked — x")
+    assert found and (found.ask, found.mode) == ("On publie ?", "yes-no"), found
+    assert question.found("🙋 Bloqué — Quel en-tête ?") is None, "an older report: no question to read"
+    assert question.found("✅ À relire — PR #1\nFait.") is None
+
+
+@case
+def an_answer_is_read_as_the_option_it_names_whatever_its_shape():
+    from ponos import question
+    choice = question.Question(
+        ask="Qui fusionne ?",
+        mode="choice",
+        options=["Tu fusionnes toi-même", "Tu m'autorises à fusionner", "On attend"],
+    )
+    for text, option in (
+        ("2", 2), ("la 2", 2), ("2.", 2), ("#3", 3), ("option 1", 1), ("la deuxième", 2),
+        ("2, mais sans déployer", 2), ("on attend", 3), ("Option 2 : Tu m'autorises à fusionner.", 2),
+    ):
+        reading = question.read(text, choice)
+        assert (reading.kind, reading.option) == ("option", option), (text, reading)
+    assert question.read("2", choice).label == "Tu m'autorises à fusionner"
+    assert question.read("5", choice).kind == "free", "an option nobody offered"
+    assert question.read("un détail : attends lundi", choice).kind == "free"
+    yes_no = question.Question(ask="Je fusionne ?", mode="yes-no")
+    for text, kind in (("oui", "yes"), ("ok", "yes"), ("Non", "no"), ("2", "free")):
+        assert question.read(text, yes_no).kind == kind, text
+    free = question.read("https://wizaplace.example", question.Question(ask="Quelle URL ?"))
+    assert (free.kind, free.text) == ("free", "https://wizaplace.example")
+
+
+@case
+def an_answer_from_a_phone_is_written_as_the_option_it_chose():
+    from ponos import question
+    _, comment, _ = _asking(question.parse(PR_58))
+    said = voice.Voice("fr")
+    asked = question.waiting([comment])
+    reply = channels.Reply(channel="telegram", text="2", who="Salva", ticket=TICKET)
+    assert channels.answer(reply, said, asked) == (
+        "Répondu depuis Telegram par Salva.\nOption 2 : Tu m'autorises à fusionner."
+    )
+    reply.text = "la 2, mais sans déployer"
+    assert channels.answer(reply, said, asked).splitlines()[1:] == [
+        "Option 2 : Tu m'autorises à fusionner.", "la 2, mais sans déployer",
+    ]
+    reply.text = "oui"
+    assert channels.answer(reply, said, asked).splitlines()[1:] == ["oui"], (
+        "a yes to a list of roads takes none of them"
+    )
+    # The question a page waits on is its last report's, and only if that one asked.
+    assert question.waiting([comment, "2", "✅ À relire — PR #58\nFait."]) is None
+    # Through the runner: the question is read off the ticket's own comments.
+    runner, _ = _answering(
+        [channels.Reply(channel="telegram", text="3", ticket=TICKET, title="Le site")],
+        asked=[comment],
+    )
+    assert runner.client.written[0][1].endswith("Option 3: On attend."), runner.client.written
+
+
+@case
+def the_next_run_is_told_the_question_and_what_the_answer_chose():
+    from ponos import question
+    _, comment, _ = _asking(question.parse(PR_58))
+    _, lines = _runner_reading([comment, "la 2"])
+    assert lines == [
+        "a previous run: 🙋 Bloqué — [PR #58](https://github.com/salva/site/pull/58) prête "
+        "(build ok) Je n'ai pas le droit de fusionner sur main. — asked: Qui fusionne la PR #58 ? "
+        "(options: 1. Tu fusionnes toi-même; 2. Tu m'autorises à fusionner; 3. On attend)",
+        "the ticket's author: la 2 (read as: option 2, “Tu m'autorises à fusionner”)",
+    ], lines
+    _, plain = _runner_reading(["🙋 Stuck\nWhich header? → yes / no", "yes"])
+    assert plain[-1] == "the ticket's author: yes (read as: yes)", plain
+
+
+@case
+def every_session_that_can_block_is_told_how_to_ask():
+    common = dict(project="p", title="t", body="b", repo="/r", branch="br", base="main", url="u")
+    for template in (prompt.DEFAULT, prompt.DOCUMENT, prompt.DELIVERY, prompt.RESOLVE):
+        text = prompt.build(template, **common)
+        assert "QUESTION: <" in text and "MODE: <yes-no, choice or free>" in text, template[:40]
+    assert "{asking}" not in prompt.build("{title}", **common), "a prompt of your own is left alone"
 
 
 @case
@@ -4493,7 +4712,7 @@ def a_validated_ticket_on_a_repository_with_no_pull_request_asks_rather_than_pub
     results = runner.deliver()
     assert runner.client.written == [("p-code", {"Status": "Blocked"})]
     assert runner.client.comments_written[0].startswith(
-        "🙋 Stuck — This ticket was validated but carries no pull request."
+        "🙋 Stuck\nThis ticket was validated but carries no pull request."
     )
     assert results and results[0]["status"] == "blocked"
 
@@ -4632,8 +4851,8 @@ def a_publication_a_crash_interrupted_comes_back_as_a_question():
     assert recovered == 1
     assert runner.client.written == [("ppost", {"Status": "Blocked"})]
     said = runner.client.comments_written[0]
-    assert said.startswith("🙋 Stuck — its publication was interrupted")
-    assert "“Validated”" in said and "An answer here" in said
+    assert said.startswith("🙋 Stuck\nIts publication was interrupted")
+    assert "“Validated”" in said and "An answer here" not in said
 
 
 @case
@@ -8267,9 +8486,13 @@ def a_value_can_be_written_into_a_table_that_has_a_dot_in_its_name():
 class _AnsweringClient:
     """A Notion that only has to remember what was written on which page."""
 
-    def __init__(self, error: str = ""):
+    def __init__(self, error: str = "", asked: list[str] | None = None):
         self.written: list[tuple[str, str]] = []
         self._error = error
+        self._asked = asked or []
+
+    def comments(self, page_id: str) -> list[notion.Comment]:
+        return [notion.Comment(text, "") for text in self._asked]
 
     def comment(self, page_id: str, text: str) -> None:
         if self._error:
@@ -8302,10 +8525,13 @@ def _channel(stub):
         channels.open = original
 
 
-def _answering(replies: list[channels.Reply], error: str = "") -> tuple[Runner, _StubChannel]:
+def _answering(
+    replies: list[channels.Reply], error: str = "", asked: list[str] | None = None
+) -> tuple[Runner, _StubChannel]:
     runner = Runner.__new__(Runner)
     runner.config = _config('[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n')
-    runner.client = _AnsweringClient(error)
+    runner.client = _AnsweringClient(error, asked)
+    runner._comments = {}
     runner.dry_run = False
     runner.quiet = True
     stub = _StubChannel(replies)
@@ -8382,7 +8608,7 @@ def a_blocked_ticket_travels_with_its_question_and_its_link():
     assert message["text"].startswith("🙋 Stuck · Le header"), "the comment's own verdict"
     assert "Which header" in message["text"], "the agent's question, not the runner's summary"
     assert "https://notion.so/t" in message["text"], "a notification you have to go and find"
-    assert "An answer here" in message["text"]
+    assert "An answer here" not in message["text"], "the question says how to answer it"
     assert message["ask"] is True and message["ticket"] == TICKET
 
 

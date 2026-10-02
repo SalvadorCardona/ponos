@@ -19,6 +19,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -326,7 +327,7 @@ class Client:
             suffix = f"&start_cursor={cursor}" if cursor else ""
             payload = self._request("GET", f"/comments?block_id={page_id}&page_size=100{suffix}")
             for item in payload.get("results", []):
-                text = "".join(part.get("plain_text", "") for part in item.get("rich_text", []))
+                text = "".join(_written(part) for part in item.get("rich_text", []))
                 if text.strip():
                     found.append(
                         Comment(
@@ -497,7 +498,7 @@ class Client:
         discussion, Notion threads it there, and the page keeps reading as a
         conversation instead of as a stack of monologues.
         """
-        body: dict[str, Any] = {"rich_text": _rich_text(text)}
+        body: dict[str, Any] = {"rich_text": _comment_text(text)}
         if discussion_id:
             body["discussion_id"] = discussion_id
         else:
@@ -731,6 +732,42 @@ def _rich_text(text: str) -> list[dict]:
     """Notion rejects a text block longer than 2000 characters."""
     chunks = [text[index : index + 1900] for index in range(0, len(text), 1900)] or [""]
     return [{"type": "text", "text": {"content": chunk}} for chunk in chunks[:20]]
+
+
+# A link as a report writes it: `[PR #58](https://…)`. Only http(s), because a
+# comment is not where a `javascript:` address gets to become clickable.
+_LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
+
+
+def _comment_text(text: str) -> list[dict]:
+    """A comment as Notion draws it: its lines, and its links clickable.
+
+    The line breaks stay in the text itself — Notion draws a `\n` inside a
+    comment as a new line, which is what lets a blocked ticket ask its question
+    one line per idea — and a Markdown link becomes a link rather than its own
+    source, so that “PR #58” on a verdict line is the pull request. Everything
+    else is `_rich_text`, cut where Notion would refuse it.
+    """
+    segments: list[dict] = []
+    at = 0
+    for found in _LINK.finditer(text):
+        if found.start() > at:
+            segments.extend(_rich_text(text[at : found.start()]))
+        for linked in _rich_text(found.group(1)):
+            linked["text"]["link"] = {"url": found.group(2)}
+            segments.append(linked)
+        at = found.end()
+    if at < len(text) or not segments:
+        segments.extend(_rich_text(text[at:]))
+    # Notion takes a hundred pieces of rich text at most.
+    return segments[:100]
+
+
+def _written(part: dict) -> str:
+    """One piece of a comment's rich text, read back as it was written."""
+    plain = part.get("plain_text", "")
+    url = ((part.get("text") or {}).get("link") or {}).get("url", "")
+    return f"[{plain}]({url})" if url and plain else plain
 
 
 def _block_text(block: dict, depth: int) -> str:

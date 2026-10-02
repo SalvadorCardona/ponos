@@ -23,7 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from .. import config as config_module
-from .. import cleanup, conversation, credits, images, session, state, store, sync, systemd, voice
+from .. import channels, cleanup, conversation, credits, images, question, session, state, store, sync
+from .. import systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -1041,7 +1042,16 @@ class Api:
         comments = self.runner.client.comments(page_id)
         said = self.runner.voice
         relayed = said.say("relayed", channel=said.say("relayed-console"))
-        self.runner.client.comment(page_id, f"{relayed}.\n{text}", _thread(comments, me))
+        # Read against the question the ticket is waiting on, like an answer
+        # from a phone: “2” lands as the option it names.
+        # The message itself keeps its lines, which a phone's never had.
+        asked = question.waiting(comment.text for comment in comments)
+        lines = channels.spelled(text, said, asked) if asked else [text]
+        if lines and lines[-1] == " ".join(text.split()):
+            lines[-1] = text
+        self.runner.client.comment(
+            page_id, "\n".join([f"{relayed}.", *lines]), _thread(comments, me)
+        )
         self.runner.forget_comments(page_id)
         message = {
             "role": "you",

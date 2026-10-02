@@ -653,7 +653,7 @@ class Delivery(Base):
                     said.say("conflict-open", base=job.base),
                     outcome.summary or outcome.error,
                     blocked=True,
-                    question=question,
+                    question=outcome.question or question,
                     note=said.paragraphs(
                         facts, told, self._aside(job, replay), self._filed(job, outcome)
                     ),
@@ -896,7 +896,7 @@ class Delivery(Base):
                 said.say("not-published"),
                 outcome.summary or outcome.error,
                 blocked=outcome.blocked,
-                question=outcome.summary,
+                question=outcome.question or outcome.summary,
                 note=said.paragraphs(
                     forced,
                     self._filed(job, outcome, said.say("workdir-kept", path=job.workdir)),
