@@ -470,6 +470,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A ticket opens in a window over the board.** A click on a card — or on a
+  ticket's title in the table — no longer leaves the board: the ticket is drawn
+  in a window in the middle of the screen, the whole screen on a phone, with
+  its short id and title at the top and two buttons beside them, one to its
+  full page and one to close. The cross or Escape puts you back on the board
+  where you were. The page itself keeps its address, so a shared link, the
+  palette and a notification still open it, and a middle click on a card still
+  opens it in a tab. The table's *read* button goes: its title is the way in.
+
 - **A ticket's live block holds only what the agent says.** The page no longer
   gets a bullet per command, file read or edit between the agent's sentences,
   nor a line per failed tool call, nor a rule between paragraphs: only the

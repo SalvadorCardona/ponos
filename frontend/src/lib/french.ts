@@ -362,6 +362,7 @@ export const FRENCH: Record<string, string> = {
   "Resize the drawer": "Redimensionner le panneau",
   Copied: "Copié",
   "Copy the full id": "Copier l’id complet",
+  "Open the full page": "Ouvrir en page complète",
   "Drop to attach to your message": "Déposez pour joindre à votre message",
   "Photos, videos and documents, up to {{limit}} MB each":
     "Photos, vidéos et documents, jusqu'à {{limit}} Mo chacun",

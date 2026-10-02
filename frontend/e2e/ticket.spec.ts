@@ -23,6 +23,7 @@ async function counted(page: Page) {
 }
 
 const header = (page: Page) => page.locator('[data-slot="admin-header"] h2')
+const window_ = (page: Page) => page.getByRole("dialog")
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -32,7 +33,7 @@ test("a ticket opened from the board is drawn before its brief is read, and read
   await page.getByRole("link", { name: "A long ticket" }).click()
 
   // What the card knew, while the brief is still on its way.
-  await expect(header(page)).toHaveText("A long ticket", { timeout: 1000 })
+  await expect(window_(page).locator('[data-slot="dialog-title"]')).toHaveText("A long ticket", { timeout: 1000 })
   await expect(page.getByText("no project — a document")).toBeVisible({ timeout: 1000 })
   await expect(page.getByText("Part 40")).not.toBeAttached()
 
@@ -42,7 +43,8 @@ test("a ticket opened from the board is drawn before its brief is read, and read
   expect(reads).toHaveLength(1)
 
   // Back to the board and in again: a new opening, a new read.
-  await page.goBack()
+  await page.keyboard.press("Escape")
+  await expect(window_(page)).not.toBeAttached()
   await page.getByRole("link", { name: "A long ticket" }).click()
   await expect(page.getByText("Part 40")).toBeAttached()
   expect(reads).toHaveLength(2)
@@ -51,6 +53,7 @@ test("a ticket opened from the board is drawn before its brief is read, and read
 test("a ticket opened by its address, before the board is there, is read once too", async ({ page }) => {
   const reads = await counted(page)
   await page.goto(`/?view=console/tickets/read/${LONG}`)
+  await expect(header(page)).toHaveText("A long ticket")
   await expect(page.getByText("Part 40")).toBeAttached()
   await page.waitForTimeout(1500)
   expect(reads).toHaveLength(1)
