@@ -76,6 +76,13 @@ class Base:
         self._claimed: set[str] = set()
         # What the last `deliver` left for later, so a pass can say so.
         self._deferred: list[tuple[Ticket, datetime]] = []
+        # How many pull requests this runner has merged into each repository,
+        # and how far that count had gone when a ticket was last replayed —
+        # so that a replay its own queue made necessary is not held against
+        # that ticket. See `Delivery._forgiven`.
+        self._landed: dict[str, int] = {}
+        self._replayed_after: dict[str, int] = {}
+        self._landed_lock = threading.Lock()
         # Whether this run has already said it cannot read the subscription's
         # usage. Said once — see `under_reserve`, which asks at every free place.
         self._usage_warned = False
