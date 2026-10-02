@@ -270,6 +270,37 @@ export interface Step {
   label: string
   detail: string
   said?: boolean
+  /** Where the step stands in its run, and when — only on a step read from the journal. */
+  position?: number
+  at?: string
+}
+
+/** One run of a ticket, as the local journal keeps it — see `journal.py`. */
+export interface Run {
+  id: number
+  ticket: string
+  title: string
+  kind: string
+  project: string
+  agent: string
+  session: string
+  log: string
+  started_at: string
+  /** Null while the run is going on — or when it was killed before it could say. */
+  ended_at: string | null
+  status: "done" | "blocked" | "failed" | "waiting" | "validated" | null | string
+  reason: string
+  cost_usd: number | null
+  steps: number
+}
+
+/** A page of a run's steps. `more`: there are older ones than the first here. */
+export interface RunSteps {
+  run: number
+  count: number
+  steps: Step[]
+  more: boolean
+  ended: boolean
 }
 
 /** `stopped`: a turn of the workspace you ended, and what it had said by then. */

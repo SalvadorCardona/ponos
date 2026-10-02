@@ -17,6 +17,8 @@ Validated, one Ready to be set aside and made ready again. Two schedules a pass
 last read weeks ago, one of them turned off. And a check that found a newer
 version than this checkout, for the version at the top right to offer it — a
 commit that exists nowhere, so that a click on "Update now" could only ever fail.
+The blocked ticket has two runs in the local journal, for the session tab that
+reads them.
 
 And a `claude` of its own, first in the PATH, for the conversation with the
 workspace: it reads a file, runs a command that fails, and answers — or, told
@@ -136,6 +138,41 @@ say({{"type": "result", "result": answer, "session_id": session, "total_cost_usd
 """
 
 
+def journal_of(ticket: str) -> None:
+    """Two runs of the blocked ticket in the local journal, the second long.
+
+    The first failed after three steps; the second asked its question after
+    two hundred and fifty — more than one page, for the button that reads
+    further back.
+    """
+    from ponos import db, journal
+
+    first = journal.Run.start(ticket=ticket, title="A ticket that asked", session="first")
+    first.event(_said("I read the brief first."))
+    first.event(_tool("Bash", {"command": "make test"}))
+    first.event({"type": "user", "message": {"content": [
+        {"type": "tool_result", "is_error": True, "content": "make: *** No rule to make target"}
+    ]}})
+    first.event({"type": "result", "total_cost_usd": 0.12})
+    first.end("failed", "the session ended badly")
+    second = journal.Run.start(ticket=ticket, title="A ticket that asked", session="second")
+    second.event(_said("Starting again, from the start."))
+    for index in range(1, 249):
+        second.event(_tool("Read", {"file_path": f"/repo/src/part-{index}.py"}))
+    second.event(_said("Which header — the dashboard's, or the public site's?"))
+    second.event({"type": "result", "total_cost_usd": 0.5})
+    second.end("blocked", "which header")
+    db.close()
+
+
+def _said(text: str) -> dict:
+    return {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
+
+
+def _tool(name: str, payload: dict) -> dict:
+    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": name, "input": payload}]}}
+
+
 def main() -> None:
     port = sys.argv[1] if len(sys.argv) > 1 else "8790"
     here = Path(tempfile.mkdtemp(prefix="ponos-e2e-"))
@@ -163,6 +200,7 @@ def main() -> None:
         XDG_STATE_HOME=str(here / "state"),
         PYTHONPATH=str(ROOT / "src"),
     )
+    journal_of(ASKING)
     os.execvp(sys.executable, [sys.executable, "-m", "ponos", "serve", "--port", port])
 
 

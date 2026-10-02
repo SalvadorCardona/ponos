@@ -46,7 +46,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ponos import config as C  # noqa: E402
-from ponos import images, notion, store  # noqa: E402
+from ponos import db, images, journal, notion, store  # noqa: E402
 from ponos.config import PRIORITIES  # noqa: E402
 from ponos.runner import Runner  # noqa: E402
 
@@ -585,6 +585,12 @@ if moved and (here / ".git").exists():
     subprocess.run(["git", "push", "origin", "main"], cwd=clone, check=True, capture_output=True)
 
 if (here / ".git").exists():
+    # What a session does on its way, for the journal to keep and the page not
+    # to: a sentence, and the command that follows it.
+    emit({"type": "assistant", "message": {"content": [
+        {"type": "text", "text": "J'écris FAKE.md puis je le commite."},
+        {"type": "tool_use", "name": "Bash", "input": {"command": "git commit -m 'Écrit par la fausse session'"}},
+    ]}})
     (here / "FAKE.md").write_text("the session was here\\n", encoding="utf-8")
     subprocess.run(["git", "add", "FAKE.md"], cwd=here, check=True, capture_output=True)
     subprocess.run(["git", "-c", "user.name=Fake Claude", "-c", "user.email=fake@example.invalid",
@@ -1087,6 +1093,48 @@ def a_code_ticket_comes_back_as_a_pull_request():
         assert said, "the ticket came back without a word"
         assert opened[0]["url"] in said[-1], said[-1]
         assert not machine.worktrees(repository), "a worktree was left behind on a run that worked"
+
+        # Every step in the local journal — with the live block off, too: it
+        # is written whatever the board and whatever `runner.progress` says.
+        runs = journal.runs(ticket)
+        assert len(runs) == 1, runs
+        assert runs[0]["status"] == "done" and runs[0]["reason"] == opened[0]["url"], runs[0]
+        assert runs[0]["cost_usd"] == 0.02, runs[0]
+        steps = journal.steps(runs[0]["id"])["steps"]
+        assert [(step["kind"], step["label"]) for step in steps] == [
+            ("said", "J'écris FAKE.md puis je le commite."),
+            ("tool", "Bash"),
+            ("said", "RESULT: ok — un fichier écrit et commité"),
+        ], steps
+        assert "git commit" in steps[1]["detail"], steps[1]
+        db.close()
+
+
+@case
+def the_page_keeps_what_the_agent_said_and_the_journal_every_step():
+    """The ticket gets the gist; the console, reading the journal, gets the rest.
+
+    A sentence and a command, from one session: the sentence goes onto the
+    page, under the live block, and the command does not — it is in the
+    journal, beside the sentence, in the order they came.
+    """
+    with bench(progress=True) as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux, corrige-le.", project)
+
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        page = "\n".join(machine.board.body(key) for key in list(machine.board.blocks))
+        assert "Le titre est faux, corrige-le." in page, page
+        assert "J'écris FAKE.md puis je le commite." in page, page
+        assert "RESULT: ok — un fichier écrit et commité" in page, page
+        assert "git commit" not in page and "Bash" not in page, "a command was written onto the ticket"
+        (run,) = journal.runs(ticket)
+        kinds = [step["kind"] for step in journal.steps(run["id"])["steps"]]
+        assert kinds == ["said", "tool", "said"], kinds
+        db.close()
 
 
 @case

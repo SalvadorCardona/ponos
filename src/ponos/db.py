@@ -39,6 +39,14 @@ in UTC, as text, the way every other file here writes them; `status` stays
 NULL while a run is still going, so a run killed mid-way is findable for what
 it is. A step is one line of what the session did, in order — `position`
 rather than the clock, because two steps can share a second.
+
+Migration 2 is what filling them taught: a step is `said`, `tool` or `error`,
+and a tool step is two things — the tool, and what it was pointed at — which
+one `text` column could only hold glued together. So `tool` has its own, and
+`cost_usd` says what the run had cost when the step was taken, as far as it
+was known then: Claude Code reports a price at the end of a session, so it is
+NULL until one has ended — the first half of a session picked up again.
+See journal.py for who writes them, and who reads them.
 """
 
 from __future__ import annotations
@@ -107,12 +115,17 @@ def _runs_and_steps(connection: sqlite3.Connection) -> None:
     )
 
 
+def _steps_name_their_tool(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE steps ADD COLUMN tool TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE steps ADD COLUMN cost_usd REAL")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
 # a migration under the old version number.
 Migration = Callable[[sqlite3.Connection], None]
-MIGRATIONS: tuple[Migration, ...] = (_runs_and_steps,)
+MIGRATIONS: tuple[Migration, ...] = (_runs_and_steps, _steps_name_their_tool)
 
 
 def version(connection: sqlite3.Connection) -> int:

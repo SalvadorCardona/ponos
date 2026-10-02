@@ -520,23 +520,42 @@ class Reports(Base):
         the next run's sweep finds the ticket where it was left.
         """
         try:
-            return work(*arguments)
+            result = work(*arguments)
         except Exception as error:  # noqa: BLE001 — the point is to catch it all
             detail = f"{type(error).__name__}: {voice_module.line(error)}"
             state.release(ticket.id)
             try:
-                return self._fail(ticket, self.voice.say("crashed"), detail)
+                result = self._fail(ticket, self.voice.say("crashed"), detail)
             except Exception as unwritten:  # noqa: BLE001
                 self.say(
                     f"    ✗ {ticket.title} — {detail}, and the failure could not be "
                     f"written: {voice_module.line(unwritten)}"
                 )
-                return {
+                result = {
                     "ticket": ticket.title,
                     "id": ticket.id,
                     "status": "failed",
                     "reason": detail,
                 }
+        self._journal_end(ticket, result)
+        return result
+
+    def _journal_end(self, ticket: Ticket, result: dict | None) -> None:
+        """The run this ticket's session opened, closed on what the ticket came to.
+
+        Here, where every road out of a ticket's work meets — a pull request, a
+        question, a crash — rather than after the session: a session that ended
+        well and committed nothing is a blocked ticket, and that is what its
+        run should say. A piece of work that ran no session has no run to close.
+        """
+        run = self._journals.pop(ticket.id, None)
+        if run is None:
+            return
+        result = result or {}
+        run.end(
+            str(result.get("status") or "done"),
+            str(result.get("pull_request") or result.get("merged") or result.get("reason") or ""),
+        )
 
     def _filed(self, job: Job, outcome: session.Outcome, *rest: object) -> str:
         """The machinery of a failed run, put where it does not crowd the report.

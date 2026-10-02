@@ -130,7 +130,7 @@ itself and nothing else. The rest is one chapter per module:
 Around them sit the modules a run leans on rather than consists of: `store.py` and the
 two boards behind it (`notion.py`, `files.py`, `sync.py`), `git.py`, `session.py`,
 `voice.py`, `kinds.py` (the four types of ticket, and what counts as a doubt), `progress.py`, `conversation.py`, `schedules.py`, `credits.py`, `db.py` (the local SQLite
-memory, `ponos.db`, and its numbered migrations), `channels/` and `web/`.
+memory, `ponos.db`, and its numbered migrations), `journal.py` (every run and its steps, in it), `channels/` and `web/`.
 
 ### Regenerating it
 
@@ -851,7 +851,8 @@ Two places, and they answer two different questions.
 - **The page** gets one toggle per run — `⏳ Live — 12 steps · 3 minutes` — and under it
   what the agent *said*, one paragraph after the other, whole and in its own markdown.
   The commands, file reads and edits are counted in the title but never written: their
-  detail is in the log (`ponos logs -f`) and in the console. Open it to follow the
+  detail is in the run journal the console reads (see *The run journal* below) and in
+  the log (`ponos logs -f`). Open it to follow the
   work; leave it collapsed and its title alone tells you it is moving. When the
   run ends the toggle settles into `✓ 27 steps · 6 minutes · removed the header`, and
   stays as the story of what happened — or into `⚠️ Trace — 27 steps · 6 minutes`, with the
@@ -902,7 +903,13 @@ claude --resume <session id>          # reopen the conversation, read it, carry 
 ponos logs -f                 # the live feed of the running session
 ponos logs <ticket id>        # a past session, rendered
 ponos logs <ticket id> --raw  # the raw JSON stream
+ponos logs <ticket id> --runs # every run of that ticket, from the run journal
+ponos logs --runs             # the latest runs, every ticket
 ```
+
+`ponos logs <ticket id>` finds the ticket's newest run in the journal, so a session that
+was started over — and wrote a second log — is found too; tickets that ran before the
+journal are found by their log's name, as they always were.
 
 **Make `Session` a URL property and its cell becomes a button.** Clicking it opens a
 terminal already inside that conversation — no identifier to copy, no directory to find.
@@ -1828,9 +1835,14 @@ offers where it stands. Under the facts, three tabs: the brief, **live** — the
 ticket in progress opens on — and **discussion**. It is the session's journal, growing as it is written and
 following its end until you scroll up to read something; what the agent says is drawn as
 prose, each tool call is one folded line — the tool and the start of its command, the
-worktree's path written `./` — that a click unfolds. Once the ticket has left *In
-progress*, the same tab reads its last session back from the log, read-only, for as long as
-the log is on disk. The **discussion** tab is the ticket's own terminal, counted on the
+worktree's path written `./` — that a click unfolds. The steps come from the local run
+journal (`ponos.db`, below), not from the page: the tab opens on the end of the newest run,
+*Earlier steps* reads further back two hundred at a time, and while the run goes on each
+step the stream announces is read from the journal as it lands. Every run the ticket has
+had is kept there — a select over the steps picks an earlier one, by its date, how it
+ended and what it cost — and the line above them says how it ended, with the pull request
+or the reason. A ticket whose runs all predate the journal is read back from its last log,
+as before. The **discussion** tab is the ticket's own terminal, counted on the
 tab itself: everything said on it, oldest first — the runner's reports, your answers, the
 answers you gave from Telegram — and the console's own message bar to say the next thing
 (Enter sends, the microphone dictates; no files, since a comment carries text). A ticket
@@ -2604,6 +2616,22 @@ beside the board rather than instead of it. Its schema is numbered and brought u
 the first time a process opens it; `ponos doctor` opens it and says at which version it
 is, and a file written by a newer Ponos is refused untouched rather than read: update
 Ponos instead.
+
+#### The run journal
+
+Every run — one session on one ticket — is a row of `ponos.db`, and every step of it a
+row under that: what the agent said, which tool it called on what (a command, a file),
+which call failed, when, and what the run had cost so far when that is known. It is
+written as the session goes, whatever the board — Notion, Markdown or both — and whatever
+`runner.progress` says; it is closed with what the ticket came to (*done* with its pull
+request, *blocked* with its question, *failed*, *waiting* for credit). A run the runner was
+killed in keeps no status, and reads as such.
+
+It is what the console's **live** tab reads, a page at a time, and what `ponos logs
+--runs` lists. The ticket's page keeps only the agent's sentences and the result; the
+`.jsonl` beside it stays the complete record — what a command printed, what a file held —
+which the journal does not copy. A database that cannot be written switches the journal
+off for that run, and the ticket goes on.
 
 ---
 
