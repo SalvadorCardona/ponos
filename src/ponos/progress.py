@@ -25,8 +25,8 @@ Two things keep it from becoming noise, and they are the whole design:
   one paragraph after the other, with its markdown honoured. A failed tool call
   stays off too: the agent's next sentence says what it made of it. The calls
   are still counted in the title and still shown, one at a time, in the board's
-  `Progress` column; their detail is the log's (`ponos logs -f`) and the
-  console's, which `describe` keeps feeding.
+  `Progress` column; their detail is the run journal's (journal.py, which the
+  console reads) and the log's (`ponos logs -f`) — `describe` feeds both.
 
 Nothing here can fail a ticket. Every call to Notion is caught, and a page that
 refuses three writes in a row switches the whole thing off for the rest of the

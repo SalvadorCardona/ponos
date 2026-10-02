@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Every run, and every step of it, in the local database — and the console reads
+  them from there.** Each session on a ticket is a run in `ponos.db`, each step a row
+  (what the agent said, the tool and what it was pointed at, the failures, the time,
+  the cost when known), written as it happens and closed on what the ticket came to.
+  The ticket's **live** tab reads it a page at a time — *Earlier steps* goes back
+  further — follows the run in progress, and offers every earlier run of the ticket,
+  with how it ended and what it cost. The Notion page keeps only the agent's sentences
+  and the result. `ponos logs <ticket> --runs` lists a ticket's runs, and `ponos logs
+  <ticket>` finds its newest log through them. Notion, Markdown or both: the journal
+  is the same.
 - **A local database, `~/.local/state/ponos/ponos.db`, with numbered migrations.**
   The foundation for what the runner will keep about its own runs: SQLite (in
   Python's standard library, so still nothing to install), in WAL mode so the
