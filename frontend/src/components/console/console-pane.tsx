@@ -16,7 +16,7 @@ import { Line, Transcript } from "./transcript"
 import { Turn } from "./turn"
 
 /* A sentence talks to your workspace; a line that starts with `>` runs a
- * ticket-runner command. Both land in the same transcript, because both are
+ * ponos command. Both land in the same transcript, because both are
  * things you did to the same machine — and a sentence can carry what you would
  * otherwise have had to describe: a screenshot, a PDF, a clip, your voice.
  *
@@ -213,7 +213,7 @@ const Said = React.memo(function Said({ entry }: { entry: Entry }) {
     <Line id={id} anchor>
       <div className="bg-card rounded-lg border px-3 py-2">
         <div className="text-muted-foreground mb-1 font-mono text-[0.7rem]">
-          ticket-runner {entry.argv.join(" ")}
+          ponos {entry.argv.join(" ")}
         </div>
         <pre className="scroll-thin max-h-96 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap">
           {entry.lines.map((line, index) => (

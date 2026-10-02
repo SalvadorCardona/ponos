@@ -124,7 +124,7 @@ export const settled = (list: Pending[], key: string, change: Partial<Pending>) 
   list.map((item) => (item.key === key ? { ...item, ...change } : item))
 
 /* A sentence talks to your workspace; a line that starts with `>` runs a
- * ticket-runner command. */
+ * ponos command. */
 export const isCommand = (text: string) => text.trimStart().startsWith(">")
 
 /** Whether the arrow would send anything — and it is drawn disabled when not. */

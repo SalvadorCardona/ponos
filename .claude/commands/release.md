@@ -3,7 +3,7 @@ description: Cut a release — pick the version, promote the changelog, tag, pub
 argument-hint: patch | minor | major | X.Y.Z (or nothing, and I will propose one)
 ---
 
-Cut a ticket-runner release. Follow `.claude/skills/release/SKILL.md` step by
+Cut a Ponos release. Follow `.claude/skills/release/SKILL.md` step by
 step — it is the procedure, and it is what the checks in `scripts/release.py`
 are written against.
 

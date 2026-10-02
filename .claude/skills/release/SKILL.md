@@ -1,9 +1,9 @@
 ---
 name: release
-description: Cut a ticket-runner release — pick the version, promote the changelog, tag it, and publish the GitHub release. Use when asked to release, ship, publish, cut a version, tag a version, bump the version, or prepare a changelog entry for a release.
+description: Cut a Ponos release — pick the version, promote the changelog, tag it, and publish the GitHub release. Use when asked to release, ship, publish, cut a version, tag a version, bump the version, or prepare a changelog entry for a release.
 ---
 
-# Releasing ticket-runner
+# Releasing Ponos
 
 A release is one number, one changelog entry, one tag and one GitHub release,
 and they all have to say the same thing. `scripts/release.py` is what keeps them
@@ -14,12 +14,12 @@ script cannot make for you.
 
 | What | Where | Who writes it |
 |---|---|---|
-| the version | `__version__` in `src/ticket_runner/__init__.py` | `release.py bump`, never by hand |
+| the version | `__version__` in `src/ponos/__init__.py` | `release.py bump`, never by hand |
 | the notes | the `## [Unreleased]` section of `CHANGELOG.md` | whoever merges a change |
 | the tag | `v<version>` on `main` | you, at step 5 |
 | the release | GitHub, body taken from the changelog | the `release` workflow, on the tag |
 
-Everything downstream is derived. `ticket-runner --version`, the version in the
+Everything downstream is derived. `ponos --version`, the version in the
 web console header, the release title and the release body all read from those
 two files, so the two files are the only ones to edit.
 
@@ -76,7 +76,7 @@ Run them from `main`, up to date, with a clean tree.
 
    ```sh
    git tag -a "v$(python3 scripts/release.py current)" \
-           -m "ticket-runner $(python3 scripts/release.py current)"
+           -m "ponos $(python3 scripts/release.py current)"
    git push origin "v$(python3 scripts/release.py current)"
    ```
 
@@ -103,7 +103,7 @@ Run them from `main`, up to date, with a clean tree.
 ## What a release sets off
 
 The runner's self-update follows the newest `vX.Y.Z` tag by default
-(`runner.update_channel = "release"` — see `src/ticket_runner/update.py`), so
+(`runner.update_channel = "release"` — see `src/ponos/update.py`), so
 pushing the tag **is** shipping it: every installation on the release channel
 moves to it within its update interval. That is one more reason to stop before
 the tag and ask. A pre-release tag (`v1.0.0-rc1`) is not picked up; only

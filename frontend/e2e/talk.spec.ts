@@ -12,7 +12,7 @@ const ASKING = "/?view=console/tickets/read/00000000000000000000000000000a5c"
 const FIELD = "Answer the ticket, or ask it something"
 
 async function open(page: Page, path: string) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto(path)
 }
 

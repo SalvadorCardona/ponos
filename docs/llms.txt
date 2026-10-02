@@ -17,13 +17,13 @@ console, and projects that are only a name and a brief — a GitHub link is clon
 time a ticket needs it, no repository at all means the tickets come back as text.
 
 The board is the console and its folder of Markdown files (`storage.mode = "markdown"`), or
-Notion (`ticket-runner init <page-url>`), or both kept in step. A fresh configuration still
+Notion (`ponos init <page-url>`), or both kept in step. A fresh configuration still
 says `notion`, and the installer asks for a Notion token first — Enter skips it. Python
 3.11+, standard library only — no dependency to install, no build step. The repository, the
-command and the Python package are still called ticket-runner.
+command and the Python package are called ponos.
 
 ## Docs
 
-- [Landing page](https://cardona.digital/ticket-runner/): what it is, the loop — the console filmed doing it —, the four kinds of task, the console, the integrations, installation without Notion
-- [Documentation](https://github.com/SalvadorCardona/ticket-runner#readme): installation, the board and its columns, the types of ticket, the Validated column, recurring tickets, Telegram and Slack, the web console, the Markdown board, Notion, OpenRouter, several GitHub accounts, usage limits, configuration, safety, troubleshooting, Ponos the mascot
-- [Changelog](https://github.com/SalvadorCardona/ticket-runner/blob/main/CHANGELOG.md): what changed, release by release
+- [Landing page](https://cardona.digital/ponos/): what it is, the loop — the console filmed doing it —, the four kinds of task, the console, the integrations, installation without Notion
+- [Documentation](https://github.com/SalvadorCardona/ponos#readme): installation, the board and its columns, the types of ticket, the Validated column, recurring tickets, Telegram and Slack, the web console, the Markdown board, Notion, OpenRouter, several GitHub accounts, usage limits, configuration, safety, troubleshooting, Ponos the mascot
+- [Changelog](https://github.com/SalvadorCardona/ponos/blob/main/CHANGELOG.md): what changed, release by release

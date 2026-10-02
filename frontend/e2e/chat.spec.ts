@@ -16,7 +16,7 @@ test.describe.configure({ mode: "serial" })
 const FIELD = "Ask the workspace, or type >status"
 
 async function openConsole(page: Page) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto("/")
   await page.getByRole("button", { name: "open the console" }).click()
   await expect(page.getByRole("textbox", { name: FIELD })).toBeVisible()
@@ -33,7 +33,7 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
   await ask(page, "what is on the board?")
 
   const thinking = page.locator("[data-slot=thinking]:not([data-done])")
-  await expect(thinking.locator("ticket-runner-robot")).toBeVisible()
+  await expect(thinking.locator("ponos-robot")).toBeVisible()
   await expect(thinking.getByText("reading api.py…")).toBeVisible()
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
   // The log is not the conversation: nothing of it shows while it is written.

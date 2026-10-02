@@ -10,7 +10,7 @@
 # le `python3` de la machine, quel qu'il soit.
 #
 # Le job frontend ne tourne que si `frontend/**` (ses tests e2e compris) ou
-# `src/ticket_runner/web/**` a changé, pour ne pas payer npm sur des tickets qui
+# `src/ponos/web/**` a changé, pour ne pas payer npm sur des tickets qui
 # n'y touchent pas : le serveur de la console fait partie de ce que les tests
 # e2e ouvrent — le chat, par exemple, c'est d'abord son API —, et un main dont
 # seul le Python de la console a bougé restait vert sans avoir lancé ses e2e. Et il vérifie que `web/static/`, que le
@@ -19,7 +19,7 @@
 # reçoit. Le même build copie les jetons de la console dans `docs/tokens.css`,
 # que le site lit : la copie est vérifiée ici, et par `tests/run.py` à chaque
 # pull request, frontend touché ou non. Il ouvre enfin la console dans le Chrome
-# du runner GitHub (`npm run test:e2e`), servie par le vrai `ticket-runner
+# du runner GitHub (`npm run test:e2e`), servie par le vrai `ponos
 # serve` sur un board de fichiers : ce qu'un navigateur fait d'une page — la
 # faire défiler, par exemple — aucune des deux suites ne le voit.
 # Node 24, parce que `npm test` fait lire à `node --test` les tests de
@@ -68,7 +68,7 @@ jobs:
           filters: |
             frontend:
               - 'frontend/**'
-              - 'src/ticket_runner/web/**'
+              - 'src/ponos/web/**'
 
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.frontend == 'true'
@@ -100,10 +100,10 @@ jobs:
       - name: Le build commité est celui que le code produit
         if: steps.changes.outputs.frontend == 'true'
         run: |
-          git diff --exit-code -- src/ticket_runner/web/static docs/tokens.css
-          untracked="$(git status --porcelain -- src/ticket_runner/web/static docs/tokens.css)"
+          git diff --exit-code -- src/ponos/web/static docs/tokens.css
+          untracked="$(git status --porcelain -- src/ponos/web/static docs/tokens.css)"
           if [ -n "$untracked" ]; then
-            echo "src/ticket_runner/web/static ou docs/tokens.css n'est pas à jour : lancez npm run build et commitez le résultat"
+            echo "src/ponos/web/static ou docs/tokens.css n'est pas à jour : lancez npm run build et commitez le résultat"
             echo "$untracked"
             exit 1
           fi

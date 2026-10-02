@@ -217,7 +217,7 @@ const editForm: FormInterface = {
       get description() {
         return t("owner/repo, or the clone URL. Empty, and its tickets come back as a document.")
       },
-      placeholder: "SalvadorCardona/ticket-runner",
+      placeholder: "SalvadorCardona/ponos",
     },
     path: {
       label: "Where it is",

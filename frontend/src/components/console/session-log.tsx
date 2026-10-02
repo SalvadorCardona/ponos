@@ -29,7 +29,7 @@ import { Markdown } from "./markdown"
 /* The worktree a session runs in, as the session sees it: `.`.
  *
  * Every path a session touches starts with the same sixty characters —
- * `/home/…/ticket-runner/worktrees/<project>-<id>/` — and a line that spends
+ * `/home/…/ponos/worktrees/<project>-<id>/` — and a line that spends
  * its width on them has none left for the file it is about. */
 const WORKTREE = /(?:\/[^\s/"'`]+)*?\/worktrees\/[^\s/"'`]+(\/)?/g
 

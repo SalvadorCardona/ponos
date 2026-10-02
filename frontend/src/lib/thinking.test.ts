@@ -21,7 +21,7 @@ test("the line is about the last step, said as a person would", () => {
 })
 
 test("a command says what kind of command it is, when that is plain", () => {
-  assert.equal(doing([step("Bash", "ticket-runner list")]).key, "looking at the board…")
+  assert.equal(doing([step("Bash", "ponos list")]).key, "looking at the board…")
   assert.equal(doing([step("Bash", "git log --oneline")]).key, "looking at the history…")
   assert.equal(doing([step("Bash", "python3 tests/run.py")]).key, "running the tests…")
   assert.equal(doing([step("Bash", "npm test")]).key, "running the tests…")

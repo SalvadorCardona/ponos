@@ -12,7 +12,7 @@ import { expect, test, type Page } from "@playwright/test"
 type Frame = { kind: string; bytes: number; data: string }
 
 async function open(page: Page) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto("/")
   await expect(page.getByText("A long ticket").filter({ visible: true }).first()).toBeVisible()
 }
@@ -45,7 +45,7 @@ test("a ticket written elsewhere reaches the board as a change, and stays after 
 
   // Written as the phone or another tab would: the page itself draws nothing.
   const response = await page.request.post("/api/tickets", {
-    headers: { "X-Ticket-Runner": "1" },
+    headers: { "X-Ponos": "1" },
     data: { title, body: "", project: "", ready: true },
   })
   expect(response.ok()).toBeTruthy()

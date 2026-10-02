@@ -467,10 +467,10 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     },
 
     settings: () => {
-      // Another tab saved, or `ticket-runner config` did. The settings pane
+      // Another tab saved, or `ponos config` did. The settings pane
       // reloads itself when it is not in the middle of an edit; the header is
       // redrawn either way.
-      window.dispatchEvent(new CustomEvent("ticket-runner:settings"))
+      window.dispatchEvent(new CustomEvent("ponos:settings"))
       void reloadState()
     },
 

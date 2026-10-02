@@ -1,9 +1,9 @@
 {
-  "name": "ticket-runner-console",
+  "name": "ponos-console",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "The ticket-runner web console: React, Vite and shadcn/ui, built into the package the Python server serves.",
+  "description": "The ponos web console: React, Vite and shadcn/ui, built into the package the Python server serves.",
   "homepage": "https://cardona.digital",
   "author": {
     "name": "Salvador Cardona",

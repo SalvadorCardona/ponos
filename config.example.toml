@@ -1,11 +1,11 @@
-# ticket-runner — configuration
+# ponos — configuration
 #
-#   ~/.config/ticket-runner/config.toml
+#   ~/.config/ponos/config.toml
 #
-# After any change:  ticket-runner doctor
+# After any change:  ponos doctor
 #
 # Every key in here is also a field in the web console's Settings tab
-# (`ticket-runner serve`). It writes back into this very file, one line at a
+# (`ponos serve`). It writes back into this very file, one line at a
 # time, and leaves these comments where they are — so editing it by hand and
 # editing it in a browser are the same gesture, and neither undoes the other.
 
@@ -18,7 +18,7 @@
 #   "markdown"  the board is a directory of Markdown files — properties in a
 #               YAML frontmatter, the page's content under it. Notion is never
 #               asked anything: no token, no integration, no page to share, no
-#               network. `ticket-runner doctor` stops asking too
+#               network. `ponos doctor` stops asking too
 #   "both"      the two, kept in step. A pass reconciles them before it reads
 #               the queue, and every write lands on both — see `conflict` below
 #
@@ -28,7 +28,7 @@
 mode = "notion"
 
 # Where the Markdown board is, for "markdown" and for "both". Left empty it is
-#   ~/.local/state/ticket-runner/board
+#   ~/.local/state/ponos/board
 # and it is a plain directory — `tickets/`, `projects/`, `agents/`,
 # `schedules/`, `comments/` and `context.md`. Nothing stops you putting it in a
 # git repository of its own, which is most of the point of having it.
@@ -37,17 +37,17 @@ path = ""
 # Who wins when the same page changed on both sides since the last
 # reconciliation. "newest" is the only rule there is: the later
 # `last_edited_time` is kept, and the one that lost is written into the journal
-#   ~/.local/state/ticket-runner/sync.jsonl
+#   ~/.local/state/ponos/sync.jsonl
 # with both timestamps. Nothing is ever overwritten without a line saying so,
 # and nothing is ever deleted: a page that disappeared on one side is
 # journalled and left alone on the other.
 #
-#   ticket-runner sync             reconcile now, and say what moved
-#   ticket-runner sync --journal   what past reconciliations did
+#   ponos sync             reconcile now, and say what moved
+#   ponos sync --journal   what past reconciliations did
 conflict = "newest"
 
 # Whether a pass reconciles before doing anything else. Off, and the two boards
-# only meet when you run `ticket-runner sync` yourself.
+# only meet when you run `ponos sync` yourself.
 on_every_pass = true
 
 [notion]
@@ -62,7 +62,7 @@ token = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 #
 # You do not have to build any of it by hand:
 #
-#     ticket-runner init <url-of-a-notion-page>
+#     ponos init <url-of-a-notion-page>
 #
 # creates the five databases with their columns, their relations and their
 # status options, and writes the line below for you. Share the page with your
@@ -82,7 +82,7 @@ tickets_database = ""
 # ones it has reported on, whatever column they are in now, and the ones that
 # are not settled. It is also how you say "talk to me" instead of "do it again"
 # on a ticket it is waiting on. Its own name, as Notion writes it when you
-# @-mention the integration, always works too, as do @ticket-runner and @runner.
+# @-mention the integration, always works too, as do @ponos and @runner.
 # This is for the word you would actually type.
 mention = "@claude"
 
@@ -113,13 +113,13 @@ schedules = "Schedules"      # on the board this shipped against: "Master Schelu
 
 # Rename here if your Notion columns are named differently.
 # A property that does not exist in the database is skipped — and said: once
-# per run when it is written, and by `ticket-runner doctor` with what it turns off.
+# per run when it is written, and by `ponos doctor` with what it turns off.
 [notion.properties]
 status = "Status"
 project = "Project"          # relation → your projects database
 pull_request = "Pull Request"
 
-# Which machine took the ticket, written as ticket-runner@host. Not the same
+# Which machine took the ticket, written as ponos@host. Not the same
 # thing as `role` below, which is the craft the session plays. Without the
 # column, a ticket abandoned in progress still goes back to ready, but the board
 # is taken to be run by one machine: a second one would put back the first's.
@@ -208,7 +208,7 @@ last_ticket = "Last ticket"
 #   the ticket's Model, then its agent's Model, then runner.model below.
 
 # The states that drive the whole system. Point them at whatever your board
-# calls them — `ticket-runner doctor` checks that each one really exists.
+# calls them — `ponos doctor` checks that each one really exists.
 #   ready    what the runner picks up — move a ticket here once its description
 #            is precise enough to be handled without you
 #   running  claimed, work in progress (stops a second pass from taking it)
@@ -285,7 +285,7 @@ publication = "Publication"
 workspace_root = "~/workspace"
 
 # Seconds between two passes. Changing this takes effect on the next
-# `ticket-runner enable`, which rewrites the systemd timer from this value.
+# `ponos enable`, which rewrites the systemd timer from this value.
 # A pass with nothing to do costs one Notion query, so a short interval is
 # cheap: 10 means a ticket starts being worked on within ten seconds. It is
 # also how often a pass already running looks for a ticket to put in a place
@@ -308,7 +308,7 @@ timeout_minutes = 30
 # waiting for credit, its branch and its worktree untouched, and nothing at all
 # is run until the credits return. The CLI usually says when that is; when it
 # does not, the runner tries again a quarter of an hour later.
-#   ticket-runner status   says how long there is left to wait
+#   ponos status   says how long there is left to wait
 # Off: an exhausted quota fails every ticket it touches, one after another —
 # and the reserve below stops meaning anything, since there is no window left to
 # hold a share of.
@@ -430,7 +430,7 @@ force_validated_external = false
 force_validated_publication = false
 
 # A failure leaves its worktree in place for the post-mortem.
-#   ticket-runner clean --force  to tidy up
+#   ponos clean --force  to tidy up
 keep_worktree_on_failure = true
 
 # Move each finished session's transcript under the project's directory, so it
@@ -462,7 +462,7 @@ notify = true
 # A cadence, not a stream: a session emits several events a second, and writing
 # each one would rewrite the page continuously for nothing. Ten seconds reads as
 # live; five is the floor. The log stays the place for everything else:
-#   ticket-runner logs -f
+#   ponos logs -f
 progress = true
 progress_interval_seconds = 10
 
@@ -493,8 +493,8 @@ reply_permission_mode = "plan"   # it talks; it does not work
 # Let the schedules database make tickets. A pass reads it between the validated
 # column and the queue, so a ticket born at 09:00 is claimed by that very pass
 # rather than by the next one. See [notion.properties] above for what a row
-# holds, and `ticket-runner schedules` for what is coming.
-#   ticket-runner schedules --run "Revue des dépendances"   without waiting
+# holds, and `ponos schedules` for what is coming.
+#   ponos schedules --run "Revue des dépendances"   without waiting
 # Off, the database is read by nobody and no row has to be unticked — and a
 # workspace with no schedules page never had any of this to begin with.
 schedule = true
@@ -505,8 +505,8 @@ schedule = true
 # it up to date if it is not. The update happens before any ticket is claimed,
 # so it never lands in the middle of a session, and the new code takes over on
 # the next pass.
-#   ticket-runner update --check   what is available, right now
-#   ticket-runner update           apply it by hand
+#   ponos update --check   what is available, right now
+#   ponos update           apply it by hand
 # Only works on an installation made by install.sh from the repository: one made
 # from a local copy (TR_SRC=.) has no remote to compare itself against, and says
 # so once instead of updating.
@@ -518,7 +518,7 @@ auto_update = true
 #              is released. No tag yet means no update, and the run says so. An
 #              installation already ahead of the newest tag is never taken back.
 #   "main"     every commit of the branch it was installed from, within the hour.
-# Anything else reads as "release". `ticket-runner doctor` says which is in use.
+# Anything else reads as "release". `ponos doctor` says which is in use.
 update_channel = "release"
 update_interval_seconds = 3600   # one hour; a minute is the floor
 
@@ -531,7 +531,7 @@ log_retention_days = 14
 # have been done for log_retention_days, and the scratch directories of tickets
 # no longer on the board. Never a ticket in progress, blocked, failed or in
 # review; never a worktree with uncommitted changes; never a branch. false keeps
-# them until `ticket-runner clean --force`. The console's settings page shows
+# them until `ponos clean --force`. The console's settings page shows
 # the space taken and a "Clean up" button.
 clean_done_worktrees = true
 
@@ -610,8 +610,8 @@ transcription_model = "openai/whisper-1"
 # "oui", and that reply becomes a Notion comment, which is already what puts a
 # blocked ticket back in the queue. Nothing to move on the board.
 #
-#   ticket-runner notify          send yourself a test message
-#   ticket-runner notify --pair   find your Telegram chat id and save it here
+#   ponos notify          send yourself a test message
+#   ponos notify --pair   find your Telegram chat id and save it here
 [notify]
 
 # The notification on this machine's screen. Defaults to runner.notify above.
@@ -630,7 +630,7 @@ events = ["blocked", "failed", "done"]
 # NAT.
 #   1. Talk to @BotFather → /newbot → paste the token below
 #   2. Open the chat with your new bot and say anything to it
-#   3. ticket-runner notify --pair   reads that message and fills in `chat`
+#   3. ponos notify --pair   reads that message and fills in `chat`
 # Only that chat is ever read: a bot token is a public address, and anyone who
 # guesses the bot's name can write to it.
 [notify.telegram]
@@ -639,7 +639,7 @@ chat = ""
 # Who may answer, by Telegram user id (the numbers, not the @names). Empty:
 # anybody who can write in `chat` — only you in a private chat, but every member
 # in a group, and an answer becomes a comment that can wake a ticket whose
-# session runs with bypassPermissions. `ticket-runner doctor` warns about a
+# session runs with bypassPermissions. `ponos doctor` warns about a
 # group with nobody named here.
 # allowed_users = [123456789]
 
@@ -658,19 +658,19 @@ token = ""
 channel = ""
 # Who may answer, by Slack member id (profile → ··· → Copy member ID, "U…").
 # Empty: anybody in the channel — and an answer becomes a comment that can wake
-# a ticket whose session runs with bypassPermissions. `ticket-runner doctor`
+# a ticket whose session runs with bypassPermissions. `ponos doctor`
 # warns while it is empty.
 # allowed_users = ["U0123ABCD"]
 
 # ---------------------------------------------------------------------------
-# The web console — ticket-runner serve
+# The web console — ponos serve
 # ---------------------------------------------------------------------------
 # The board, this CLI and a chat with your whole workspace, in one page. It is
-# started for you — `install.sh` and `ticket-runner enable` arm its unit along
+# started for you — `install.sh` and `ponos enable` arm its unit along
 # with the timer, so it is up on http://127.0.0.1:8787 with nothing to type:
-#   ticket-runner serve --print-token             # the token, if you lost the URL
-#   systemctl --user stop ticket-runner-web       # stop it until the next boot
-#   ticket-runner disable                         # stop the timer and the console
+#   ponos serve --print-token             # the token, if you lost the URL
+#   systemctl --user stop ponos-web       # stop it until the next boot
+#   ponos disable                         # stop the timer and the console
 #
 # READ THIS BEFORE CHANGING host. Behind this port sits a runner that starts
 # Claude Code sessions with bypassPermissions — anything that can reach it can
@@ -683,7 +683,7 @@ host = "127.0.0.1"
 port = 8787
 
 # Empty = one is drawn on first start and kept in
-# ~/.local/state/ticket-runner/web/token, so the bookmark keeps working.
+# ~/.local/state/ponos/web/token, so the bookmark keeps working.
 # Setting it here is also what unlocks a non-loopback host.
 token = ""
 
@@ -702,7 +702,7 @@ token = ""
 #
 # Neither has to be written here. The same two are read from the environment,
 # which is where they belong on a server — a systemd drop-in, a container:
-#   TICKET_RUNNER_WEB_EMAIL   TICKET_RUNNER_WEB_PASSWORD
+#   PONOS_WEB_EMAIL   PONOS_WEB_PASSWORD
 # and the environment wins over this file.
 #
 # Setting the two unlocks a non-loopback host, exactly as a token does — and

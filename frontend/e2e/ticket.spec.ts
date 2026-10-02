@@ -18,7 +18,7 @@ async function counted(page: Page) {
     await new Promise((resolve) => setTimeout(resolve, 1500))
     await route.continue()
   })
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   return reads
 }
 

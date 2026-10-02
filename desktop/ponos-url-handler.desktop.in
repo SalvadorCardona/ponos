@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=ponos session link
+Comment=Open a Claude Code session from a ponos:// link
+Exec=@BIN@ open %u
+Type=Application
+NoDisplay=true
+Terminal=false
+# The second scheme is a migration filet: session links written before the
+# rename to Ponos, still in their Notion cells.
+MimeType=x-scheme-handler/ponos;x-scheme-handler/ticket-runner;

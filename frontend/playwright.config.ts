@@ -1,7 +1,7 @@
 import { createServer } from "node:net"
 import { defineConfig } from "@playwright/test"
 
-/* The console in a browser, against a real `ticket-runner serve`.
+/* The console in a browser, against a real `ponos serve`.
  *
  * `e2e/console.py` starts it on a board of Markdown files it writes itself, so
  * the tests need python3 and nothing of yours. The browser is the Chrome
@@ -15,7 +15,7 @@ import { defineConfig } from "@playwright/test"
  * should be. The chat gets a server of its own, its tests one after another;
  * the rest share the other one and run in parallel.
  *
- * The ports are free ones unless `TICKET_RUNNER_E2E_PORT` names the first (the
+ * The ports are free ones unless `PONOS_E2E_PORT` names the first (the
  * chat takes the next): two worktrees running these tests at once must not both
  * ask for 8790. They are kept in the environment because Playwright reads this
  * file again in every worker, and a worker that drew its own would knock on a
@@ -32,13 +32,13 @@ async function free(): Promise<number> {
   })
 }
 
-if (!process.env.TICKET_RUNNER_E2E_CHAT_PORT) {
-  const given = Number(process.env.TICKET_RUNNER_E2E_PORT) || 0
-  process.env.TICKET_RUNNER_E2E_PORT = String(given || (await free()))
-  process.env.TICKET_RUNNER_E2E_CHAT_PORT = String(given ? given + 1 : await free())
+if (!process.env.PONOS_E2E_CHAT_PORT) {
+  const given = Number(process.env.PONOS_E2E_PORT) || 0
+  process.env.PONOS_E2E_PORT = String(given || (await free()))
+  process.env.PONOS_E2E_CHAT_PORT = String(given ? given + 1 : await free())
 }
-const PORT = Number(process.env.TICKET_RUNNER_E2E_PORT)
-const CHAT_PORT = Number(process.env.TICKET_RUNNER_E2E_CHAT_PORT)
+const PORT = Number(process.env.PONOS_E2E_PORT)
+const CHAT_PORT = Number(process.env.PONOS_E2E_CHAT_PORT)
 
 const serve = (port: number) => ({
   command: `python3 e2e/console.py ${port}`,

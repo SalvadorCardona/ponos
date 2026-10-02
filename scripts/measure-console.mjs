@@ -5,8 +5,8 @@
  *   node scripts/measure-console.mjs [--runs 3] [--throttle 4] [--keep]
  *
  * Writes a throwaway Markdown board — 350 tickets, 340 of them Done, six
- * projects, three schedules —, starts `ticket-runner serve` on it from this
- * checkout (`PYTHONPATH=src`, so what is measured is `src/ticket_runner/web/
+ * projects, three schedules —, starts `ponos serve` on it from this
+ * checkout (`PYTHONPATH=src`, so what is measured is `src/ponos/web/
  * static` as the last `npm run build` left it), and drives headless Chrome
  * ($CHROME, or google-chrome on the PATH) over the DevTools protocol. Nothing
  * of yours is read or written: the configuration, the state directory and the
@@ -50,7 +50,7 @@ const SERVER_PORT = 8790 + Math.floor(Math.random() * 100);
 const CHROME_PORT = 9290 + Math.floor(Math.random() * 100);
 const TOKEN = 'measure-console';
 
-const scratch = mkdtempSync(join(tmpdir(), 'ticket-runner-measure-'));
+const scratch = mkdtempSync(join(tmpdir(), 'ponos-measure-'));
 const board = join(scratch, 'board');
 const config = join(scratch, 'config.toml');
 mkdirSync(join(scratch, 'workspace'));
@@ -67,7 +67,7 @@ writeFileSync(
 const seed = `
 import datetime, sys
 from pathlib import Path
-from ticket_runner import files
+from ponos import files
 
 board = files.Board(Path(sys.argv[1]))
 prop = board.settings().prop
@@ -95,12 +95,12 @@ const stop = () => {
 };
 process.on('exit', stop);
 
-const server = spawn('python3', ['-m', 'ticket_runner', 'serve', '--port', String(SERVER_PORT)], {
+const server = spawn('python3', ['-m', 'ponos', 'serve', '--port', String(SERVER_PORT)], {
   cwd: root,
   env: {
     ...process.env,
     PYTHONPATH: join(root, 'src'),
-    TICKET_RUNNER_CONFIG: config,
+    PONOS_CONFIG: config,
     XDG_STATE_HOME: join(scratch, 'state'),
   },
   stdio: 'ignore',

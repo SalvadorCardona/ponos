@@ -12,7 +12,7 @@ import { expect, test, type Page } from "@playwright/test"
 const SECTION = "/?view=console/settings/read/config/notify"
 
 async function open(page: Page, path: string) {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto(path)
 }
 

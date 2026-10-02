@@ -1,6 +1,6 @@
 /* The shapes the Python side sends, written down once.
  *
- * Every one of these mirrors a dict built in `src/ticket_runner/web/` — `api.py`
+ * Every one of these mirrors a dict built in `src/ponos/web/` — `api.py`
  * for the reads and writes, `console.py` and `live.py` for what comes down the
  * event stream. When a field is added there, it is added here, and TypeScript
  * says which components have to care.

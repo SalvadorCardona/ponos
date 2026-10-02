@@ -24,7 +24,7 @@ const PAGES: [string, RegExp][] = [
 test.use({ viewport: PHONE })
 
 async function open(page: Page, path = "/") {
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto(path)
   await expect(page.getByRole("button", { name: "More", exact: true })).toBeVisible()
 }
@@ -67,7 +67,7 @@ test("every page is a tap or two away", async ({ page }) => {
 
 test("the menu down the left has no More beside a phone", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await page.context().addCookies([{ name: "ticket_runner_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto("/")
   await expect(page.getByRole("link", { name: "Settings" })).toBeVisible()
   await expect(page.getByRole("button", { name: "More", exact: true })).toHaveCount(0)

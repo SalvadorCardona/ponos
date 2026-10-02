@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * Writes every file of the mascot from its one source,
- * docs/mascot/ticket-runner-robot.js:
+ * docs/mascot/ponos-robot.js:
  *
  *   docs/mascot/robot.svg     the whole robot, layers and variables kept
  *   docs/mascot/favicon.svg   the face alone, following the browser's colour scheme
@@ -26,7 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'docs', 'mascot');
-const source = readFileSync(join(out, 'ticket-runner-robot.js'), 'utf8');
+const source = readFileSync(join(out, 'ponos-robot.js'), 'utf8');
 const { STATES, standalone } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 writeFileSync(join(out, 'robot.svg'), standalone({ title: 'Ponos' }));
@@ -53,7 +53,7 @@ const og = `<!doctype html><html class="dark"><meta charset="utf-8">${fonts}
 <div class="bot">${standalone({ state: 'success', theme: 'dark' })}</div>
 <div><div class="mark">Ponos</div><h1>Write the ticket.<br><span>It comes back done.</span></h1>
 <p>The robot does the work <b>on your machine</b> — a pull request, a text, an action.</p>
-<code>cardona.digital/ticket-runner</code></div>`;
+<code>cardona.digital/ponos</code></div>`;
 
 const cells = (theme) => Object.entries(STATES).map(([name, s]) => `
   <figure><div class="bot">${standalone({ state: name, theme })}</div><figcaption><b>${name}</b>${s.means}</figcaption></figure>`).join('');

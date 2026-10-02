@@ -1,13 +1,13 @@
-// Registers <ticket-runner-robot>: the very module the landing page loads.
-import "@mascot/ticket-runner-robot.js"
-import type { STATES } from "@mascot/ticket-runner-robot.js"
+// Registers <ponos-robot>: the very module the landing page loads.
+import "@mascot/ponos-robot.js"
+import type { STATES } from "@mascot/ponos-robot.js"
 
 import { useShownTheme } from "@/hooks/use-theme"
 import type { ColumnKey } from "@/lib/types"
 
 /* Ponos, the mascot, as the console draws it.
  *
- * The drawing is not here: it is `docs/mascot/ticket-runner-robot.js`, a Web
+ * The drawing is not here: it is `docs/mascot/ponos-robot.js`, a Web
  * Component in vanilla JavaScript because the landing page has no build step,
  * and bundled into the console as it stands. What this adds is what a page of
  * React needs around it — the theme the console is in rather than the one the
@@ -23,7 +23,7 @@ export type RobotState = keyof typeof STATES
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "ticket-runner-robot": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+      "ponos-robot": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         state?: string
         theme?: string
         size?: number
@@ -48,7 +48,7 @@ export function Robot({
 }) {
   const theme = useShownTheme()
   return (
-    <ticket-runner-robot
+    <ponos-robot
       aria-hidden="true"
       state={state}
       theme={theme}

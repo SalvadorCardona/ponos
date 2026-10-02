@@ -26,9 +26,9 @@ import { Rich } from "./text"
  * in its own vocabulary — `not-found`, `masked`, `static` — and "timer
  * not-found" is a log line, not a sentence. */
 const TIMER: Record<string, string> = {
-  disabled: "timer switched off — ticket-runner enable",
-  "not-found": "timer not installed — ticket-runner enable",
-  "not installed": "timer not installed — ticket-runner enable",
+  disabled: "timer switched off — ponos enable",
+  "not-found": "timer not installed — ponos enable",
+  "not installed": "timer not installed — ponos enable",
   masked: "timer masked in systemd",
   stalled: "timer on, with no next run",
   "no systemd": "no systemd on this machine",
