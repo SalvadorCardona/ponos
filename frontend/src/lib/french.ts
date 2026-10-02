@@ -80,7 +80,6 @@ export const FRENCH: Record<string, string> = {
   schedules: "récurrences",
   settings: "réglages",
   "the console": "la console",
-  "the workspace": "l'espace de travail",
   "the ticket": "le ticket",
   "the console's language": "la langue de la console",
   "This browser's, and this browser's only: it is not written to the file. Left alone, the console reads the one your browser asks for.":
@@ -351,9 +350,6 @@ export const FRENCH: Record<string, string> = {
   "the runner": "le runner",
 
   /* -- the workspace console ------------------------------------------------ */
-  "Talking to your machine": "Parler à votre machine",
-  "A sentence reaches your repositories and the board; a line that starts with `>` reaches the CLI.":
-    "Une phrase atteint vos dépôts et le tableau ; une ligne qui commence par `>` atteint le CLI.",
   "Ask the workspace, or type >status": "Demandez à l'espace de travail, ou tapez >status",
   "Ask me anything about your workspace — I can read your repositories, look at the board and create tickets. Type > followed by a command (>status, >list, >doctor) to use the CLI directly.":
     "Demandez-moi ce que vous voulez sur votre espace de travail — je peux lire vos dépôts, regarder le tableau et créer des tickets. Tapez > suivi d'une commande (>status, >list, >doctor) pour passer directement par le CLI.",
@@ -364,8 +360,6 @@ export const FRENCH: Record<string, string> = {
   "Full screen": "Plein écran",
   "Leave full screen": "Quitter le plein écran",
   "Resize the drawer": "Redimensionner le panneau",
-  "Copy the command that resumes this conversation in a terminal":
-    "Copier la commande qui reprend cette conversation dans un terminal",
   Copied: "Copié",
   "Copy the full id": "Copier l’id complet",
   "Drop to attach to your message": "Déposez pour joindre à votre message",
