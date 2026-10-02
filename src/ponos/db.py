@@ -47,10 +47,20 @@ one `text` column could only hold glued together. So `tool` has its own, and
 was known then: Claude Code reports a price at the end of a session, so it is
 NULL until one has ended — the first half of a session picked up again.
 See journal.py for who writes them, and who reads them.
+
+Migrations 3 to 9 retire the JSON files that sat beside this one — the history,
+the claims, the replay counts, the conversations, the credit waits, the
+Markdown mirror's stamps and journal, the index of project pictures — one file
+per migration. Each creates its table, reads the file in, and once that is
+committed renames it `<name>.imported`: never deleted, the same rule as
+`legacy.py`, and never read again. A file that is not there is an installation
+that never wrote it, and the table starts empty. Session logs stay files: they
+are read whole, by a person, and are pruned by age.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import threading
@@ -116,6 +126,302 @@ def _runs_and_steps(connection: sqlite3.Connection) -> None:
     )
 
 
+# -- the JSON files that came before ------------------------------------------
+#
+# Migrations 3 to 9 each take one of the files the runner kept beside this one,
+# make it a table, and read it in once. They read the file themselves rather
+# than through the module that now uses the table: a migration is frozen once
+# released, and the module is not.
+
+
+def _beside(connection: sqlite3.Connection, name: str) -> Path | None:
+    """A file next to the database, or None for a database that is not a file."""
+    row = connection.execute("PRAGMA database_list").fetchone()
+    return Path(row[2]).parent / name if row and row[2] else None
+
+
+def _read_json(location: Path | None) -> object:
+    """What a JSON file holds, or None when it is missing or unreadable — as the
+    module that wrote it read it."""
+    if location is None:
+        return None
+    try:
+        return json.loads(location.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _read_lines(location: Path | None) -> list[dict]:
+    """Every whole line of a JSONL file, a broken one skipped as it always was."""
+    if location is None:
+        return []
+    try:
+        lines = location.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    found = []
+    for line in lines:
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict):
+            found.append(entry)
+    return found
+
+
+def _set_aside(*files: Path | None) -> AfterCommit:
+    """Rename what was imported to `<name>.imported`, once the import is committed.
+
+    Never deleted — the same rule as `legacy.py`: what a user had stays on disk
+    until they remove it. And only after the commit: a rename before it would
+    lose the file to a migration that then rolled back. A crash between the two
+    leaves the file where it was, read by nobody.
+    """
+
+    def rename() -> None:
+        for location in files:
+            if location is None or not location.exists():
+                continue
+            try:
+                location.rename(location.with_name(location.name + ".imported"))
+            except OSError:
+                pass  # another process got there first, or the directory is read-only
+
+    return rename
+
+
+def _number(value: object) -> float | None:
+    try:
+        return None if value is None or value == "" else float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _history(connection: sqlite3.Connection) -> AfterCommit:
+    """history.jsonl — one row per outcome, the whole line kept in `entry`.
+
+    The line is kept whole because its keys vary with what happened (a pull
+    request, a merge, a reason); what one sorts and sums on — when, which
+    ticket, how it ended, which project, how long, how much — is copied into
+    columns of its own.
+    """
+    connection.execute(
+        """
+        CREATE TABLE history (
+            id        INTEGER PRIMARY KEY,
+            at        TEXT NOT NULL DEFAULT '',
+            ticket    TEXT NOT NULL DEFAULT '',
+            status    TEXT NOT NULL DEFAULT '',
+            kind      TEXT NOT NULL DEFAULT '',
+            project   TEXT NOT NULL DEFAULT '',
+            seconds   REAL,
+            cost_usd  REAL,
+            entry     TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute("CREATE INDEX history_by_at ON history (at)")
+    source = _beside(connection, "history.jsonl")
+    for entry in _read_lines(source):
+        connection.execute(
+            "INSERT INTO history (at, ticket, status, kind, project, seconds, cost_usd, entry)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                str(entry.get("at") or ""),
+                str(entry.get("id") or ""),
+                str(entry.get("status") or ""),
+                str(entry.get("kind") or ""),
+                str(entry.get("project") or ""),
+                _number(entry.get("seconds")),
+                _number(entry.get("cost_usd")),
+                json.dumps(entry, ensure_ascii=False),
+            ),
+        )
+    return _set_aside(source)
+
+
+def _claims(connection: sqlite3.Connection) -> AfterCommit:
+    """claims.json — the column each ticket in flight was taken from."""
+    connection.execute(
+        "CREATE TABLE claims (ticket TEXT PRIMARY KEY, status TEXT NOT NULL)"
+    )
+    source = _beside(connection, "claims.json")
+    held = _read_json(source)
+    if isinstance(held, dict):
+        connection.executemany(
+            "INSERT OR REPLACE INTO claims (ticket, status) VALUES (?, ?)",
+            [(str(ticket), str(status)) for ticket, status in held.items()],
+        )
+    return _set_aside(source)
+
+
+def _rebases(connection: sqlite3.Connection) -> AfterCommit:
+    """rebases.json — how many times a validated ticket has been replayed."""
+    connection.execute(
+        "CREATE TABLE rebases (ticket TEXT PRIMARY KEY, count INTEGER NOT NULL)"
+    )
+    source = _beside(connection, "rebases.json")
+    held = _read_json(source)
+    if isinstance(held, dict):
+        connection.executemany(
+            "INSERT OR REPLACE INTO rebases (ticket, count) VALUES (?, ?)",
+            [(str(ticket), int(count)) for ticket, count in held.items() if str(count).isdigit()],
+        )
+    return _set_aside(source)
+
+
+def _conversations(connection: sqlite3.Connection) -> AfterCommit:
+    """conversations.json — the pages spoken on, the threads, and where the scan is.
+
+    `conversation_scan` has one row, always the same: the cursor of the
+    rotation and the moment of the last scan.
+    """
+    connection.execute(
+        "CREATE TABLE conversation_pages (page TEXT PRIMARY KEY, at TEXT NOT NULL DEFAULT '')"
+    )
+    connection.execute(
+        """
+        CREATE TABLE conversation_threads (
+            discussion  TEXT PRIMARY KEY,
+            session     TEXT NOT NULL DEFAULT '',
+            answered    TEXT NOT NULL DEFAULT '',
+            at          TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE conversation_scan (
+            id      INTEGER PRIMARY KEY CHECK (id = 1),
+            cursor  INTEGER NOT NULL DEFAULT 0,
+            at      REAL NOT NULL DEFAULT 0
+        )
+        """
+    )
+    source = _beside(connection, "conversations.json")
+    raw = _read_json(source)
+    if isinstance(raw, dict):
+        pages = raw.get("pages") if isinstance(raw.get("pages"), dict) else {}
+        connection.executemany(
+            "INSERT OR REPLACE INTO conversation_pages (page, at) VALUES (?, ?)",
+            [(str(page), str(at)) for page, at in pages.items()],
+        )
+        threads = raw.get("threads") if isinstance(raw.get("threads"), dict) else {}
+        connection.executemany(
+            "INSERT OR REPLACE INTO conversation_threads (discussion, session, answered, at)"
+            " VALUES (?, ?, ?, ?)",
+            [
+                (
+                    str(discussion),
+                    str(thread.get("session") or ""),
+                    str(thread.get("answered") or ""),
+                    str(thread.get("at") or ""),
+                )
+                for discussion, thread in threads.items()
+                if isinstance(thread, dict)
+            ],
+        )
+        cursor = _number(raw.get("cursor")) or 0
+        at = _number(raw.get("at")) or 0.0
+        connection.execute(
+            "INSERT INTO conversation_scan (id, cursor, at) VALUES (1, ?, ?)", (int(cursor), at)
+        )
+    return _set_aside(source)
+
+
+def _waits(connection: sqlite3.Connection) -> AfterCommit:
+    """credits.json and reserve.json — the two waits, one row each while it lasts."""
+    connection.execute(
+        """
+        CREATE TABLE waits (
+            what   TEXT PRIMARY KEY,
+            until  REAL NOT NULL,
+            since  REAL NOT NULL DEFAULT 0
+        )
+        """
+    )
+    sources = {"spent": _beside(connection, "credits.json"), "reserve": _beside(connection, "reserve.json")}
+    for what, source in sources.items():
+        note = _read_json(source)
+        if not isinstance(note, dict) or not _number(note.get("until")):
+            continue
+        connection.execute(
+            "INSERT INTO waits (what, until, since) VALUES (?, ?, ?)",
+            (what, _number(note.get("until")), _number(note.get("since")) or 0.0),
+        )
+    return _set_aside(*sources.values())
+
+
+def _sync(connection: sqlite3.Connection) -> AfterCommit:
+    """sync.json and sync.jsonl — what the two boards last agreed on, and the journal."""
+    connection.execute(
+        """
+        CREATE TABLE sync_stamps (
+            page      TEXT PRIMARY KEY,
+            notion    TEXT NOT NULL DEFAULT '',
+            markdown  TEXT NOT NULL DEFAULT '',
+            printed   TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE sync_journal (
+            id          INTEGER PRIMARY KEY,
+            at          TEXT NOT NULL DEFAULT '',
+            what        TEXT NOT NULL DEFAULT '',
+            collection  TEXT NOT NULL DEFAULT '',
+            page        TEXT NOT NULL DEFAULT '',
+            title       TEXT NOT NULL DEFAULT '',
+            detail      TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    stamps_file = _beside(connection, "sync.json")
+    stamps = _read_json(stamps_file)
+    if isinstance(stamps, dict):
+        rows = []
+        for page, known in stamps.items():
+            known = [str(value or "") for value in known] if isinstance(known, list) else []
+            known += [""] * (3 - len(known))
+            rows.append((str(page), known[0], known[1], known[2]))
+        connection.executemany(
+            "INSERT OR REPLACE INTO sync_stamps (page, notion, markdown, printed) VALUES (?, ?, ?, ?)",
+            rows,
+        )
+    journal_file = _beside(connection, "sync.jsonl")
+    connection.executemany(
+        "INSERT INTO sync_journal (at, what, collection, page, title, detail) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            tuple(str(entry.get(name) or "") for name in ("at", "what", "collection", "page", "title", "detail"))
+            for entry in _read_lines(journal_file)
+        ],
+    )
+    return _set_aside(stamps_file, journal_file)
+
+
+def _images(connection: sqlite3.Connection) -> AfterCommit:
+    """images/index.json — what was agreed on each project picture, by page and slot.
+
+    An entry is kept as the JSON it was: its shape is `images.py`'s business
+    (agreed, pending, conflict, the copy on disk), and nothing asks it questions.
+    """
+    connection.execute("CREATE TABLE images (key TEXT PRIMARY KEY, entry TEXT NOT NULL)")
+    source = _beside(connection, "images/index.json")
+    known = _read_json(source)
+    if isinstance(known, dict):
+        connection.executemany(
+            "INSERT OR REPLACE INTO images (key, entry) VALUES (?, ?)",
+            [
+                (str(key), json.dumps(entry, ensure_ascii=False))
+                for key, entry in known.items()
+                if isinstance(entry, dict)
+            ],
+        )
+    return _set_aside(source)
+
+
 def _steps_name_their_tool(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE steps ADD COLUMN tool TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE steps ADD COLUMN cost_usd REAL")
@@ -124,9 +430,26 @@ def _steps_name_their_tool(connection: sqlite3.Connection) -> None:
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
-# a migration under the old version number.
-Migration = Callable[[sqlite3.Connection], None]
-MIGRATIONS: tuple[Migration, ...] = (_runs_and_steps, _steps_name_their_tool)
+# a migration under the old version number. What a migration returns, if
+# anything, runs once its transaction is committed.
+AfterCommit = Callable[[], None]
+Migration = Callable[[sqlite3.Connection], AfterCommit | None]
+MIGRATIONS: tuple[Migration, ...] = (
+    _runs_and_steps,
+    _steps_name_their_tool,
+    _history,
+    _claims,
+    _rebases,
+    _conversations,
+    _waits,
+    _sync,
+    _images,
+)
+
+# Any way a read or a write of the database can fail. A note the runner keeps
+# for itself is never a reason to fail a run; those that used to swallow an
+# OSError on their JSON file swallow these.
+ERRORS = (sqlite3.Error, DatabaseError)
 
 
 def version(connection: sqlite3.Connection) -> int:
@@ -155,12 +478,14 @@ def migrate(connection: sqlite3.Connection, migrations: Sequence[Migration] = MI
             if version(connection) >= target:
                 connection.execute("COMMIT")
                 continue
-            migrations[target - 1](connection)
+            after = migrations[target - 1](connection)
             connection.execute(f"PRAGMA user_version = {target}")
             connection.execute("COMMIT")
         except BaseException:
             connection.execute("ROLLBACK")
             raise
+        if after is not None:
+            after()
     return version(connection)
 
 
@@ -225,13 +550,14 @@ _locks: dict[Path, threading.RLock] = {}
 _opening = threading.Lock()
 
 
-def connect() -> sqlite3.Connection:
+def connect(location: Path | None = None) -> sqlite3.Connection:
     """This process's connection to the database, opened and migrated the first time.
 
     Keyed by path, so that a test — or anything else that moves
     `XDG_STATE_HOME` — gets the file it points at, not the one opened first.
+    `location` names another file than the state directory's, for a test.
     """
-    location = path()
+    location = location or path()
     with _opening:
         connection = _connections.get(location)
         if connection is None:
@@ -242,15 +568,16 @@ def connect() -> sqlite3.Connection:
 
 
 @contextmanager
-def transaction(immediate: bool = True) -> Iterator[sqlite3.Connection]:
+def transaction(immediate: bool = True, location: Path | None = None) -> Iterator[sqlite3.Connection]:
     """One transaction on this process's connection, committed if the block returns.
 
     `immediate` takes the write lock up front, so a transaction that reads and
     then writes cannot be refused half-way by the other process; a read-only
     block passes False and waits for nobody.
     """
-    connection = connect()
-    with _locks[path()]:
+    location = location or path()
+    connection = connect(location)
+    with _locks[location]:
         connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
         try:
             yield connection

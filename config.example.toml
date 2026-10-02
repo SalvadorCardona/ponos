@@ -37,7 +37,7 @@ path = ""
 # Who wins when the same page changed on both sides since the last
 # reconciliation. "newest" is the only rule there is: the later
 # `last_edited_time` is kept, and the one that lost is written into the journal
-#   ~/.local/state/ponos/sync.jsonl
+#   ~/.local/state/ponos/ponos.db (ponos sync --journal reads it)
 # with both timestamps. Nothing is ever overwritten without a line saying so,
 # and nothing is ever deleted: a page that disappeared on one side is
 # journalled and left alone on the other.

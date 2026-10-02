@@ -6,7 +6,8 @@ simultaneous runs are not.
 
 The claims are the other half of that: the column each in-flight ticket was
 taken from, so that a run which dies mid-ticket is recovered as what it was
-rather than as work to redo.
+rather than as work to redo. They, the replay counts and the history live in
+`ponos.db` (see `db.py`); the lock and the session logs stay files.
 """
 
 from __future__ import annotations
@@ -14,14 +15,13 @@ from __future__ import annotations
 import fcntl
 import json
 import os
-import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from . import disk
+from . import db, disk
 from .config import state_dir
 
 
@@ -38,11 +38,6 @@ def logs_dir() -> Path:
     except OSError:
         pass
     return path
-
-
-def history_path() -> Path:
-    state_dir().mkdir(parents=True, exist_ok=True)
-    return state_dir() / "history.jsonl"
 
 
 class Busy(Exception):
@@ -112,17 +107,6 @@ def running() -> str:
     return ""
 
 
-# Two publications of one pass run side by side, and both write this file at
-# either end of their session. One lock, because a lost entry is a ticket that
-# comes back as ready — which is the whole thing the file exists to prevent.
-_claims_lock = threading.Lock()
-
-
-def claims_path() -> Path:
-    state_dir().mkdir(parents=True, exist_ok=True)
-    return state_dir() / "claims.json"
-
-
 def claim(ticket_id: str, status: str) -> None:
     """Remember which column a ticket was taken from.
 
@@ -135,45 +119,38 @@ def claim(ticket_id: str, status: str) -> None:
 
     Local, and that is enough: `sweep` only ever recovers tickets this host
     claimed itself, so the note only has to survive on the machine that wrote
-    it. Anything unreadable is no note at all, and the old behaviour resumes.
+    it. One row, in one transaction: two publications of one pass write their
+    claims side by side, and neither can lose the other's — nor can a crash
+    leave half a claim. Anything unreadable is no note at all, and the old
+    behaviour resumes.
     """
-    with _claims_lock:
-        held = claims()
-        held[ticket_id] = status
-        _write_claims(held)
-
-
-def release(ticket_id: str) -> None:
-    """Forget a claim: the ticket has left "in progress" under its own steam."""
-    with _claims_lock:
-        held = claims()
-        if held.pop(ticket_id, None) is not None:
-            _write_claims(held)
-
-
-def claims() -> dict[str, str]:
     try:
-        loaded = json.loads(claims_path().read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(loaded, dict):
-        return {}
-    return {str(key): str(value) for key, value in loaded.items()}
-
-
-def _write_claims(held: dict[str, str]) -> None:
-    try:
-        # Whole or not at all: a file truncated by a crash reads as "no claim",
-        # and a validated ticket without its claim comes back as work to redo.
-        disk.write_atomic(claims_path(), json.dumps(held, ensure_ascii=False))
-    except OSError:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO claims (ticket, status) VALUES (?, ?)", (ticket_id, status)
+            )
+    except db.ERRORS:
         # A note nobody could write is a note nobody reads: the ticket goes back
         # to ready on a crash, exactly as it did before this existed.
         pass
 
 
-def rebases_path() -> Path:
-    return state_dir() / "rebases.json"
+def release(ticket_id: str) -> None:
+    """Forget a claim: the ticket has left "in progress" under its own steam."""
+    try:
+        with db.transaction() as connection:
+            connection.execute("DELETE FROM claims WHERE ticket = ?", (ticket_id,))
+    except db.ERRORS:
+        pass
+
+
+def claims() -> dict[str, str]:
+    try:
+        with db.transaction(immediate=False) as connection:
+            rows = connection.execute("SELECT ticket, status FROM claims").fetchall()
+    except db.ERRORS:
+        return {}
+    return {str(ticket): str(status) for ticket, status in rows}
 
 
 def rebases(ticket_id: str) -> int:
@@ -184,48 +161,67 @@ def rebases(ticket_id: str) -> int:
     replaying the same pull request all afternoon. Local, like the claims — it
     is the machine doing the replaying that has to know when to stop.
     """
-    return _rebases().get(ticket_id, 0)
+    try:
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT count FROM rebases WHERE ticket = ?", (ticket_id,)
+            ).fetchone()
+    except db.ERRORS:
+        return 0
+    return int(row[0]) if row else 0
 
 
 def rebased(ticket_id: str) -> int:
     """One more replay for that ticket; how many that makes."""
-    with _claims_lock:
-        held = _rebases()
-        held[ticket_id] = held.get(ticket_id, 0) + 1
-        _write_rebases(held)
-        return held[ticket_id]
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT INTO rebases (ticket, count) VALUES (?, 1)"
+                " ON CONFLICT (ticket) DO UPDATE SET count = count + 1",
+                (ticket_id,),
+            )
+            row = connection.execute(
+                "SELECT count FROM rebases WHERE ticket = ?", (ticket_id,)
+            ).fetchone()
+    except db.ERRORS:
+        return 1  # a count nobody could keep is a limit that does not hold, not a crash
+    return int(row[0])
 
 
 def forget_rebases(ticket_id: str) -> None:
     """The ticket has left the validated column: its count starts again from zero."""
-    with _claims_lock:
-        held = _rebases()
-        if held.pop(ticket_id, None) is not None:
-            _write_rebases(held)
-
-
-def _rebases() -> dict[str, int]:
     try:
-        loaded = json.loads(rebases_path().read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(loaded, dict):
-        return {}
-    return {str(key): int(value) for key, value in loaded.items() if str(value).isdigit()}
+        with db.transaction() as connection:
+            connection.execute("DELETE FROM rebases WHERE ticket = ?", (ticket_id,))
+    except db.ERRORS:
+        pass
 
 
-def _write_rebases(held: dict[str, int]) -> None:
+def _number(value: object) -> float | None:
     try:
-        state_dir().mkdir(parents=True, exist_ok=True)
-        disk.write_atomic(rebases_path(), json.dumps(held))
-    except OSError:
-        pass  # a count nobody could keep is a limit that does not hold, not a crash
+        return None if value is None or value == "" else float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
 
 
 def record(entry: dict) -> None:
+    """One line of history: the whole entry, and beside it what one sorts and sums on."""
     entry = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **entry}
-    with disk.open_private(history_path(), "a") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    with db.transaction() as connection:
+        connection.execute(
+            "INSERT INTO history (at, ticket, status, kind, project, seconds, cost_usd, entry)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                str(entry.get("at") or ""),
+                str(entry.get("id") or ""),
+                str(entry.get("status") or ""),
+                str(entry.get("kind") or ""),
+                str(entry.get("project") or ""),
+                _number(entry.get("seconds")),
+                _number(entry.get("cost_usd")),
+                json.dumps(entry, ensure_ascii=False),
+            ),
+        )
 
 
 def record_all(entries: Iterable[dict | None]) -> list[dict]:
@@ -241,14 +237,15 @@ def record_all(entries: Iterable[dict | None]) -> list[dict]:
 
 
 def history(limit: int = 20) -> list[dict]:
-    path = history_path()
-    if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8").splitlines()
+    """The last `limit` entries, oldest first."""
+    with db.transaction(immediate=False) as connection:
+        rows = connection.execute(
+            "SELECT entry FROM history ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
     entries = []
-    for line in lines[-limit:]:
+    for (raw,) in reversed(rows):
         try:
-            entries.append(json.loads(line))
+            entries.append(json.loads(raw))
         except json.JSONDecodeError:
             continue
     return entries

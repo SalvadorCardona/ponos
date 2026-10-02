@@ -37,8 +37,9 @@ Three rules decide everything else, and they are the ones worth arguing about:
   what makes `storage.mode = "both"` work from a board that is already full: the
   first pass copies everything across, in whichever direction it is missing.
 
-The journal is `sync.jsonl` under the state directory, one JSON object per line,
-and it is what `ponos sync --journal` prints.
+The journal and the stamps live in `ponos.db` — `sync_journal`, one row per line
+of what happened, and `sync_stamps` (see `db.py`, which replaced `sync.jsonl` and
+`sync.json`); the journal is what `ponos sync --journal` prints.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import disk
+from . import db
 from .files import COLLECTIONS, Board
 from .store import Page, Picture, StoreError, read
 
@@ -61,12 +62,6 @@ ORDER = ("projects", "agents", "tickets", "schedules")
 # The standing context is a page rather than a collection, and is reconciled on
 # its body alone — it has no properties and no identity beyond being itself.
 CONTEXT = "context"
-
-
-def journal_path() -> Path:
-    from .config import state_dir
-
-    return state_dir() / "sync.jsonl"
 
 
 @dataclass
@@ -88,18 +83,9 @@ class Entry:
     detail: str = ""
     at: str = ""
 
-    def line(self) -> str:
-        return json.dumps(
-            {
-                "at": self.at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "what": self.what,
-                "collection": self.collection,
-                "page": self.page,
-                "title": self.title,
-                "detail": self.detail,
-            },
-            ensure_ascii=False,
-        )
+    def row(self) -> tuple[str, str, str, str, str, str]:
+        at = self.at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+        return (at, self.what, self.collection, self.page, self.title, self.detail)
 
 
 @dataclass
@@ -133,34 +119,34 @@ class Report:
         return bool(self.entries)
 
 
-def write_journal(report: Report, path: Path | None = None) -> None:
+def write_journal(report: Report, database: Path | None = None) -> None:
     """Append what happened, and never fail a pass for want of writing it down."""
     if not report.entries:
         return
-    target = path or journal_path()
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("a", encoding="utf-8") as handle:
-            for entry in report.entries:
-                handle.write(entry.line() + "\n")
-    except OSError:
-        report.problems.append(f"the journal could not be written: {target}")
+        with db.transaction(location=database) as connection:
+            connection.executemany(
+                "INSERT INTO sync_journal (at, what, collection, page, title, detail)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                [entry.row() for entry in report.entries],
+            )
+    except db.ERRORS as error:
+        report.problems.append(f"the journal could not be written: {error}")
 
 
-def journal(limit: int = 50, path: Path | None = None) -> list[dict]:
+def journal(limit: int = 50, database: Path | None = None) -> list[dict]:
     """The last entries of the journal, oldest first."""
-    target = path or journal_path()
     try:
-        lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+        with db.transaction(immediate=False, location=database) as connection:
+            rows = connection.execute(
+                "SELECT at, what, collection, page, title, detail FROM sync_journal"
+                " ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+    except db.ERRORS:
         return []
-    found: list[dict] = []
-    for line in lines[-limit:]:
-        try:
-            found.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return found
+    names = ("at", "what", "collection", "page", "title", "detail")
+    return [dict(zip(names, row)) for row in reversed(rows)]
 
 
 # -- what the two sides agreed on last time ----------------------------------
@@ -178,13 +164,17 @@ class Stamps:
     it is not known; the timestamps alone decide then, as they used to.
     """
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._known: dict[str, list[str]] = {}
-        try:
-            self._known = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            self._known = {}
+    def __init__(self, database: Path | None = None) -> None:
+        # Not swallowed: stamps that could not be read would make every page
+        # look new, and a pass would create on each side what is already there.
+        self._database = database
+        with db.transaction(immediate=False, location=database) as connection:
+            rows = connection.execute(
+                "SELECT page, notion, markdown, printed FROM sync_stamps"
+            ).fetchall()
+        self._known: dict[str, list[str]] = {
+            str(page): [notion, markdown, printed] for page, notion, markdown, printed in rows
+        }
 
     def seen(self, page_id: str) -> bool:
         return page_id in self._known
@@ -211,18 +201,19 @@ class Stamps:
 
     def save(self) -> None:
         try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            # Whole or not at all: a stamp lost to a half-written file turns
+            # One transaction: a stamp lost to a half-written save turns
             # "deleted on one side" back into "created on the other".
-            disk.write_atomic(self._path, json.dumps(self._known, ensure_ascii=False, indent=1))
-        except OSError:
+            with db.transaction(location=self._database) as connection:
+                connection.executemany(
+                    "INSERT OR REPLACE INTO sync_stamps (page, notion, markdown, printed)"
+                    " VALUES (?, ?, ?, ?)",
+                    [
+                        (page, *(list(known) + ["", "", ""])[:3])
+                        for page, known in self._known.items()
+                    ],
+                )
+        except db.ERRORS:
             pass
-
-
-def stamps_path() -> Path:
-    from .config import state_dir
-
-    return state_dir() / "sync.json"
 
 
 # -- the mirror --------------------------------------------------------------
@@ -437,7 +428,7 @@ class Mirror:
         then there is nothing to walk.
         """
         report = Report()
-        marks = stamps if stamps is not None else Stamps(stamps_path())
+        marks = stamps if stamps is not None else Stamps()
         try:
             space = self.workspace(settings)
         except StoreError as error:

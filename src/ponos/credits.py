@@ -36,8 +36,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import disk
-from .config import state_dir
+from . import db
 
 # How long to wait when the refusal does not say when it lifts. Short on
 # purpose: the cost of waking up too early is one session that dies in a second
@@ -82,14 +81,9 @@ def reached(text: str) -> float:
 # has refused, nothing at all can run, and a pass does not even read the board.
 # `reserve` is the line drawn short of it — there is credit left, we are simply
 # not spending the last of it — so a pass still merges what you validated and
-# only declines to *start* anything. Two notes rather than one field, because a
-# run reads each of them to answer a different question.
-_NOTES = {"spent": "credits.json", "reserve": "reserve.json"}
-
-
-def _note(what: str) -> Path:
-    state_dir().mkdir(parents=True, exist_ok=True)
-    return state_dir() / _NOTES[what]
+# only declines to *start* anything. Two rows rather than one field, because a
+# run reads each of them to answer a different question. They live in the
+# `waits` table of `ponos.db`, which replaced `credits.json` and `reserve.json`.
 
 
 def hold(until: float, *, what: str = "spent") -> None:
@@ -100,8 +94,12 @@ def hold(until: float, *, what: str = "spent") -> None:
     one wasted session at a time.
     """
     try:
-        disk.write_atomic(_note(what), json.dumps({"until": float(until), "since": time.time()}))
-    except OSError:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO waits (what, until, since) VALUES (?, ?, ?)",
+                (what, float(until), time.time()),
+            )
+    except db.ERRORS:
         pass
 
 
@@ -112,19 +110,20 @@ def held(*, what: str = "spent") -> float:
     removes it, so that the run which finds the credits back can say so.
     """
     try:
-        payload = json.loads(_note(what).read_text(encoding="utf-8"))
-        until = float(payload.get("until") or 0)
-    except (OSError, ValueError, TypeError, AttributeError):
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute("SELECT until FROM waits WHERE what = ?", (what,)).fetchone()
+    except db.ERRORS:
         return 0.0
+    until = float(row[0]) if row else 0.0
     return until if until > time.time() else 0.0
 
 
 def release(*, what: str = "spent") -> bool:
     """Forget the wait. True when there was one to forget."""
     try:
-        _note(what).unlink()
-        return True
-    except OSError:
+        with db.transaction() as connection:
+            return connection.execute("DELETE FROM waits WHERE what = ?", (what,)).rowcount > 0
+    except db.ERRORS:
         return False
 
 

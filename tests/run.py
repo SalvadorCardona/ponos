@@ -32,7 +32,7 @@ import traceback
 import uuid
 import contextlib
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -1394,7 +1394,7 @@ def it_never_answers_itself():
 @case
 def a_question_it_has_already_answered_is_not_answered_twice():
     """Notion hands back a thread whose reply is still in flight."""
-    ledger = conversation.Ledger(path=Path(tempfile.mkdtemp()) / "conversations.json")
+    ledger = conversation.Ledger(database=Path(tempfile.mkdtemp()) / "ponos.db")
     ledger.remember_thread("d1", session="s-1", comment="c-42")
     assert ledger.answered("d1") == "c-42"
     assert ledger.session_of("d1") == "s-1", "the next question resumes the same session"
@@ -1520,7 +1520,7 @@ def a_thread_transcript_tells_its_two_voices_apart():
 @case
 def the_scan_moves_across_the_board_a_window_at_a_time():
     """One request per page, and a run that can come round every ten seconds."""
-    ledger = conversation.Ledger(path=Path(tempfile.mkdtemp()) / "conversations.json")
+    ledger = conversation.Ledger(database=Path(tempfile.mkdtemp()) / "ponos.db")
     pages = [f"p{index}" for index in range(5)]
     assert ledger.rotate(pages, 2) == ["p0", "p1"]
     assert ledger.rotate(pages, 2) == ["p2", "p3"]
@@ -1531,7 +1531,7 @@ def the_scan_moves_across_the_board_a_window_at_a_time():
 
 @case
 def the_pass_holds_off_until_its_own_interval_has_passed():
-    ledger = conversation.Ledger(path=Path(tempfile.mkdtemp()) / "conversations.json")
+    ledger = conversation.Ledger(database=Path(tempfile.mkdtemp()) / "ponos.db")
     assert ledger.due(60), "a runner that has never looked is due at once"
     ledger.stamp()
     assert not ledger.due(60)
@@ -1540,8 +1540,8 @@ def the_pass_holds_off_until_its_own_interval_has_passed():
 
 @case
 def what_the_runner_remembers_survives_a_restart():
-    path = Path(tempfile.mkdtemp()) / "conversations.json"
-    ledger = conversation.Ledger(path=path)
+    path = Path(tempfile.mkdtemp()) / "ponos.db"
+    ledger = conversation.Ledger(database=path)
     ledger.remember_page("3ca45168-0af4-80ae-9443-de0b65d9abf8")
     ledger.remember_thread("d1", session="s-1", comment="c-1")
     ledger.cursor = 3
@@ -1551,7 +1551,7 @@ def what_the_runner_remembers_survives_a_restart():
     assert again.known_pages() == ["3ca451680af480ae9443de0b65d9abf8"], "dashes and all"
     assert again.session_of("d1") == "s-1"
     assert again.cursor == 3
-    assert conversation.Ledger.load(Path(tempfile.mkdtemp()) / "none.json").known_pages() == []
+    assert conversation.Ledger.load(Path(tempfile.mkdtemp()) / "ponos.db").known_pages() == []
 
 
 class _ThreadClient:
@@ -1579,7 +1579,7 @@ def _talking(pages: dict[str, list[notion.Comment]], *, claimed: set[str] = froz
     runner._me = ME
     runner._claimed = set(claimed)
     runner._ledger_lock = threading.Lock()
-    runner._ledger = conversation.Ledger(path=Path(tempfile.mkdtemp()) / "conversations.json")
+    runner._ledger = conversation.Ledger(database=Path(tempfile.mkdtemp()) / "ponos.db")
     for page in pages:
         runner._ledger.remember_page(page)
     return runner
@@ -2750,6 +2750,9 @@ def _state_home():
     try:
         yield Path(os.environ["XDG_STATE_HOME"]) / "ponos"
     finally:
+        # Its database too: a connection left open per test is three file
+        # descriptors, and the suite has hundreds of these.
+        db.close()
         if previous is None:
             os.environ.pop("XDG_STATE_HOME", None)
         else:
@@ -3288,31 +3291,34 @@ def a_copy_of_a_secret_is_private_before_it_holds_anything():
 def a_claim_is_written_whole_or_not_at_all():
     """A crash halfway through a write must leave the claims as they were.
 
-    An empty `claims.json` reads as "no claim", and a validated ticket without
-    its claim comes back from a crash as work to redo.
+    A lost claim reads as "no claim", and a validated ticket without its claim
+    comes back from a crash as work to redo. And two publications of one pass
+    claim side by side: neither may lose the other's.
     """
-    from ponos import disk
-
     with _state_home():
-        state.claim("a" * 32, "Validated")
-        before = state.claims_path().read_text()
-
-        def crash(descriptor):
-            raise OSError("disk full")
-
-        original = disk.os.fsync
-        disk.os.fsync = crash
         try:
-            state.claim("b" * 32, "Ready")
+            state.claim("a" * 32, "Validated")
+            try:
+                with db.transaction() as connection:
+                    connection.execute("DELETE FROM claims")
+                    connection.execute("INSERT INTO claims VALUES (?, ?)", ("b" * 32, "Ready"))
+                    raise OSError("disk full")
+            except OSError:
+                pass
+            assert state.claims() == {"a" * 32: "Validated"}, "the old claims are intact"
+            workers = [
+                threading.Thread(target=state.claim, args=(f"{n:032d}", "Ready")) for n in range(8)
+            ]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join()
+            assert len(state.claims()) == 9, state.claims()
+            state.release("a" * 32)
+            assert "a" * 32 not in state.claims()
+            assert db.path().stat().st_mode & 0o777 == 0o600
         finally:
-            disk.os.fsync = original
-        assert state.claims_path().read_text() == before, "the old claims are intact"
-        assert state.claims() == {"a" * 32: "Validated"}
-        leftovers = [p.name for p in state.claims_path().parent.iterdir() if p.name.endswith(".tmp")]
-        assert not leftovers, leftovers
-        state.claim("b" * 32, "Ready")
-        assert state.claims() == {"a" * 32: "Validated", "b" * 32: "Ready"}
-        assert state.claims_path().stat().st_mode & 0o777 == 0o600
+            db.close()
 
 
 @case
@@ -3325,7 +3331,7 @@ def what_a_session_said_is_kept_for_this_account_only():
             logs = state.logs_dir()
         finally:
             os.umask(previous)
-        assert state.history_path().stat().st_mode & 0o777 == 0o600
+        assert db.path().stat().st_mode & 0o777 == 0o600
         assert logs.stat().st_mode & 0o777 == 0o700
 
 
@@ -4143,7 +4149,7 @@ def _board_runner(
     runner._identity_error = ""
     runner._ledger_lock = threading.Lock()
     runner._ledger = conversation.Ledger(
-        path=Path(tempfile.mkdtemp()) / "conversations.json"
+        database=Path(tempfile.mkdtemp()) / "ponos.db"
     )
     return runner
 
@@ -7349,7 +7355,8 @@ def _bare_api(client, me: str = "runner-id") -> web_api.Api:
     api._briefs = {}
     # The pictures kept in a directory of the test's own: the real one is under
     # the state directory of whoever runs the suite.
-    api._images = images.Cache(Path(tempfile.mkdtemp()))
+    pictures = Path(tempfile.mkdtemp())
+    api._images = images.Cache(pictures, database=pictures / "ponos.db")
     return api
 
 
@@ -11229,7 +11236,7 @@ def _mirror(context: str = ""):
         here = _NotionBoard(context)
         there = files.Board(directory / "board", _settings())
         both = sync.Mirror(here, there)
-        yield here, there, both, sync.Stamps(directory / "sync.json")
+        yield here, there, both, sync.Stamps(directory / "ponos.db")
     finally:
         shutil.rmtree(directory, ignore_errors=True)
 
@@ -11355,7 +11362,7 @@ def a_deletion_is_written_down_and_never_carried_across():
 @case
 def the_journal_keeps_what_the_reconciliations_did():
     with tempfile.TemporaryDirectory() as directory:
-        path = Path(directory) / "sync.jsonl"
+        path = Path(directory) / "ponos.db"
         report = sync.Report()
         report.note("conflict", "tickets", "abc", "Le ticket", "both moved")
         report.note("deleted-in-notion", "tickets", "def", "L'autre", "gone")
@@ -11889,7 +11896,9 @@ class _Pictures:
         self.fetched: list[str] = []
         self.answer = fetched
         self.directory = Path(tempfile.mkdtemp())
-        self.cache = images.Cache(self.directory, fetch=self._fetch, clock=lambda: self.now)
+        self.cache = images.Cache(
+            self.directory, fetch=self._fetch, clock=lambda: self.now, database=self.directory / "ponos.db"
+        )
 
     def _fetch(self, url: str) -> tuple[bytes, str]:
         self.fetched.append(url)
@@ -12037,7 +12046,9 @@ def a_picture_the_console_chose_is_not_read_back_as_a_change():
         assert pictures.cache.picture(page.id, "cover", lambda: again)[0] == PNG
         assert pictures.fetched == [], "the bytes we uploaded are the copy"
         # And no signed URL is written down: on disk it could only be a dead one.
-        assert "X-Amz-Signature" not in (pictures.directory / "index.json").read_text()
+        with db.transaction(location=pictures.directory / "ponos.db") as connection:
+            written = " ".join(entry for (entry,) in connection.execute("SELECT entry FROM images"))
+        assert written and "X-Amz-Signature" not in written
 
 
 @case
@@ -12655,7 +12666,10 @@ def an_installation_from_before_the_rename_starts_with_everything_it_had():
     assert "moved" in done.stderr, "and the move is said in one line"
     state = home / ".local" / "state" / "ponos"
     assert not old_config.exists() and not old_state.exists()
-    assert (state / "history.jsonl").is_file() and (state / "board").is_dir()
+    assert (state / "board").is_dir()
+    assert (state / "ponos.db").is_file() and (state / "history.jsonl.imported").is_file(), (
+        "moved first, then read into the database"
+    )
     assert "~/.local/state/ponos/board" in (home / ".config" / "ponos" / "config.toml").read_text()
     moved = state / "worktrees" / "app-1234abcd"
     assert str(moved) in git("worktree", "list"), "the repository knows where its worktree went"
@@ -12747,7 +12761,7 @@ def a_new_database_is_brought_to_the_current_schema():
 
 @case
 def a_database_one_migration_behind_is_brought_up_to_date():
-    """Faked with a second migration, since there is only one so far."""
+    """Faked with one more migration than the code has."""
     location = Path(tempfile.mkdtemp()) / "ponos.db"
     db.open_at(location).close()
 
@@ -12820,6 +12834,134 @@ def two_processes_opening_a_new_database_together_both_get_it():
         connection.close()
 
 
+def _json_installation(state_home: Path) -> dict:
+    """The state directory of an installation from before the database, filled in.
+
+    What each file holds is handed back, to be found again once it is a table.
+    """
+    state_home.mkdir(parents=True, exist_ok=True)
+    history = [
+        {"at": "2026-09-28T09:00:00+00:00", "ticket": "Fix the footer", "id": "a" * 32,
+         "status": "done", "project": "app", "seconds": 312.4, "cost_usd": 1.25,
+         "pull_request": "https://github.com/o/r/pull/7", "merged": "https://github.com/o/r/pull/7"},
+        {"at": "2026-09-29T14:30:00+00:00", "ticket": "Write the guide", "id": "b" * 32,
+         "status": "done", "kind": "document", "project": "docs", "cost_usd": 0.5},
+        {"at": "2026-09-30T08:00:00+00:00", "ticket": "Flaky", "id": "c" * 32,
+         "status": "failed", "reason": "tests red"},
+    ]
+    (state_home / "history.jsonl").write_text(
+        "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in history[:2])
+        + "half a line of jso\n"
+        + json.dumps(history[2]) + "\n"
+    )
+    claims = {"a" * 32: "Validated", "d" * 32: "Ready"}
+    (state_home / "claims.json").write_text(json.dumps(claims))
+    (state_home / "rebases.json").write_text(json.dumps({"a" * 32: 2}))
+    (state_home / "conversations.json").write_text(json.dumps({
+        "pages": {"e" * 32: "2026-09-30T10:00:00+00:00", "f" * 32: "2026-09-29T10:00:00+00:00"},
+        "threads": {"d1": {"session": "s-1", "answered": "c-42", "at": "2026-09-30T10:00:00+00:00"}},
+        "cursor": 3,
+        "at": 1790000000.5,
+    }))
+    later = time.time() + 3600
+    (state_home / "credits.json").write_text(json.dumps({"until": later, "since": time.time()}))
+    (state_home / "reserve.json").write_text(json.dumps({"until": later + 60, "since": time.time()}))
+    (state_home / "sync.json").write_text(json.dumps({
+        "p1": ["2026-09-30T10:00:00.000Z", "2026-09-30T10:00:01+00:00", "f1ngerpr1nt"],
+        "p2": ["2026-09-29T10:00:00.000Z", "2026-09-29T10:00:01+00:00"],
+    }))
+    journal = [
+        {"at": "2026-09-30T10:00:00+00:00", "what": "conflict", "collection": "tickets",
+         "page": "p1", "title": "Le ticket", "detail": "both moved"},
+        {"at": "2026-09-30T10:05:00+00:00", "what": "seen", "collection": "tickets",
+         "page": "p2", "title": "L'autre", "detail": ""},
+    ]
+    (state_home / "sync.jsonl").write_text("".join(json.dumps(entry) + "\n" for entry in journal))
+    (state_home / "images").mkdir()
+    pictures = {f"{'e' * 32}:cover": {"agreed": "emoji:🐾", "kind": "emoji", "url": ""}}
+    (state_home / "images" / "index.json").write_text(json.dumps(pictures, ensure_ascii=False))
+    return {
+        "history": history, "claims": claims, "journal": journal, "pictures": pictures,
+        "files": sorted(path.relative_to(state_home) for path in state_home.rglob("*.json*")),
+    }
+
+
+@case
+def an_installation_of_json_files_starts_on_the_database_with_everything_it_had():
+    """Same statistics, same conversations, same claims — and the files set aside, not deleted.
+
+    Four processes open it at once, as the timer and the console do after an
+    update: the files are read in once, not four times.
+    """
+    with _state_home() as home:
+        try:
+            had = _json_installation(home)
+            originals = {name: (home / name).read_bytes() for name in had["files"]}
+            script = (
+                "import sys; sys.path.insert(0, sys.argv[1]);"
+                "from ponos import db; print(db.version(db.connect()))"
+            )
+            processes = [
+                subprocess.Popen(
+                    [sys.executable, "-c", script, str(ROOT / "src")],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                )
+                for _ in range(4)
+            ]
+            for process in processes:
+                out, err = process.communicate(timeout=60)
+                assert process.returncode == 0, err
+                assert out.strip() == str(len(db.MIGRATIONS)), out
+
+            assert state.history(1_000_000) == had["history"], "every whole line, in order, once"
+            assert state.history(1) == had["history"][-1:]
+            first, last = date(2026, 9, 1), date(2026, 9, 30)
+            assert web_statistics.figures([], state.history(1_000_000), first, last) == (
+                web_statistics.figures([], had["history"], first, last)
+            ), "the same statistics"
+            with db.transaction(immediate=False) as connection:
+                spent = connection.execute(
+                    "SELECT project, sum(cost_usd) FROM history GROUP BY project ORDER BY project"
+                ).fetchall()
+            assert spent == [("", None), ("app", 1.25), ("docs", 0.5)], spent
+
+            assert state.claims() == had["claims"], "the same claims"
+            assert state.rebases("a" * 32) == 2 and state.rebased("a" * 32) == 3
+
+            ledger = conversation.Ledger.load()
+            assert ledger.known_pages() == ["e" * 32, "f" * 32], "the same conversations"
+            assert ledger.session_of("d1") == "s-1" and ledger.answered("d1") == "c-42"
+            assert ledger.cursor == 3 and ledger.at == 1790000000.5
+
+            assert credits.held() > time.time() and credits.held(what="reserve") > credits.held()
+
+            stamps = sync.Stamps()
+            assert stamps.seen("p1") and stamps.printed("p1") == "f1ngerpr1nt"
+            assert stamps.notion("p2") == "2026-09-29T10:00:00.000Z" and stamps.printed("p2") == ""
+            assert sync.journal() == had["journal"]
+
+            pictures = images.Cache(home / "images")
+            assert pictures.entry("e" * 32, "cover") == had["pictures"][f"{'e' * 32}:cover"]
+
+            for name, content in originals.items():
+                assert not (home / name).exists(), f"{name} is no longer where it was read"
+                kept = home / name.with_name(name.name + ".imported")
+                assert kept.read_bytes() == content, f"{name} is set aside whole, never deleted"
+        finally:
+            db.close()
+
+
+@case
+def a_new_installation_has_nothing_to_import_and_nothing_to_set_aside():
+    with _state_home() as home:
+        try:
+            assert state.history() == [] and state.claims() == {} and sync.journal() == []
+            assert conversation.Ledger.load().known_pages() == [] and credits.held() == 0.0
+            assert sorted(path.name for path in home.iterdir() if ".imported" in path.name) == []
+        finally:
+            db.close()
+
+
 @case
 def a_database_newer_than_the_code_is_refused_untouched():
     location = Path(tempfile.mkdtemp()) / "ponos.db"
@@ -12885,7 +13027,7 @@ def a_file_at_schema_version_one_gets_the_tool_and_cost_columns_and_keeps_its_st
     old.close()
     upgraded = db.open_at(location)
     try:
-        assert db.version(upgraded) == len(db.MIGRATIONS) == 2
+        assert db.version(upgraded) == len(db.MIGRATIONS) >= 2
         assert upgraded.execute("SELECT kind, text, tool, cost_usd FROM steps").fetchall() == [
             ("said", "kept", "", None)
         ]
@@ -13059,8 +13201,9 @@ def main() -> int:
     # a CI runner with no store at all would take a different road again. The
     # tests that are *about* the reading say so themselves — see `_usage`.
     os.environ["CLAUDE_CONFIG_DIR"] = tempfile.mkdtemp()
-    # The same for the runner's own state: a test that runs a session writes
-    # its run into the local journal, and that journal must not be yours.
+    # The runner's own state, for two reasons: a test that runs a session writes
+    # its run into the local journal, and opening the real `ponos.db` would
+    # migrate it and set aside the JSON files the installed runner still reads.
     os.environ["XDG_STATE_HOME"] = tempfile.mkdtemp()
     failures = 0
     for function in CASES:
