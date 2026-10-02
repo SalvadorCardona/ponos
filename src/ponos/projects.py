@@ -161,7 +161,7 @@ class Resolver:
         An empty project page costs nothing and changes nothing.
         """
         try:
-            return backend.blocks_text(page_id)
+            return backend.blocks_text(page_id, live=False)
         except store.StoreError:
             return ""
 

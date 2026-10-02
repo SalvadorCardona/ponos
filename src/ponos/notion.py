@@ -342,8 +342,14 @@ class Client:
                 return found
             cursor = payload.get("next_cursor")
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
-        """A page's content, flattened into something an agent can read."""
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
+        """A page's content, flattened into something an agent can read.
+
+        `live=False` reads it as a brief: the toggles a run's live report left
+        on the page are skipped, and not descended into — see `progress.is_live`.
+        """
+        from . import progress
+
         if depth > 3:
             return ""
         lines: list[str] = []
@@ -352,9 +358,11 @@ class Client:
             suffix = f"?page_size=100&start_cursor={cursor}" if cursor else "?page_size=100"
             payload = self._request("GET", f"/blocks/{block_id}/children{suffix}")
             for block in payload.get("results", []):
+                if not live and progress.is_live(block):
+                    continue
                 lines.append(_block_text(block, depth))
                 if block.get("has_children") and block.get("type") != "child_page":
-                    nested = self.blocks_text(block["id"], depth + 1)
+                    nested = self.blocks_text(block["id"], depth + 1, live=live)
                     if nested:
                         lines.append(_indent(nested))
             if not payload.get("has_more"):

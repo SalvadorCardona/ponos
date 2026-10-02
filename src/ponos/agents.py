@@ -46,7 +46,7 @@ def resolve(backend: store.Store, page_id: str, model_property: str = "Model") -
     if not name:
         return Agent()
     try:
-        brief = backend.blocks_text(page_id)
+        brief = backend.blocks_text(page_id, live=False)
     except store.StoreError:
         brief = ""
     return Agent(name, brief, str(store.read(page, model_property) or "").strip())

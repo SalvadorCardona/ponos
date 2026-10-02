@@ -890,6 +890,14 @@ file. And a board with no `Progress` column, or an integration
 that refuses the write, costs the report and nothing else — the ticket runs to its end
 either way.
 
+The toggles are the page's, not the brief's. A ticket sent back to *Ready* is briefed on
+what you wrote and on the report each run ended on — the pull request, the answer — but
+never on the toggles: the next session does not pay for the steps of the last one, nor
+take them for instructions, and the console's view of a ticket leaves them out as well.
+They are recognised by their title, so a toggle of your own is still read. On a Markdown
+board, which has no toggle, the story of a run is written between `<!-- ponos:live -->`
+and `<!-- /ponos:live -->` and left out the same way.
+
 `ponos init` adds the column to an existing board; the toggles need nothing.
 
 #### From the terminal

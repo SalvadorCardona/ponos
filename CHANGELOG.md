@@ -479,6 +479,20 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   palette and a notification still open it, and a middle click on a card still
   opens it in a tab. The table's *read* button goes: its title is the way in.
 
+- **A ticket run again is no longer briefed on its earlier runs.** Each run
+  leaves its live block on the page, and a ticket sent back to *Ready* — a
+  retry, an unblocking — used to hand all of them to its next session: tokens
+  paid for steps already taken, and old sentences an agent could read as
+  instructions. The brief is now read without them, wherever a page is read as
+  one — a ticket's session, its reply to a comment, a conflict to resolve, an
+  agent, a project, a schedule — and Notion is not even asked what they hold.
+  The console's view of a ticket leaves them out too, and opens a request
+  lighter for each of them. The report a run ends on — the pull request, the
+  answer written into the page — stays part of the brief. On a Markdown board
+  the story of a run is now written between `<!-- ponos:live -->` and
+  `<!-- /ponos:live -->` and left out the same way; one written before this
+  version has no fence and is still read.
+
 - **A ticket's live block holds only what the agent says.** The page no longer
   gets a bullet per command, file read or edit between the agent's sentences,
   nor a line per failed tool call, nor a rule between paragraphs: only the

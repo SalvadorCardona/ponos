@@ -62,6 +62,14 @@ CONTEXT_PAGE = "context"
 # A frontmatter starts and ends on this, alone on its line.
 FENCE = "---"
 
+# What a run's live report is written between, in a ticket's body. A file has
+# no toggle to recognise it by, and a page read as a brief has to leave it out
+# — see `blocks_text`. Comments, so that the Markdown still reads as prose
+# wherever it is rendered.
+LIVE_OPEN = "<!-- ponos:live -->"
+LIVE_CLOSE = "<!-- /ponos:live -->"
+_LIVE = re.compile(re.escape(LIVE_OPEN) + r".*?" + re.escape(LIVE_CLOSE), re.DOTALL)
+
 # What a page carries about itself, as opposed to what the board carries about it.
 # `cover` and `icon` are last so that a file written before they existed comes
 # out of `render` byte for byte as it went in.
@@ -383,12 +391,18 @@ class Board:
         collection, path = self._find(page_id)
         return self._page_of(collection, path)
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
-        """A page's body. Already Markdown, so already what an agent reads."""
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
+        """A page's body. Already Markdown, so already what an agent reads.
+
+        `live=False` reads it as a brief, without what `append_blocks` wrote.
+        """
         if _bare(block_id) == CONTEXT_PAGE:
             return _text(self.context_file()).strip()
         _, path = self._find(block_id)
-        return parse(_text(path))[1]
+        body = parse(_text(path))[1]
+        if live:
+            return body
+        return re.sub(r"\n{3,}", "\n\n", _LIVE.sub("", body)).strip()
 
     def attachment(self, block_id: str) -> str:
         """Nothing here is addressable below the page. See `append_blocks`."""
@@ -655,12 +669,28 @@ class Board:
 
         What is lost is the toggle's title being kept current, since there is no
         line to rewrite. `update_block` says so by doing nothing.
+
+        What is kept is where the story starts and stops: it is written between
+        `LIVE_OPEN` and `LIVE_CLOSE`, so that a ticket run again does not read
+        the last run back as part of its brief. A toggle opens a new stretch;
+        the steps that follow go on inside it for as long as nothing else was
+        written after it — the report that ends a run closes it for good.
         """
         from . import markdown as converter
 
         text = "\n".join(converter.plain(block) for block in blocks).strip()
-        if text:
-            self.append_markdown(block_id, text)
+        if not text:
+            return [_bare(block_id)] * len(blocks)
+        _, path = self._find(block_id)
+        front, body = parse(_text(path))
+        body = body.strip()
+        opens = any(block.get("type") == "toggle" for block in blocks)
+        if not opens and body.endswith(LIVE_CLOSE):
+            body = f"{body[: -len(LIVE_CLOSE)].rstrip()}\n\n{text}\n\n{LIVE_CLOSE}"
+        else:
+            body = f"{body}\n\n{LIVE_OPEN}\n\n{text}\n\n{LIVE_CLOSE}".strip()
+        front["edited"] = now()
+        _write(path, render(front, body))
         return [_bare(block_id)] * len(blocks)
 
     def update_block(self, block_id: str, payload: dict) -> None:

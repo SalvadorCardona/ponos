@@ -57,7 +57,7 @@ class Preparation(Base):
 
         short = short_id(ticket.id)
         try:
-            body = self.client.blocks_text(ticket.page.id)
+            body = self.client.blocks_text(ticket.page.id, live=False)
         except store.StoreError as error:
             self._fail(ticket, self.voice.say("unreadable"), str(error))
             return None

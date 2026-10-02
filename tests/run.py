@@ -145,7 +145,7 @@ class _ProjectClient:
     def page(self, page_id: str) -> notion.Page:
         return self._page
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         return ""
 
 
@@ -658,7 +658,7 @@ class _FakeClient:
     def query(self, database_id: str, filter_=None) -> list[notion.Page]:
         return [notion.Page(id=page, url="", title=title) for title, page in self._rows.items()]
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         if page_id in self._broken:
             raise notion.NotionError(f"{page_id}: object not found")
         return self._text
@@ -797,7 +797,7 @@ class _Board:
             for title, page in self._rows.get(database_id, {}).items()
         ]
 
-    def blocks_text(self, page_id, depth=0):
+    def blocks_text(self, page_id, depth=0, *, live=True):
         return self._text
 
     # writing
@@ -1158,7 +1158,7 @@ class _AgentClient:
             raise notion.NotionError("object not found")
         return self._page
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         if self._broken:
             raise notion.NotionError("object not found")
         return self._brief
@@ -1641,7 +1641,7 @@ class _TalkingClient(_ThreadClient):
     def page(self, page_id: str) -> notion.Page:
         return notion.Page(id=page_id, url=f"https://notion.so/{page_id}", title="Un ticket")
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
         return self._body
 
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None:
@@ -2511,7 +2511,7 @@ class _ScheduleClient:
         self.created.append((title, dict(values or {})))
         return f"t-{len(self.created)}"
 
-    def blocks_text(self, block_id, depth=0):
+    def blocks_text(self, block_id, depth=0, *, live=True):
         return "Lister les dépendances en retard, et dire lesquelles comptent."
 
     def append_markdown(self, page_id, markdown):
@@ -4078,7 +4078,7 @@ class _BoardClient:
     def comments(self, page_id: str) -> list[notion.Comment]:
         return []
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
         return "Le post d'annonce, écrit la semaine dernière et relu depuis."
 
     def query(self, database_id: str, filter_=None) -> list[notion.Page]:
@@ -5353,7 +5353,7 @@ class _NamelessClient:
     def title_property(self, database_id: str) -> str:
         return notion.Client.title_property(self, database_id)  # the real lookup
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
         return self._body
 
     def comments(self, page_id: str) -> list[notion.Comment]:
@@ -6015,6 +6015,115 @@ def the_block_a_run_leaves_speaks_the_language_the_report_does():
     live.close()
     assert client.titles[0].startswith("⏳ En cours")
     assert client.titles[-1] == "✓ 1 étape · 2 minutes"
+
+
+class _Page:
+    """A Notion page as a tree of blocks: written by a live report, read by the client."""
+
+    def __init__(self):
+        self.children: dict[str, list[dict]] = {"page": []}
+        self.asked: list[str] = []
+
+    def add(self, parent: str, block: dict) -> str:
+        identifier = uuid.uuid4().hex
+        kind = block["type"]
+        rich = [
+            {**part, "plain_text": part["text"]["content"]} for part in block[kind]["rich_text"]
+        ]
+        self.children[parent].append(
+            {"id": identifier, "has_children": False, **block, kind: {"rich_text": rich}}
+        )
+        self.children[identifier] = []
+        for held in self.children.values():
+            for child in held:
+                child["has_children"] = bool(self.children.get(child["id"]))
+        return identifier
+
+    def append_blocks(self, block_id, blocks):
+        return [self.add(block_id, block) for block in blocks]
+
+    def update_block(self, block_id, payload):
+        for held in self.children.values():
+            for child in held:
+                if child["id"] == block_id:
+                    child["toggle"]["rich_text"] = [
+                        {**part, "plain_text": part["text"]["content"]}
+                        for part in payload["toggle"]["rich_text"]
+                    ]
+
+    def update(self, database_id, page_id, values):
+        pass
+
+    def request(self, method, path, body=None, **_):
+        parent = path.split("/")[2]
+        self.asked.append(parent)
+        return {"results": self.children[parent], "has_more": False}
+
+
+def _run_on(page, words: str, said: str, *, ok: bool = True, page_id: str = "page") -> None:
+    """One session's live report, as `execution` would leave it on the page."""
+    clock = _Clock()
+    live = progress.Live(page, page_id, words=voice.Voice(words), clock=clock)
+    live.add(progress.Step(said, said=True))
+    live.add(progress.Step("Bash", "npm test"))
+    clock.now += 90
+    live.close("stopped" if not ok else "", ok=ok)
+
+
+@case
+def a_brief_is_read_without_the_story_of_earlier_runs():
+    """A ticket sent back to Ready is briefed on what you wrote, not on its past runs.
+
+    Every run leaves its toggle on the page; read as a brief, the page skips
+    them — and does not even ask Notion for what they hold. The report a run
+    ends on, and a toggle somebody wrote by hand, are still read.
+    """
+    page = _Page()
+    page.add("page", markdown.to_blocks("## À faire\n\nCorriger l'entête.")[0])
+    page.add("page", markdown.to_blocks("Corriger l'entête.")[0])
+    _run_on(page, "fr", "Je lis la configuration.", ok=False)
+    page.add("page", markdown.to_blocks("Pull request ouverte : x/y#3")[0])
+    _run_on(page, "en", "Reading the header again.")
+    by_hand = page.add(
+        "page",
+        {"object": "block", "type": "toggle",
+         "toggle": {"rich_text": [{"type": "text", "text": {"content": "Notes"}}]}},
+    )
+    page.add(by_hand, markdown.to_blocks("Garder le logo.")[0])
+    titles = [
+        "".join(part["plain_text"] for part in block["toggle"]["rich_text"])
+        for block in page.children["page"] if block["type"] == "toggle"
+    ]
+    assert titles[0].startswith("⚠️ Trace — 2 étapes") and titles[1].startswith("✓ 2 steps"), titles
+    runs = [block["id"] for block in page.children["page"] if progress.is_live(block)]
+    assert len(runs) == 2
+
+    client = notion.Client("ntn_x")
+    client._request = page.request  # type: ignore[method-assign]
+    brief = client.blocks_text("page", live=False)
+    assert brief == (
+        "## À faire\nCorriger l'entête.\nPull request ouverte : x/y#3\nNotes\n  Garder le logo."
+    ), brief
+    assert not set(runs) & set(page.asked), "a run's toggle is not even opened"
+    whole = client.blocks_text("page")
+    assert "Je lis la configuration." in whole and "Reading the header again." in whole
+    assert "Trace" in whole
+
+
+@case
+def a_toggle_that_only_looks_like_a_run_is_kept():
+    def toggle(title, bold=True):
+        part = {"type": "text", "text": {"content": title}, "annotations": {"bold": bold}}
+        return {"type": "toggle", "toggle": {"rich_text": [part]}}
+
+    assert progress.is_live(toggle("⏳ Live"))
+    assert progress.is_live(toggle("⏳ En cours — 4 étapes · moins d'une minute"))
+    assert progress.is_live(toggle("✓ 16 step(s) · 3 min"))
+    assert progress.is_live(toggle("⚠️ Trace — 3 steps · 2 minutes · interrupted"))
+    assert not progress.is_live(toggle("✓ Done items"))
+    assert not progress.is_live(toggle("⏳ Live", bold=False))
+    assert not progress.is_live(toggle("Notes"))
+    assert not progress.is_live({"type": "paragraph", "paragraph": toggle("⏳ Live")["toggle"]})
 
 
 @case
@@ -7441,7 +7550,7 @@ class _PageClient(_TalkClient):
             raw={"created_time": "2026-09-01T09:00:00.000Z"},
         )
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         return self._content
 
 
@@ -7481,7 +7590,7 @@ class _EditedPageClient(_PageClient):
         page.raw["last_edited_time"] = self.edited
         return page
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         self.reads += 1
         return self._content
 
@@ -10835,6 +10944,24 @@ def tickets_are_written_and_read_back_as_markdown():
 
 
 @case
+def a_markdown_ticket_reads_its_brief_without_its_live_reports():
+    """A file has no toggle: the story of a run is fenced, and the brief leaves it out."""
+    with _board() as board:
+        page_id = board.create_row("tickets", "Corriger l'entête", {"Status": "Ready"})
+        board.append_markdown(page_id, "## À faire\n\nRelire la page.")
+        _run_on(board, "fr", "Je lis la configuration.", ok=False, page_id=page_id)
+        board.append_markdown(page_id, "---\nPull request ouverte : x/y#3")
+        _run_on(board, "en", "Reading the header again.", page_id=page_id)
+        brief = board.blocks_text(page_id, live=False)
+        assert brief == "## À faire\n\nRelire la page.\n\n---\nPull request ouverte : x/y#3", brief
+        whole = board.blocks_text(page_id)
+        assert "Je lis la configuration." in whole and "Reading the header again." in whole
+        # One stretch per run, opened by its toggle and holding all its steps.
+        assert whole.count(files.LIVE_OPEN) == 2 == whole.count(files.LIVE_CLOSE), whole
+        assert whole.index("Je lis la configuration.") < whole.index(files.LIVE_CLOSE)
+
+
+@case
 def a_markdown_board_answers_the_filters_the_runner_builds():
     with _board() as board:
         ready = board.create_row("tickets", "À faire", {"Status": "Ready"})
@@ -11006,7 +11133,7 @@ class _NotionBoard:
             raise store.StoreError(f"no such page: {page_id}")
         return self.pages[page_id]
 
-    def blocks_text(self, block_id, depth=0):
+    def blocks_text(self, block_id, depth=0, *, live=True):
         if block_id == "ctx":
             return self.context
         return self.bodies.get(block_id, "")
