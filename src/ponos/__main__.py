@@ -18,7 +18,7 @@ from pathlib import Path
 from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
-from . import kinds, legacy, store, voice
+from . import db, kinds, legacy, store, voice
 from . import provision
 from . import schedules as schedules_module
 from . import session, state, systemd
@@ -862,6 +862,9 @@ def command_doctor(args: argparse.Namespace) -> int:
     if last:
         print(f"  {DIM}last tidied {datetime.fromtimestamp(last):%Y-%m-%d %H:%M}{RESET}")
 
+    title("Local database")
+    problems += _doctor_database()
+
     if problems:
         print(f"\n{RED}{problems} problem(s) to fix.{RESET}")
         return 1
@@ -1047,6 +1050,22 @@ def command_doctor(args: argparse.Namespace) -> int:
         print(f"\n{RED}{problems} problem(s) to fix.{RESET}")
         return 1
     print(f"\n{GREEN}Everything is in place.{RESET}")
+    return 0
+
+
+def _doctor_database() -> int:
+    """The local database opens, and is at the schema this code knows — or why not.
+
+    Opening it is what brings it up to date, so this is also the one command
+    that migrates it on purpose. A file newer than the code is the case worth
+    a red line: every part of the runner that writes into it would stop on it.
+    """
+    try:
+        location, found = db.check()
+    except db.DatabaseError as error:
+        bad(str(error))
+        return 1
+    ok(f"{location} — schema version {found} of {len(db.MIGRATIONS)}")
     return 0
 
 

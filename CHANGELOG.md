@@ -18,6 +18,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A local database, `~/.local/state/ponos/ponos.db`, with numbered migrations.**
+  The foundation for what the runner will keep about its own runs: SQLite (in
+  Python's standard library, so still nothing to install), in WAL mode so the
+  timer and the console can write it at once. Its schema version is applied
+  forward on opening, one migration per transaction, safely when two processes
+  start together; a file from a newer Ponos is refused untouched. `ponos doctor`
+  checks it opens and says its schema version. Tickets stay on the board.
 - **The console opens in the language you set, and the runner says everything in
   it.** A new key, `runner.app_language` (`en` or `fr`), is the language the
   console opens in and the one its sign-in and set-up pages are written in;
