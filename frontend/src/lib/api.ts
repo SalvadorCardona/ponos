@@ -11,7 +11,9 @@ import type {
   Pictures,
   ProjectDetail,
   Projects,
+  Run,
   RunnerState,
+  RunSteps,
   UpgradeProgress,
   Saved,
   ScheduleDetail,
@@ -160,6 +162,13 @@ export const api = {
     request<{ logs: LogEntry[] }>(ticket ? `/api/logs?ticket=${encodeURIComponent(ticket)}` : "/api/logs"),
   log: (name: string) =>
     request<{ name: string; count: number; steps: Step[] }>(`/api/logs/${encodeURIComponent(name)}`),
+  runs: (id: string) => request<{ runs: Run[] }>(`/api/tickets/${id}/runs`),
+  /** A run's last steps; `before`, those older than a position; `after`, those newer. */
+  runSteps: (run: number, page: { before?: number; after?: number } = {}) =>
+    request<RunSteps>(
+      `/api/runs/${run}/steps` +
+        (page.after ? `?after=${page.after}` : page.before ? `?before=${page.before}` : "")
+    ),
 
   createTicket: (ticket: {
     title: string

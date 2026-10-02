@@ -431,6 +431,15 @@ export const FRENCH: Record<string, string> = {
   /* -- a ticket's session, and the runner's figures ----------------------------- */
   "writing now": "en train d'écrire",
   "the last session, read-only": "la dernière session, en lecture seule",
+  "an earlier session, read-only": "une session précédente, en lecture seule",
+  "This run wrote no step.": "Ce passage n'a écrit aucune étape.",
+  "Earlier steps": "Étapes précédentes",
+  Run: "Passage",
+  "going on": "en cours",
+  blocked: "bloqué",
+  failed: "échoué",
+  validated: "validé",
+  "waiting for credit": "en attente de crédit",
   "Follow the session": "Suivre la session",
   "starting…": "démarrage…",
   "The session has not written anything yet. Its first step appears here as it happens.":

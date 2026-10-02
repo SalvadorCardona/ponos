@@ -41,7 +41,7 @@ from ponos import config as C  # noqa: E402
 from ponos import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
 from ponos import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
 from ponos import schedules, session, state, store, sync, systemd  # noqa: E402
-from ponos import db, files, images  # noqa: E402
+from ponos import db, files, images, journal  # noqa: E402
 from ponos.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
 from ponos import legacy, update, voice, workspace  # noqa: E402
 from ponos import ticket as ticket_module  # noqa: E402
@@ -145,7 +145,7 @@ class _ProjectClient:
     def page(self, page_id: str) -> notion.Page:
         return self._page
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         return ""
 
 
@@ -658,7 +658,7 @@ class _FakeClient:
     def query(self, database_id: str, filter_=None) -> list[notion.Page]:
         return [notion.Page(id=page, url="", title=title) for title, page in self._rows.items()]
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         if page_id in self._broken:
             raise notion.NotionError(f"{page_id}: object not found")
         return self._text
@@ -797,7 +797,7 @@ class _Board:
             for title, page in self._rows.get(database_id, {}).items()
         ]
 
-    def blocks_text(self, page_id, depth=0):
+    def blocks_text(self, page_id, depth=0, *, live=True):
         return self._text
 
     # writing
@@ -1158,7 +1158,7 @@ class _AgentClient:
             raise notion.NotionError("object not found")
         return self._page
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         if self._broken:
             raise notion.NotionError("object not found")
         return self._brief
@@ -1206,6 +1206,7 @@ class _CommentClient:
 def _bare_runner(client) -> Runner:
     """A Runner with its Notion replaced, and nothing else touched."""
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.client = client
     runner.config = _config("")
     runner.agent_label = "ponos@laptop"
@@ -1300,6 +1301,7 @@ def a_ticket_no_run_of_ours_ever_touched_is_left_alone():
 def waking_looks_everywhere_but_where_a_status_already_speaks():
     """Done stays done, in review waits on a merge, validated on the runner."""
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.config = _config("")
     runner._workspace = workspace.Workspace(tickets="db")
     runner.client = type("S", (), {"schema": lambda self, database: {"Status": "status"}})()
@@ -1641,7 +1643,7 @@ class _TalkingClient(_ThreadClient):
     def page(self, page_id: str) -> notion.Page:
         return notion.Page(id=page_id, url=f"https://notion.so/{page_id}", title="Un ticket")
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
         return self._body
 
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None:
@@ -2511,7 +2513,7 @@ class _ScheduleClient:
         self.created.append((title, dict(values or {})))
         return f"t-{len(self.created)}"
 
-    def blocks_text(self, block_id, depth=0):
+    def blocks_text(self, block_id, depth=0, *, live=True):
         return "Lister les dépendances en retard, et dire lesquelles comptent."
 
     def append_markdown(self, page_id, markdown):
@@ -2522,6 +2524,7 @@ class _ScheduleClient:
 def _recurring(pages, *, tickets=None, refuses="", schedule=True, dry_run=False) -> Runner:
     """A Runner with nothing underneath it but a schedules database."""
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.client = _ScheduleClient(pages, tickets, refuses)
     runner.config = C.Config(
         notion=C.Notion(properties=dict(C._DEFAULT_PROPERTIES), status={}),
@@ -4078,7 +4081,7 @@ class _BoardClient:
     def comments(self, page_id: str) -> list[notion.Comment]:
         return []
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
         return "Le post d'annonce, écrit la semaine dernière et relu depuis."
 
     def query(self, database_id: str, filter_=None) -> list[notion.Page]:
@@ -4119,6 +4122,7 @@ def _board_runner(
 ) -> Runner:
     """A Runner with nothing underneath it but a fake board."""
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.client = _BoardClient(pages, options, waiting)
     runner.config = C.Config(
         notion=C.Notion(properties=dict(C._DEFAULT_PROPERTIES), status=status),
@@ -5353,7 +5357,7 @@ class _NamelessClient:
     def title_property(self, database_id: str) -> str:
         return notion.Client.title_property(self, database_id)  # the real lookup
 
-    def blocks_text(self, block_id: str, depth: int = 0) -> str:
+    def blocks_text(self, block_id: str, depth: int = 0, *, live: bool = True) -> str:
         return self._body
 
     def comments(self, page_id: str) -> list[notion.Comment]:
@@ -6015,6 +6019,115 @@ def the_block_a_run_leaves_speaks_the_language_the_report_does():
     live.close()
     assert client.titles[0].startswith("⏳ En cours")
     assert client.titles[-1] == "✓ 1 étape · 2 minutes"
+
+
+class _Page:
+    """A Notion page as a tree of blocks: written by a live report, read by the client."""
+
+    def __init__(self):
+        self.children: dict[str, list[dict]] = {"page": []}
+        self.asked: list[str] = []
+
+    def add(self, parent: str, block: dict) -> str:
+        identifier = uuid.uuid4().hex
+        kind = block["type"]
+        rich = [
+            {**part, "plain_text": part["text"]["content"]} for part in block[kind]["rich_text"]
+        ]
+        self.children[parent].append(
+            {"id": identifier, "has_children": False, **block, kind: {"rich_text": rich}}
+        )
+        self.children[identifier] = []
+        for held in self.children.values():
+            for child in held:
+                child["has_children"] = bool(self.children.get(child["id"]))
+        return identifier
+
+    def append_blocks(self, block_id, blocks):
+        return [self.add(block_id, block) for block in blocks]
+
+    def update_block(self, block_id, payload):
+        for held in self.children.values():
+            for child in held:
+                if child["id"] == block_id:
+                    child["toggle"]["rich_text"] = [
+                        {**part, "plain_text": part["text"]["content"]}
+                        for part in payload["toggle"]["rich_text"]
+                    ]
+
+    def update(self, database_id, page_id, values):
+        pass
+
+    def request(self, method, path, body=None, **_):
+        parent = path.split("/")[2]
+        self.asked.append(parent)
+        return {"results": self.children[parent], "has_more": False}
+
+
+def _run_on(page, words: str, said: str, *, ok: bool = True, page_id: str = "page") -> None:
+    """One session's live report, as `execution` would leave it on the page."""
+    clock = _Clock()
+    live = progress.Live(page, page_id, words=voice.Voice(words), clock=clock)
+    live.add(progress.Step(said, said=True))
+    live.add(progress.Step("Bash", "npm test"))
+    clock.now += 90
+    live.close("stopped" if not ok else "", ok=ok)
+
+
+@case
+def a_brief_is_read_without_the_story_of_earlier_runs():
+    """A ticket sent back to Ready is briefed on what you wrote, not on its past runs.
+
+    Every run leaves its toggle on the page; read as a brief, the page skips
+    them — and does not even ask Notion for what they hold. The report a run
+    ends on, and a toggle somebody wrote by hand, are still read.
+    """
+    page = _Page()
+    page.add("page", markdown.to_blocks("## À faire\n\nCorriger l'entête.")[0])
+    page.add("page", markdown.to_blocks("Corriger l'entête.")[0])
+    _run_on(page, "fr", "Je lis la configuration.", ok=False)
+    page.add("page", markdown.to_blocks("Pull request ouverte : x/y#3")[0])
+    _run_on(page, "en", "Reading the header again.")
+    by_hand = page.add(
+        "page",
+        {"object": "block", "type": "toggle",
+         "toggle": {"rich_text": [{"type": "text", "text": {"content": "Notes"}}]}},
+    )
+    page.add(by_hand, markdown.to_blocks("Garder le logo.")[0])
+    titles = [
+        "".join(part["plain_text"] for part in block["toggle"]["rich_text"])
+        for block in page.children["page"] if block["type"] == "toggle"
+    ]
+    assert titles[0].startswith("⚠️ Trace — 2 étapes") and titles[1].startswith("✓ 2 steps"), titles
+    runs = [block["id"] for block in page.children["page"] if progress.is_live(block)]
+    assert len(runs) == 2
+
+    client = notion.Client("ntn_x")
+    client._request = page.request  # type: ignore[method-assign]
+    brief = client.blocks_text("page", live=False)
+    assert brief == (
+        "## À faire\nCorriger l'entête.\nPull request ouverte : x/y#3\nNotes\n  Garder le logo."
+    ), brief
+    assert not set(runs) & set(page.asked), "a run's toggle is not even opened"
+    whole = client.blocks_text("page")
+    assert "Je lis la configuration." in whole and "Reading the header again." in whole
+    assert "Trace" in whole
+
+
+@case
+def a_toggle_that_only_looks_like_a_run_is_kept():
+    def toggle(title, bold=True):
+        part = {"type": "text", "text": {"content": title}, "annotations": {"bold": bold}}
+        return {"type": "toggle", "toggle": {"rich_text": [part]}}
+
+    assert progress.is_live(toggle("⏳ Live"))
+    assert progress.is_live(toggle("⏳ En cours — 4 étapes · moins d'une minute"))
+    assert progress.is_live(toggle("✓ 16 step(s) · 3 min"))
+    assert progress.is_live(toggle("⚠️ Trace — 3 steps · 2 minutes · interrupted"))
+    assert not progress.is_live(toggle("✓ Done items"))
+    assert not progress.is_live(toggle("⏳ Live", bold=False))
+    assert not progress.is_live(toggle("Notes"))
+    assert not progress.is_live({"type": "paragraph", "paragraph": toggle("⏳ Live")["toggle"]})
 
 
 @case
@@ -7441,7 +7554,7 @@ class _PageClient(_TalkClient):
             raw={"created_time": "2026-09-01T09:00:00.000Z"},
         )
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         return self._content
 
 
@@ -7481,7 +7594,7 @@ class _EditedPageClient(_PageClient):
         page.raw["last_edited_time"] = self.edited
         return page
 
-    def blocks_text(self, page_id: str, depth: int = 0) -> str:
+    def blocks_text(self, page_id: str, depth: int = 0, *, live: bool = True) -> str:
         self.reads += 1
         return self._content
 
@@ -8577,6 +8690,7 @@ def _answering(
     replies: list[channels.Reply], error: str = "", asked: list[str] | None = None
 ) -> tuple[Runner, _StubChannel]:
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.config = _config('[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n')
     runner.client = _AnsweringClient(error, asked)
     runner._comments = {}
@@ -8629,6 +8743,7 @@ def a_notion_that_refuses_the_answer_says_so_where_it_was_typed():
 def a_blocked_ticket_travels_with_its_question_and_its_link():
     sent: list[dict] = []
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.config = _config(
         '[notify]\ndesktop = false\n\n[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n'
     )
@@ -8664,6 +8779,7 @@ def a_blocked_ticket_travels_with_its_question_and_its_link():
 def nothing_is_sent_anywhere_during_a_dry_run():
     sent: list[str] = []
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.config = _config('[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n')
     runner.dry_run = True
     runner.quiet = True
@@ -8790,6 +8906,7 @@ def only_a_click_opens_the_page_and_a_dismissal_never_does():
 def a_ticket_notification_carries_its_page_to_the_screen_too():
     seen: list[dict] = []
     runner = Runner.__new__(Runner)
+    runner._journals = {}
     runner.config = _config("")
     runner.dry_run = False
     runner.quiet = True
@@ -10835,6 +10952,24 @@ def tickets_are_written_and_read_back_as_markdown():
 
 
 @case
+def a_markdown_ticket_reads_its_brief_without_its_live_reports():
+    """A file has no toggle: the story of a run is fenced, and the brief leaves it out."""
+    with _board() as board:
+        page_id = board.create_row("tickets", "Corriger l'entête", {"Status": "Ready"})
+        board.append_markdown(page_id, "## À faire\n\nRelire la page.")
+        _run_on(board, "fr", "Je lis la configuration.", ok=False, page_id=page_id)
+        board.append_markdown(page_id, "---\nPull request ouverte : x/y#3")
+        _run_on(board, "en", "Reading the header again.", page_id=page_id)
+        brief = board.blocks_text(page_id, live=False)
+        assert brief == "## À faire\n\nRelire la page.\n\n---\nPull request ouverte : x/y#3", brief
+        whole = board.blocks_text(page_id)
+        assert "Je lis la configuration." in whole and "Reading the header again." in whole
+        # One stretch per run, opened by its toggle and holding all its steps.
+        assert whole.count(files.LIVE_OPEN) == 2 == whole.count(files.LIVE_CLOSE), whole
+        assert whole.index("Je lis la configuration.") < whole.index(files.LIVE_CLOSE)
+
+
+@case
 def a_markdown_board_answers_the_filters_the_runner_builds():
     with _board() as board:
         ready = board.create_row("tickets", "À faire", {"Status": "Ready"})
@@ -11006,7 +11141,7 @@ class _NotionBoard:
             raise store.StoreError(f"no such page: {page_id}")
         return self.pages[page_id]
 
-    def blocks_text(self, block_id, depth=0):
+    def blocks_text(self, block_id, depth=0, *, live=True):
         if block_id == "ctx":
             return self.context
         return self.bodies.get(block_id, "")
@@ -12573,6 +12708,7 @@ def the_old_command_says_it_was_renamed_and_runs_ponos():
 @case
 def a_ticket_this_machine_took_before_the_rename_is_still_its_own():
     runner = object.__new__(Runner)
+    runner._journals = {}
     runner.agent_label = "ponos@laptop"
     assert f"{legacy.OLD}@laptop" in runner.agent_labels
     assert f"{legacy.OLD}@desktop" not in runner.agent_labels
@@ -12729,6 +12865,192 @@ def doctor_says_the_database_version_and_refuses_a_newer_one():
             db.close()
 
 
+# -- the run journal ---------------------------------------------------------
+
+
+def _said_event(text: str) -> dict:
+    return {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
+
+
+def _tool_event(name: str, payload: dict) -> dict:
+    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": name, "input": payload}]}}
+
+
+@case
+def a_file_at_schema_version_one_gets_the_tool_and_cost_columns_and_keeps_its_steps():
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+    old = db.open_at(location, db.MIGRATIONS[:1])
+    old.execute("INSERT INTO runs (ticket, started_at) VALUES ('t', 'now')")
+    old.execute("INSERT INTO steps (run, position, at, kind, text) VALUES (1, 1, 'now', 'said', 'kept')")
+    old.close()
+    upgraded = db.open_at(location)
+    try:
+        assert db.version(upgraded) == len(db.MIGRATIONS) == 2
+        assert upgraded.execute("SELECT kind, text, tool, cost_usd FROM steps").fetchall() == [
+            ("said", "kept", "", None)
+        ]
+    finally:
+        upgraded.close()
+
+
+@case
+def a_run_is_written_step_by_step_and_closed_on_what_the_ticket_came_to():
+    with _state_home():
+        try:
+            ticket = "3ed45168-0af4-8134-a677-f7f1e9024ae5"
+            run = journal.Run.start(ticket=ticket, title="Journal", project="Ponos", session="s1", log="/x/a.jsonl")
+            assert run.open
+            run.event({"type": "system", "subtype": "init"})
+            run.event(_said_event("I read the brief."))
+            run.event(_tool_event("Bash", {"command": "python3 tests/run.py"}))
+            run.event({"type": "user", "message": {"content": [
+                {"type": "tool_result", "is_error": True, "content": "exit 1"}
+            ]}})
+            run.event({"type": "result", "total_cost_usd": 0.25})
+            run.again("s2", "/x/a-again.jsonl")
+            run.event(_tool_event("Read", {"file_path": "/repo/a.py"}))
+            run.event({"type": "result", "total_cost_usd": 0.5})
+
+            (found,) = journal.runs("e9024ae5")
+            assert found["ticket"] == ticket.replace("-", "")
+            assert found["status"] is None and found["ended_at"] is None, "still going"
+            assert found["session"] == "s2" and found["log"] == "a-again.jsonl"
+            assert found["cost_usd"] == 0.75 and found["steps"] == 4
+            assert journal.runs(f"https://app.notion.com/p/Journal-{ticket.replace('-', '')}") == [found]
+
+            run.end("done", "https://github.com/o/r/pull/1")
+            run.end("failed", "too late: a run is closed once")
+            (closed,) = journal.runs(ticket)
+            assert closed["status"] == "done" and closed["reason"] == "https://github.com/o/r/pull/1"
+            assert closed["ended_at"]
+
+            steps = journal.steps(closed["id"])["steps"]
+            assert [(step["kind"], step["label"], step["detail"], step["said"]) for step in steps] == [
+                ("said", "I read the brief.", "", True),
+                ("tool", "Bash", "python3 tests/run.py", False),
+                ("error", "Error", "exit 1", False),
+                ("tool", "Read", "/repo/a.py", False),
+            ], steps
+            assert [step["position"] for step in steps] == [1, 2, 3, 4]
+            assert "cost_usd" not in steps[0] and steps[3]["cost_usd"] == 0.25, "the cost known then"
+        finally:
+            db.close()
+
+
+@case
+def a_run_is_read_a_page_at_a_time_from_its_end():
+    with _state_home():
+        try:
+            run = journal.Run.start(ticket="a" * 32)
+            for index in range(1, 451):
+                run.event(_tool_event("Read", {"file_path": f"/f{index}"}))
+            last = journal.steps(run.id)
+            assert last["count"] == 450 and last["more"]
+            assert [step["position"] for step in last["steps"]] == list(range(251, 451))
+            before = journal.steps(run.id, before=251)
+            assert [step["position"] for step in before["steps"]] == list(range(51, 251)) and before["more"]
+            first = journal.steps(run.id, before=51)
+            assert [step["position"] for step in first["steps"]] == list(range(1, 51)) and not first["more"]
+            after = journal.steps(run.id, after=440)
+            assert [step["position"] for step in after["steps"]] == list(range(441, 451))
+            assert journal.steps(run.id, after=450)["steps"] == []
+        finally:
+            db.close()
+
+
+@case
+def a_journal_that_cannot_be_written_never_stops_a_ticket():
+    with _state_home() as home:
+        home.mkdir(parents=True, exist_ok=True)
+        (home / "ponos.db").write_bytes(b"this is not a database" * 100)
+        said: list[str] = []
+        try:
+            run = journal.Run.start(ticket="a" * 32, say=said.append)
+            assert not run.open
+            run.event(_said_event("nothing to write it into"))
+            run.end("done")
+            assert len(said) == 1 and "run journal off" in said[0], said
+        finally:
+            db.close()
+
+
+@case
+def every_road_out_of_a_ticket_closes_its_run():
+    from ponos.execution import _both
+
+    with _state_home():
+        try:
+            runner = Runner.__new__(Runner)
+            runner._journals = {}
+            ticket = ticket_module.Ticket(notion.Page(id="b" * 32, url="", title="t"))
+            runner._journals[ticket.id] = journal.Run.start(ticket=ticket.id)
+            result = {"ticket": "t", "id": ticket.id, "status": "blocked", "reason": "which header?"}
+            assert runner._guarded(ticket, lambda: result) is result
+            (closed,) = journal.runs(ticket.id)
+            assert (closed["status"], closed["reason"]) == ("blocked", "which header?")
+            assert not runner._journals, "closed once, and forgotten"
+            # A ticket's work that ran no session has no run to close.
+            assert runner._guarded(ticket, lambda: None) is None
+        finally:
+            db.close()
+
+    heard: list[dict] = []
+
+    def broken(event: dict) -> None:
+        raise RuntimeError("Notion is down")
+
+    listen = _both(heard.append, broken)
+    with contextlib.redirect_stdout(io.StringIO()):
+        listen({"n": 1})
+        listen({"n": 2})
+    assert heard == [{"n": 1}, {"n": 2}], "the page failing does not cost the journal its steps"
+
+
+@case
+def the_console_reads_a_tickets_runs_and_their_steps_from_the_journal():
+    with _state_home():
+        try:
+            api = web_api.Api.__new__(web_api.Api)
+            older = journal.Run.start(ticket="c" * 32, title="first")
+            older.event(_said_event("one"))
+            older.end("failed", "crashed")
+            newer = journal.Run.start(ticket="c" * 32, title="second")
+            newer.event(_tool_event("Bash", {"command": "ls"}))
+            runs = api.runs("c" * 32)["runs"]
+            assert [run["title"] for run in runs] == ["second", "first"]
+            page = api.run_steps(newer.id)
+            assert page["ended"] is False and page["count"] == 1
+            assert page["steps"][0]["label"] == "Bash" and page["steps"][0]["detail"] == "ls"
+            assert api.run_steps(older.id)["ended"] is True
+            try:
+                api.run_steps(999)
+            except LookupError:
+                pass
+            else:
+                raise AssertionError("an unknown run is a 404")
+        finally:
+            db.close()
+
+
+@case
+def ponos_logs_lists_a_tickets_runs_from_the_journal():
+    with _state_home():
+        try:
+            run = journal.Run.start(ticket="d" * 32, title="A ticket", log=state.logs_dir() / "x-dddddddd.jsonl")
+            run.event(_said_event("hello"))
+            run.event({"type": "result", "total_cost_usd": 1.5})
+            run.end("blocked", "which header?")
+            (state.logs_dir() / "x-dddddddd.jsonl").write_text("", encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                assert cli_main(["logs", "dddddddd", "--runs"]) == 0
+            text = out.getvalue()
+            assert "blocked" in text and "A ticket" in text and "1 steps" in text and "$1.50" in text, text
+            assert "which header?" in text and "x-dddddddd.jsonl" in text, text
+        finally:
+            db.close()
+
+
 def main() -> int:
     # Claude Code's own store, pointed at an empty directory for the whole
     # suite. Everything here is pure, and "how much of this machine's
@@ -12737,6 +13059,9 @@ def main() -> int:
     # a CI runner with no store at all would take a different road again. The
     # tests that are *about* the reading say so themselves — see `_usage`.
     os.environ["CLAUDE_CONFIG_DIR"] = tempfile.mkdtemp()
+    # The same for the runner's own state: a test that runs a session writes
+    # its run into the local journal, and that journal must not be yours.
+    os.environ["XDG_STATE_HOME"] = tempfile.mkdtemp()
     failures = 0
     for function in CASES:
         try:

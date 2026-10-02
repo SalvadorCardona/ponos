@@ -25,7 +25,7 @@ import socket
 import threading
 from datetime import datetime
 
-from . import channels, conversation, legacy, notify, openrouter, store
+from . import channels, conversation, journal, legacy, notify, openrouter, store
 from . import voice as voice_module
 from . import workspace as workspace_module
 from .config import Config
@@ -82,6 +82,10 @@ class Base:
         # The columns a write of this run left out because the board has none
         # by that name. Each is said once — see `_dropped`.
         self._unwritten: set[tuple[str, str]] = set()
+        # The run each ticket in flight is writing into the local journal,
+        # opened with its session and closed by `_guarded` once the ticket's
+        # outcome is known — see journal.py.
+        self._journals: dict[str, journal.Run] = {}
 
     @property
     def agent_labels(self) -> set[str]:

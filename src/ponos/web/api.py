@@ -24,7 +24,7 @@ from typing import Any
 
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, images, question, session, state, store, sync
-from .. import systemd, voice
+from .. import journal, systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -386,7 +386,7 @@ class Api:
         held = self._briefs.get(key)
         if held and held[0] == edited:
             return held[1]
-        content = self.runner.client.blocks_text(page_id)
+        content = self.runner.client.blocks_text(page_id, live=False)
         stamp = _instant(edited)
         if self.config.storage.mode != "markdown" and stamp is not None and started >= stamp + 60:
             self._briefs.pop(key, None)
@@ -913,6 +913,22 @@ class Api:
         # The count is of the whole session, the steps only of its end: a card
         # says how far a run has come, and a thousand lines is enough to read.
         return {"name": target.name, "count": len(steps), "steps": steps[-1000:]}
+
+    def runs(self, page_id: str) -> dict:
+        """Every run of one ticket the local journal holds, newest first.
+
+        Read from the database, not from the page: the page keeps what the
+        agent said, the journal every step — and every run, where the page
+        and the logs only ever knew the last one by name. See journal.py.
+        """
+        return {"runs": journal.runs(page_id)}
+
+    def run_steps(self, identifier: int, before: int = 0, after: int = 0, limit: int = journal.PAGE) -> dict:
+        """One page of a run's steps: its end, what came before `before`, or after `after`."""
+        found = journal.run(identifier)
+        if found is None:
+            raise LookupError(f"no such run: {identifier}")
+        return {**journal.steps(identifier, before=before, after=after, limit=limit), "ended": bool(found["ended_at"])}
 
     def talk(self, page_id: str) -> dict:
         """What has been said on one ticket, oldest first.

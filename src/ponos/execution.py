@@ -1,7 +1,8 @@
 """Running the session, and the two ways a ticket comes back from one.
 
-`prepare` decided everything; here it happens. One function starts the session
-and closes the live block whatever becomes of it — `_run_session` — and two
+`prepare` decided everything; here it happens. One function starts the session,
+opens its run in the local journal and closes the live block whatever becomes
+of it — `_run_session` — and two
 say what a finished session was worth, depending on what the ticket had to
 begin with.
 
@@ -32,12 +33,34 @@ from __future__ import annotations
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
-from . import git, progress, session, state, store
+from . import git, journal, progress, session, state, store
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
 from .ticket import Job, short_id
+
+
+def _both(first: Callable[[dict], None], second: Callable[[dict], None] | None) -> Callable[[dict], None]:
+    """One listener for the session's events, out of the journal and the page.
+
+    Each is kept from the other's failures: `session.run` drops a listener
+    that raises, and a Notion page refusing a write must not cost the journal
+    the rest of the run — nor the other way round.
+    """
+
+    listeners = [listener for listener in (first, second) if listener is not None]
+
+    def listen(event: dict) -> None:
+        for listener in list(listeners):
+            try:
+                listener(event)
+            except Exception as error:  # noqa: BLE001
+                print(f"    ! live report dropped: {error}", flush=True)
+                listeners.remove(listener)
+
+    return listen
 
 
 class Execution(Base):
@@ -84,8 +107,9 @@ class Execution(Base):
         # choice, the more deliberate it was.
         chosen = job.model or job.agent.model or self.config.runner.model
         live = job.live = self._live(job)
+        run = self._journal(job, log)
         try:
-            outcome = self._session(job, text, log, chosen, live)
+            outcome = self._session(job, text, log, chosen, live, run)
             if job.resume and session.lost(outcome):
                 # A session Claude Code no longer has — pruned, filed on another
                 # machine, or a worktree it cannot be resumed from. The ticket
@@ -102,7 +126,8 @@ class Execution(Base):
                 # Its own log, or the second attempt would open the first one's
                 # with "w" and truncate the very transcript that explains it.
                 log = log.with_name(f"{log.stem}-again{log.suffix}")
-                outcome = self._session(job, text, log, chosen, live)
+                run.again(job.session_id, log)
+                outcome = self._session(job, text, log, chosen, live, run)
         except BaseException:
             # A session that dies still leaves a ticket saying “⏳ Live” and a
             # column stuck on whatever it was doing. Closing here is what makes
@@ -143,6 +168,7 @@ class Execution(Base):
         log: Path,
         model: str,
         live: progress.Live | None,
+        run: journal.Run,
     ) -> session.Outcome:
         """One attempt at this job's session, opened or carried on.
 
@@ -164,8 +190,28 @@ class Execution(Base):
             session_id=job.session_id,
             resume=job.resume,
             environment=self.environment,
-            on_event=live.event if live else None,
+            on_event=_both(run.event, live.event if live else None),
         )
+
+    def _journal(self, job: Job, log: Path) -> journal.Run:
+        """The run this session is about to be, opened in the local journal.
+
+        Whatever the board, and whatever `runner.progress` says: the page gets
+        what the agent says, the journal every step — see journal.py. Kept for
+        `_guarded`, which closes it once the ticket's outcome is known.
+        """
+        run = journal.Run.start(
+            ticket=job.ticket.id,
+            title=job.ticket.title,
+            kind=job.kind or ("code" if job.project.is_code else "document"),
+            project=job.project.name,
+            agent=job.agent.name,
+            session=job.session_id,
+            log=log,
+            say=self.say,
+        )
+        self._journals[job.ticket.id] = run
+        return run
 
     def _live(self, job: Job) -> progress.Live | None:
         """The ticket's live report, or None when it is not wanted.

@@ -171,7 +171,7 @@ class Recurrence(Base):
         # the likeliest thing to be unreadable, and a ticket that is all title
         # would run on nothing at all.
         try:
-            brief = self.client.blocks_text(schedule.page.id)
+            brief = self.client.blocks_text(schedule.page.id, live=False)
             page_id = self.client.create_row(self.database, title, values)
         except store.StoreError as error:
             self.say(
