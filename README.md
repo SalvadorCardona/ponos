@@ -262,11 +262,12 @@ with mode `600` — it holds your Notion token. `ponos config` opens it in
 `$EDITOR`. The copies the console makes when it saves (`config.toml.bak`, and the scratch
 copy it checks before swapping it in) are created `600` too, as are the console's token,
 the session logs — under a `logs/` directory only your account can enter — and
-`history.jsonl`: each is created with that mode rather than tightened after the write, so
+`ponos.db`: each is created with that mode rather than tightened after the write, so
 there is no moment in which the umask decides who reads them. What the runner keeps
-between two runs (`claims.json`, the reconciliation stamps, the channels' cursors) is
-written to a copy and renamed over the old file, so a run killed mid-write leaves the old
-file whole rather than an empty one.
+between two runs — the history, the claims, the reconciliation stamps, the conversations —
+is written in one SQLite transaction, and what is still a file (the channels' cursors) is
+written to a copy and renamed over the old one, so a run killed mid-write leaves the old
+state whole rather than an empty one.
 
 Steps 1 to 3 are for a board in Notion. A board of Markdown files needs none of them —
 one line, under [Without Notion](#without-notion-the-board-as-markdown-files) — and goes
@@ -658,7 +659,7 @@ Three rules, and they are the ones worth arguing about.
   takes Notion's identifier, because that is what its URL, its relations and every report
   about it will carry from then on.
 
-The journal is `~/.local/state/ponos/sync.jsonl`, one JSON object per line. The
+The journal is the `sync_journal` table of `~/.local/state/ponos/ponos.db`. The
 console and the runner write in it too, whatever the storage mode: `seen` when the
 console notices a status change (with Notion's edit time — to the minute, all Notion
 keeps — and the moment it saw it), `console→notion` when a move from the console is
@@ -1990,7 +1991,7 @@ so a period that ends today says what the board says), those **closed** and thos
 created and closed side by side, the open stock evening after evening, the spend as a
 running total — and the tickets created in the period, by the column they are in now and by
 project. Notion dates when a page was created, never when its status changed, so a closing
-is dated by the runner's history (`history.jsonl`) when the runner made it — a pull request
+is dated by the runner's history (in `ponos.db`) when the runner made it — a pull request
 merged from *Validated*, a document written or published — and by the page's last edit
 otherwise: a ticket you dragged to *Done*, or one closed because you merged its pull request
 yourself. The foot of the page says how many closings each one dated. The spend is the
@@ -2499,7 +2500,7 @@ So it waits instead. When a session dies on the quota:
   they are, and so is its session: the pass that has credit again picks that very
   conversation back up rather than starting the ticket over;
 - **nothing else is started**. The wait is written to
-  `~/.local/state/ponos/credits.json`, and the runs in between — a run is a process
+  `~/.local/state/ponos/ponos.db`, and the runs in between — a run is a process
   the timer starts, not a loop — find it and do nothing at all: no session, no claim, no
   answer in a thread. What was queued behind it is ticked the same way, rather than
   sitting in *ready* looking like a runner gone quiet;
@@ -2596,7 +2597,7 @@ than the one this guards against.
 | `claude: command not found` in the journal | the PATH baked into the unit predates a node version change: run `install.sh` again |
 
 Session logs are in `~/.local/state/ponos/logs/` (one `.jsonl` per ticket, the raw
-session stream), the history in `history.jsonl`, and the timer's own journal in
+session stream), the history in `ponos.db` (`ponos history`), and the timer's own journal in
 `journalctl --user -u ponos -f`.
 
 `~/.local/state/ponos/ponos.db` is the runner's local memory — a SQLite file, kept
@@ -2604,6 +2605,13 @@ beside the board rather than instead of it. Its schema is numbered and brought u
 the first time a process opens it; `ponos doctor` opens it and says at which version it
 is, and a file written by a newer Ponos is refused untouched rather than read: update
 Ponos instead.
+
+It holds what used to be a dozen JSON files beside it — the history, the claims, the replay
+counts, the conversations, the credit waits, the Markdown mirror's stamps and journal, the
+index of project pictures. An installation that still has them reads each one in, once,
+the first time the new version starts, and renames it `<name>.imported`: nothing is
+deleted, and once you have checked that `ponos history` and the console say what they
+said, the `.imported` files can go. The session logs stay files, under `logs/`.
 
 ---
 

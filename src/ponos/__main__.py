@@ -352,7 +352,7 @@ def command_sync(args: argparse.Namespace) -> int:
         print(f"  {DIM}nothing to carry across — the two boards agree{RESET}")
     print(
         f"\n{len(report.carried)} carried, {len(report.conflicts)} conflict(s), "
-        f"{len(report.deletions)} deletion(s) — journal: {sync_module.journal_path()}"
+        f"{len(report.deletions)} deletion(s) — journal: ponos sync --journal"
     )
     return 1 if report.problems else 0
 

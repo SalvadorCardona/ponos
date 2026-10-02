@@ -33,7 +33,7 @@ seconds: a database query sees a `PATCH` one to four seconds after the `PATCH`
 answered. A read in between would put the card back where it came from.
 
 Everything written down goes to the same journal as the Markdown mirror's
-reconciliation (`sync.jsonl`, `ponos sync --journal`): one place to ask
+reconciliation (`sync_journal` in `ponos.db`, `ponos sync --journal`): one place to ask
 "when did this ticket change, and when did the other side see it?".
 """
 

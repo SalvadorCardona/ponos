@@ -34,7 +34,6 @@ mode here that never ends on its own.
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import time
@@ -43,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from . import disk, store, voice
+from . import db, store, voice
 from .config import state_dir
 
 # What to call it when you want its attention. Configurable — `notion.mention` —
@@ -234,70 +233,80 @@ def transcript(thread: Thread, me: str, limit: int = 12, budget: int = 2000) -> 
 # -- what the runner remembers between passes --------------------------------
 
 
-def ledger_path() -> Path:
-    state_dir().mkdir(parents=True, exist_ok=True)
-    return state_dir() / "conversations.json"
-
-
 @dataclass
 class Ledger:
     """Where the runner speaks, and what it has already answered.
 
-    Two things live here, and neither is worth a database. **The pages it has
-    spoken on**, because a comment does not change a page and Notion offers no
-    way to ask "what has been commented on since": the only affordable scan is
-    of the pages where a conversation could plausibly be. And **the thread it is
-    talking in**, with the Claude session that is doing the talking — so a
-    follow-up question lands in the same session as the one before it, and the
-    conversation is a conversation rather than a series of strangers.
+    Two things live here. **The pages it has spoken on**, because a comment
+    does not change a page and Notion offers no way to ask "what has been
+    commented on since": the only affordable scan is of the pages where a
+    conversation could plausibly be. And **the thread it is talking in**, with
+    the Claude session that is doing the talking — so a follow-up question
+    lands in the same session as the one before it, and the conversation is a
+    conversation rather than a series of strangers.
+
+    Kept in `ponos.db` (the `conversation_*` tables, which replaced
+    `conversations.json`), and still read and written whole: a pass loads it
+    once and saves what it ends with. `database` names another file, for a test.
     """
 
     pages: dict[str, str] = field(default_factory=dict)
     threads: dict[str, dict] = field(default_factory=dict)
     cursor: int = 0
     at: float = 0.0
-    path: Path = field(default_factory=ledger_path)
+    database: Path | None = None
 
     @classmethod
-    def load(cls, path: Path | None = None) -> "Ledger":
-        target = path or ledger_path()
-        ledger = cls(path=target)
+    def load(cls, database: Path | None = None) -> "Ledger":
+        ledger = cls(database=database)
         try:
-            raw = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            with db.transaction(immediate=False, location=database) as connection:
+                pages = connection.execute("SELECT page, at FROM conversation_pages").fetchall()
+                threads = connection.execute(
+                    "SELECT discussion, session, answered, at FROM conversation_threads"
+                ).fetchall()
+                scan = connection.execute("SELECT cursor, at FROM conversation_scan").fetchone()
+        except db.ERRORS:
             return ledger
-        if not isinstance(raw, dict):
-            return ledger
-        ledger.pages = {
-            str(key): str(value) for key, value in (raw.get("pages") or {}).items()
-        }
+        ledger.pages = {str(page): str(at) for page, at in pages}
         ledger.threads = {
-            str(key): value
-            for key, value in (raw.get("threads") or {}).items()
-            if isinstance(value, dict)
+            str(discussion): {"session": session, "answered": answered, "at": at}
+            for discussion, session, answered, at in threads
         }
-        try:
-            ledger.cursor = int(raw.get("cursor") or 0)
-        except (TypeError, ValueError):
-            ledger.cursor = 0
-        try:
-            ledger.at = float(raw.get("at") or 0.0)
-        except (TypeError, ValueError):
-            ledger.at = 0.0
+        if scan:
+            ledger.cursor, ledger.at = int(scan[0]), float(scan[1])
         return ledger
 
     def save(self) -> None:
         """Best effort: a ledger that cannot be written costs a resumed session
         and a rotation, never a run."""
-        payload = {
-            "pages": _newest(self.pages, REMEMBERED),
-            "threads": _newest_threads(self.threads, REMEMBERED),
-            "cursor": self.cursor,
-            "at": self.at,
-        }
+        pages = _newest(self.pages, REMEMBERED)
+        threads = _newest_threads(self.threads, REMEMBERED)
         try:
-            disk.write_atomic(self.path, json.dumps(payload, ensure_ascii=False, indent=2))
-        except OSError:
+            with db.transaction(location=self.database) as connection:
+                connection.execute("DELETE FROM conversation_pages")
+                connection.executemany(
+                    "INSERT INTO conversation_pages (page, at) VALUES (?, ?)", list(pages.items())
+                )
+                connection.execute("DELETE FROM conversation_threads")
+                connection.executemany(
+                    "INSERT INTO conversation_threads (discussion, session, answered, at)"
+                    " VALUES (?, ?, ?, ?)",
+                    [
+                        (
+                            discussion,
+                            str(thread.get("session") or ""),
+                            str(thread.get("answered") or ""),
+                            str(thread.get("at") or ""),
+                        )
+                        for discussion, thread in threads.items()
+                    ],
+                )
+                connection.execute(
+                    "INSERT OR REPLACE INTO conversation_scan (id, cursor, at) VALUES (1, ?, ?)",
+                    (self.cursor, self.at),
+                )
+        except db.ERRORS:
             pass
 
     def due(self, interval_seconds: int) -> bool:

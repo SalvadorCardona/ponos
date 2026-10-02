@@ -25,6 +25,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   forward on opening, one migration per transaction, safely when two processes
   start together; a file from a newer Ponos is refused untouched. `ponos doctor`
   checks it opens and says its schema version. Tickets stay on the board.
+- **The runner's notes to itself now live in that database.** The history, the
+  claims, the replay counts, the conversations, the credit waits, the Markdown
+  mirror's stamps and journal, and the index of project pictures were a dozen
+  JSON files; they are tables now, each brought in by its own migration. An
+  installation that has the files keeps everything — same history and
+  statistics, same conversations, same claims: each file is read in once on the
+  first start and renamed `<name>.imported`, never deleted. Session logs stay
+  files.
 - **The console opens in the language you set, and the runner says everything in
   it.** A new key, `runner.app_language` (`en` or `fr`), is the language the
   console opens in and the one its sign-in and set-up pages are written in;

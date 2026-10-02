@@ -52,7 +52,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from . import disk
+from . import db
 from .store import SLOTS, Page, Picture, StoreError
 
 # What one picture may weigh, downloaded or uploaded: Notion's own ceiling for
@@ -199,8 +199,8 @@ def _edited(page: Page) -> str:
 class Cache:
     """The pictures of every project page, on disk, and what was agreed on them.
 
-    One entry per page and slot, in `index.json`; the pictures themselves beside
-    it. An entry holds what the board showed when we last agreed (`agreed`, and
+    One entry per page and slot, in the `images` table of `ponos.db` (which
+    replaced `index.json`); the pictures themselves in `directory`. An entry holds what the board showed when we last agreed (`agreed`, and
     where to fetch it), the copy on disk, and — while one is waiting — the
     change the console made that the board has not taken yet.
 
@@ -215,8 +215,10 @@ class Cache:
         *,
         fetch: Callable[[str], tuple[bytes, str]] = download,
         clock: Callable[[], datetime] | None = None,
+        database: Path | None = None,
     ) -> None:
         self._dir = Path(directory)
+        self._database = database
         self._fetch = fetch
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._lock = threading.Lock()
@@ -232,8 +234,10 @@ class Cache:
     def _index(self) -> dict[str, dict]:
         if self._known is None:
             try:
-                self._known = json.loads((self._dir / "index.json").read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+                with db.transaction(immediate=False, location=self._database) as connection:
+                    rows = connection.execute("SELECT key, entry FROM images").fetchall()
+                self._known = {str(key): json.loads(entry) for key, entry in rows}
+            except (*db.ERRORS, json.JSONDecodeError):
                 self._known = {}
         return self._known
 
@@ -255,15 +259,15 @@ class Cache:
             # A signed URL is kept in memory for the hour it is good for, and
             # never written down: on disk it would only ever be a dead one, and
             # a process started later asks the page for a fresh one anyway.
-            written = {
-                name: {**one, "url": ""} if one.get("kind") == "file" else one
-                for name, one in known.items()
-            }
+            written = {**entry, "url": ""} if entry.get("kind") == "file" else entry
             try:
-                self._dir.mkdir(parents=True, exist_ok=True)
-                disk.write_atomic(self._dir / "index.json", json.dumps(written, ensure_ascii=False, indent=1))
-            except OSError:
-                pass  # kept in memory: the next write tries again
+                with db.transaction(location=self._database) as connection:
+                    connection.execute(
+                        "INSERT OR REPLACE INTO images (key, entry) VALUES (?, ?)",
+                        (key, json.dumps(written, ensure_ascii=False)),
+                    )
+            except db.ERRORS:
+                pass  # kept in memory: the next change to it writes it again
 
     # -- reading the board ---------------------------------------------------
 

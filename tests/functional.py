@@ -1653,7 +1653,7 @@ def a_picture_chosen_in_the_console_is_the_cover_in_notion_and_the_other_way_rou
         with _notion_server() as (url, board), _environ({notion.API_ENV: url}):
             project = board.page({"Name": {"type": "title", "title": _rich("Opoil")}})
             client = notion.Client("ntn_functional")
-            cache = images.Cache(directory)
+            cache = images.Cache(directory, database=directory / "ponos.db")
 
             def push(slot: str, picture: store.Picture) -> notion.Page:
                 return client.set_picture(project, slot, picture)
