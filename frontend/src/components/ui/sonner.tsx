@@ -21,6 +21,9 @@ function Toaster({ ...props }: ToasterProps) {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       position="bottom-right"
+      // On a phone the bottom bar is the navigation: a toast laid over it
+      // took the tap meant for Projects or Settings. It sits above it instead.
+      mobileOffset={{ bottom: "calc(var(--bottom-nav) + 16px)" }}
       icons={ICONS}
       style={
         {
