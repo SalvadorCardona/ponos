@@ -23,6 +23,7 @@ import {
   type RowInterface,
 } from "react-resource-view"
 
+import { ComboboxInputController } from "@/components/console/combobox"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
   EDGE,
@@ -317,7 +318,8 @@ const createForm: FormInterface = {
       get description() {
         return t("A project with a repository gets a pull request; none at all gets a document.")
       },
-      controller: SelectInputController,
+      // A board can hold many projects: typed into, not scrolled through.
+      controller: ComboboxInputController,
       getValueOptions: async () => {
         const { projects } = await api.projects().catch(() => ({ projects: [] }))
         return [
