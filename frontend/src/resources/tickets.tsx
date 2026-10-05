@@ -39,6 +39,7 @@ import {
 } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
 import { Pagination } from "@/components/console/pagination"
+import { ProjectThumb } from "@/components/console/project-picture"
 import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip, every } from "@/components/console/runner-strip"
 import { CardLive } from "@/components/console/session-log"
@@ -322,9 +323,16 @@ const createForm: FormInterface = {
           { value: "", label: "no project — a document" },
           // The kind said the way the rest of the console says it: the list of
           // projects says "code work", and this said "code".
+          // Behind the project's mark, as the list draws it: the label is
+          // drawn as it is given, an element as well as a sentence.
           ...projects.map((project) => ({
             value: project.id,
-            label: `${project.name} — ${project.kind === "code" ? t("code work") : t("document work")}`,
+            label: (
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <ProjectThumb project={project} className="size-5 rounded" />
+                {`${project.name} — ${project.kind === "code" ? t("code work") : t("document work")}`}
+              </span>
+            ),
           })),
         ]
       },

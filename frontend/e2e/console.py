@@ -11,8 +11,8 @@ console you run for yourself.
 
 One ticket is written long on purpose: a brief several screens tall, which is
 the page that stopped scrolling. One is blocked on a question a run asked, for
-the discussion its page opens on and the mark its card wears. Two projects, for the list that opens one in a
-drawer. Three tickets for the gestures a card offers — one Done, one
+the discussion its page opens on and the mark its card wears. Three projects, for the list whose cards
+open them: two with a repository, and one without, an emoji for its icon. Three tickets for the gestures a card offers — one Done, one
 Validated, one Ready to be set aside and made ready again. Two schedules a pass
 last read weeks ago, one of them turned off. And a check that found a newer
 version than this checkout, for the version at the top right to offer it — a
@@ -54,6 +54,7 @@ GESTURES = {
 PAUSED = "00000000000000000000000000005ed1"
 DUE = "00000000000000000000000000005ed2"
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
+WRITING = ("0000000000000000000000000000f00d", "Journal", "📝")
 
 
 def board(root: Path) -> None:
@@ -92,6 +93,11 @@ def board(root: Path) -> None:
         (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
             files.render(page, f"The brief of {name}."), encoding="utf-8"
         )
+    id, name, icon = WRITING
+    page = {"id": id, "title": name, "icon": icon}
+    (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
+        files.render(page, f"The brief of {name}."), encoding="utf-8"
+    )
     # Two schedules whose `Next` is weeks behind: one turned off since, which
     # will not fire, and one on, which fires on the next pass. Neither may show
     # a date in the past.

@@ -25,12 +25,14 @@ import { cn } from "@/lib/utils"
  * are the ones the console shows, and a picture changed here is the one Notion
  * shows. On a board of files, they are files beside the project's.
  *
- * Three places draw them. The list, as a thumbnail: the cover cropped square,
- * or the icon, or — for a project that has neither — its initial on a colour
- * of its own, so that eleven projects are not eleven identical grey squares.
- * The page, as a banner with the icon set on it. And the dialog that changes
- * them, which shrinks an image before sending it: a photo straight off a phone
- * is ten megabytes, and a banner needs a fraction of that.
+ * Three places draw them. Wherever a project is named — a card, a row, the
+ * picker of a new ticket, the corner of its own page — as its mark: the icon,
+ * since that is what was chosen to stand for it; the cover cropped square where
+ * there is no icon; and for a project that has neither, its initial on a
+ * colour of its own, so that eleven projects are not eleven identical grey
+ * squares. The page, as a banner with that mark set on it. And the dialog that
+ * changes them, which shrinks an image before sending it: a photo straight off
+ * a phone is ten megabytes, and a banner needs a fraction of that.
  */
 
 type Slot = "cover" | "icon"
@@ -55,42 +57,46 @@ function Img({ src, className, onMissing }: { src: string; className?: string; o
   return <img src={src} alt="" loading="lazy" draggable={false} className={className} onError={onMissing} />
 }
 
-/* -- the thumbnail -------------------------------------------------------- */
+/* -- the mark ----------------------------------------------------------- */
 
-/** A project in the list: its cover cropped, or its icon, or its initial. */
-export function ProjectThumb({ project, className }: { project: Project; className?: string }) {
-  const [broken, setBroken] = React.useState<string>("")
-  const cover = project.cover?.kind === "image" && project.cover.src !== broken ? project.cover : null
+/* What a project is recognised by: its icon, or its cover, or its initial.
+ *
+ * The icon first. The thumbnail used to be the cover cropped square, with an
+ * emoji icon as a small badge over its corner and an image icon not at all —
+ * so the icon somebody chose to stand for a project was the one picture the
+ * list did not show. The cover is what is left when there is no icon. */
+export function ProjectThumb({
+  project,
+  className,
+}: {
+  project: Pick<Project, "name" | "icon" | "cover">
+  className?: string
+}) {
+  // Every image that could not be drawn, so the next one in line shows instead.
+  const [broken, setBroken] = React.useState<string[]>([])
+  const drawable = (picture?: Picture) =>
+    picture?.kind === "image" && picture.src && !broken.includes(picture.src) ? picture.src : ""
   const icon = project.icon
+  const image = drawable(icon) || (icon?.kind === "emoji" && icon.emoji ? "" : drawable(project.cover))
   const hue = hueOf(project.name)
+  const initial = !image && !(icon?.kind === "emoji" && icon.emoji)
   return (
     <span
       aria-hidden
       className={cn(
-        "relative inline-flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border",
+        "bg-muted @container relative inline-flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border",
         className
       )}
-      style={
-        cover
-          ? undefined
-          : { background: `oklch(0.9 0.06 ${hue})`, color: `oklch(0.38 0.12 ${hue})` }
-      }
+      style={initial ? { background: `oklch(0.9 0.06 ${hue})`, color: `oklch(0.38 0.12 ${hue})` } : undefined}
     >
-      {cover ? (
-        <>
-          <Img src={cover.src!} className="size-full object-cover" onMissing={() => setBroken(cover.src!)} />
-          {icon?.kind === "emoji" ? (
-            <span className="bg-background/85 absolute right-0.5 bottom-0.5 rounded px-0.5 text-[0.7rem] leading-tight">
-              {icon.emoji}
-            </span>
-          ) : null}
-        </>
-      ) : icon?.kind === "emoji" ? (
-        <span className="text-2xl leading-none">{icon.emoji}</span>
-      ) : icon?.kind === "image" && icon.src !== broken ? (
-        <Img src={icon.src!} className="size-full object-cover" onMissing={() => setBroken(icon.src!)} />
+      {image ? (
+        <Img src={image} className="size-full object-cover" onMissing={() => setBroken([...broken, image])} />
+      ) : icon?.kind === "emoji" && icon.emoji ? (
+        // Sized by the mark rather than by the text around it: the same
+        // emoji is a corner of a select and the corner of a page.
+        <span className="text-[62cqw] leading-none">{icon.emoji}</span>
       ) : (
-        <span className="text-lg font-semibold">{initialOf(project.name)}</span>
+        <span className="text-[45cqw] leading-none font-semibold">{initialOf(project.name)}</span>
       )}
     </span>
   )
@@ -140,7 +146,6 @@ export function ProjectCover({ project, editable }: { project: Project; editable
   }, [project])
 
   const cover = pictures.cover.kind === "image" && pictures.cover.src !== broken ? pictures.cover : null
-  const icon = pictures.icon
   const hue = hueOf(project.name)
 
   return (
@@ -173,20 +178,10 @@ export function ProjectCover({ project, editable }: { project: Project; editable
             {t("Change the image")}
           </Button>
         ) : null}
-        <div className="bg-background absolute -bottom-7 left-4 flex size-16 items-center justify-center overflow-hidden rounded-xl border shadow-sm sm:size-20">
-          {icon.kind === "emoji" ? (
-            <span className="text-4xl leading-none sm:text-5xl">{icon.emoji}</span>
-          ) : icon.kind === "image" && icon.src !== broken ? (
-            <Img src={icon.src!} className="size-full object-cover" onMissing={() => setBroken(icon.src!)} />
-          ) : (
-            <span
-              className="flex size-full items-center justify-center text-2xl font-semibold sm:text-3xl"
-              style={{ background: `oklch(0.9 0.06 ${hue})`, color: `oklch(0.38 0.12 ${hue})` }}
-            >
-              {initialOf(project.name)}
-            </span>
-          )}
-        </div>
+        <ProjectThumb
+          project={{ name: project.name, ...pictures }}
+          className="bg-background absolute -bottom-7 left-4 size-16 rounded-xl shadow-sm sm:size-20"
+        />
       </div>
       <div className="min-h-8 pt-1 pl-24 sm:pl-28">
         <PictureNote pictures={pictures} />
