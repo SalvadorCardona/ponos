@@ -557,8 +557,10 @@ export const FRENCH: Record<string, string> = {
   repository: "dépôt",
   "on this machine": "sur cette machine",
   "wherever the clone is": "là où se trouve le clone",
-  "Nothing declares a repository, so its tickets produce a document rather than a pull request.":
-    "Rien ne déclare de dépôt : ses tickets produisent un document plutôt qu'une pull request.",
+  "Produces documents": "Produit des documents",
+  "{{count}} ready": "{{count}} à lancer",
+  "{{count}} running": "{{count}} en cours",
+  "{{count}} in review": "{{count}} en revue",
   "from the configuration": "depuis la configuration",
   "path set in the configuration": "chemin fixé dans la configuration",
   "{{count}} of {{total}} projects have a repository": "{{count}} projets sur {{total}} ont un dépôt",

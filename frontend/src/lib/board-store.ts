@@ -119,28 +119,47 @@ export function subscribeBoard(listener: () => void) {
   }
 }
 
-/* How many tickets point at each project, by its name as a card carries it.
+/* What a project's card says of its tickets, by its name as a ticket carries
+ * it: how many there are, how many wait, run or wait for a review, and when
+ * the last of them changed.
  *
  * Counted here rather than asked of the server: `/api/projects` used to read
  * the whole tickets database again to say it, while every ticket was already
  * in this store. Counted once per board the stream sends, however many cards
  * ask. */
-let counted: { from: Board; counts: Map<string, number> } | null = null
+export interface Tally {
+  count: number
+  ready: number
+  running: number
+  review: number
+  /** The latest `edited` of its tickets, empty when none says. */
+  edited: string
+}
 
-function countsOf(from: Board): Map<string, number> {
+let counted: { from: Board; tallies: Map<string, Tally> } | null = null
+
+function talliesOf(from: Board): Map<string, Tally> {
   if (counted?.from !== from) {
-    const counts = new Map<string, number>()
-    for (const ticket of from.tickets)
-      if (ticket.project) counts.set(ticket.project, (counts.get(ticket.project) ?? 0) + 1)
-    counted = { from, counts }
+    const tallies = new Map<string, Tally>()
+    for (const ticket of from.tickets) {
+      if (!ticket.project) continue
+      const tally = tallies.get(ticket.project) ?? { count: 0, ready: 0, running: 0, review: 0, edited: "" }
+      tally.count += 1
+      if (ticket.column === "ready" || ticket.column === "running" || ticket.column === "review")
+        tally[ticket.column] += 1
+      // Compared as instants: a board of files may write them with an offset.
+      if (Date.parse(ticket.edited) > (Date.parse(tally.edited) || 0)) tally.edited = ticket.edited
+      tallies.set(ticket.project, tally)
+    }
+    counted = { from, tallies }
   }
-  return counted.counts
+  return counted.tallies
 }
 
 /** The tickets of each project, by name — `null` until the first board arrives. */
-export function useTicketCounts(): Map<string, number> | null {
+export function useTicketTallies(): Map<string, Tally> | null {
   const held = React.useSyncExternalStore(subscribeBoard, () => board)
-  return held ? countsOf(held) : null
+  return held ? talliesOf(held) : null
 }
 
 const EMPTY: Board = { tickets: [], columns: [] }

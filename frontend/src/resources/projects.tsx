@@ -1,39 +1,36 @@
 import * as React from "react"
-import { FolderGit2 } from "lucide-react"
-import {
-  ActionList,
-  useFormContext,
-  type FormInterface,
-  type InputControllerComponentInterface,
-} from "react-data-form"
+import { Clock, FileText, Folder, FolderGit2 } from "lucide-react"
+import { ActionList, type FormInterface } from "react-data-form"
 import {
   Link,
-  ResourceViewButton,
+  ListPagination,
   cardViewOptionFactory,
   createResourceCollection,
   createViewResource,
   generateLinkByResource,
   tableViewOptionFactory,
   useCurrentViewResourceContext,
-  type RowComponentPropsInterface,
+  type ListComponentPropsInterface,
 } from "react-resource-view"
 
 import { EmptyState } from "@/components/console/empty-state"
-import { Eyebrow, Fact, Facts } from "@/components/console/frame"
+import { Eyebrow } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
-import { Chip } from "@/components/console/ticket-bits"
+import { Chip, LABEL, SEED, ago } from "@/components/console/ticket-bits"
+import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
-import { useTicketCounts } from "@/lib/board-store"
+import { useTicketTallies, type Tally } from "@/lib/board-store"
 import { counted, t } from "@/lib/i18n"
 import { repositoryName, shortPath } from "@/lib/places"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
 import type { Project, Projects } from "@/lib/types"
+import { cn } from "@/lib/utils"
 import { settingsHref } from "@/resources/settings"
 
 /* The projects, declared once for react-resource-view.
@@ -156,13 +153,20 @@ function readAgain(): Promise<Projects> {
   return asked
 }
 
-/* How many tickets point at a project, counted on the board the console holds
- * rather than asked of the server with the list. The list is drawn as soon as
- * it is read; until the first board arrives, the count is a skeleton in its
- * place. */
+/* What the tickets of a project come to, counted on the board the console
+ * holds rather than asked of the server with the list. The list is drawn as
+ * soon as it is read; until the first board arrives, the count is a skeleton
+ * in its place. */
+const NONE: Tally = { count: 0, ready: 0, running: 0, review: 0, edited: "" }
+
+export function useTally(name: string): Tally | null {
+  const tallies = useTicketTallies()
+  return tallies ? (tallies.get(name) ?? NONE) : null
+}
+
+/** How many tickets point at a project. */
 export function useTicketCount(name: string): number | null {
-  const counts = useTicketCounts()
-  return counts ? (counts.get(name) ?? 0) : null
+  return useTally(name)?.count ?? null
 }
 
 /* Why the last project read failed, for the page to say rather than swallow.
@@ -247,77 +251,10 @@ const editForm: FormInterface = {
   },
 }
 
-/** The count in the table: the row's name is what it is counted by. */
-const TicketsCell: InputControllerComponentInterface = () => {
-  const { form } = useFormContext()
-  const count = useTicketCount(String((form?.data as { name?: string } | undefined)?.name ?? ""))
-  if (count === null) return <Skeleton className="h-3 w-6" />
-  return <span className="tabular-nums">{count}</span>
-}
-
-/* -- the way in ----------------------------------------------------------- */
-
-/* What a click on a project opens: its form, straight away, in a drawer over
- * the list.
- *
- * It used to open the project's page, and the form was one more click from
- * there — the edit button in the page's header. The page is still there, for
- * what only it shows (the pictures, the brief as it reads, the way to Notion),
- * but it is no longer on the way to changing a project: the list is where a
- * project is chosen, so it is where it is changed.
- *
- * The drawer is the package's, the one `views.update` already opens in: its
- * button, handed what to draw instead of a button, opens it in place rather
- * than following the link — and, closed by a save, has the list read again.
- * The link it wraps is the full-page form, which is what a middle click or a
- * copied address gets.
- *
- * A project the configuration alone names has no page to write to, so there
- * is no form to open: it goes where it always went, the page that says where
- * it is changed.
- */
-function OpenProject({ project, children }: { project: ProjectItem; children: React.ReactNode }) {
-  const { resource } = useCurrentViewResourceContext()
-  if (!isAPage(project.id))
-    return (
-      <Link to={generateLinkByResource({ resource, resourceAction: ActionList.read, id: project.id })}>
-        {children}
-      </Link>
-    )
-  // The id alone, not the row: a row has no brief, and the form would open
-  // with that field empty. Given nothing but the id, the drawer reads it.
-  return (
-    <ResourceViewButton action={ActionList.update} resource={resource} id={project.id}>
-      {children}
-    </ResourceViewButton>
-  )
-}
-
-/** The repository in the table, said and linked as on a card. */
-const RepositoryCell: InputControllerComponentInterface = () => {
-  const { form } = useFormContext()
-  return <Repository declared={(form?.data as ProjectItem | undefined)?.repository} />
-}
-
-/** The name in the table, behind the project's thumbnail — and the way into its form. */
-const NameCell: InputControllerComponentInterface = () => {
-  const { form } = useFormContext()
-  const project = form?.data as ProjectItem | undefined
-  // Not every form this is drawn in holds a row: nothing to open without one.
-  if (!project?.id) return null
-  return (
-    <OpenProject project={project}>
-      <span className="inline-flex min-w-0 items-center gap-2.5 hover:underline">
-        <ProjectThumb project={project} className="size-8 rounded-md" />
-        <span className="truncate">{project.name}</span>
-      </span>
-    </OpenProject>
-  )
-}
-
-/* Over the form, the page it no longer goes through: the pictures, the brief
- * as it reads and the way to Notion are there and nowhere else. Not over the
- * form opened from that page, which would be a link to where you are.
+/* Over the form opened anywhere but on its page — at its own address, say — the
+ * way to that page: the pictures, the brief as it reads and the way to Notion
+ * are there and nowhere else. Not over the form opened from that page, which
+ * would be a link to where you are.
  *
  * The attribute is how the stylesheet knows the drawer holds a project's
  * form, to give it the whole screen on a phone: see `index.css`. */
@@ -344,84 +281,236 @@ function ToThePage() {
   )
 }
 
-/** The columns of the table layout. The headings go through the dictionary on their way to the page. */
-const rowForm: FormInterface = {
-  inputs: {
-    name: { label: "Project", readonly: true, controller: NameCell },
-    work: { label: "Kind", readonly: true },
-    repository: { label: "Repository", readonly: true, controller: RepositoryCell },
-    where: { label: "On this machine", readonly: true },
-    tickets: { label: "Tickets", readonly: true, controller: TicketsCell },
-  },
+/* -- one card, one row --------------------------------------------------- */
+
+/* A project in the list is one link, to its page.
+ *
+ * It was a card with a name to click and a button under it to open, then a
+ * name that opened the form in a drawer — and between the two, a card most of
+ * which did nothing. The whole card is now an `<a>` to the project's page, so
+ * a click anywhere goes there, a middle click or Ctrl+click opens it in a
+ * tab, and Tab then Enter reaches it from the keyboard. The form is the page's
+ * edit button away.
+ *
+ * Which leaves no room for a link inside it: the repository is said, not
+ * linked — the page links it. The cards are drawn here rather than in the
+ * package's frame, which adds a row of buttons under each and lets a card
+ * stop at its own height; these fill the row they are in, and keep what
+ * varies (a path, a status) to a line that is there or not. */
+
+/** The two kinds of work, said as a badge: code in the accent, writing quieter. */
+function KindBadge({ project }: { project: ProjectItem }) {
+  const code = project.kind === "code"
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "rounded-full px-1.5 py-0 text-[0.65rem] font-medium",
+        code ? "border-primary/40 text-primary" : "text-muted-foreground"
+      )}
+    >
+      {code ? t("Code") : t("Writing")}
+    </Badge>
+  )
 }
 
-/* -- one card ------------------------------------------------------------- */
-
-/* How a project is drawn in the card layout. The whole card is the way into
- * the project's form — see `OpenProject` — and it says the same three things
- * the pane's rows said: what kind of work it is, what it declares, and where
- * that declaration comes from.
- *
- * The frame, the padding and the row of actions under it are the package's:
- * `cardViewOptionFactory` draws a record in a card and hands the inside of it
- * to this.
- */
-function ProjectCard({ row }: RowComponentPropsInterface) {
-  const project = row?.data as ProjectItem | undefined
-  const count = useTicketCount(project?.name ?? "")
-  if (!project) return null
-
+/* GitHub's mark, which lucide no longer draws: a repository on GitHub is
+ * recognised by it before its name is read. */
+function GitHubMark({ className }: { className?: string }) {
   return (
-    // The card is the way into the form, but its repository is a link of its
-    // own, and a link is not drawn inside another: the name's link is stretched
-    // over the whole card instead, and the repository sits above it.
-    <div className="group relative flex min-w-0 flex-col gap-2.5">
-      <div className="flex items-baseline gap-2">
-        <Eyebrow>{project.work}</Eyebrow>
-        <span className="flex-1" />
-        {count === null ? (
-          <Skeleton className="h-3 w-14" />
-        ) : count ? (
-          <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
-            {counted(count, "{{count}} ticket", "{{count}} tickets")}
-          </span>
-        ) : null}
-      </div>
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden className={className}>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  )
+}
 
+/** Where the work happens, in one line each: the repository, and the path only where one is set. */
+function Whereabouts({ project }: { project: ProjectItem }) {
+  const repository = repositoryName(project.repository ?? "")
+  return (
+    <div className="text-muted-foreground flex min-w-0 flex-col gap-1 text-xs">
+      {repository ? (
+        <span className="flex min-w-0 items-center gap-1.5" title={project.repository}>
+          {repository.href.startsWith("https://github.com/") ? (
+            <GitHubMark className="size-3.5 shrink-0" />
+          ) : (
+            <FolderGit2 className="size-3.5 shrink-0" />
+          )}
+          <span className="truncate font-mono">{repository.name}</span>
+        </span>
+      ) : project.kind !== "code" ? (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <FileText className="size-3.5 shrink-0" />
+          <span className="truncate">{t("Produces documents")}</span>
+        </span>
+      ) : null}
+      {project.where ? (
+        <span className="flex min-w-0 items-center gap-1.5" title={project.where}>
+          <Folder className="size-3.5 shrink-0" />
+          <span className="truncate font-mono">{shortPath(project.where)}</span>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+/** The three columns a card counts, in the few words it has room for. */
+const STATUS = {
+  ready: "{{count}} ready",
+  running: "{{count}} running",
+  review: "{{count}} in review",
+} as const
+
+/** How many tickets, always; and, where there are any, how many wait, run and wait for a review. */
+function TicketTally({ project, withStatuses = true }: { project: ProjectItem; withStatuses?: boolean }) {
+  const tally = useTally(project.name)
+  if (!tally) return <Skeleton className="h-3 w-16" />
+  return (
+    <span className="text-muted-foreground inline-flex min-w-0 items-center gap-3 text-xs tabular-nums">
+      <span className="text-foreground/80 whitespace-nowrap">
+        {counted(tally.count, "{{count}} ticket", "{{count}} tickets")}
+      </span>
+      {withStatuses
+        ? (["ready", "running", "review"] as const).map((key) =>
+            tally[key] ? (
+              <span key={key} className="inline-flex items-center gap-1 whitespace-nowrap" title={t(LABEL[key])}>
+                <span className={cn("size-1.5 rounded-full", SEED[key])} />
+                {t(STATUS[key], { count: String(tally[key]) })}
+              </span>
+            ) : null
+          )
+        : null}
+    </span>
+  )
+}
+
+/** When the last of its tickets moved, said the way a card says it. */
+function LastActivity({ project }: { project: ProjectItem }) {
+  const edited = useTally(project.name)?.edited ?? ""
+  const said = edited ? ago(edited) : ""
+  if (!said) return null
+  return (
+    <span className="text-muted-foreground inline-flex items-center gap-1 text-xs whitespace-nowrap" title={edited}>
+      <Clock className="size-3" />
+      {said}
+    </span>
+  )
+}
+
+/** What the hover and the keyboard's focus look like on a link that is a whole card or row. */
+const REACHABLE =
+  "outline-none transition-colors focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border-ring"
+
+function ProjectCard({ project }: { project: ProjectItem }) {
+  return (
+    <Link
+      to={projectHref(project.id)}
+      data-project-card
+      className={cn(
+        "group bg-card flex h-full min-w-0 flex-col gap-3 rounded-2xl border p-4",
+        "hover:border-primary/50 hover:bg-accent/40",
+        REACHABLE
+      )}
+    >
       <div className="flex min-w-0 items-center gap-3">
-        <ProjectThumb project={project} />
-        <OpenProject project={project}>
-          <span className="min-w-0 text-[0.95rem] leading-snug font-semibold [overflow-wrap:anywhere] group-hover:underline after:absolute after:inset-0">
+        <ProjectThumb project={project} className="size-10" />
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+          <span className="w-full truncate text-[0.95rem] leading-snug font-semibold" title={project.name}>
             {project.name}
           </span>
-        </OpenProject>
+          <span className="flex flex-wrap items-center gap-1.5">
+            <KindBadge project={project} />
+            {project.source === "config" ? (
+              <Chip className="rounded-full px-1.5 py-0 text-[0.65rem]">{t("from the configuration")}</Chip>
+            ) : null}
+          </span>
+        </div>
       </div>
 
-      {project.repository || project.where ? (
-        // One fact under the other: side by side, a third of a screen each,
-        // "on this machine" took two lines where "repository" took one and the
-        // two values no longer lined up.
-        <Facts className="grid-cols-1 [&>*:nth-child(even)]:border-l-0 [&>*:nth-child(n+2)]:border-t">
-          <Fact label={t("repository")}>
-            <Repository declared={project.repository} />
-          </Fact>
-          <Fact label={t("on this machine")}>
-            <Where path={project.where} short />
-          </Fact>
-        </Facts>
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          {t(
-            "Nothing declares a repository, so its tickets produce a document rather than a pull request."
-          )}
-        </p>
-      )}
+      <Whereabouts project={project} />
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {project.source === "config" ? <Chip>{t("from the configuration")}</Chip> : null}
-        {project.configured && project.source === "board" ? (
-          <Chip>{t("path set in the configuration")}</Chip>
-        ) : null}
+      <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t pt-3">
+        <TicketTally project={project} />
+        <LastActivity project={project} />
+      </div>
+    </Link>
+  )
+}
+
+/** The card layout: every card of a row as tall as the tallest, and nothing under them. */
+function ProjectCards({ rows = [] }: ListComponentPropsInterface) {
+  return (
+    <div className="w-full">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((row) => {
+          const project = row.data as ProjectItem | undefined
+          return project ? <ProjectCard key={project.id} project={project} /> : null
+        })}
+      </div>
+      <div className="mt-5">
+        <ListPagination />
+      </div>
+    </div>
+  )
+}
+
+/** The columns of a row, shared by the heading and every row so they line up. */
+const COLUMNS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 md:grid-cols-[minmax(0,2fr)_6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_7rem]"
+
+/* The table layout: to compare projects rather than to look at them. Each row
+ * is a link too, for the same reasons as a card — which a `<table>` cannot
+ * have, so the rows are a list laid out as one. */
+function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
+  return (
+    <div className="w-full">
+      <div className="overflow-hidden rounded-md border">
+        <div className={cn(COLUMNS, "text-muted-foreground border-b py-2 text-xs font-medium")} aria-hidden>
+          <span>{t("Project")}</span>
+          <span className="hidden md:block">{t("Kind")}</span>
+          <span className="hidden md:block">{t("Repository")}</span>
+          <span className="hidden md:block">{t("On this machine")}</span>
+          <span className="text-right">{t("Tickets")}</span>
+        </div>
+        <ul>
+          {rows.map((row) => {
+            const project = row.data as ProjectItem | undefined
+            if (!project) return null
+            const repository = repositoryName(project.repository ?? "")
+            return (
+              <li key={project.id} className="border-b last:border-b-0">
+                <Link
+                  to={projectHref(project.id)}
+                  data-project-row
+                  className={cn(COLUMNS, "hover:bg-accent/40 py-2.5 text-sm", REACHABLE)}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <ProjectThumb project={project} className="size-8 rounded-md" />
+                    <span className="truncate font-medium">{project.name}</span>
+                  </span>
+                  <span className="hidden md:block">
+                    <KindBadge project={project} />
+                  </span>
+                  <span className="text-muted-foreground hidden truncate font-mono text-xs md:block">
+                    {repository ? repository.name : "—"}
+                  </span>
+                  <span
+                    className="text-muted-foreground hidden truncate font-mono text-xs md:block"
+                    title={project.where || undefined}
+                  >
+                    {project.where ? shortPath(project.where) : "—"}
+                  </span>
+                  <span className="text-right">
+                    <TicketTally project={project} withStatuses={false} />
+                  </span>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+      <div className="mt-5">
+        <ListPagination />
       </div>
     </div>
   )
@@ -438,13 +527,7 @@ export function Repository({ declared }: { declared?: string }) {
   )
   if (!repository.href) return name
   return (
-    <a
-      href={repository.href}
-      target="_blank"
-      rel="noreferrer"
-      // Above the card's own link, which is stretched over everything else.
-      className="relative z-10 underline-offset-2 hover:underline"
-    >
+    <a href={repository.href} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
       {name}
     </a>
   )
@@ -573,20 +656,19 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
   },
 
   view: {
-    form: rowForm,
     /* The two layouts. A variant's name is drawn as it is given and its id is
      * slugged from it where none is said, so the id is said here and the name
      * read from the dictionary as the tab is drawn: the address stays `cards`
      * in every language. */
     viewVariants: [
       {
-        ...cardViewOptionFactory({ id: "cards", rowComponent: ProjectCard, grid: 3 }),
+        ...cardViewOptionFactory({ id: "cards", listComponent: ProjectCards }),
         get name() {
           return t("cards")
         },
       },
       {
-        ...tableViewOptionFactory({ id: "table", behavior: { rowActions: [ActionList.read] } }),
+        ...tableViewOptionFactory({ id: "table", listComponent: ProjectRows }),
         get name() {
           return t("table")
         },
@@ -598,9 +680,8 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
       name: "Projects",
       description:
         "What the tickets are about: where the work happens, and what conventions hold there. One with no repository is not a mistake — its tickets come back as a document.",
-      // A click on a project opens its form; the button under a card, and
-      // beside a row, is the way to its page.
-      behavior: { rowActions: [ActionList.read] },
+      // A card, or a row, is a link to the project's page: no button under it.
+      behavior: { rowActions: [] },
       components: {
         top: ProjectsTop,
         bottom: ProjectsFoot,
