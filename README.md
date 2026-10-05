@@ -1877,12 +1877,12 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 ┌───────────────┬──────────────────────────────┬─────────────────────────────┐
 │ Ponos         │        ● live  v0.9.2  ⟳  ☀  │  you                        │
 │               │ + New ticket   board · table │  Where is the SQLite ticket │
-│ ▸ Board    4  │  Ready     1   In progress 1 │                             │
+│ ▸ Dashboard 4 │  Ready     1   In progress 1 │                             │
 │   Projects    │  ┌──────────┐  ┌──────────┐  │  workspace                  │
 │   Schedules   │  │ Retirer  │  │ Migrer   │  │  Six minutes in, on Trader  │
 │   Context     │  │ le       │  │ vers     │  │  IA. It has rewritten       │
-│   Statistics  │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
-│   Settings    │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
+│   Settings    │  │ bandeau  │  │ SQLite   │  │  src/storage.py and is on   │
+│               │  │ High     │  │ pytest   │  │  pytest. Nothing committed. │
 │               │  └──────────┘  └──────────┘  │                             │
 │               │                              │  > status                   │
 │               │                 ───▶      (●)│  timer on · 30 min          │
@@ -1893,7 +1893,7 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 **The menu** down the left is where the pages live: a name each, and a count beside it
 where something is waiting there — how many tickets are on the board. On a phone the menu runs
 along the bottom edge instead: the board, the projects and the schedules, and **More**, which
-opens the context, the statistics and the settings from the bottom of the screen — the bar
+opens the context and the settings from the bottom of the screen — the bar
 fits a 360px screen and never scrolls sideways. The bubble stands on that bar, and every page
 ends far enough above it that nothing is left under it. The frame is react-resource-view's admin layout (see
 [The console's own code](#the-consoles-own-code)), and the end of its bar holds the things
@@ -1910,7 +1910,8 @@ three. Every page has an address — `/?view=console/tickets/list`,
 lands where you were. The page of sessions the console used to have is gone, and its old
 address leads to the board: a session is followed on its ticket.
 
-**The board** is the Notion board, read from Notion and written back to it, drawn as
+**The dashboard** opens on the period's [statistics](#statistics-on-the-dashboard), then
+the board. **The board** is the Notion board, read from Notion and written back to it, drawn as
 the columns the board has — *Ready*, *In progress*, *In review*, *Validated* where the
 board offers it, *Blocked*, *Failed*, *Done* — under the board's own names. Nothing here
 is a second database: **drag a card into a column and the ticket moves**, and the ticket
@@ -2111,19 +2112,22 @@ place that switch would otherwise be invisible. The page asks the board when you
 rather than living on the event stream — a schedule moves four times a day at the very
 most, and a tab left open on the board has no business polling that database.
 
-**Statistics** is what the runner got through over a period — the last month when you open
-it, or seven days, three months, or two dates of your own. Four cards: the tickets **open**
+<a id="statistics-on-the-dashboard"></a>**Statistics** sit at the top of the dashboard, over the board — a band you fold into
+one line with the arrow beside its name, and that stays folded on that browser. It is what
+the runner got through over a period: the last seven days when you open it, or the last
+24 hours (yesterday and today: the figures count in days), thirty days, everything since the
+board's oldest ticket, or two dates of your own. Four cards: the tickets **open**
 on the evening of the last day (every column but *Done*, *Blocked* and *Failed* included —
 so a period that ends today says what the board says), those **closed** and those
 **created** in the period, and what the sessions **spent**. Under them, one point per day:
-created and closed side by side, the open stock evening after evening, the spend as a
-running total — and the tickets created in the period, by the column they are in now and by
-project. Notion dates when a page was created, never when its status changed, so a closing
+created and closed side by side, the open stock evening after evening — and the tickets
+created in the period, by project. Notion dates when a page was created, never when its status changed, so a closing
 is dated by the runner's history (in `ponos.db`) when the runner made it — a pull request
 merged from *Validated*, a document written or published — and by the page's last edit
 otherwise: a ticket you dragged to *Done*, or one closed because you merged its pull request
-yourself. The foot of the page says how many closings each one dated. The spend is the
-history's too: the `Cost` column says what a ticket cost, not on which day.
+yourself. The *Closed* card says, under the pointer, how many closings each one dated. The spend is the
+history's too: the `Cost` column says what a ticket cost, not on which day. The page they used to have is gone, and its old address,
+`/?view=console/statistics/list`, leads to the dashboard.
 
 **Settings** is `config.toml` drawn as a page — the same file, the same keys, and every one
 of them, from the Notion token down to what your board calls its *Blocked* column. On a

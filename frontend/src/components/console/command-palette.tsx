@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   BookOpen,
   CalendarClock,
-  ChartLine,
   FolderGit2,
   LayoutGrid,
   MessageCircle,
@@ -31,7 +30,6 @@ import { contextHref } from "@/resources/context"
 import { idOf, projectHref, projectsHref, projectsOnce, useProjects } from "@/resources/projects"
 import { schedulesHref } from "@/resources/schedules"
 import { settingsHref } from "@/resources/settings"
-import { statisticsHref } from "@/resources/statistics"
 import { boardHref, ticketHref, tickets } from "@/resources/tickets"
 
 import { toggleTalk } from "./talk-drawer"
@@ -54,11 +52,10 @@ const OPENED = "ponos:palette"
 export const openPalette = () => window.dispatchEvent(new Event(OPENED))
 
 const PAGES = [
-  { name: "Board", icon: LayoutGrid, href: boardHref },
+  { name: "Dashboard", icon: LayoutGrid, href: boardHref },
   { name: "Projects", icon: FolderGit2, href: projectsHref },
   { name: "Schedules", icon: CalendarClock, href: schedulesHref },
   { name: "Context", icon: BookOpen, href: contextHref },
-  { name: "Statistics", icon: ChartLine, href: statisticsHref },
   { name: "Settings", icon: Settings2, href: () => settingsHref() },
 ]
 

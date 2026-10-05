@@ -55,7 +55,8 @@ function Page({ params }: { params: ViewResourceContextParams }) {
   // An address naming a page this console does not have lands on the board,
   // rather than on an error thrown from inside the package — the live page's
   // `/?view=console/live/list` among them, now that sessions are read on their
-  // tickets.
+  // tickets, and the statistics' `/?view=console/statistics/list`, now that
+  // they are drawn at the top of the dashboard.
   if (!resource) return <Navigate to={boardHref()} replace />
   // The settings are one file, so they have no list: the package still links
   // to one — the breadcrumb in the bar does — and a list asked for is the file.
@@ -82,7 +83,7 @@ function useTitle(params: ViewResourceContextParams, ticketShort?: string) {
     resourceId === TICKETS && params.resourceAction === ActionList.read && params.id
       ? `#${ticketShort ?? String(params.id).slice(-8)}`
       : (consoleScope.menu?.find((item) => (item as { resource?: string }).resource === resourceId)
-          ?.name ?? t("Board"))
+          ?.name ?? t("Dashboard"))
   React.useEffect(() => {
     document.title = here ? `${here} · Ponos` : "Ponos"
   }, [here])
