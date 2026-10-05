@@ -74,33 +74,40 @@ test("the menu down the left has no More beside a phone", async ({ page }) => {
 
 test("at the end of every page, nothing is under the bubble", async ({ page }) => {
   await open(page)
-  for (const [name] of PAGES) {
+  for (const [name, address] of PAGES) {
     await go(page, name)
+    await expect(page).toHaveURL(address)
     await page.waitForLoadState("networkidle")
-    await page.keyboard.press("End")
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
-    const covered = await page.evaluate(() => {
-      const bubble = document.querySelector<HTMLElement>('button[aria-label^="open "][aria-keyshortcuts]')
-      if (!bubble) return ["no bubble"]
-      const over = bubble.getBoundingClientRect()
-      const nav = document.querySelector('[data-slot="sidebar-wrapper"] > .fixed.bottom-0')
-      return Array.from(document.querySelectorAll<HTMLElement>("a, button, input, textarea, select, [role=tab]"))
-        .filter((element) => element !== bubble && !nav?.contains(element) && element.checkVisibility())
-        .filter((element) => {
-          const box = element.getBoundingClientRect()
-          return box.width > 0 && box.left < over.right && box.right > over.left && box.top < over.bottom && box.bottom > over.top
-        })
-        .map((element) => element.getAttribute("aria-label") || element.textContent?.trim() || element.tagName)
-    })
-    expect(covered, `under the bubble on ${name}`).toEqual([])
-    // And whatever the page ends on — a card's link, a sentence — ends above
-    // it, so that a page holding a button there tomorrow is covered too.
-    const [end, bubbleTop] = await page.evaluate(() => {
-      const content = document.querySelector<HTMLElement>('[data-slot="admin-content"]')!
-      const end = content.getBoundingClientRect().bottom - parseFloat(getComputedStyle(content).paddingBottom)
-      return [end, document.querySelector('button[aria-label^="open "][aria-keyshortcuts]')!.getBoundingClientRect().top]
-    })
-    expect(end, `the end of ${name} runs under the bubble`).toBeLessThanOrEqual(bubbleTop)
+    // Measured again until the page has settled: a list that arrives after
+    // the scroll to the end grows the page under it, and the first reading
+    // then sees its last card where the bubble is — on a slow runner, a
+    // failure that said nothing about the console.
+    await expect(async () => {
+      await page.keyboard.press("End")
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+      const covered = await page.evaluate(() => {
+        const bubble = document.querySelector<HTMLElement>('button[aria-label^="open "][aria-keyshortcuts]')
+        if (!bubble) return ["no bubble"]
+        const over = bubble.getBoundingClientRect()
+        const nav = document.querySelector('[data-slot="sidebar-wrapper"] > .fixed.bottom-0')
+        return Array.from(document.querySelectorAll<HTMLElement>("a, button, input, textarea, select, [role=tab]"))
+          .filter((element) => element !== bubble && !nav?.contains(element) && element.checkVisibility())
+          .filter((element) => {
+            const box = element.getBoundingClientRect()
+            return box.width > 0 && box.left < over.right && box.right > over.left && box.top < over.bottom && box.bottom > over.top
+          })
+          .map((element) => element.getAttribute("aria-label") || element.textContent?.trim() || element.tagName)
+      })
+      expect(covered, `under the bubble on ${name}`).toEqual([])
+      // And whatever the page ends on — a card's link, a sentence — ends above
+      // it, so that a page holding a button there tomorrow is covered too.
+      const [end, bubbleTop] = await page.evaluate(() => {
+        const content = document.querySelector<HTMLElement>('[data-slot="admin-content"]')!
+        const end = content.getBoundingClientRect().bottom - parseFloat(getComputedStyle(content).paddingBottom)
+        return [end, document.querySelector('button[aria-label^="open "][aria-keyshortcuts]')!.getBoundingClientRect().top]
+      })
+      expect(end, `the end of ${name} runs under the bubble`).toBeLessThanOrEqual(bubbleTop)
+    }).toPass()
   }
 })
 

@@ -49,6 +49,14 @@ const serve = (port: number) => ({
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: true,
+  // One second chance on GitHub's runners, none here. Two cores share the
+  // browsers, both servers and their outbox threads there, and a gesture that
+  // waits on the stream (gestures.spec.ts, set aside then made ready again)
+  // has missed its five seconds on a main that passed as a pull request the
+  // minute before — never on a machine that could be watched doing it. A test
+  // that fails twice still fails the job, and the list says which one needed
+  // its second run.
+  retries: process.env.CI ? 1 : 0,
   reporter: "list",
   use: {
     channel: "chrome",
