@@ -102,7 +102,7 @@ export const FRENCH: Record<string, string> = {
   "Reading the board…": "Lecture du tableau…",
 
   /* -- the menu ------------------------------------------------------------ */
-  Board: "Tableau",
+  Dashboard: "Dashboard",
   Schedules: "Récurrences",
   Settings: "Réglages",
   // On a phone, the entry the bottom bar keeps the other pages behind.
@@ -648,14 +648,12 @@ export const FRENCH: Record<string, string> = {
   "Every ticket from here on is told this.": "Chaque ticket à partir de maintenant le reçoit.",
   "The context was not saved": "Le contexte n'a pas été enregistré",
 
-  /* -- the statistics ------------------------------------------------------- */
+  /* -- the statistics, at the top of the dashboard ------------------------- */
   Statistics: "Statistiques",
-  "What came in, what went out.": "Ce qui est entré, ce qui est sorti.",
-  "Tickets created, closed and still open, day after day. Open means any column but done — blocked and failed included.":
-    "Les tickets créés, fermés et encore ouverts, jour après jour. Ouvert veut dire toute colonne sauf terminé — bloqués et échoués compris.",
+  "24 h": "24 h",
   "7 days": "7 jours",
-  "1 month": "1 mois",
-  "3 months": "3 mois",
+  "30 days": "30 jours",
+  All: "Tout",
   Custom: "Personnalisée",
   From: "Du",
   To: "Au",
@@ -669,18 +667,14 @@ export const FRENCH: Record<string, string> = {
   "added to the board in the period": "ajoutés au tableau sur la période",
   "by the runner's sessions in the period": "par les sessions du runner sur la période",
   "No ticket on the board over this period.": "Aucun ticket sur le tableau pendant cette période.",
-  "Per day": "Par jour",
   "Created and closed": "Créés et fermés",
   "Tickets created and closed per day": "Tickets créés et fermés par jour",
-  "Every evening": "Chaque soir",
   "Open tickets": "Tickets ouverts",
   "Tickets still open, evening after evening": "Tickets encore ouverts, soir après soir",
-  "Running total": "Cumul",
-  "Spent since the start of the period": "Dépensé depuis le début de la période",
-  "Created in the period": "Créés sur la période",
-  "By status": "Par statut",
-  "By project": "Par projet",
+  "Created, by project": "Créés, par projet",
   "No project": "Sans projet",
+  "{{open}} open · {{closed}} closed · {{created}} created · {{cost}} spent":
+    "{{open}} ouverts · {{closed}} fermés · {{created}} créés · {{cost}} dépensés",
   "No ticket created in the period.": "Aucun ticket créé sur la période.",
   "A closing is dated by the runner's history when the runner closed the ticket ({{history}}), by the page's last edit in Notion otherwise ({{edited}}).":
     "Une fermeture est datée par l'historique du runner quand c'est lui qui a fermé le ticket ({{history}}), sinon par la dernière modification de la page dans Notion ({{edited}}).",

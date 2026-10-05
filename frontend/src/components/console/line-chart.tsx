@@ -47,6 +47,7 @@ export function LineChart<T>({
   format = number,
   whole = true,
   area = false,
+  height = HEIGHT,
   className,
 }: {
   points: T[]
@@ -62,6 +63,8 @@ export function LineChart<T>({
   whole?: boolean
   /** A shaded area under a lone line: a stock, rather than a rate. */
   area?: boolean
+  /** In pixels, axis included: shorter where the chart is a glance over something else. */
+  height?: number
   className?: string
 }) {
   const frame = React.useRef<HTMLDivElement>(null)
@@ -78,9 +81,10 @@ export function LineChart<T>({
   }, [])
 
   const inner = Math.max(0, width - MARGIN.left - MARGIN.right)
-  const tall = HEIGHT - MARGIN.top - MARGIN.bottom
+  const tall = height - MARGIN.top - MARGIN.bottom
   const highest = Math.max(0, ...points.flatMap((point) => series.map((line) => line.value(point))))
-  const step = niceStep(highest / 4, whole)
+  // A rule every fifty pixels or so: four on a full chart, two on a short one.
+  const step = niceStep(highest / Math.max(2, Math.round(height / 50)), whole)
   const top = Math.max(step, Math.ceil(highest / step) * step)
   const rules: number[] = []
   for (let value = 0; value <= top + step / 2; value += step) rules.push(value)
@@ -119,11 +123,11 @@ export function LineChart<T>({
         </ul>
       ) : null}
 
-      <div ref={frame} className="relative w-full" style={{ height: HEIGHT }}>
+      <div ref={frame} className="relative w-full" style={{ height }}>
         {width > 0 ? (
           <svg
             width={width}
-            height={HEIGHT}
+            height={height}
             role="img"
             aria-label={label}
             className="block touch-pan-y select-none"
@@ -157,7 +161,7 @@ export function LineChart<T>({
               <text
                 key={index}
                 x={x(index)}
-                y={HEIGHT - 6}
+                y={height - 6}
                 textAnchor={
                   points.length > 1 && index === 0
                     ? "start"

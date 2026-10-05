@@ -466,7 +466,7 @@ export function TicketHead() {
             className="text-muted-foreground hover:text-foreground mb-1.5 inline-flex items-center gap-1 text-sm transition-colors"
           >
             <ArrowLeft className="size-4" />
-            {t("Board")}
+            {t("Dashboard")}
           </Link>
           <h2
             className="line-clamp-2 text-2xl font-semibold tracking-tight break-words"

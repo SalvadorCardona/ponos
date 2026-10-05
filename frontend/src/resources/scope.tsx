@@ -15,7 +15,6 @@ import { CONTEXT, context, contextHref } from "./context"
 import { PROJECTS, projects, projectsHref } from "./projects"
 import { SCHEDULES, schedules, schedulesHref } from "./schedules"
 import { SETTINGS, settings, settingsHref } from "./settings"
-import { STATISTICS, statistics, statisticsHref } from "./statistics"
 import { TICKETS, boardHref, tickets } from "./tickets"
 
 /* The console, as one scope of react-resource-view.
@@ -59,7 +58,7 @@ const entry = (
  * every day stay in the bar, and the rest go behind a fourth entry, More,
  * which the package opens as a drawer — its own way with an entry that has
  * entries under it. Beside a phone the menu is a column with room for all
- * six, and More is not in it.
+ * five, and More is not in it.
  *
  * `hidden` is read every time the menu is drawn, and the layout draws it again
  * the moment the width crosses the line between a sidebar and a bottom bar. */
@@ -82,20 +81,19 @@ const more = (items: ConsoleMenuItem[]): MenuItemInterface => ({
 })
 
 const entries = () => [
-  entry(TICKETS, tickets.icon, "Board", boardHref, "board"),
+  entry(TICKETS, tickets.icon, "Dashboard", boardHref, "board"),
   entry(PROJECTS, projects.icon, "Projects", projectsHref),
   // No count, here as under Projects: the only way to know is to ask the
   // board, and this menu is redrawn every time the board moves.
   entry(SCHEDULES, schedules.icon, "Schedules", schedulesHref),
   entry(CONTEXT, context.icon, "Context", contextHref),
-  entry(STATISTICS, statistics.icon, "Statistics", statisticsHref),
   entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
 ]
 
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "Ponos",
-  resources: [tickets, projects, schedules, context, statistics, settings],
+  resources: [tickets, projects, schedules, context, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [
     ...entries().map(onTheBar),

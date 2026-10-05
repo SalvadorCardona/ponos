@@ -13,11 +13,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 const PHONE = { width: 360, height: 780 }
 
 const PAGES: [string, RegExp][] = [
-  ["Board", /\/\?view=console\/tickets\//],
+  ["Dashboard", /\/\?view=console\/tickets\//],
   ["Projects", /\/\?view=console\/projects\//],
   ["Schedules", /\/\?view=console\/schedules\//],
   ["Context", /\/\?view=console\/context\//],
-  ["Statistics", /\/\?view=console\/statistics\//],
   ["Settings", /\/\?view=console\/settings\//],
 ]
 

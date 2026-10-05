@@ -32,11 +32,11 @@ test("Ctrl+K opens the palette, Escape closes it", async ({ page }) => {
 test("the palette takes you to a page, with the keyboard alone", async ({ page }) => {
   await open(page)
   await page.keyboard.press("Control+k")
-  await page.keyboard.type("statistics")
-  await expect(palette(page).getByRole("option").first()).toHaveText(/Statistics/)
+  await page.keyboard.type("context")
+  await expect(palette(page).getByRole("option").first()).toHaveText(/Context/)
   await page.keyboard.press("Enter")
   await expect(palette(page)).toBeHidden()
-  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toContain("statistics")
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toContain("context")
 })
 
 test("the palette finds a ticket on the board", async ({ page }) => {

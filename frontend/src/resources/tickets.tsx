@@ -42,6 +42,7 @@ import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip, every } from "@/components/console/runner-strip"
+import { StatisticsBand } from "@/components/console/statistics-band"
 import { CardLive } from "@/components/console/session-log"
 import { TicketHead, TicketPage } from "@/components/console/ticket-page"
 import { TicketWindow, opensInTheWindow } from "@/components/console/ticket-window"
@@ -493,7 +494,8 @@ function TicketCard({ row }: RowComponentPropsInterface) {
 /* What sits above whatever react-resource-view is drawing.
  *
  * It asks the list to reread the store whenever the stream moves the board,
- * and once the board is there it draws the runner's figures over it. The heading is the
+ * and once the board is there it draws the runner's figures over it, then the
+ * statistics of the period — which is what makes the list a dashboard. The heading is the
  * package's own since 0.7.0 — the resource's icon, the view's name and the
  * line under it — so the board no longer opens with a `PageHead` of its own,
  * which would say it all twice.
@@ -516,6 +518,7 @@ function BoardTop() {
     return resourceAction === ActionList.list ? (
       <>
         <RunnerStrip />
+        <StatisticsBand />
         <TicketWindow />
       </>
     ) : null
@@ -842,7 +845,7 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
 /* -- the declaration ------------------------------------------------------ */
 
 export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(TICKETS, {
-  name: "Board",
+  name: "Dashboard",
   scope: SCOPE,
   path: "/api/board",
   icon: LayoutGrid,
@@ -940,7 +943,7 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
   },
 
   view: {
-    name: "Board",
+    name: "Dashboard",
     form: rowForm,
     /* The two tabs over the list. A variant's name is drawn as it is given and
      * its id is slugged from it where none is said, so the id is said here and
@@ -974,7 +977,7 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     // The name and the line under it are what the list's own header says, next
     // to the resource's icon: the board opens on its own words.
     [ActionList.list]: {
-      name: "Board",
+      name: "Dashboard",
       // What the board is, without naming where it is kept: the same console
       // draws a Notion workspace and a directory of Markdown files, and a
       // sentence that names one of them is wrong half the time.
