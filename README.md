@@ -1,64 +1,172 @@
+<p align="center">
+  <a href="https://cardona.digital/ponos/"><img src="docs/mascot/robot.svg" width="144" height="144" alt="Ponos, the robot, in his Greek tunic"></a>
+</p>
+
+<h1 align="center">Ponos</h1>
+
+<p align="center">
+  <strong>Write the ticket. It comes back done.</strong><br>
+  <em>Écris le ticket. Il revient fait.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/SalvadorCardona/ponos/actions/workflows/ci.yml"><img src="https://github.com/SalvadorCardona/ponos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/SalvadorCardona/ponos" alt="Licence: MIT"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/release/SalvadorCardona/ponos?include_prereleases&sort=semver&label=version" alt="Version"></a>
+  <a href="#installation"><img src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <a href="tests/run.py"><img src="https://img.shields.io/badge/dependencies-zero-2ea44f" alt="Zero dependencies"></a>
+</p>
+
+<p align="center">
+  <a href="https://cardona.digital/ponos/"><b>📖 The documentation, online</b></a> ·
+  <a href="https://cardona.digital/ponos/#video"><b>▶ The one-minute video</b></a> ·
+  <a href="#install-it"><b>Install</b></a> ·
+  <a href="CHANGELOG.md"><b>CHANGELOG</b></a>
+</p>
+
+**A harness around [Claude Code](https://claude.com/claude-code) that runs your tasks on
+your machine — code, writing, actions, posts.**
+
+Write the ticket on **Ponos**'s own board — the console, or a folder of Markdown files. He
+brings back a pull request, a text, an action carried out or a post ready to go. You answer
+in a word, even from your phone, and nothing ships until you say yes. Notion, GitHub,
+Telegram, Slack and OpenRouter plug in when you want them; none of them is required.
+
 [![Ponos — Write the ticket. It comes back done. Play the one-minute video on the site.](docs/media/ponos-promo-poster.jpg)](https://cardona.digital/ponos/#video)
 
 <sub>▶ **[Ponos in a minute](https://cardona.digital/ponos/#video)** — one ticket, from *Ready* to *Done*. The video plays on the site, sound on.</sub>
-
-# Ponos
-
-**Ponos — write the ticket, it comes back done.**
-
-*(En français : écris le ticket. Il revient fait.)*
-
-Ponos is a harness around [Claude Code](https://claude.com/claude-code) that runs your
-tasks on your machine — code, writing, external actions, publications. It has a board of
-its own: the web console, over a folder of Markdown files. Notion, GitHub, Telegram, Slack
-and OpenRouter plug in when you want them; none of them is required.
 
 The name is a robot's, after the Greek god of toil: he does the tedious part of a ticket in
 your place, and you keep the decisions. The repository, the `ponos` command, the Python
 package and every path on your machine carry his name too. An installation from before the
 rename moves over on its own — see the [CHANGELOG](CHANGELOG.md) for what it does.
 
-📖 **[The documentation, online](https://cardona.digital/ponos/)**
-
 ## The loop, in four gestures
 
-1. **You write the ticket** — what you would tell a colleague — and move it to *Ready*.
-2. **Ponos does it while you do something else**: a pull request on its own branch, a
-   text written into the ticket, an action carried out.
-3. **You read it and answer in a word**, even from your phone: *oui* is a whole answer.
-4. **He delivers.** Move the ticket to *Validated* and the pull request is merged, or the
-   post is published — and only then is it *Done*.
+Two of them are yours, and each takes a few seconds. The two in between are Ponos's.
+
+1. **You write the ticket** — what you would tell a colleague, on your board — then you
+   move it to *Ready*.
+2. **Ponos does it** while you do something else: a pull request on its own branch, a text
+   written into the ticket, an action carried out.
+3. **You read, and answer in a word.** A question or a result reaches you — in the
+   console, or on your phone. *oui* is a whole answer.
+4. **He delivers.** Move it to *Validated*: the pull request is merged, the post is
+   published — and only then is it *Done*.
+
+<p align="center">
+  <a href="https://cardona.digital/ponos/#loop">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/media/console-loop-dark-poster.webp">
+      <img src="docs/media/console-loop-light-poster.webp" width="720" alt="The console, filmed doing the loop: a ticket written in New ticket, taken to In progress, back in review with its cost, then validated. The film plays on the site.">
+    </picture>
+  </a>
+  <br><sub>The console, filmed doing the four gestures — <a href="https://cardona.digital/ponos/#loop">the film plays on the site</a>.</sub>
+</p>
 
 ## Three things it does that a to-do list does not
 
-- **Not only code.** *"Remove that header"* comes back as a pull request; *"draft me a
-  post about the new release"* comes back written into the ticket. Same board, same
-  gesture — it is the ticket that decides which one you get, not a setting. See
-  [The type of a ticket](#the-type-of-a-ticket).
-- **You keep the hand.** Nothing is merged or published until you move the ticket to
-  *Validated*, and everything runs on your machine, each ticket on a disposable git
-  worktree of its own — your working copy is never touched. See
+- **It asks first — a doubt stops it.** A ticket nobody typed is classified before it
+  runs, and a hesitation sends it back to you with the question. An action stops at its
+  first doubt — a wrong account, a value the ticket does not give — rather than act on a
+  guess. See [The type of a ticket](#the-type-of-a-ticket).
+- **You keep the hand — nothing goes out without you.** No pull request is merged and
+  nothing is published until you move the ticket to *Validated*. And it all runs on your
+  machine, each ticket in a disposable worktree — your own checkout is never touched. See
   [What protects your code](#what-protects-your-code).
-- **It comes to you.** A ticket that needs a decision asks its question on **Telegram or
-  Slack**, and *oui* is the whole answer — the reply lands on the ticket and the next run
-  carries on. See [Being told, and answering with one word](#being-told-and-answering-with-one-word).
+- **It comes to you — “oui” is enough.** When a ticket needs a decision, the question
+  reaches you on **Telegram or Slack**, and your reply lands on the ticket. See
+  [Being told, and answering with one word](#being-told-and-answering-with-one-word).
 
-The agent is [Claude Code](https://claude.com/claude-code), or [any other
-model](#every-other-model) through OpenRouter. The board is the console and a folder of
-[Markdown files](#without-notion-the-board-as-markdown-files), or [Notion](#the-notion-side)
-if that is where you already write — or both, kept in step.
+**Not only code — four kinds of task.** The ticket's type decides the road: pick it, or let
+a small model read the ticket and choose.
+
+| Type | A ticket | What comes back |
+| --- | --- | --- |
+| **Code** | *Console: limit the Done column* | A pull request, on its own branch and a disposable worktree; the tests run. Merged when you validate. |
+| **Writing** | *Draft the October newsletter* | A text, written into the ticket, ready to copy. No repository needed. |
+| **External action** | *Add the DNS records for the new domain* | Done in the browser or a service's settings, with every change logged. It stops at its first doubt. |
+| **Publication** | *Post the 1.2 release on LinkedIn* | Prepared and shown to you first. Published once you say yes. |
+
+Tickets also [come back on their own](#what-comes-back-on-its-own) on a schedule, and the
+console's chat is a Claude Code session in your workspace.
+
+## A board of its own
+
+Ponos needs nobody else's board. The [console](#the-web-console), on `127.0.0.1`, is where
+you write a ticket, drag it to *Ready* and watch its session live. Under it, the board is
+[a folder of Markdown files](#without-notion-the-board-as-markdown-files): `grep`, your
+editor and `git` read it too.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/console/board-dark.webp">
+    <img src="docs/console/board-light.webp" width="49%" alt="The console's board: columns Ready, In progress, In review and Validated, a card per ticket, and Ponos in the top bar saying what he is doing.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/console/ticket-dark.webp">
+    <img src="docs/console/ticket-light.webp" width="49%" alt="A ticket in the console: its status, the buttons to run it again, validate it or close it, its project, priority, cost and duration, and its brief.">
+  </picture>
+</p>
+
+Everything runs on your machine; the board, GitHub and your channel are the only things it
+reaches — see [Architecture](#architecture).
+
+<p align="center">
+  <a href="#architecture"><img src="docs/architecture.webp" width="720" alt="The pieces of Ponos and how they fit together: the timer, the runner, the Claude Code session, the git worktrees, the console and the local state on your machine; the Notion board, GitHub and Telegram or Slack outside it."></a>
+</p>
+
+## Plugs in where you already work. If you want.
+
+Ponos needs Claude Code and nothing else. Each of these is one more token in the settings,
+and none of them is a requirement.
+
+| | Optional | |
+| --- | --- | --- |
+| <a href="#the-notion-side"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/media/notion/made-for-notion-black.svg"><img src="docs/media/notion/made-for-notion-white.svg" height="48" alt="Made for Notion"></picture></a> | **Your board in Notion.** | Tickets, projects and schedules become Notion databases, and every report is written back on the ticket's page. [The Notion side](#the-notion-side) |
+| **GitHub** | **Pull requests.** | A code ticket comes back as one, through `gh`, and is merged on your yes. Writing, actions and posts need none of it. [Several GitHub accounts](#several-github-accounts) |
+| **Telegram · Slack** | **Your phone.** | A question or a result reaches you there, and your answer — *oui* will do — lands on the ticket. [Telegram and Slack](#being-told-and-answering-with-one-word) |
+| **OpenRouter** | **Every other model.** | One key: a GPT writes the copy, a model transcribes a voice note — or the sessions themselves run on the model you name. [Every other model](#every-other-model) |
 
 ## Install it
+
+One command. It installs the `ponos` command, a timer that hands Ponos the ready tickets,
+and the console. Beyond Claude Code, nothing to sign up for.
 
 ```sh
 curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ponos/main/install.sh | sh
 ```
 
-Linux with systemd, `python3` ≥ 3.11, `git`, Claude Code, and `gh` for pull requests —
-nothing else to install, and no account beyond Claude Code's. The installer asks for a
-Notion token first: Enter skips it, and `mode = "markdown"` under `[storage]` makes the
-board a folder of files — see [Without Notion](#without-notion-the-board-as-markdown-files).
-The rest is in [Installation](#installation) below.
+Then, the board: make it a folder of Markdown files — in the console, *Settings › Where the
+board lives › markdown*, or one line under `[storage]` — and write your first ticket. The
+installer still asks for a Notion token first: press Enter to skip it.
+
+```sh
+# [storage] mode = "markdown"
+ponos config
+ponos doctor
+```
+
+It needs Linux with systemd in the user session, `python3` ≥ 3.11 — standard library only,
+nothing to install —, `git` and [Claude Code](https://claude.com/claude-code), and `gh` only
+for tickets that end in a pull request. The rest is in [Installation](#installation) below.
+
+**Everything else is in the documentation:**
+[Installation, in full](#installation) ·
+[The board and its columns](#the-statuses) ·
+[What a ticket carries](#the-tickets-database) ·
+[Validated: merge or publish](#validated-and-what-it-sets-off) ·
+[Ten tickets, one repository](#ten-tickets-on-one-repository) ·
+[Talking in the comments](#talking-to-it-in-the-comments) ·
+[Tickets that come back](#what-comes-back-on-its-own) ·
+[The web console](#the-web-console) ·
+[Every other model](#every-other-model) ·
+[When the credits run out](#when-the-credits-run-out) ·
+[Configuration](#configuration) ·
+[Every command](#usage) ·
+[On a server](#on-a-server) ·
+[When it does not work](#when-it-does-not-work) ·
+[Ponos, the mascot](#ponos-the-mascot)
 
 ---
 
