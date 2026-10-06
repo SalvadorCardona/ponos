@@ -21,8 +21,11 @@ async function open(page: Page) {
 
 /* The package's select is a combobox of its own, not a <select>: opened, then
  * an option picked from the list it draws. */
+const choiceField = (dialog: ReturnType<Page["getByRole"]>, field: string) =>
+  dialog.getByRole("group").filter({ hasText: field }).getByRole("combobox")
+
 async function choose(page: Page, dialog: ReturnType<Page["getByRole"]>, field: string, option: string) {
-  await dialog.getByRole("group").filter({ hasText: field }).getByRole("combobox").click()
+  await choiceField(dialog, field).click()
   await page.getByRole("option", { name: option, exact: true }).click()
 }
 
@@ -81,4 +84,50 @@ test("Ctrl+Enter from the brief creates the ticket with the last words typed", a
   await page.keyboard.press("Control+Enter")
   await expect.poll(() => sent.length).toBe(1)
   expect(String(sent[0].body)).toContain("The last words")
+})
+
+/* The project is typed into rather than scrolled through: the field is reached
+ * with Tab, a letter opens the list filtered by it, the arrows
+ * walk it, Enter takes the highlighted project and Escape closes the list and
+ * leaves the dialog — the whole ticket made without the mouse. */
+test("the project is chosen from the keyboard, filtered by what is typed", async ({ page }) => {
+  const sent: Record<string, unknown>[] = []
+  await page.route("**/api/tickets", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    sent.push(route.request().postDataJSON())
+    await route.fulfill({ json: { id: "0000000000000000000000000000f010", title: "Typed" } })
+  })
+  const dialog = await open(page)
+  await dialog.getByLabel("Title").fill("Typed")
+  const project = dialog.getByRole("combobox", { name: "Project" })
+  await expect(dialog.getByText("A project with a repository gets a pull request")).toBeVisible()
+
+  // Reached by Tab like any field — here from the one after it, since the
+  // brief's editor before it keeps Tab for its own lists.
+  await choiceField(dialog, "Priority").focus()
+  await page.keyboard.press("Shift+Tab")
+  await expect(project).toBeFocused()
+  await page.keyboard.press("ArrowDown")
+  const list = page.getByRole("listbox")
+  await expect(list.getByRole("option")).toHaveCount(4)
+  const first = await list.getByRole("option", { selected: true }).textContent()
+  await page.keyboard.press("ArrowDown")
+  await expect(list.getByRole("option", { selected: true })).not.toHaveText(first ?? "")
+  await page.keyboard.press("ArrowUp")
+  await expect(list.getByRole("option", { selected: true })).toHaveText(first ?? "")
+  await page.keyboard.press("Escape")
+  await expect(list).toBeHidden()
+  await expect(dialog).toBeVisible()
+
+  await expect(project).toBeFocused()
+  await page.keyboard.type("news")
+  await expect(page.getByRole("combobox").and(page.locator("[cmdk-input]"))).toHaveValue("news")
+  await expect(list.getByRole("option", { selected: true })).toContainText("Newsletter")
+  await page.keyboard.press("Enter")
+  await expect(list).toBeHidden()
+  await expect(project).toContainText("Newsletter")
+  await page.keyboard.press("Control+Enter")
+
+  await expect.poll(() => sent.length).toBe(1)
+  expect(sent[0]).toMatchObject({ title: "Typed", project: "0000000000000000000000000000beef" })
 })
