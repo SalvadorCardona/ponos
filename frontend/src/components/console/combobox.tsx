@@ -35,8 +35,11 @@ export const ComboboxInputController: InputControllerComponentInterface = ({
   const [search, setSearch] = React.useState("")
   const searchField = React.useRef<HTMLInputElement>(null)
   const options: ValueOptionInterface[] = formInput.valueOptions ?? []
-  const said = (option: ValueOptionInterface) =>
-    typeof option.label === "string" ? t(option.label) : String(option.value ?? "")
+  // A label is a sentence, or an element drawn as it is given (a project's
+  // mark beside its name): drawn as such, and searched by the words inside it.
+  const said = (option: ValueOptionInterface): React.ReactNode =>
+    typeof option.label === "string" ? t(option.label) : (option.label ?? String(option.value ?? ""))
+  const words = (option: ValueOptionInterface) => textOf(said(option)) || String(option.value ?? "")
   const chosen = options.find((option) => option.value === formInput.value)
 
   const show = (seed = "") => {
@@ -107,7 +110,7 @@ export const ComboboxInputController: InputControllerComponentInterface = ({
                 <CommandItem
                   key={String(option.value)}
                   // cmdk filters on the value: the words shown, not the page's id.
-                  value={said(option)}
+                  value={words(option)}
                   onSelect={() => pick(option)}
                 >
                   <span className="truncate">{said(option)}</span>
@@ -125,4 +128,12 @@ export const ComboboxInputController: InputControllerComponentInterface = ({
       </PopoverContent>
     </Popover>
   )
+}
+
+/* The words of a label drawn as an element, for cmdk to filter on. */
+function textOf(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join(" ").trim()
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return textOf(node.props.children)
+  return ""
 }

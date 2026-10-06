@@ -109,7 +109,7 @@ test("the project is chosen from the keyboard, filtered by what is typed", async
   await expect(project).toBeFocused()
   await page.keyboard.press("ArrowDown")
   const list = page.getByRole("listbox")
-  await expect(list.getByRole("option")).toHaveCount(3)
+  await expect(list.getByRole("option")).toHaveCount(4)
   const first = await list.getByRole("option", { selected: true }).textContent()
   await page.keyboard.press("ArrowDown")
   await expect(list.getByRole("option", { selected: true })).not.toHaveText(first ?? "")
