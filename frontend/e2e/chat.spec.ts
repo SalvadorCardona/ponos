@@ -41,6 +41,10 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
 
   await expect(page.getByText("Done. The board has 13 tickets.")).toBeVisible()
   await expect(thinking).toHaveCount(0)
+  // Signed by Ponos, with its face — not by "the workspace".
+  const answer = page.locator("[data-slot=message]").filter({ hasText: "Done. The board has 13 tickets." })
+  await expect(answer.locator("[data-slot=message-header]")).toHaveText(/^\s*Ponos/)
+  await expect(answer.locator("[data-slot=turn-avatar] ponos-robot")).toBeVisible()
   const fold = page.getByRole("button", { name: /Show the steps · 3 steps/ }).last()
   await expect(fold).toBeVisible()
   await expect(fold).toContainText("$0.0123")

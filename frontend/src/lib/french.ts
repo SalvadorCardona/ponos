@@ -350,7 +350,6 @@ export const FRENCH: Record<string, string> = {
   you: "vous",
   problem: "problème",
   command: "commande",
-  "the runner": "le runner",
 
   /* -- the workspace console ------------------------------------------------ */
   "Ask the workspace, or type >status": "Demandez à l'espace de travail, ou tapez >status",

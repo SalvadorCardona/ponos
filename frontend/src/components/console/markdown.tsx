@@ -125,11 +125,12 @@ function Attached({ block }: { block: Extract<Block, { kind: "attached" }> }) {
   )
 }
 
-export function Markdown({ text }: { text: string }) {
+/** `className` sets the size of the text, which headings follow. */
+export function Markdown({ text, className }: { text: string; className?: string }) {
   const drawn = React.useMemo(() => blocks(text), [text])
   if (!drawn.length) return null
   return (
-    <div className="flex flex-col gap-2 text-sm leading-relaxed">
+    <div className={cn("flex flex-col gap-2", className ?? "text-sm leading-relaxed")}>
       {drawn.map((block, index) => {
         switch (block.kind) {
           case "heading": {
@@ -138,11 +139,12 @@ export function Markdown({ text }: { text: string }) {
               <Tag
                 key={index}
                 className={cn(
-                  // A heading opening a bubble is not pushed off its own top.
+                  // A heading opening a bubble is not pushed off its own top;
+                  // its size is the text's, wherever that was set.
                   "first:mt-0",
                   block.level === 1
-                    ? "mt-4 text-base font-semibold"
-                    : "mt-3 text-sm font-semibold"
+                    ? "mt-4 text-[1.15em] font-semibold"
+                    : "mt-3 text-[1em] font-semibold"
                 )}
               >
                 <Inline text={block.text} />

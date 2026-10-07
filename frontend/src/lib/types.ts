@@ -308,8 +308,9 @@ export interface RunSteps {
   ended: boolean
 }
 
-/** `stopped`: a turn of the workspace you ended, and what it had said by then. */
-export type Role = "you" | "workspace" | "error" | "command" | "stopped"
+/** `stopped`: a turn of the workspace you ended, and what it had said by then.
+ * `runner`: what Ponos wrote on a ticket, in its discussion. */
+export type Role = "you" | "workspace" | "runner" | "error" | "command" | "stopped"
 
 export interface Message {
   role: Role
