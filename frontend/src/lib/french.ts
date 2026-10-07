@@ -681,8 +681,6 @@ export const FRENCH: Record<string, string> = {
 
   /* -- the settings page, in its own words ----------------------------------- */
   "Configure the runner.": "Configurez le runner.",
-  "A blank field uses the runner’s own default, shown greyed inside it; under each field, its key in config.toml. Your tokens stay on this machine: they are never sent to this page.":
-    "Un champ vide prend la valeur par défaut du runner, affichée en gris à l'intérieur ; sous chaque champ, sa clé dans config.toml. Vos jetons restent sur cette machine : ils ne sont jamais envoyés à cette page.",
   "Reading the configuration…": "Lecture de la configuration…",
   "could not read the configuration: {{why}}": "impossible de lire la configuration : {{why}}",
   "default · {{value}}": "défaut · {{value}}",
