@@ -521,6 +521,10 @@ for reading rather than for filling in.
 | `runner.delivery_prompt_file` | `""` | the same, for publishing a validated ticket |
 | `runner.classify` | `true` | work out the type of a ticket that reaches *Ready* with none — `false` runs it by its project, as before. See [The type of a ticket](#the-type-of-a-ticket) |
 | `runner.classify_model` | `"haiku"` | the model that classifies: it reads one page and answers one line. Empty is the CLI's own |
+| `runner.auto_model` | `true` | choose the model of a ticket whose `Model` is empty, from its type, size, wording and priority — `false` gives every one `runner.model`. See [The model of a ticket](#the-model-of-a-ticket) |
+| `runner.auto_model_light` … `auto_model_heaviest` | `"haiku"`, `"sonnet"`, `"opus"`, `"fable"` | the model of each of the four levels; an empty one borrows the nearest |
+| `runner.auto_model_code` … `auto_model_publication` | `"standard"`, Writing `"light"` | the level each type starts from: `light`, `standard`, `heavy` or `heaviest` |
+| `runner.auto_model_escalate` | `true` | a ticket whose chosen model failed runs one level up next time, once |
 | `runner.classify_confidence` | `"medium"` | `low`, `medium` or `high` — the least confidence a guess is acted on with; below it, the ticket is blocked with the question |
 | `storage.mode` | `"notion"` | which board answers — `notion`, `markdown`, or `both` kept in step. See *Without Notion: the board as Markdown files* below |
 | `storage.path` | `~/.local/state/ponos/board` | the directory the Markdown board lives in |
@@ -947,6 +951,49 @@ a post about a repository's release is still prepared in its page and never in a
 board without a *Validated* column has no such gesture: the prepared content lands in
 *Review* (or *Done*) and publishing it is yours.
 
+### The model of a ticket
+
+A ticket with no `Model` used to run on `runner.model` — in practice the heaviest model
+there is, for *remove that paragraph* as much as for *audit the whole repository*. **Empty
+is a request here too**: with `runner.auto_model` (on by default) the runner picks the
+model itself, before the session starts. A `Model` on the ticket, or on its agent, is
+always taken as written.
+
+Not by asking a model: a few rules read off the ticket cost nothing, give the same answer
+twice, and say exactly why. Four levels, each answered by a model of the configuration —
+`haiku`, `sonnet`, `opus`, `fable` by default (`runner.auto_model_light` …
+`auto_model_heaviest`):
+
+- **the type** sets where it starts (`runner.auto_model_code` and the three others):
+  *standard* for Code, External action and Publication, *light* for Writing — a board
+  without types starts a ticket on a repository at *standard*, any other at *light*;
+- **the size** moves it: one of ordinary size is at least *standard*, and a long one
+  (600 words, or 25 list items) goes up a level;
+- **a small change drops to *light***: one that only asks to remove, rename or reword
+  something — a text, a label, a colour — said in its title (up to 250 words and 10 list
+  items around it), or anywhere in a short request (120 words, 5 items);
+- **the words** that announce heavy work — *audit*, *architecture*, *migration*,
+  *refonte*/*refactor*, *débogage*/*debug*, *diagnostiquer*, *sécurité*, *performance*,
+  *multi-dépôts* —
+  take it to *heavy*, and to *heaviest* when the request is long and names two of them;
+- **the priority**: an *Urgent* or *High* ticket never runs on the lightest model.
+
+External action and Publication never drop below where their type puts them: a browser
+driven by the lightest model clicks the wrong button. The choice and its reason go into a
+comment, not into the `Model` column — written there, it would read on the next attempt
+as a model somebody chose:
+
+> **🧠 Model chosen automatically — haiku**
+> Code ticket, small targeted change (retirer).
+
+**A run that failed goes up one level, once.** A ticket whose chosen model ended in
+*Failed* — a crash, a timeout, a session going round in circles — runs one level higher
+when it comes back, and its comment says so (`runner.auto_model_escalate`). Once: the next
+attempt keeps that model rather than climbing to the top of the price list. A ticket
+stopped by the quota carries its session on with the model it began on. What a run was
+chosen and how it ended is kept in the local journal, so this works the same on a Notion
+board, a Markdown one, or both. Through OpenRouter, name its slugs in the four levels.
+
 ### Following the work
 
 #### Live, on the ticket itself
@@ -1236,8 +1283,10 @@ An agent row may also carry a `Model`, which is how a rewriting ticket runs on a
 model than a refactor. The narrowest choice wins:
 
 ```
-the ticket's Model  →  its agent's Model  →  runner.model
+the ticket's Model  →  its agent's Model  →  the model chosen for it  →  runner.model
 ```
+
+The third only with `runner.auto_model` on — see [The model of a ticket](#the-model-of-a-ticket).
 
 The role is read after your context page and after the project's brief, and **it can never
 loosen the frame**: committing without pushing, and answering `RESULT: blocked` rather than

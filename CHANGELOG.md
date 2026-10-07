@@ -18,6 +18,19 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A ticket with no Model no longer runs on the heaviest model by default.** The
+  runner chooses one before the session starts, by rules that cost nothing: the type
+  sets the level it starts from, the size and the wording move it — a title that asks
+  to *remove*, *rename* or *reword* something drops to `haiku`, a bug or a feature runs on
+  `sonnet`, an *audit*, a *migration*, a *refactor* or a hard bug on `opus`, and a long
+  request full of them on `fable` — and an Urgent or High ticket never gets the
+  lightest. The model and its one-line reason go into a comment on the ticket
+  (*🧠 Model chosen automatically — haiku*). A ticket whose chosen model failed runs
+  one level higher when it comes back, once, and says so. A Model written on the ticket
+  or on its agent is always taken as written. `runner.auto_model` turns it off, and the
+  four levels' models and each type's starting level are set in `config.toml` or in
+  the console's settings (*Models and usage*); the local journal now remembers each
+  run's model. Works the same on a Notion board and a Markdown one.
 - **Every run, and every step of it, in the local database — and the console reads
   them from there.** Each session on a ticket is a run in `ponos.db`, each step a row
   (what the agent said, the tool and what it was pointed at, the failures, the time,

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import shutil
 
-from . import agents, git, kinds, naming, session, state, store
+from . import agents, git, journal, kinds, models, naming, session, state, store
 from . import voice as voice_module
 from .base import Base
 from .config import state_dir
@@ -129,12 +129,16 @@ class Preparation(Base):
             kind=kind,
             reference=reference,
         )
+        if not job.model and not agent.model and self.config.runner.auto_model:
+            self._choose_model(ticket, job)
         where = f"{project.path} · {branch}" if project.is_code else "document → the ticket's page"
         said = f" · {len(job.comments)} comment(s)" if job.comments else ""
         role = f" · as {agent.name}" if agent else ""
         typed = f" · {kind}" if kind else ""
+        model = f" · {job.model} (chosen)" if job.chosen else ""
         self.say(
-            f"  → {ticket.title}\n    {project.name or 'no project'} · {where}{typed}{role}{said}"
+            f"  → {ticket.title}\n    {project.name or 'no project'} · {where}{typed}{role}"
+            f"{model}{said}"
         )
         # `cloned` says the repository was not here until a minute ago — worth a
         # line, since the ticket is running on a folder nobody made by hand.
@@ -163,6 +167,47 @@ class Preparation(Base):
                 },
             )
         return job
+
+    def _choose_model(self, ticket: Ticket, job: Job) -> None:
+        """Pick the model of a ticket nobody gave one, and say so on it.
+
+        Rules rather than a session — see models.py — so it costs nothing and
+        cannot fail a ticket: a journal that cannot be read is a ticket chosen
+        for as if it had never run. The reason goes into a comment, not into
+        the Model column: written there, it would read on the next attempt as
+        a model somebody chose, and a run that failed could never climb.
+        """
+        settings = self.config.runner
+        earlier = journal.chosen(ticket.id)
+        choice = models.choose(
+            ticket.title,
+            job.body,
+            kind=job.kind,
+            code=job.project.is_code,
+            priority=str(store.read(ticket.page, self.config.notion.prop("priority")) or ""),
+            grid=settings.model_grid(),
+            earlier=models.Earlier(**earlier) if earlier else None,
+            escalate=settings.auto_model_escalate,
+        )
+        if not choice.model:
+            return
+        job.model, job.chosen, job.escalated = choice.model, True, choice.escalated
+        said = self.voice
+        parts = []
+        for key, values in choice.signals:
+            if "kind" in values:
+                # As the board spells it: “ticket Rédaction”, not “ticket writing”.
+                values = {**values, "kind": self.kind_name(values["kind"])}
+            parts.append(said.say(key, **values))
+        reason = ", ".join(parts)
+        self.say(f"    · model {choice.model} ({choice.level}) — {reason}")
+        if choice.signals and choice.signals[0][0] == "model-resumed":
+            # The session carried on is the one the first comment was about.
+            return
+        self._comment(
+            ticket,
+            said.report(said.verdict("chosen", choice.model), said.sentence(reason)),
+        )
 
     def _name(self, ticket: Ticket, body: str, short: str) -> None:
         """Give a nameless ticket a title, and write it on the page.

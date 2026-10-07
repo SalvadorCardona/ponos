@@ -43,7 +43,7 @@ from ponos import notify, openrouter, progress, projects, prompt, provision  # n
 from ponos import schedules, session, state, store, sync, systemd  # noqa: E402
 from ponos import db, files, images, journal  # noqa: E402
 from ponos.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
-from ponos import legacy, update, voice, workspace  # noqa: E402
+from ponos import legacy, models, update, voice, workspace  # noqa: E402
 from ponos import ticket as ticket_module  # noqa: E402
 from ponos.runner import Runner  # noqa: E402
 from ponos import __version__  # noqa: E402
@@ -5742,6 +5742,167 @@ def a_board_without_the_column_or_the_setting_runs_tickets_as_before():
     with _state_home(), _naming_session('{"type": "writing", "confidence": "high"}') as asked:
         job = runner.prepare(ticket)
     assert asked == [] and job.kind == "" and job.project.is_code
+
+
+# -- the model of a ticket ----------------------------------------------------
+
+
+_GRID = C.Runner().model_grid()
+
+
+def _chosen(title: str, body: str = "", **given) -> models.Choice:
+    given.setdefault("kind", "code")
+    given.setdefault("code", True)
+    return models.choose(title, body, grid=given.pop("grid", _GRID), **given)
+
+
+@case
+def a_small_change_runs_on_the_light_model_and_says_why():
+    choice = _chosen("Retirer un paragraphe des Réglages", "Le texte sous le titre ne sert à rien.")
+    assert (choice.model, choice.level) == ("haiku", "light"), choice
+    assert ("model-small", {"words": "retirer"}) in choice.signals, choice.signals
+    said = voice.Voice("fr")
+    reason = ", ".join(said.say(key, **values) for key, values in choice.signals)
+    assert reason == "ticket code, petite modification ciblée (retirer)", reason
+    # As tickets are really written: the context, what to do, the criteria.
+    explained = "\n".join(
+        [" ".join(["La page affiche un paragraphe que plus personne ne lit."] * 18)]
+        + [f"- critère {number} vérifié sur desktop et mobile" for number in range(6)]
+    )
+    real = _chosen("Réglages : retirer le paragraphe d'explication", explained, priority="Low")
+    assert real.model == "haiku", "a small change said in its title, however explained"
+    drowned = _chosen("Retirer la phrase et animer le robot", " ".join(["mot"] * 400))
+    assert drowned.model == "sonnet", "past a page, the title alone does not make it small"
+    writing = _chosen("Une phrase d'accroche", "Pour la page d'accueil.", kind="writing", code=False)
+    assert writing.model == "haiku", "a short text is light from the start"
+
+
+@case
+def a_standard_bug_or_feature_runs_on_the_standard_model():
+    body = " ".join(["Le formulaire de connexion renvoie une erreur quand l'email a une majuscule."] * 12)
+    choice = _chosen("Connexion impossible avec une majuscule", body)
+    assert (choice.model, choice.level) == ("sonnet", "standard"), choice
+    assert choice.signals[-1] == ("model-ordinary", {})
+    short = _chosen("Ajouter un bouton d'export CSV")
+    assert short.model == "sonnet", "short, and nothing small about it: the type's level"
+
+
+@case
+def heavy_work_runs_on_a_heavy_model_and_the_heaviest_when_it_is_long_too():
+    audit = _chosen("Audit de sécurité complet", "Passer tout le dépôt en revue.")
+    assert (audit.model, audit.level) == ("opus", "heavy"), audit
+    assert audit.signals[1] == ("model-heavy", {"words": "audit, sécurité"}), audit.signals
+    steps = "\n".join(f"- point {number} à vérifier" for number in range(30))
+    full = _chosen("Audit complet et migration de l'architecture", steps)
+    assert (full.model, full.level) == ("fable", "heaviest"), full
+    long = _chosen("Nouvelle page Statistiques", steps)
+    assert long.model == "opus" and long.signals[1][0] == "model-long", long
+    words = _chosen("Refonte", "Retirer le vieux texte.")
+    assert words.model == "opus", "a heavy word wins over a small one"
+
+
+@case
+def an_action_on_the_world_or_an_urgent_ticket_never_runs_on_the_lightest_model():
+    post = _chosen("Retirer le post LinkedIn", "", kind="publication", code=False)
+    assert post.model == "sonnet", post
+    urgent = _chosen("Renommer le bouton", "", priority="Urgent")
+    assert urgent.model == "sonnet" and urgent.signals[-1][0] == "model-urgent", urgent
+    assert _chosen("Renommer le bouton", "", priority="Low").model == "haiku"
+
+
+@case
+def a_failed_choice_climbs_one_level_once_and_stays_there():
+    earlier = models.Earlier("haiku", "failed")
+    again = _chosen("Retirer le bandeau", earlier=earlier)
+    assert (again.model, again.escalated) == ("sonnet", True), again
+    assert again.signals[-1] == ("model-escalated", {"model": "haiku"})
+    once = _chosen("Retirer le bandeau", earlier=models.Earlier("sonnet", "failed", escalated=True))
+    assert (once.model, once.escalated) == ("sonnet", True), "climbed once, it stays there"
+    assert once.signals == (("model-kept", {"model": "sonnet"}),)
+    done = _chosen("Retirer le bandeau", earlier=models.Earlier("haiku", "done"))
+    assert done.model == "haiku" and not done.escalated, "only a failure climbs"
+    resumed = _chosen("Audit complet", earlier=models.Earlier("sonnet", "waiting"))
+    assert resumed.model == "sonnet", "a session carried on keeps its model"
+    off = _chosen("Retirer le bandeau", earlier=earlier, escalate=False)
+    assert off.model == "haiku" and not off.escalated
+    top = _chosen("Audit complet", earlier=models.Earlier("opus", "failed"))
+    assert top.model == "fable" and top.escalated
+
+
+@case
+def the_grid_is_the_configurations_and_an_empty_level_borrows_the_nearest():
+    path = Path(tempfile.mkdtemp()) / "config.toml"
+    path.write_text(
+        '[notion]\ntoken = "x"\n[runner]\nauto_model_light = ""\n'
+        'auto_model_heavy = "anthropic/claude-opus"\nauto_model_writing = "heavy"\n'
+        'auto_model_code = "massive"\n',
+        encoding="utf-8",
+    )
+    settings = C.load(path).runner
+    grid = settings.model_grid()
+    assert grid.model("light") == "sonnet", "below is nothing, so the one above"
+    assert grid.model("heavy") == "anthropic/claude-opus"
+    assert settings.auto_model_code == "standard", "a level nothing answers is the default"
+    text = models.choose("Un mot", "", kind="writing", code=False, grid=grid)
+    assert text.model == "anthropic/claude-opus", text
+
+
+def _modelled(title: str, body: str, **properties):
+    runner, ticket = _nameless(title, body)
+    runner.client.said = []
+    runner.client.comment = lambda page_id, text, discussion_id="": runner.client.said.append(text)
+    ticket.page.properties.update(properties)
+    return runner, ticket
+
+
+@case
+def a_ticket_with_no_model_is_given_one_and_told_why_in_a_comment():
+    runner, ticket = _modelled("Retirer un paragraphe des Réglages", "Le texte sous le titre.")
+    runner.config.runner.language = "fr"
+    with _state_home():
+        job = runner.prepare(ticket)
+    assert (job.model, job.chosen, job.escalated) == ("haiku", True, False), job
+    assert runner.client.said == [
+        "🧠 Modèle choisi automatiquement — haiku\n"
+        "Ticket Code, petite modification ciblée (retirer)."
+    ], runner.client.said
+    assert all("Model" not in values for values in runner.client.written), (
+        "the column is left for somebody to choose in"
+    )
+
+
+@case
+def a_model_somebody_chose_or_a_switched_off_choice_is_the_runner_as_before():
+    forced = {"Model": {"type": "select", "select": {"name": "opus"}}}
+    runner, ticket = _modelled("Retirer un paragraphe", "Le texte.", **forced)
+    with _state_home():
+        job = runner.prepare(ticket)
+    assert (job.model, job.chosen) == ("opus", False) and runner.client.said == []
+
+    runner, ticket = _modelled("Retirer un paragraphe", "Le texte.")
+    runner.config.runner.auto_model = False
+    with _state_home():
+        job = runner.prepare(ticket)
+    assert (job.model, job.chosen) == ("", False) and runner.client.said == [], (
+        "empty: runner.model, as every ticket had it"
+    )
+
+
+@case
+def a_chosen_model_that_failed_comes_back_one_level_up_from_the_journal():
+    with _state_home():
+        runner, ticket = _modelled("Retirer un paragraphe", "Le texte.")
+        first = runner.prepare(ticket)
+        journal.Run.start(ticket=ticket.id, model=first.model, chosen=True).end("failed")
+        runner, ticket = _modelled("Retirer un paragraphe", "Le texte.")
+        second = runner.prepare(ticket)
+        assert (second.model, second.escalated) == ("sonnet", True), second
+        assert "one level up after a failed run on haiku" in runner.client.said[-1]
+        journal.Run.start(ticket=ticket.id, model=second.model, chosen=True, escalated=True).end("failed")
+        runner, ticket = _modelled("Retirer un paragraphe", "Le texte.")
+        third = runner.prepare(ticket)
+        assert third.model == "sonnet", "once, not to the top of the price list"
+        assert journal.chosen(ticket.id) == {"model": "sonnet", "status": "failed", "escalated": True}
 
 
 @case

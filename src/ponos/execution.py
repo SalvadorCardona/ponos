@@ -107,7 +107,7 @@ class Execution(Base):
         # choice, the more deliberate it was.
         chosen = job.model or job.agent.model or self.config.runner.model
         live = job.live = self._live(job)
-        run = self._journal(job, log)
+        run = self._journal(job, log, chosen)
         try:
             outcome = self._session(job, text, log, chosen, live, run)
             if job.resume and session.lost(outcome):
@@ -193,7 +193,7 @@ class Execution(Base):
             on_event=_both(run.event, live.event if live else None),
         )
 
-    def _journal(self, job: Job, log: Path) -> journal.Run:
+    def _journal(self, job: Job, log: Path, model: str = "") -> journal.Run:
         """The run this session is about to be, opened in the local journal.
 
         Whatever the board, and whatever `runner.progress` says: the page gets
@@ -208,6 +208,9 @@ class Execution(Base):
             agent=job.agent.name,
             session=job.session_id,
             log=log,
+            model=model,
+            chosen=job.chosen,
+            escalated=job.escalated,
             say=self.say,
         )
         self._journals[job.ticket.id] = run

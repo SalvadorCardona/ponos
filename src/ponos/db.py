@@ -56,6 +56,11 @@ committed renames it `<name>.imported`: never deleted, the same rule as
 `legacy.py`, and never read again. A file that is not there is an installation
 that never wrote it, and the table starts empty. Session logs stay files: they
 are read whole, by a person, and are pruned by age.
+
+Migration 10 has a run say which model it ran on, whether that model was
+chosen by the runner rather than written by somebody, and whether it was one
+level up from a run that failed — what models.py reads to climb once, and only
+once.
 """
 
 from __future__ import annotations
@@ -427,6 +432,12 @@ def _steps_name_their_tool(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE steps ADD COLUMN cost_usd REAL")
 
 
+def _runs_say_their_model(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE runs ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE runs ADD COLUMN chosen INTEGER NOT NULL DEFAULT 0")
+    connection.execute("ALTER TABLE runs ADD COLUMN escalated INTEGER NOT NULL DEFAULT 0")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -444,6 +455,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _waits,
     _sync,
     _images,
+    _runs_say_their_model,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

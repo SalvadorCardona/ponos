@@ -51,6 +51,12 @@ class Job:
     log: Path | None = None
     session_home: Path | None = None
     model: str = ""
+    # Whether `model` was chosen by the runner rather than read off the ticket,
+    # and whether that choice was one level up from a run that failed — see
+    # models.py. Written into the run's journal, which is where the next
+    # attempt reads them back.
+    chosen: bool = False
+    escalated: bool = False
     agent: agents.Agent = field(default_factory=agents.Agent)
     comments: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)

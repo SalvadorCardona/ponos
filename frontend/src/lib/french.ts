@@ -844,6 +844,31 @@ export const FRENCH: Record<string, string> = {
   "Default model": "Modèle par défaut",
   "`opus`, `sonnet` or `haiku`, for instance. Empty: Claude Code's own default. A ticket's Model column wins over it.":
     "`opus`, `sonnet` ou `haiku`, par exemple. Vide : le modèle par défaut de Claude Code. La colonne Model d'un ticket l'emporte.",
+  "Choose the model when it is empty": "Choisir le modèle quand il est vide",
+  "From the ticket's type, size, wording and priority: a small change runs on a light model, an audit on a heavy one. The model and the reason go in a comment. Off: the default model for every ticket. A Model on the ticket or its agent is always kept.":
+    "D'après le type du ticket, sa taille, ses mots et sa priorité : une petite modification tourne sur un modèle léger, un audit sur un modèle lourd. Le modèle et la raison vont en commentaire. Désactivé : le modèle par défaut pour chaque ticket. Un Model sur le ticket ou son agent est toujours gardé.",
+  "One level up after a failure": "Un cran au-dessus après un échec",
+  "A ticket whose chosen model failed runs one level higher the next time, once, and says so.":
+    "Un ticket dont le modèle choisi a échoué tourne un niveau plus haut la fois suivante, une seule fois, et le dit.",
+  "Model for light work": "Modèle pour le travail léger",
+  "A text to remove, a label to rename. Empty: the nearest level below or above.":
+    "Un texte à retirer, un libellé à renommer. Vide : le niveau le plus proche, en dessous ou au-dessus.",
+  "Model for standard work": "Modèle pour le travail standard",
+  "A bug or a feature in one pull request.": "Un bug ou une fonctionnalité dans une seule pull request.",
+  "Model for heavy work": "Modèle pour le travail lourd",
+  "An audit, a refactor, a migration, a hard bug.": "Un audit, une refonte, une migration, un bug difficile.",
+  "Model for the heaviest work": "Modèle pour le travail le plus lourd",
+  "A long request full of heavy work.": "Une longue demande pleine de travail lourd.",
+  "The level it starts from, before its size and its wording move it.":
+    "Le niveau dont il part, avant que sa taille et ses mots ne le déplacent.",
+  "Code tickets start at": "Les tickets Code partent de",
+  "Writing tickets start at": "Les tickets Rédaction partent de",
+  "External action tickets start at": "Les tickets Action externe partent de",
+  "Publication tickets start at": "Les tickets Publication partent de",
+  "Light work": "Travail léger",
+  "Standard work": "Travail standard",
+  "Heavy work": "Travail lourd",
+  "Heaviest work": "Travail le plus lourd",
   "Pause when the subscription limit is reached":
     "Patienter quand la limite de l'abonnement est atteinte",
   "On: the ticket waits, ticked Waiting for credit, and starts again when the usage window resets. Off: every ticket fails until then.":
