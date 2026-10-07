@@ -33,6 +33,10 @@ test("its page opens with the discussion unfolded, and the answer goes through t
   await expect(toggle).toHaveAttribute("data-state", "open")
   await expect(toggle).toContainText("1")
   await expect(page.getByText("Which header, the dashboard's or the site's?")).toBeVisible()
+  // The run's question is signed by Ponos, with its face.
+  const question = page.getByRole("log").locator("[data-slot=message]").filter({ hasText: "Which header" })
+  await expect(question.locator("[data-slot=message-header]")).toHaveText(/^\s*Ponos/)
+  await expect(question.locator("[data-slot=turn-avatar] ponos-robot")).toBeVisible()
 
   const field = page.getByRole("textbox", { name: FIELD })
   await expect(page.locator('[data-slot="composer"]').filter({ has: field })).toBeVisible()

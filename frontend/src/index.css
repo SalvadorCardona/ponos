@@ -77,6 +77,11 @@
   /* The faces are the tokens' — see `tokens.css`. */
   --font-sans: var(--sans);
   --font-mono: var(--mono);
+
+  /* What a message says, in the console and on a ticket: a step above the
+     small print around it, with the room to breathe that size asks for. */
+  --text-message: 0.9375rem;
+  --text-message--line-height: 1.6;
 }
 
 @layer base {

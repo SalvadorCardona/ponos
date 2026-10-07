@@ -83,13 +83,6 @@ export function TicketTalk() {
             key={index}
             role={message.role}
             text={message.text}
-            who={
-              message.role === "you"
-                ? t("you")
-                : message.role === "error"
-                  ? t("problem")
-                  : t("the runner")
-            }
             when={moment(message.at)}
           />
         ))}
