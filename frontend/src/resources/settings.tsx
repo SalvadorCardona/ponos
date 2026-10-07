@@ -343,8 +343,8 @@ function DiskLine() {
   )
 }
 
-/* What sits above the tabs: where you are, what the page is for, which file it
- * is writing, and whatever `doctor` would refuse to start over. */
+/* What sits above the tabs: where you are, which file it is writing, and
+ * whatever `doctor` would refuse to start over. */
 function SettingsHead() {
   const { fetchData } = useCurrentViewResourceContext()
   const t = useT()
@@ -371,9 +371,6 @@ function SettingsHead() {
     <>
       <PageHead
         title={t("Configure the runner.")}
-        blurb={t(
-          "A blank field uses the runner’s own default, shown greyed inside it; under each field, its key in config.toml. Your tokens stay on this machine: they are never sent to this page."
-        )}
         action={<span className="text-muted-foreground font-mono text-xs break-all">{drawn.path}</span>}
       />
       <DiskLine />
