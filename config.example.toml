@@ -205,7 +205,8 @@ last_ticket = "Last ticket"
 # A project with neither is a project without code: its tickets become documents.
 
 # The model is picked from the narrowest choice that names one:
-#   the ticket's Model, then its agent's Model, then runner.model below.
+#   the ticket's Model, then its agent's Model, then the one runner.auto_model
+#   chooses, then runner.model below.
 
 # The states that drive the whole system. Point them at whatever your board
 # calls them — `ponos doctor` checks that each one really exists.
@@ -562,6 +563,30 @@ delivery_prompt_file = ""
 classify = true
 classify_model = "haiku"         # empty: the CLI's own — routed through OpenRouter, name a slug
 classify_confidence = "medium"   # low, medium or high: the least a guess is acted on with
+
+# A ticket whose Model is empty (and whose agent names none) gets a model chosen
+# for it before it runs — by rules, not by a session, so it costs nothing: its
+# type sets the level it starts from, its size and its wording move it (remove,
+# rename, reword in the title → light; past 600 words or 25 list items → one
+# up; audit, migration, refactor, debug → heavy), and an Urgent or High ticket
+# never runs on the lightest. The model and the reason go
+# into a comment, never into the Model column. Off: runner.model for every one.
+auto_model = true
+# The model of each level. Empty borrows the nearest level below, then above.
+# Routed through OpenRouter, name its slugs here.
+auto_model_light = "haiku"
+auto_model_standard = "sonnet"
+auto_model_heavy = "opus"
+auto_model_heaviest = "fable"
+# The level each type starts from: light, standard, heavy or heaviest. A board
+# without types starts a ticket on a repository as code, any other as writing.
+auto_model_code = "standard"
+auto_model_writing = "light"
+auto_model_external = "standard"      # never lower: the lightest model in a browser
+auto_model_publication = "standard"   # clicks the wrong button
+# A ticket whose chosen model failed runs one level up when it comes back —
+# once, and its comment says so. The next attempt keeps that model.
+auto_model_escalate = true
 
 # ---------------------------------------------------------------------------
 # Every other model

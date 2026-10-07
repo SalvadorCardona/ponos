@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
-from . import db, journal, kinds, legacy, store, voice
+from . import db, journal, kinds, legacy, models, store, voice
 from . import provision
 from . import schedules as schedules_module
 from . import session, state, systemd
@@ -1073,6 +1073,20 @@ def command_doctor(args: argparse.Namespace) -> int:
 
     title("Model")
     ok(f"claude: {session.available() or 'missing'}")
+    runner_settings = configuration.runner
+    if runner_settings.auto_model:
+        grid = runner_settings.model_grid()
+        levels = ", ".join(f"{level} {grid.model(level) or '—'}" for level in models.LEVELS)
+        ok(f"an empty Model is chosen by the rules: {levels}")
+        if not runner_settings.auto_model_escalate:
+            print(f"  {DIM}runner.auto_model_escalate = false — a failed run comes back on the same model{RESET}")
+        if configuration.openrouter.key and configuration.openrouter.route_sessions:
+            claude_names = {"haiku", "sonnet", "opus", "fable"}
+            if any(grid.model(level) in claude_names for level in models.LEVELS):
+                warn("sessions go through OpenRouter — name its slugs in runner.auto_model_*")
+    else:
+        default = runner_settings.model or "the CLI's default model"
+        print(f"  {DIM}runner.auto_model = false — an empty Model runs on {default}{RESET}")
     interval = configuration.runner.interval_seconds
     print(f"  {DIM}one run every {interval}s (ponos enable to apply a change){RESET}")
     if shutil.which("systemctl"):

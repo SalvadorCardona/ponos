@@ -20,7 +20,7 @@ from pathlib import Path
 
 # The two vocabularies of `[storage]`, kept where the interface is declared —
 # `store.py` imports nothing from here, so this direction is the safe one.
-from . import disk
+from . import disk, models
 from .store import CONFLICTS, MODES
 
 PLACEHOLDER = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -259,6 +259,33 @@ class Runner:
     # The least confidence a guess is acted on with. Below it, the ticket is
     # blocked with the question rather than run on a guess.
     classify_confidence: str = "medium"
+    # Choosing the model of a ticket whose Model is empty, by rules read off the
+    # ticket — its type, its size, its words, its priority — rather than giving
+    # every one `model`. See models.py. Off, `model` for all of them, as before.
+    # A Model written on the ticket, or on its agent, is always taken as written.
+    auto_model: bool = True
+    # Which model answers each of the four levels…
+    auto_model_light: str = "haiku"
+    auto_model_standard: str = "sonnet"
+    auto_model_heavy: str = "opus"
+    auto_model_heaviest: str = "fable"
+    # …and the level each type starts from, before its size and its words move it.
+    auto_model_code: str = "standard"
+    auto_model_writing: str = "light"
+    auto_model_external: str = "standard"
+    auto_model_publication: str = "standard"
+    # A ticket chosen for and failed comes back one level up, once.
+    auto_model_escalate: bool = True
+
+    def model_grid(self) -> models.Grid:
+        """The levels and the types' starting points, as models.py reads them."""
+        return models.Grid(
+            models={level: getattr(self, f"auto_model_{level}") for level in models.LEVELS},
+            starts={
+                kind: getattr(self, f"auto_model_{kind}")
+                for kind in ("code", "writing", "external", "publication")
+            },
+        )
 
     def interface_language(self) -> str:
         """The language the console opens in, as the file says it — or nothing.
@@ -984,6 +1011,28 @@ def load(path: Path | None = None) -> Config:
             str(runner_raw.get("classify_confidence", "")).strip().lower()
             if str(runner_raw.get("classify_confidence", "")).strip().lower() in CONFIDENCES
             else defaults.classify_confidence
+        ),
+        auto_model=bool(runner_raw.get("auto_model", defaults.auto_model)),
+        # Empty is allowed: a level that names no model borrows the nearest one
+        # that does — see `models.Grid.model`.
+        **{
+            f"auto_model_{level}": str(
+                runner_raw.get(f"auto_model_{level}", getattr(defaults, f"auto_model_{level}"))
+            ).strip()
+            for level in models.LEVELS
+        },
+        # Filtered rather than trusted: a typo is the type's default level, not
+        # a level nothing answers.
+        **{
+            f"auto_model_{kind}": (
+                str(runner_raw.get(f"auto_model_{kind}", "")).strip().lower()
+                if str(runner_raw.get(f"auto_model_{kind}", "")).strip().lower() in models.LEVELS
+                else getattr(defaults, f"auto_model_{kind}")
+            )
+            for kind in ("code", "writing", "external", "publication")
+        },
+        auto_model_escalate=bool(
+            runner_raw.get("auto_model_escalate", defaults.auto_model_escalate)
         ),
     )
 

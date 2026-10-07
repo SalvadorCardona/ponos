@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .. import config as config_module
-from .. import voice
+from .. import models, voice
 from ..config import CONFIDENCES, EVENTS, MERGE_METHODS, UPDATE_CHANNELS, Config
 from ..store import CONFLICTS, MODES
 
@@ -46,6 +46,14 @@ PERMISSION_OPTIONS = (
     ("acceptEdits", "Edit files, no commands (acceptEdits)"),
     ("default", "Ask each time (default)"),
     ("plan", "Read only (plan)"),
+)
+
+# The four levels a model is chosen among, said as what they are for.
+LEVEL_OPTIONS = (
+    ("light", "Light work"),
+    ("standard", "Standard work"),
+    ("heavy", "Heavy work"),
+    ("heaviest", "Heaviest work"),
 )
 
 
@@ -279,6 +287,43 @@ SECTIONS: tuple[Section, ...] = (
                 "runner", "model", "text", "Default model",
                 "`opus`, `sonnet` or `haiku`, for instance. Empty: Claude Code's own default. "
                 "A ticket's Model column wins over it.",
+            ),
+            Field(
+                "runner", "auto_model", "bool", "Choose the model when it is empty",
+                "From the ticket's type, size, wording and priority: a small change runs on "
+                "a light model, an audit on a heavy one. The model and the reason go in a "
+                "comment. Off: the default model for every ticket. A Model on the ticket or "
+                "its agent is always kept.",
+            ),
+            Field(
+                "runner", "auto_model_escalate", "bool", "One level up after a failure",
+                "A ticket whose chosen model failed runs one level higher the next time, "
+                "once, and says so.",
+                advanced=True,
+            ),
+            *(
+                Field("runner", f"auto_model_{level}", "text", label, help, advanced=True)
+                for level, label, help in (
+                    ("light", "Model for light work", "A text to remove, a label to rename. "
+                     "Empty: the nearest level below or above."),
+                    ("standard", "Model for standard work", "A bug or a feature in one pull "
+                     "request."),
+                    ("heavy", "Model for heavy work", "An audit, a refactor, a migration, a "
+                     "hard bug."),
+                    ("heaviest", "Model for the heaviest work", "A long request full of "
+                     "heavy work."),
+                )
+            ),
+            *(
+                Field("runner", f"auto_model_{kind}", "choice", label,
+                      "The level it starts from, before its size and its wording move it.",
+                      choices=models.LEVELS, options=LEVEL_OPTIONS, advanced=True)
+                for kind, label in (
+                    ("code", "Code tickets start at"),
+                    ("writing", "Writing tickets start at"),
+                    ("external", "External action tickets start at"),
+                    ("publication", "Publication tickets start at"),
+                )
             ),
             Field(
                 "runner", "wait_for_credits", "bool", "Pause when the subscription limit is reached",

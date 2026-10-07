@@ -512,11 +512,14 @@ args = sys.argv[1:]
 # runner always sends it — see session.py.
 prompt = sys.stdin.read()
 session = args[args.index("--session-id") + 1] if "--session-id" in args else ""
+model = args[args.index("--model") + 1] if "--model" in args else ""
 
 log = os.environ.get("FAKE_CLAUDE_LOG")
 if log:
     with open(log, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"cwd": os.getcwd(), "session": session, "prompt": prompt}) + "\\n")
+        handle.write(json.dumps(
+            {"cwd": os.getcwd(), "session": session, "model": model, "prompt": prompt}
+        ) + "\\n")
 
 
 # A session that lasts: it says it has started, then waits for the test to let
@@ -1464,8 +1467,37 @@ def a_publication_whose_validation_is_forced_goes_out_without_waiting():
         assert "prepare it, do not publish it" in sessions[0]["prompt"]
         assert "You are publishing, not producing" in sessions[1]["prompt"]
         said = machine.board.said(ticket)
+        assert said[0].startswith("🧠"), "the model chosen, before the work"
+        said = said[1:]
         assert len(said) == 1 and said[0].startswith("✅"), said
         assert "Validated automatically (Force validated: Publication)" in said[0], said
+
+
+@case
+def a_ticket_with_no_model_runs_on_the_one_chosen_for_it_and_a_model_written_as_written():
+    with bench() as machine:
+        project = machine.project("Notes", None)
+        light = machine.ticket("Retirer un paragraphe", "Le texte sous le titre ne sert à rien.", project)
+        heavy = machine.ticket("Audit complet", "Audit de sécurité et de performance du site.", project)
+        forced = machine.ticket("Retirer une ligne", "La dernière du pied de page.", project)
+        machine.board.pages[forced]["properties"]["Model"] = _stored({"select": {"name": "opus"}})
+
+        machine.run()
+
+        ran = {
+            title: entry["model"]
+            for entry in machine.sessions()
+            for title in ("Retirer un paragraphe", "Audit complet", "Retirer une ligne")
+            if title in entry["prompt"]
+        }
+        assert ran == {
+            "Retirer un paragraphe": "haiku",
+            "Audit complet": "opus",
+            "Retirer une ligne": "opus",
+        }, ran
+        assert machine.board.said(light)[0].startswith("🧠 Model chosen automatically — haiku")
+        assert "heavy work (audit, sécurité, performance)" in machine.board.said(heavy)[0]
+        assert not any(line.startswith("🧠") for line in machine.board.said(forced))
 
 
 @case

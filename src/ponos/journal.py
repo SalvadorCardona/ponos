@@ -92,13 +92,16 @@ class Run:
         agent: str = "",
         session: str = "",
         log: Path | str = "",
+        model: str = "",
+        chosen: bool = False,
+        escalated: bool = False,
         say: Callable[[str], None] = lambda message: None,
     ) -> Run:
         try:
             with db.transaction() as connection:
                 identifier = connection.execute(
-                    "INSERT INTO runs (ticket, title, kind, project, agent, session, log, started_at)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO runs (ticket, title, kind, project, agent, session, log, started_at,"
+                    " model, chosen, escalated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         ticket.replace("-", ""),
                         title,
@@ -108,6 +111,9 @@ class Run:
                         session,
                         str(log),
                         _now(),
+                        model,
+                        int(chosen),
+                        int(escalated),
                     ),
                 ).lastrowid
         except _FAILURES as error:
@@ -208,6 +214,26 @@ def runs(ticket: str = "", limit: int = 50) -> list[dict]:
             )
         names = [column[0] for column in cursor.description]
         return [_run(row, names) for row in cursor.fetchall()]
+
+
+def chosen(ticket: str) -> dict | None:
+    """The last run of a ticket whose model the runner chose, and how it ended.
+
+    What models.py climbs from. None when there is no such run — or no journal
+    to ask: a choice made without it is the rules' alone, never a failure.
+    """
+    try:
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT model, status, escalated FROM runs WHERE ticket = ? AND chosen = 1"
+                " ORDER BY started_at DESC, id DESC LIMIT 1",
+                (ticket.replace("-", ""),),
+            ).fetchone()
+    except _FAILURES:
+        return None
+    if row is None:
+        return None
+    return {"model": row[0], "status": row[1] or "", "escalated": bool(row[2])}
 
 
 def run(identifier: int) -> dict | None:

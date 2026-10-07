@@ -74,6 +74,7 @@ MARKS = {
     "published": "✅",
     "prepared": "✅",
     "classified": "🏷️",
+    "chosen": "🧠",
     "blocked": "🙋",
     "failed": "⚠️",
     "waiting": "⏸️",
@@ -156,6 +157,10 @@ _SAID: dict[str, dict[str, str]] = {
     "verdict-published": {"en": "Published", "fr": "Publié"},
     "verdict-prepared": {"en": "To validate", "fr": "À valider"},
     "verdict-classified": {"en": "Classified", "fr": "Classé"},
+    "verdict-chosen": {
+        "en": "Model chosen automatically",
+        "fr": "Modèle choisi automatiquement",
+    },
     "verdict-blocked": {"en": "Stuck", "fr": "Bloqué"},
     "verdict-failed": {"en": "Failed", "fr": "Échec"},
     "verdict-waiting": {"en": "Waiting", "fr": "En attente"},
@@ -206,6 +211,36 @@ _SAID: dict[str, dict[str, str]] = {
         "overwritten.",
         "fr": "C'est faux ? Change la colonne {property} — un type choisi à la main "
         "n'est jamais écrasé.",
+    },
+    # Why a model was chosen, one signal each, joined into one sentence — see
+    # models.py for the rules they name.
+    "model-type": {"en": "{kind} ticket", "fr": "ticket {kind}"},
+    "model-small": {
+        "en": "small targeted change ({words})",
+        "fr": "petite modification ciblée ({words})",
+    },
+    "model-short": {"en": "short request", "fr": "demande courte"},
+    "model-ordinary": {"en": "request of ordinary size", "fr": "demande de taille ordinaire"},
+    "model-long": {
+        "en": "long request ({count} words, {steps} steps)",
+        "fr": "demande longue ({count} mots, {steps} étapes)",
+    },
+    "model-heavy": {"en": "heavy work ({words})", "fr": "travail lourd ({words})"},
+    "model-urgent": {
+        "en": "{priority} priority, not the lightest model",
+        "fr": "priorité {priority}, pas le modèle le plus léger",
+    },
+    "model-escalated": {
+        "en": "one level up after a failed run on {model}",
+        "fr": "un cran au-dessus après un échec sur {model}",
+    },
+    "model-kept": {
+        "en": "kept since the escalation to {model}, which happens only once",
+        "fr": "gardé depuis l'escalade vers {model}, qui n'a lieu qu'une fois",
+    },
+    "model-resumed": {
+        "en": "the model the interrupted session began on",
+        "fr": "le modèle sur lequel la session interrompue avait commencé",
     },
     "prepared-next": {
         "en": "Move it to {validated} and it goes out as it stands; until then, nothing "
