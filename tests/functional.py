@@ -1883,6 +1883,9 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
             "PATH": os.pathsep.join([str(launcher.parent), str(machine.root / "bin"), str(tools)]),
             "PONOS_CONFIG": str(machine.config),
             "FAKE_CLAUDE_HOLD": str(hold),
+            # The install.sh layout, wherever the suite runs — the CI runs it in
+            # the image too, where a new version is a new image instead.
+            "PONOS_CONTAINER": "",
         }
 
         def started(*arguments: str) -> subprocess.Popen:

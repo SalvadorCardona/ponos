@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import channels, conversation, credits, session, state, store, sync
+from . import channels, conversation, credits, provider, session, state, store, sync
 from . import question as question_module
 from . import voice as voice_module
 from .base import Base
@@ -585,6 +585,16 @@ class Reports(Base):
 
     # -- nothing left to spend -------------------------------------------------
 
+    @property
+    def _waits_for_credits(self) -> bool:
+        """`wait_for_credits`, for the one provider whose credits come in windows.
+
+        A key — Anthropic's or OpenRouter's — is billed as it is used: there is
+        no window to wait for and no share of one to keep in reserve, and a
+        reading of the subscription's usage says nothing about it. See provider.py.
+        """
+        return self.config.runner.wait_for_credits and provider.chosen(self.config) == "cli"
+
     def _out_of_credit(self, outcome: session.Outcome) -> bool:
         """Did this session die on the subscription's quota, and do we wait?
 
@@ -593,7 +603,7 @@ class Reports(Base):
         `wait_for_credits` off, an exhausted quota is a session failure like any
         other and is reported as one — which is what the runner always did.
         """
-        return bool(outcome.exhausted and self.config.runner.wait_for_credits)
+        return bool(outcome.exhausted and self._waits_for_credits)
 
     def _hold_credits(self, outcome: session.Outcome) -> None:
         """Put the runner to sleep until the credits come back.
@@ -690,7 +700,7 @@ class Reports(Base):
         for credits has no window to reserve a slice of; and a reading nobody
         could take is a warning, not a stop — see `credits.used`.
         """
-        if not self.config.runner.wait_for_credits:
+        if not self._waits_for_credits:
             return 0.0
         reading = credits.used()
         if reading is None:
@@ -792,7 +802,7 @@ class Reports(Base):
         removed here, so the run that finds the credits back is the one that
         says so.
         """
-        if not self.config.runner.wait_for_credits:
+        if not self._waits_for_credits:
             return 0.0
         until = credits.held()
         if until:

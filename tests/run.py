@@ -7314,9 +7314,7 @@ def the_sign_in_page_asks_the_way_the_console_does():
     assert web_server.GUARD_HEADER in web_server.SIGN_IN, "the login would be refused as CSRF"
     assert "/api/login" in web_server.SIGN_IN
     assert 'type="password"' in web_server.SIGN_IN
-    assert web_server.GUARD_HEADER in web_server.SETUP, "the first connection would be CSRF"
-    assert "/api/setup" in web_server.SETUP
-    for page in (web_server.GATE, web_server.SIGN_IN, web_server.SETUP):
+    for page in (web_server.GATE, web_server.SIGN_IN):
         assert "src=\"http" not in page and "href=\"http" not in page, "it reaches off the machine"
 
 
@@ -7440,6 +7438,301 @@ def a_first_connection_that_cannot_be_signed_into_later_is_refused():
             continue
         raise AssertionError(f"{payload} should have been refused")
     assert path.read_text(encoding="utf-8") == before, "a refusal writes nothing"
+
+
+def _talk_to(console, method: str, path: str, body: dict | None = None, **headers: str):
+    """One request to a console started for the test: status, headers, JSON."""
+    connection = http.client.HTTPConnection("127.0.0.1", console.server_address[1], timeout=10)
+    sent = {"Host": "127.0.0.1", "X-Ponos": "1", "Content-Type": "application/json", **headers}
+    connection.request(method, path, body=json.dumps(body).encode() if body is not None else None,
+                       headers=sent)
+    answer = connection.getresponse()
+    raw = answer.read()
+    connection.close()
+    try:
+        parsed = json.loads(raw.decode("utf-8") or "{}")
+    except ValueError:
+        parsed = {"_raw": raw.decode("utf-8", "replace")}
+    return answer.status, answer.headers, parsed
+
+
+@contextmanager
+def _console(api, code: str = "", entry=None):
+    from ponos.web import server as web_server
+
+    console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok", entry, code)
+    threading.Thread(target=console.serve_forever, daemon=True).start()
+    try:
+        yield console
+    finally:
+        console.shutdown()
+        console.server_close()
+
+
+@case
+def from_outside_this_machine_nobody_claims_the_console_without_its_code():
+    """A console behind a domain is a console the whole Internet reaches first.
+
+    On loopback the first browser is somebody sitting at the machine. Anything
+    else — another address, or this one through a proxy, which is what Traefik
+    in front of a container is — has to give the code `serve` printed when it
+    started. No code drawn, and the first connection is simply not offered.
+    """
+    from ponos.web import server as web_server
+
+    claim = {"email": "me@example.com", "password": "one I remember", "confirm": "one I remember"}
+    proxied = {"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Proto": "https"}
+
+    path, _ = _saved()
+    before = path.read_text(encoding="utf-8")
+    api = _Fresh(path)
+    with _console(api) as console:
+        status, _, said = _talk_to(console, "GET", "/api/setup", **proxied)
+        assert status == 200 and said["claimed"] is False and said["code"] is True, said
+        assert said["code_drawn"] is False
+        status, _, said = _talk_to(console, "POST", "/api/setup", claim, **proxied)
+        assert status == 403, (status, said)
+        assert "installation code" in said["error"]
+        status, _, said = _talk_to(console, "GET", "/", **proxied)
+        assert status == 200 and 'data-setup="claim"' in said["_raw"], "the steps, drawn by the bundle"
+        status, _, said = _talk_to(console, "GET", "/api/board", **proxied)
+        assert status == 401, "and nothing else of the console"
+    assert path.read_text(encoding="utf-8") == before, "a refusal writes nothing"
+    assert web_server.claimable(api.config, None), "and the console is still nobody's"
+
+    api = _Fresh(path)
+    with _console(api, code="K7Q2-M9XD") as console:
+        status, _, said = _talk_to(console, "POST", "/api/setup", {**claim, "code": "AAAA-BBBB"}, **proxied)
+        assert status == 403 and said["error"] == "wrong installation code", said
+        assert path.read_text(encoding="utf-8") == before
+        status, headers, said = _talk_to(console, "POST", "/api/setup", {**claim, "code": "k7q2m9xd"}, **proxied)
+        assert status == 200, said
+        assert "ponos_token=" in headers["Set-Cookie"]
+        assert console.code == "", "a code opens the door once"
+    assert not web_server.claimable(api.config, web_server.sign_in(api.config, "tok"))
+
+    # At the machine itself, nothing to give: that is a laptop's first browser.
+    path, _ = _saved()
+    api = _Fresh(path)
+    with _console(api) as console:
+        status, _, said = _talk_to(console, "GET", "/api/setup")
+        assert said["code"] is False, said
+        status, _, said = _talk_to(console, "POST", "/api/setup", claim)
+        assert status == 200, said
+
+
+@case
+def behind_https_the_consoles_cookies_are_secure():
+    """The proxy says the browser came in over HTTPS: the cookie never goes back in clear.
+
+    All three ways in — the token in the address, a sign-in, and the first
+    connection — set the same cookie, and all three mark it `Secure` then.
+    """
+    from ponos.web import server as web_server
+
+    path, _ = _saved('\n[web]\nemail = "me@example.com"\npassword = "one I remember"\n')
+    api = _Fresh(path)
+    entry = web_server.sign_in(api.config, "tok")
+    https = {"X-Forwarded-Proto": "https"}
+    with _console(api, entry=entry) as console:
+        signing = {"email": "me@example.com", "password": "one I remember"}
+        _, headers, _ = _talk_to(console, "POST", "/api/login", signing, **https)
+        assert headers["Set-Cookie"].endswith("; Secure"), headers["Set-Cookie"]
+        _, headers, _ = _talk_to(console, "POST", "/api/login", signing)
+        assert "Secure" not in headers["Set-Cookie"], "plain HTTP on loopback has no use for it"
+        status, headers, _ = _talk_to(console, "GET", "/?token=tok", **https)
+        assert status == 303 and "; Secure" in headers["Set-Cookie"]
+
+    path, _ = _saved()
+    with _console(_Fresh(path)) as console:
+        claim = {"email": "me@example.com", "password": "one I remember"}
+        status, headers, said = _talk_to(console, "POST", "/api/setup", claim, **https)
+    # Through a proxy, and so from outside: refused without a code — and with
+    # one, below, the cookie it leaves is a secure one.
+    assert status == 403, said
+    path, _ = _saved()
+    with _console(_Fresh(path), code="ABCD-EFGH") as console:
+        status, headers, said = _talk_to(
+            console, "POST", "/api/setup", {**claim, "code": "ABCD-EFGH"}, **https
+        )
+    assert status == 200 and "; Secure" in headers["Set-Cookie"], said
+
+
+@contextmanager
+def _environment(**values: str | None):
+    """Some variables set — or taken away, for None — for the length of a block."""
+    previous = {name: os.environ.get(name) for name in values}
+    for name, value in values.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+@case
+def a_file_with_no_provider_runs_its_sessions_where_it_always_did():
+    """`claude.provider` is a choice; a file written before it is not moved anywhere."""
+    from ponos import provider
+
+    with _environment(ANTHROPIC_API_KEY=None, OPENROUTER_API_KEY=None):
+        _, plain = _saved()
+        assert provider.chosen(plain) == "cli" and provider.environment(plain) == {}
+        _, routed = _saved('\n[openrouter]\nkey = "sk-or-1234567890"\nroute_sessions = true\n')
+        assert provider.chosen(routed) == "openrouter"
+        assert provider.environment(routed)["ANTHROPIC_AUTH_TOKEN"] == "sk-or-1234567890"
+
+        # Chosen on purpose, the provider wins over a key that is only there.
+        _, cli = _saved(
+            '\n[claude]\nprovider = "cli"\n[openrouter]\nkey = "sk-or-1234567890"\nroute_sessions = true\n'
+        )
+        given = provider.environment(cli)
+        assert "ANTHROPIC_AUTH_TOKEN" not in given and "ANTHROPIC_BASE_URL" not in given
+        assert given["OPENROUTER_API_KEY"] == "sk-or-1234567890", "still there for the work"
+
+        _, keyed = _saved('\n[claude]\nprovider = "api_key"\napi_key = "sk-ant-abcdefghijkl"\n')
+        assert provider.environment(keyed) == {"ANTHROPIC_API_KEY": "sk-ant-abcdefghijkl"}
+        assert provider.describe(keyed) == ("Anthropic API key", "sk-ant…ijkl")
+        _, typo = _saved('\n[claude]\nprovider = "anthropic"\n')
+        assert typo.claude.provider == "" and provider.chosen(typo) == "cli"
+
+        _, empty = _saved('\n[claude]\nprovider = "api_key"\n')
+        assert "ANTHROPIC_API_KEY" in provider.problem(empty)
+        # The CLI's session is never handed the key it would sign in with instead.
+        _, cli_keyed = _saved('\n[claude]\nprovider = "cli"\napi_key = "sk-ant-abcdefghijkl"\n')
+        assert provider.environment(cli_keyed) == {}
+
+    # A container is given its keys in the environment; the file still wins.
+    with _environment(ANTHROPIC_API_KEY="sk-ant-from-env-0000", OPENROUTER_API_KEY="sk-or-env-0000"):
+        _, bare = _saved()
+        assert bare.claude.api_key == "sk-ant-from-env-0000"
+        assert bare.openrouter.key == "sk-or-env-0000"
+        _, written = _saved('\n[claude]\napi_key = "sk-ant-typed"\n')
+        assert written.claude.api_key == "sk-ant-typed"
+        assert provider.problem(_saved('\n[claude]\nprovider = "api_key"\n')[1]) == ""
+
+
+@case
+def only_the_cli_waits_for_credits():
+    """A key is billed as it is used: no window to wait for, no share to reserve."""
+    with _environment(ANTHROPIC_API_KEY=None, OPENROUTER_API_KEY=None):
+        assert Runner(_saved()[1], quiet=True)._waits_for_credits
+        keyed = _saved('\n[claude]\nprovider = "api_key"\napi_key = "sk-ant-abcdefghijkl"\n')[1]
+        assert not Runner(keyed, quiet=True)._waits_for_credits
+        routed = _saved('\n[openrouter]\nkey = "sk-or-1234567890"\nroute_sessions = true\n')[1]
+        assert not Runner(routed, quiet=True)._waits_for_credits
+
+
+@case
+def doctor_says_which_provider_answers_and_counts_one_that_cannot():
+    from ponos.__main__ import _doctor_provider
+
+    with _environment(ANTHROPIC_API_KEY=None, OPENROUTER_API_KEY=None):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert _doctor_provider(_saved('\n[claude]\nprovider = "api_key"\n')[1]) == 1
+        assert "Anthropic API key" in out.getvalue() and "ANTHROPIC_API_KEY" in out.getvalue()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            routed = '\n[claude]\nprovider = "openrouter"\n[openrouter]\nkey = "sk-or-1234567890"\n'
+            assert _doctor_provider(_saved(routed)[1]) == 0
+        said = out.getvalue()
+        assert 'claude.provider = "openrouter"' in said and "sk-or-…7890" in said
+        assert "route_sessions = false" in said, "a provider whose sessions are not on it is said"
+
+
+@case
+def the_first_connection_writes_the_provider_only_once_it_answers():
+    """A key that does not work, saved, is a ticket that fails on it in the night."""
+    from ponos import provider
+    from ponos.web import setup as web_setup
+
+    path, _ = _saved()
+    api = _Fresh(path)
+    original = provider.api_key, provider.openrouter_key, provider.cli_login
+    try:
+        provider.api_key = lambda key: provider.Check(key == "sk-ant-good", "checked")
+        provider.openrouter_key = lambda key, base="": provider.Check(key == "sk-or-good", "checked")
+        provider.cli_login = lambda: provider.Check(False, "not signed in — claude auth login")
+        with _environment(ANTHROPIC_API_KEY=None, OPENROUTER_API_KEY=None):
+            said = web_setup.save_provider(api, {"provider": "api_key", "key": "sk-ant-bad"})
+            assert said["ok"] is False and "api_key" not in path.read_text(encoding="utf-8")
+            said = web_setup.save_provider(api, {"provider": "api_key", "key": "sk-ant-good"})
+            assert said["ok"] and api.config.claude.provider == "api_key"
+            assert api.config.claude.api_key == "sk-ant-good"
+            said = web_setup.save_provider(
+                api, {"provider": "openrouter", "key": "sk-or-good", "route_sessions": True}
+            )
+            assert said["ok"] and provider.chosen(api.config) == "openrouter"
+            assert api.config.openrouter.route_sessions is True
+            # The CLI is written at once: what it needs is typed in a terminal.
+            said = web_setup.save_provider(api, {"provider": "cli"})
+            assert said["ok"] is False and said["command"] == "claude auth login"
+            assert api.config.claude.provider == "cli"
+            try:
+                web_setup.save_provider(api, {"provider": "bedrock"})
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("an unknown provider is refused")
+    finally:
+        provider.api_key, provider.openrouter_key, provider.cli_login = original
+
+
+@case
+def in_a_container_a_new_version_is_a_new_image():
+    """No link to move and no unit to restart: the image is the version."""
+    from ponos.web import upgrade as web_upgrade
+
+    with _environment(PONOS_CONTAINER="1"), _state_home():
+        status = update.check()
+        assert status.reason == update.CONTAINER and not status.stale
+        assert update.apply(update.Status(current="a", latest="b"), 60) == update.CONTAINER
+        said: list[str] = []
+        update.between_runs(C.Runner(), say=said.append, notify=lambda *_: None)
+        assert said == [], "nothing to say once an hour about something that cannot happen"
+        upgrade = web_upgrade.Upgrade(lambda *a, **k: None, C.Runner)
+        offer = upgrade.offer()
+        assert offer["automatic"] is False and "new image" in offer["manual"]
+        assert offer["command"] == update.PULL
+        try:
+            upgrade.start()
+        except RuntimeError as error:
+            assert "new image" in str(error)
+        else:
+            raise AssertionError("no update starts in a container")
+
+
+@case
+def a_loop_of_runs_takes_the_lock_like_the_timer_did():
+    """`run --every` starts `ponos run` itself, and a run already going turns it away."""
+    from ponos.__main__ import run_every
+
+    root = Path(tempfile.mkdtemp())
+    config = root / "config.toml"
+    config.write_text(f'[storage]\nmode = "markdown"\npath = "{root / "board"}"\n', encoding="utf-8")
+    arguments = build_parser().parse_args(["run", "--every", "1"])
+    assert arguments.every == 1
+    assert build_parser().parse_args(["run", "--every"]).every == 0, "the configuration's interval"
+    with _environment(PONOS_CONFIG=str(config)), _state_home():
+        with state.lock():
+            answered = subprocess.run(
+                [sys.executable, "-c", (
+                    "import sys; from ponos.__main__ import run_every, build_parser;"
+                    "sys.exit(run_every(build_parser().parse_args(['run', '--every', '1']), passes=2))"
+                )],
+                capture_output=True, text=True, timeout=120,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
+            )
+        assert answered.returncode == 0, answered.stderr
+        assert answered.stdout.count("a run is already in progress") == 2, answered.stdout
 
 
 @case
@@ -8207,7 +8500,7 @@ def the_sessions_running_are_announced_when_they_change_and_kept_for_the_next_ta
 
 @case
 def the_pages_before_the_console_speak_the_browsers_language():
-    """The sign-in, the gate and the first connection, as the console would say them.
+    """The sign-in and the gate, as the console would say them.
 
     Same rule as the console: the browser's own list decides. And every field
     has a label that names it, rather than a greyed example that vanishes the
@@ -8219,10 +8512,10 @@ def the_pages_before_the_console_speak_the_browsers_language():
     assert web_server.language_of("de-DE,en-GB;q=0.7") == "en"
     assert web_server.language_of("") == "en"
 
-    for build in (web_server.sign_in_page, web_server.setup_page, web_server.gate_page):
+    for build in (web_server.sign_in_page, web_server.gate_page):
         french = build("fr")
         assert '<html lang="fr">' in french
-        assert "Ouvrir la console" in french or "Tout configurer" in french
+        assert "Ouvrir la console" in french
         assert web_server.GUARD_HEADER in french or build is web_server.gate_page
         for field in re.findall(r'<(?:input|textarea)[^>]*\bid="([^"]+)"', french):
             assert f'<label for="{field}"' in french, f"{field} has no label"
@@ -8525,6 +8818,7 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
         ("web", C.Web()),
         ("notify", C.Notify()),
         ("openrouter", C.OpenRouter()),
+        ("claude", C.Claude()),
         ("storage", C.Storage()),
     ):
         for name in vars(holder):

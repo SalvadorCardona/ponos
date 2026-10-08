@@ -47,3 +47,14 @@ test("the page has one title, and no way back to a list", async ({ page }) => {
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("config.toml")
   await expect(page.getByRole("heading", { level: 2 })).toHaveCount(1)
 })
+
+test("the settings say what the console runs on, line by line", async ({ page }) => {
+  await open(page, "/?view=console/settings/read/config/claude")
+  await settingsPage(page)
+  await page.getByRole("button", { name: "What this console runs on" }).click()
+  const summary = page.getByTestId("summary-rows")
+  await expect(summary.locator("[data-row]")).toHaveCount(7, { timeout: 30_000 })
+  await expect(summary.locator('[data-row="board"]')).toHaveAttribute("data-state", "ok")
+  await summary.locator('[data-row="channels"]').getByRole("link", { name: "Change" }).click()
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("console/settings/read/config/notify")
+})

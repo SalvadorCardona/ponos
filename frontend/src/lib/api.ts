@@ -25,6 +25,7 @@ import type {
   Talk,
   TicketDetail,
 } from "./types"
+import type { SetupState, Summary } from "./setup"
 
 /* Talking to the server.
  *
@@ -232,6 +233,40 @@ export const api = {
    * server's to know. */
   upgrade: () => request<UpgradeProgress>("/api/update", {}),
   cancelUpgrade: () => request<UpgradeProgress>("/api/update/cancel", {}),
+
+  /* The first connection. Its own state is asked without the door's reload:
+   * a console nobody has claimed answers it to anybody, and a 401 there is an
+   * answer to draw — the sign-in — not a page to leave. */
+  setupState: async (): Promise<SetupState | null> => {
+    const response = await fetch("/api/setup", { headers: { ...GUARD }, credentials: "same-origin" })
+    return response.ok ? ((await response.json()) as SetupState) : null
+  },
+  claim: (typed: { code: string; email: string; password: string; confirm: string }) =>
+    request<{ steps: [string, string][]; problem: string; email: string }>("/api/setup", typed),
+  summary: () => request<Summary>("/api/setup/summary"),
+  claudeLogin: () => request<Checked & { command: string }>("/api/setup/claude"),
+  saveProvider: (chosen: { provider: string; key?: string; route_sessions?: boolean }) =>
+    request<Checked & { command?: string }>("/api/setup/provider", chosen),
+  saveNotion: (typed: { token: string; page: string }) =>
+    request<Provisioned & { board: Summary["board"] }>("/api/setup/notion", typed),
+  github: () => request<Summary["github"]>("/api/setup/github"),
+  saveChannels: (typed: Record<string, string>) =>
+    request<Provisioned & { channels: { name: string; ok: boolean; said: string }[] }>(
+      "/api/setup/channels",
+      typed
+    ),
+}
+
+/** A check of the first connection: does it work, and who, or why not. */
+export interface Checked {
+  ok: boolean
+  said: string
+}
+
+/** What a step that builds something did, line by line, and what it could not. */
+export interface Provisioned {
+  steps: [string, string][]
+  problem: string
 }
 
 /** The message of whatever went wrong, however it went wrong. */

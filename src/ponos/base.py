@@ -25,7 +25,7 @@ import socket
 import threading
 from datetime import datetime
 
-from . import channels, conversation, journal, legacy, notify, openrouter, store
+from . import channels, conversation, journal, legacy, notify, provider, store
 from . import voice as voice_module
 from . import workspace as workspace_module
 from .config import Config
@@ -135,11 +135,12 @@ class Base:
     def environment(self) -> dict[str, str]:
         """What every session this run starts is given, beyond what it inherits.
 
-        The OpenRouter key when there is one, and nothing at all when there is
-        not. Read off the configuration each time, for the same reason as
-        `voice`: a key typed into the console is a key the next run uses.
+        The OpenRouter key when there is one, the Anthropic key when that is the
+        provider, and nothing at all otherwise — see provider.py. Read off the
+        configuration each time, for the same reason as `voice`: a key typed
+        into the console is a key the next run uses.
         """
-        return openrouter.environment(self.config.openrouter)
+        return provider.environment(self.config)
 
     def say(self, message: str) -> None:
         if not self.quiet:

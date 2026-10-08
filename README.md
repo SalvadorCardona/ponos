@@ -151,6 +151,9 @@ It needs Linux with systemd in the user session, `python3` ≥ 3.11 — standard
 nothing to install —, `git` and [Claude Code](https://claude.com/claude-code), and `gh` only
 for tickets that end in a pull request. The rest is in [Installation](#installation) below.
 
+Or in a container, on your machine or behind a domain: `docker compose up -d`, then the
+console's first connection — see [Docker](#docker) and [Deploying on Dokploy](#deploying-on-dokploy).
+
 **Everything else is in the documentation:**
 [Installation, in full](#installation) ·
 [The board and its columns](#the-statuses) ·
@@ -165,6 +168,8 @@ for tickets that end in a pull request. The rest is in [Installation](#installat
 [Configuration](#configuration) ·
 [Every command](#usage) ·
 [On a server](#on-a-server) ·
+[Docker](#docker) ·
+[Deploying on Dokploy](#deploying-on-dokploy) ·
 [When it does not work](#when-it-does-not-work) ·
 [Ponos, the mascot](#ponos-the-mascot)
 
@@ -578,6 +583,35 @@ sessions in flight than you allowed. An answer to a *blocked* ticket asks for wo
 than for a reply, so that one is picked up by the pass itself at the next freed place —
 including one typed in Telegram or Slack, which is written onto its ticket at every
 refill.
+
+### Who answers the sessions
+
+Every session the runner starts is Claude Code, and Claude Code has to be paid for by
+somebody. On a laptop that was never a question — `claude` was signed in once, and that
+was the subscription. On a server it is the first one, and `[claude]` is where it is
+answered:
+
+```toml
+[claude]
+provider = "cli"        # or "api_key", or "openrouter"
+```
+
+| `provider` | What it is | What goes with it |
+|---|---|---|
+| `"cli"` | Claude Code signed in as you, `claude auth login` once on that machine | Your subscription. The only one that keeps **Claude in Chrome**, and the only one whose credits come in windows worth [waiting for](#when-the-credits-run-out). |
+| `"api_key"` | An Anthropic key: `claude.api_key`, or `ANTHROPIC_API_KEY` from the environment | Billed by the token. No browser, nothing to wait for. |
+| `"openrouter"` | The key of `[openrouter]` (below), or `OPENROUTER_API_KEY` | With `route_sessions = true` the sessions run there, and a model is an OpenRouter slug. No browser, nothing to wait for. |
+
+An empty `provider` is a file written before the key existed, and it reads the way that
+file always worked: OpenRouter when its sessions are routed there, the CLI otherwise. A key
+in the file wins over the one in the environment, which only fills an empty line — a key
+somebody has just typed and checked must not lose to one a compose file was started with.
+An Anthropic key is handed to a session only when it is the provider: given to a CLI
+session, it would quietly take the place of the subscription.
+
+The [first connection](#the-first-connection) asks this in its second step and tries the
+key before writing it; `ponos doctor` says which provider is in use, where the choice
+came from, and — for the CLI — whether `claude auth status` finds an account signed in.
 
 ### Every other model
 
@@ -2447,63 +2481,59 @@ but the tunnel is the answer that does not depend on the token never leaking.
 A token protects an installation that is already set up. A fresh one has nothing to
 protect yet — and asking somebody to go and find a secret on disk before they may type
 their own is the wrong way round. So a console **nobody has claimed** — no `web.token`
-chosen in the configuration, no email and password set — serves a form instead of a
-door, and `http://127.0.0.1:8787` is the whole of the address:
+chosen in the configuration, no email and password set — serves its first connection
+instead of a door, and `http://127.0.0.1:8787` is the whole of the address. It comes in
+steps, drawn by the console itself, one write each:
 
-```
-┌──────────────────────────────────────────────────┐
-│ Ponos                                            │
-│ Nobody has claimed this console yet.             │
-│                                                  │
-│ ┌─ You ──────────────────────────────────────┐   │
-│ │ email · password · the same password again │   │
-│ ├─ Notion — or leave it for later ───────────┤   │
-│ │ ntn_… · the link of the page you shared    │   │
-│ ├─ Your rules — read into every ticket ──────┤   │
-│ │ who you are, how you like things written   │   │
-│ ├─ Telegram — optional ──────────────────────┤   │
-│ │ the bot token · chat id, found on its own  │   │
-│ └────────────────────────────────────────────┘   │
-│               [ Set it up ]                      │
-└──────────────────────────────────────────────────┘
-```
+1. **Access** — the email and the password the console asks for from now on. They are
+   written into `[web]`, the browser is signed in with them there and then, and that pair
+   is what **closes this step for good**: from the next request on, the console is
+   claimed. From anywhere but this machine, the *installation code* is asked first — see
+   below.
+2. **Claude provider** — who answers the sessions, in three cards: the CLI signed in as you,
+   an Anthropic key, or OpenRouter (see [Who answers the sessions](#who-answers-the-sessions)).
+   A key is tried against its provider before it is written; for the CLI the page shows the
+   command to type in a terminal (`claude auth login`) and asks again once you have.
+3. **Notion** — the integration token and the page you shared, the two halves of
+   [step 1 and step 2](#1-create-a-notion-integration): what happens next is `ponos
+   init`, the same code and the same databases, built under that page. A board already
+   there is said, and left alone; a Markdown board has nothing to connect.
+4. **GitHub** — whether `gh` is signed in, or has a `GH_TOKEN`, and as whom.
+5. **Channels**, optional — Telegram and Slack. Leave Telegram's chat id empty, say anything
+   to your new bot, and the id is read back from it, the same gesture as `notify --pair`.
+6. **Summary** — what the console runs on, one line per thing that has to work, each `ok`,
+   `missing` or `error`, and each leading to the step that changes it: the provider and its
+   account or masked key, the default model and the automatic choice, the board and how
+   many tickets it holds, the GitHub account, the projects folder and the repositories
+   found in it, the channels, and whether this is a container or a machine, with the
+   version. The **Settings** page keeps the same summary at its top, under *What this
+   console runs on*.
 
-`serve` starts on the file `install.sh` leaves, Notion token or not — this page is where
+Every step but the first may be left for later, and a step that fails says so and leaves
+the ones before it standing, exactly as `init` does, since pages created in somebody's
+Notion are not a thing to roll back. `/setup` is where the steps are afterwards, and the
+bare address of a console that has no board yet leads there on its own.
+
+`serve` starts on the file `install.sh` leaves, Notion token or not — these steps are where
 the token gets filled in, so the console only refuses a configuration that is missing or
-does not parse. Until a token is there, the board and the other Notion-backed panes say so
-without sending the example's placeholder to Notion, and `ponos run`, which is
-what the timer calls, keeps refusing with the list of what is missing.
+does not parse. Until a token is there, `ponos run`, which is what the timer calls, keeps
+refusing with the list of what is missing.
 
-One press does the whole installation, in that order:
-
-- the **email and password** are written into `[web]`, and the browser is signed in with
-  them there and then — asking for a password typed one second ago would be the token all
-  over again. That pair is also what **closes this page for good**: from the next request
-  on, the console is claimed and asks for a sign-in;
-- the **Notion token and page** are the two halves of [step 1 and step 2](#1-create-a-notion-integration)
-  above, and what happens next is `ponos init` — the same code, the same five
-  databases, the same columns — built under the page you shared, with `notion.workspace`
-  written back into the configuration;
-- the **rules** are [the context page](#the-context-page--who-the-work-is-for): the text
-  that reaches every session before the project's brief and before the ticket;
-- the **Telegram bot token** pairs itself. Leave the chat id empty, say anything to your
-  new bot, and the id is read back from it — the same gesture as `notify --pair`.
-
-Everything but the first pair may be left empty and filled in later from the Settings
-tab; a step that fails says so and leaves the ones before it standing, exactly as `init`
-does, since pages created in somebody's Notion are not a thing to roll back.
-
-> **Who may claim it.** An unclaimed console is necessarily on loopback — `serve` refuses
-> to start on any other host without a token or a sign-in — so "the first browser" means
-> "somebody sitting at this machine". On a machine you share with other people, set
-> `web.token`, or the sign-in, *before* starting the console: both are a decision, and
-> claiming is what happens when nobody took one. `ponos serve` says which of the
-> two states it is in, in the line it prints.
+> **Who may claim it.** On a laptop the console listens on loopback, and the first browser
+> to arrive is somebody sitting at this machine. Anywhere else — another address, or this
+> one *through a proxy*, which is what a domain in front of a container is — the first
+> connection asks for the **installation code**: eight letters `serve` draws when it starts
+> on an unclaimed console, and prints beside the address (`code  K7Q2-M9XD`). In a
+> container that line is in its logs, which Dokploy shows. A wrong code costs a second, the
+> right one opens the door once, and a console that drew none refuses a first connection
+> from outside altogether. With `PONOS_WEB_EMAIL` and `PONOS_WEB_PASSWORD` in the
+> environment the console is claimed before anybody arrives, and the steps start after
+> the account.
 
 An installation that already works and has never been given a password is unclaimed too,
-and the same address serves the same form — with the Notion half already done, so all it
-asks for is the pair. A browser still carrying the token in a cookie goes straight to the
-console instead, and `http://127.0.0.1:8787/setup` is where the form is then.
+and the same address serves the same steps — with the Notion half already done. A browser
+still carrying the token in a cookie goes straight to the console instead, and
+`http://127.0.0.1:8787/setup` is where the steps are then.
 
 ### Signing in instead of pasting a token
 
@@ -2550,6 +2580,7 @@ ponos list         # the ready tickets, and their project
 ponos run          # one run, right now
 ponos run --dry-run          # what it would do, touching nothing
 ponos run --ticket <url>     # that one ticket, whatever its status
+ponos run --every [seconds]  # keep running: one run every interval, where there is no systemd
 ponos logs -f      # follow the running session
 ponos status       # timer, console, current run, recent tickets
 ponos history      # what has been handled, with the pull requests
@@ -2919,7 +2950,102 @@ board and the wrong one for a private machine.
 
 The same sentence covers the web console, more directly: whoever can reach that port can
 run commands on that machine. On a server, leave it on loopback and reach it through the
-ssh tunnel above — never on `0.0.0.0` because it happened to be easier that evening.
+ssh tunnel above — never on `0.0.0.0` because it happened to be easier that evening. In a
+container behind a domain, see [Docker](#docker): there it listens to the proxy, and the
+installation code then the password are what stand between the Internet and the runner.
+
+## Docker
+
+The image is another way to install the runner, not another program: the same Python and
+the same standard library, with what `install.sh` would have found on the machine — git,
+`gh`, Node and Claude Code. The console is not built in it; it is committed, built.
+
+```sh
+docker compose up -d
+docker compose logs ponos          # the address, and "code  XXXX-XXXX"
+```
+
+`docker-compose.yml` publishes no port, because on a server the proxy reaches it (see
+Dokploy, below). To open it on your own machine, add `ports: ["127.0.0.1:8787:8787"]` to
+the service, then open `http://127.0.0.1:8787` — the request comes from Docker's network
+rather than from loopback, so the first connection asks for the code from the logs.
+
+**One service, two halves.** The container runs the loop the systemd timer would have
+started — `ponos run --every`, a run every `runner.interval_seconds`, each in a process
+of its own that takes the run lock like any other, so two passes never overlap — and the
+console in the foreground, whose logs are the container's. The loop reads the interval
+again before every wait, and starts the next run at once when the configuration changes:
+the minute a board is connected, its first run begins. Until there is one, it says so once
+and waits. The image sets the interval to 60 seconds in the configuration it writes on
+first start.
+
+**The volumes** are the four places that outlive a container:
+
+| Volume | Mounted on | What it holds |
+|---|---|---|
+| `ponos-data` | `/data` | `XDG_CONFIG_HOME` and `XDG_STATE_HOME`: `config.toml`, the journal, the logs, the worktrees |
+| `ponos-workspace` | `/workspace` | `workspace_root`: the projects, cloned there by Ponos when they are missing |
+| `ponos-claude` | `/home/ponos/.claude` | Claude Code's sign-in and its sessions |
+| `ponos-gh` | `/home/ponos/.config/gh` | `gh`'s sign-in, when it is not `GH_TOKEN` |
+
+**The variables**, each optional, read from the environment or from a `.env` beside the
+compose file:
+
+| Variable | What it does |
+|---|---|
+| `PONOS_WEB_EMAIL`, `PONOS_WEB_PASSWORD` | Both set: the console is claimed before anybody opens it, and the first connection starts after the account. |
+| `GH_TOKEN` | The account pull requests are opened as; `git` pushes through `gh` with it. |
+| `ANTHROPIC_API_KEY` | The key of the `api_key` provider, when the configuration holds none. |
+| `OPENROUTER_API_KEY` | The key of `[openrouter]`, when the configuration holds none. |
+
+**Signing Claude Code in**, for the `cli` provider: once, from a terminal in the container,
+and the sign-in is kept in its volume.
+
+```sh
+docker compose exec ponos claude auth login
+```
+
+The first connection shows the command and checks the sign-in afterwards; `docker compose
+exec ponos ponos doctor` says the same from a terminal. The runner runs as the `ponos`
+user, not as root — Claude Code refuses `bypassPermissions` to root.
+
+**Updating** is pulling a new image: `docker compose pull && docker compose up -d`. Inside a
+container the runner never updates itself — there is no install directory to move and no
+unit to restart — and the version in the console's header says so instead of offering a
+button. A release publishes `ghcr.io/salvadorcardona/ponos` with its version as the tag,
+and `latest`.
+
+**What you lose** in a container, against a machine:
+
+- **Claude in Chrome**, unless the provider is the CLI *and* a Chrome is reachable from the
+  container — which it is not by default: the image carries no browser;
+- **desktop notifications** — there is no desktop. Telegram or Slack are the only ways to be
+  told, which is why the first connection asks for them;
+- **`ponos://` links** — a session cannot open in a terminal on your machine from there;
+  `session_host` with an ssh destination is the way back to one.
+
+## Deploying on Dokploy
+
+Dokploy runs a compose file behind Traefik, with HTTPS and a domain, and that is the whole
+of what the console needs.
+
+1. **Create a Compose service** from this repository (or from your fork), compose file
+   `docker-compose.yml`. Dokploy builds the image; a release's `ghcr.io` image works too.
+2. **Environment** tab: whichever of the variables above you want — at the least
+   `GH_TOKEN`, and the provider's key unless you sign the CLI in. `PONOS_WEB_EMAIL` and
+   `PONOS_WEB_PASSWORD` make the console yours before it is ever reachable.
+3. **Domains** tab: a domain on the service `ponos`, port `8787`, HTTPS on. Traefik
+   terminates TLS and says so in `X-Forwarded-Proto`, and every cookie the console sets is
+   then `Secure`.
+4. **Deploy**, then **Logs**: the line `code  XXXX-XXXX` is the installation code the first
+   connection asks for — unless the console was claimed by the two variables.
+5. Open the domain and go through the steps. For the `cli` provider, Dokploy's **Terminal**
+   tab on the service is where `claude auth login` is typed.
+
+The console behind a domain is reachable by the whole Internet, and behind it sits a
+runner with `bypassPermissions`: the installation code is what keeps the first stranger
+from claiming it, and the password is what keeps everybody out after you. Choose it
+accordingly.
 
 ---
 

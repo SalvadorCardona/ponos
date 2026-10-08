@@ -1,0 +1,9 @@
+# The image is the runner and nothing else: the console is already built into
+# src/ponos/web/static, and the tests are mounted by the CI job that runs them.
+.git
+**/__pycache__
+**/node_modules
+frontend
+docs
+diagrams
+tests

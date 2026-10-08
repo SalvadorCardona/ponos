@@ -48,6 +48,13 @@ PERMISSION_OPTIONS = (
     ("plan", "Read only (plan)"),
 )
 
+# The three accounts a session may run on, said as what each of them is.
+PROVIDER_OPTIONS = (
+    ("cli", "Claude Code CLI — your subscription (claude login)"),
+    ("api_key", "Anthropic API key — billed by the token"),
+    ("openrouter", "OpenRouter — the key of the OpenRouter section"),
+)
+
 # The four levels a model is chosen among, said as what they are for.
 LEVEL_OPTIONS = (
     ("light", "Light work"),
@@ -587,6 +594,28 @@ SECTIONS: tuple[Section, ...] = (
         ),
     ),
     Section(
+        key="claude",
+        title="Claude provider",
+        blurb=(
+            "Who answers the sessions: Claude Code signed in as you, an Anthropic key, or "
+            "OpenRouter. The first connection asks, and checks the answer works."
+        ),
+        fields=(
+            Field(
+                "claude", "provider", "choice", "Provider",
+                "Only the CLI keeps Claude in Chrome and the wait for credits. Empty: "
+                "OpenRouter when its sessions are routed there, the CLI otherwise.",
+                choices=config_module.PROVIDERS,
+                options=PROVIDER_OPTIONS,
+            ),
+            Field(
+                "claude", "api_key", "secret", "Anthropic API key",
+                "From console.anthropic.com. Used only when the provider is the key; "
+                "empty, `ANTHROPIC_API_KEY` from the environment is.",
+            ),
+        ),
+    ),
+    Section(
         key="openrouter",
         title="OpenRouter (other models)",
         blurb=(
@@ -810,6 +839,11 @@ def _fallback(config: Config, entry: Field) -> object:
     Read off the loaded configuration rather than written down again, so the
     placeholder cannot drift from the default it claims to show.
     """
+    if entry.name == "claude.provider":
+        # What the sessions run on today, which a file that names none still has.
+        from .. import provider
+
+        return provider.chosen(config)
     if entry.table == "notion.status":
         return config_module.defaults("status").get(entry.key, "")
     if entry.table == "notion.properties":
@@ -824,6 +858,7 @@ def _fallback(config: Config, entry: Field) -> object:
         "notify": config.notify,
         "web": config.web,
         "openrouter": config.openrouter,
+        "claude": config.claude,
         "storage": config.storage,
     }.get(entry.table)
     if holder is None:  # a channel table: nothing is defaulted into it

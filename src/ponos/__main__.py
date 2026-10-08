@@ -21,6 +21,7 @@ from datetime import datetime
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
 from . import db, journal, kinds, legacy, models, store, voice
 from . import provision
+from . import provider as provider_module
 from . import schedules as schedules_module
 from . import session, state, systemd
 from . import update as update_module
@@ -88,6 +89,8 @@ def load_config() -> config_module.Config:
 
 
 def command_run(args: argparse.Namespace) -> int:
+    if getattr(args, "every", None) is not None:
+        return run_every(args)
     configuration = load_config()
     runner = Runner(
         configuration, dry_run=args.dry_run, announce_idle=sys.stdout.isatty()
@@ -105,6 +108,85 @@ def command_run(args: argparse.Namespace) -> int:
     # The timer should only see a failure if the whole run failed: one ticket
     # out of three going wrong is not a service outage.
     return 1 if results and failures == len(results) else 0
+
+
+# How often a loop waiting for its next run looks at the configuration. A file
+# that moved is somebody who has just set the board up, or changed the interval:
+# the next run is started then, rather than up to an interval later.
+LOOP_GLANCE = 5.0
+
+
+def run_every(args: argparse.Namespace, *, passes: int = 0) -> int:
+    """What the systemd timer does, for a machine that has no systemd — a container.
+
+    Each run is `ponos run` in a process of its own, exactly what the timer
+    starts: it takes the run lock like any other, so a run already going — the
+    console's `run`, a second loop — turns it away as busy rather than doubling
+    it; and it imports the code on disk, so a run never outlives the version it
+    started on. The interval is read from the configuration before every wait
+    unless `--every` named one, so changing it in the console needs no restart.
+
+    `passes` stops after that many runs; zero is forever. For the tests.
+    """
+    command = [sys.executable, "-m", PRODUCT, "run"]
+    for flag, value in (("--ticket", args.ticket), ("--limit", args.limit)):
+        if value:
+            command += [flag, str(value)]
+    if args.dry_run:
+        command.append("--dry-run")
+    # The sources this process was started from, so `-m ponos` finds them
+    # whatever launched it — the launcher, the image, a checkout.
+    source = str(Path(__file__).resolve().parents[1])
+    inherited = os.environ.get("PYTHONPATH", "")
+    environment = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(part for part in (source, inherited) if part),
+    }
+    done = 0
+    waiting = False
+    while True:
+        started = time.monotonic()
+        if _usable():
+            waiting = False
+            subprocess.run(command, env=environment)
+        elif not waiting:
+            # A container's first minutes: the console is up, nobody has given
+            # it a board yet. Said once, rather than as an error every minute.
+            print(f"{DIM}no board configured yet — the first run starts once there is one{RESET}",
+                  flush=True)
+            waiting = True
+        # Read after the run, which may write the file itself.
+        seen = _config_stamp()
+        done += 1
+        if passes and done >= passes:
+            return 0
+        interval = args.every or _interval()
+        while time.monotonic() - started < interval:
+            time.sleep(min(LOOP_GLANCE, max(0.0, interval - (time.monotonic() - started))))
+            if _config_stamp() != seen:
+                break
+
+
+def _usable() -> bool:
+    try:
+        config_module.load().require_usable()
+    except config_module.ConfigError:
+        return False
+    return True
+
+
+def _interval() -> int:
+    try:
+        return config_module.load().runner.interval_seconds
+    except config_module.ConfigError:
+        return config_module.Runner().interval_seconds
+
+
+def _config_stamp() -> float:
+    try:
+        return config_module.config_path().stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def command_list(args: argparse.Namespace) -> int:
@@ -763,6 +845,9 @@ def command_doctor(args: argparse.Namespace) -> int:
                 warn(f"{owner}/* — gh is not signed in as {account}: gh auth login")
                 problems += 1
 
+    title("Claude provider")
+    problems += _doctor_provider(configuration)
+
     settings = configuration.runner
     if settings.rebase and settings.resolve_conflicts:
         excepted = settings.resolve_conflicts_except.strip()
@@ -789,7 +874,9 @@ def command_doctor(args: argparse.Namespace) -> int:
     print(f"  {DIM}Ponos {__version__} — releases: CHANGELOG.md{RESET}")
     channel = configuration.runner.update_channel
     status = update_module.check(channel=channel)
-    if status.reason:
+    if config_module.in_container():
+        print(f"  {DIM}{status.reason}{RESET}")
+    elif status.reason:
         warn(status.reason)
     elif status.stale:
         available = f"{status.tag} ({status.latest[:8]})" if status.tag else status.latest[:8]
@@ -797,22 +884,26 @@ def command_doctor(args: argparse.Namespace) -> int:
     else:
         newest = f"{status.tag}, " if status.tag else ""
         ok(f"newest version installed ({newest}{status.current[:8]})")
-    following = (
-        "every commit of the branch it was installed from"
-        if channel == "main"
-        else "the newest release tag (vX.Y.Z), never a commit in between"
-    )
-    print(f"  {DIM}runner.update_channel = \"{channel}\" — follows {following}{RESET}")
-    if configuration.runner.auto_update:
-        every = configuration.runner.update_interval_seconds
-        print(f"  {DIM}checked by a run every {every}s (runner.auto_update){RESET}")
-    else:
-        print(f"  {DIM}runner.auto_update = false — ponos update to do it by hand{RESET}")
+    # In a container there is nothing to follow: the image is the version.
+    if not config_module.in_container():
+        following = (
+            "every commit of the branch it was installed from"
+            if channel == "main"
+            else "the newest release tag (vX.Y.Z), never a commit in between"
+        )
+        print(f"  {DIM}runner.update_channel = \"{channel}\" — follows {following}{RESET}")
+        if configuration.runner.auto_update:
+            every = configuration.runner.update_interval_seconds
+            print(f"  {DIM}checked by a run every {every}s (runner.auto_update){RESET}")
+        else:
+            print(f"  {DIM}runner.auto_update = false — ponos update to do it by hand{RESET}")
 
     title("Notifications")
     settings = configuration.notify
     if not settings.desktop:
         print(f"  {DIM}desktop notifications off{RESET}")
+    elif config_module.in_container():
+        print(f"  {DIM}no desktop in a container — Telegram or Slack are the way to be told{RESET}")
     elif shutil.which("notify-send"):
         ok("desktop — notify-send")
     else:
@@ -1100,7 +1191,10 @@ def command_doctor(args: argparse.Namespace) -> int:
         print(f"  {DIM}runner.auto_model = false — an empty Model runs on {default}{RESET}")
     _doctor_fable(runner_settings)
     interval = configuration.runner.interval_seconds
-    print(f"  {DIM}one run every {interval}s (ponos enable to apply a change){RESET}")
+    if config_module.in_container():
+        print(f"  {DIM}one run every {interval}s — ponos run --every, no timer in a container{RESET}")
+    else:
+        print(f"  {DIM}one run every {interval}s (ponos enable to apply a change){RESET}")
     if shutil.which("systemctl"):
         timer = systemd.read()
         _timer_line(timer)
@@ -1116,6 +1210,36 @@ def command_doctor(args: argparse.Namespace) -> int:
         print(f"\n{RED}{problems} problem(s) to fix.{RESET}")
         return 1
     print(f"\n{GREEN}Everything is in place.{RESET}")
+    return 0
+
+
+def _doctor_provider(configuration: config_module.Config) -> int:
+    """Which account the sessions run on, and whether it would answer — see provider.py.
+
+    No key leaves this machine here: the CLI's sign-in is asked of the CLI, and
+    a key is said to be there or not. Whether Anthropic or OpenRouter accept it
+    is the first connection's question, asked while somebody is there to fix it.
+    """
+    which = provider_module.chosen(configuration)
+    name, detail = provider_module.describe(configuration)
+    stated = configuration.claude.provider
+    origin = f'claude.provider = "{stated}"' if stated else "claude.provider not set"
+    ok(f"{name} — {detail} ({origin})")
+    trouble = provider_module.problem(configuration)
+    if trouble:
+        bad(trouble)
+        return 1
+    if which == "cli":
+        login = provider_module.cli_login()
+        if login.ok:
+            ok(f"claude signed in as {login.said}")
+        else:
+            bad(f"claude: {login.said}")
+            return 1
+        return 0
+    print(f"  {DIM}no Claude in Chrome, nothing to wait for: billed as it is used{RESET}")
+    if which == "openrouter" and not configuration.openrouter.route_sessions:
+        warn("openrouter.route_sessions = false — the sessions still run on the CLI's sign-in")
     return 0
 
 
@@ -1660,6 +1784,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--ticket", help="URL or ID of one ticket, whatever its status")
     run.add_argument("--limit", type=int, help="maximum number of tickets for this run")
     run.add_argument("--dry-run", action="store_true", help="show without changing anything")
+    run.add_argument(
+        "--every",
+        type=int,
+        nargs="?",
+        const=0,
+        metavar="SECONDS",
+        help="keep running, one run every SECONDS (default: runner.interval_seconds) — "
+        "the timer, where there is no systemd",
+    )
     run.set_defaults(function=command_run)
 
     listing = subparsers.add_parser("list", help="list the ready tickets")

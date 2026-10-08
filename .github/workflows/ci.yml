@@ -24,6 +24,12 @@
 # faire défiler, par exemple — aucune des deux suites ne le voit.
 # Node 24, parce que `npm test` fait lire à `node --test` les tests de
 # la barre de message écrits en TypeScript, sans rien installer pour ça.
+#
+# Le job image construit le `Dockerfile` et relance `tests/functional.py` dans
+# l'image qu'il vient de construire : c'est une autre façon d'installer le
+# runner, et ce qu'elle apporte — le Python 3.13 de l'image, son git, son
+# utilisateur qui n'est pas root — doit faire passer le même parcours. Le dépôt
+# est monté en lecture seule : la suite n'écrit que dans ses dossiers jetables.
 
 name: CI
 
@@ -112,3 +118,14 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npm run test:e2e
         working-directory: frontend
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: L'image
+        run: docker build -t ponos:ci .
+
+      - name: Le parcours complet, dans l'image
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo ponos:ci python3 tests/functional.py
