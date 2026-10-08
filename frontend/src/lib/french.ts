@@ -681,6 +681,11 @@ export const FRENCH: Record<string, string> = {
   "No project": "Sans projet",
   "{{open}} open · {{closed}} closed · {{created}} created · {{cost}} spent":
     "{{open}} ouverts · {{closed}} fermés · {{created}} créés · {{cost}} dépensés",
+  "No ticket of this project over this period.": "Aucun ticket de ce projet pendant cette période.",
+  "Created, by status": "Créés, par statut",
+  "{{cost}} per closed ticket": "{{cost}} par ticket terminé",
+  "Spent by the runner's sessions in the period; the average is over the tickets closed in it, all their sessions counted.":
+    "Dépensé par les sessions du runner sur la période ; la moyenne porte sur les tickets terminés sur la période, toutes leurs sessions comprises.",
   "No ticket created in the period.": "Aucun ticket créé sur la période.",
   "A closing is dated by the runner's history when the runner closed the ticket ({{history}}), by the page's last edit in Notion otherwise ({{edited}}).":
     "Une fermeture est datée par l'historique du runner quand c'est lui qui a fermé le ticket ({{history}}), sinon par la dernière modification de la page dans Notion ({{edited}}).",

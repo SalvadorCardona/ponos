@@ -10,6 +10,7 @@ import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
 import { ProjectCover } from "./project-picture"
 import { Robot } from "./robot"
+import { StatisticsBand } from "./statistics-band"
 import { Away, Chip, reachable } from "./ticket-bits"
 
 /* One project, as a page.
@@ -75,6 +76,8 @@ export function ProjectPage() {
               <Where path={project.where} />
             </Fact>
           </Facts>
+
+          <StatisticsBand project={project.name} />
 
           {page ? (
             <div className="mt-6">

@@ -829,14 +829,15 @@ class Api:
             "busy": self.commands.busy,
         }
 
-    def statistics(self, start: str = "", end: str = "") -> dict:
+    def statistics(self, start: str = "", end: str = "", project: str | None = None) -> dict:
         """The statistics page: the board, dated with the runner's history.
 
-        See `statistics` for which of the two says when a ticket closed.
+        See `statistics` for which of the two says when a ticket closed. With a
+        `project`, its page's: the same figures over that project's tickets.
         """
         first, last = statistics.period(start, end, datetime.now().date())
         tickets = self.board()["tickets"]
-        return statistics.figures(tickets, state.history(1_000_000), first, last)
+        return statistics.figures(tickets, state.history(1_000_000), first, last, project=project)
 
     def disk(self, *, fresh: bool = False) -> dict:
         """The room the runner takes on this machine, and what keeps it in check."""

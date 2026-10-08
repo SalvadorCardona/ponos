@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { Eyebrow, Panel } from "./frame"
 import { LineChart } from "./line-chart"
 import { Robot } from "./robot"
+import { capital, columnTitle } from "./ticket-bits"
 
 /* What the runner got through, over a period — at the top of the dashboard.
  *
@@ -24,6 +25,14 @@ import { Robot } from "./robot"
  * folds away into one line for whoever came for the cards. The figures are the
  * server's (`web/statistics.py`, which also says how a closing is dated); this
  * band asks for a period and draws.
+ *
+ * The same band is a project's page's, asked for that project alone
+ * (`project`): the cards and the two curves are the ones above over its
+ * tickets, and the third panel — "by project" says nothing about one project —
+ * is where its tickets stand, by column. It is the one split that is already
+ * in the figures and that a project's page answers at a glance: how much of
+ * the work is waiting, running, in review or done. Its own folded state and
+ * its own period, so a project's page does not move the dashboard's.
  *
  * "Open" on a card is the last point of its curve — the evening of the last
  * day — so a period that ends today says what the board says, not a sum over
@@ -68,28 +77,32 @@ function span(range: Exclude<Range, "custom">, today: Date): { from: string; to:
 
 /* The period picked, outside the band: a trip to a ticket and back should not
  * put the dashboard back on its week. */
-let kept: { range: Range; from: string; to: string } | null = null
+const kept = new Map<string, { range: Range; from: string; to: string }>()
 
 /* Whether the band is folded, as the last person at this browser left it. Open
  * by default: the figures are why the dashboard is more than the board. */
 const FOLDED_KEY = "ponos-dashboard-statistics"
+const PROJECT_FOLDED_KEY = "ponos-project-statistics"
 
-function useFolded() {
+function useFolded(key: string) {
   const [folded, setFolded] = React.useState(() => {
     try {
-      return localStorage.getItem(FOLDED_KEY) === "folded"
+      return localStorage.getItem(key) === "folded"
     } catch {
       return false
     }
   })
-  const change = React.useCallback((next: boolean) => {
-    setFolded(next)
-    try {
-      localStorage.setItem(FOLDED_KEY, next ? "folded" : "open")
-    } catch {
-      // Storage off: the choice lasts as long as the tab, which is still one.
-    }
-  }, [])
+  const change = React.useCallback(
+    (next: boolean) => {
+      setFolded(next)
+      try {
+        localStorage.setItem(key, next ? "folded" : "open")
+      } catch {
+        // Storage off: the choice lasts as long as the tab, which is still one.
+      }
+    },
+    [key]
+  )
   return [folded, change] as const
 }
 
@@ -104,11 +117,13 @@ const dollars = (value: number) => money(value, value >= 100 ? 0 : 2)
 // The curves' height: a glance over the board, not a page of their own.
 const CHART = 104
 
-export function StatisticsBand() {
+/** `project`: the name of the project the figures are limited to; none for the whole board. */
+export function StatisticsBand({ project }: { project?: string }) {
   const t = useT()
-  const [folded, setFolded] = useFolded()
+  const scope = project === undefined ? "" : `project:${project}`
+  const [folded, setFolded] = useFolded(project === undefined ? FOLDED_KEY : PROJECT_FOLDED_KEY)
   const [period, setPeriod] = React.useState(
-    () => kept ?? { range: "7d" as Range, ...span("7d", new Date()) }
+    () => kept.get(scope) ?? { range: "7d" as Range, ...span("7d", new Date()) }
   )
   const [figures, setFigures] = React.useState<Statistics | null>(null)
   const [problem, setProblem] = React.useState("")
@@ -117,13 +132,13 @@ export function StatisticsBand() {
   const valid = Boolean(period.from && period.to && period.from <= period.to)
 
   React.useEffect(() => {
-    kept = period
+    kept.set(scope, period)
     if (!valid) return
     // Only the answer to the last question asked is drawn: clicking through
     // three ranges must not end on the first one's figures.
     const mine = ++asked.current
     api
-      .statistics(period.from, period.to)
+      .statistics(period.from, period.to, project)
       .then((fresh) => {
         if (mine !== asked.current) return
         setFigures(fresh)
@@ -132,7 +147,7 @@ export function StatisticsBand() {
       .catch((error) => {
         if (mine === asked.current) setProblem(why(error))
       })
-  }, [period, valid])
+  }, [period, valid, scope, project])
 
   const choose = (range: Range) =>
     setPeriod((known) =>
@@ -145,7 +160,7 @@ export function StatisticsBand() {
     <Collapsible
       open={!folded}
       onOpenChange={(open) => setFolded(!open)}
-      className="mb-4 flex min-w-0 flex-col gap-3"
+      className={cn("flex min-w-0 flex-col gap-3", project === undefined ? "mb-4" : "mt-6")}
       aria-label={t("Statistics")}
       data-slot="statistics-band"
     >
@@ -218,14 +233,14 @@ export function StatisticsBand() {
             </p>
           )
         ) : (
-          <Figures figures={figures} />
+          <Figures figures={figures} project={project} />
         )}
       </CollapsibleContent>
     </Collapsible>
   )
 }
 
-function Figures({ figures }: { figures: Statistics }) {
+function Figures({ figures, project }: { figures: Statistics; project?: string }) {
   const t = useT()
   const { totals, days } = figures
   const cards = [
@@ -242,10 +257,33 @@ function Figures({ figures }: { figures: Statistics }) {
       ),
     },
     { label: "Created", value: number(totals.created), note: t("added to the board in the period") },
-    { label: "Spent", value: dollars(totals.cost), note: t("by the runner's sessions in the period") },
+    {
+      label: "Spent",
+      value: dollars(totals.cost),
+      // On a project, what a closed ticket cost it on average is worth the
+      // line more: it is the figure its page is read for.
+      note:
+        project !== undefined && figures.average !== null
+          ? t("{{cost}} per closed ticket", { cost: dollars(figures.average) })
+          : t("by the runner's sessions in the period"),
+      more:
+        project !== undefined
+          ? t("Spent by the runner's sessions in the period; the average is over the tickets closed in it, all their sessions counted.")
+          : undefined,
+    },
   ]
-  const projects = figures.projects.slice(0, 5)
-  const widest = Math.max(1, ...projects.map((item) => item.count))
+  const rows =
+    project === undefined
+      ? figures.projects
+          .slice(0, 5)
+          .map((item) => ({ label: item.name || t("No project"), count: item.count }))
+      : figures.statuses.map((item) => ({
+          label: capital(
+            columnTitle(item.key, currentBoard()?.columns.find((column) => column.key === item.key)?.name)
+          ),
+          count: item.count,
+        }))
+  const widest = Math.max(1, ...rows.map((row) => row.count))
   const nothing = !totals.created && !totals.closed && !totals.open
 
   return (
@@ -267,7 +305,11 @@ function Figures({ figures }: { figures: Statistics }) {
       </div>
 
       {nothing ? (
-        <p className="text-muted-foreground text-sm">{t("No ticket on the board over this period.")}</p>
+        <p className="text-muted-foreground text-sm">
+          {project === undefined
+            ? t("No ticket on the board over this period.")
+            : t("No ticket of this project over this period.")}
+        </p>
       ) : (
         <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-3">
           <Panel eyebrow={t("Created and closed")} className="min-w-0" bodyClassName="pb-3">
@@ -299,17 +341,11 @@ function Figures({ figures }: { figures: Statistics }) {
           </Panel>
 
           <Panel
-            eyebrow={t("Created, by project")}
+            eyebrow={project === undefined ? t("Created, by project") : t("Created, by status")}
             className="min-w-0 md:col-span-2 xl:col-span-1"
             bodyClassName="pb-3"
           >
-            <Bars
-              rows={projects.map((item) => ({
-                label: item.name || t("No project"),
-                count: item.count,
-              }))}
-              most={widest}
-            />
+            <Bars rows={rows} most={widest} />
           </Panel>
         </div>
       )}

@@ -161,3 +161,30 @@ test.describe("on a phone", () => {
       .toEqual([0, 0, 390, 844])
   })
 })
+
+test.describe("the statistics of a project", () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test("the page asks for its own project, folds, and keeps to the phone's width", async ({ page }) => {
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    const band = page.locator('[data-slot="statistics-band"]')
+    await expect(band.getByRole("tab", { name: "7 days" })).toHaveAttribute("aria-selected", "true")
+
+    const asked = page.waitForRequest(
+      (request) => request.url().includes("/api/statistics") && request.url().includes("project=Website")
+    )
+    await band.getByRole("tab", { name: "30 days" }).click()
+    expect(new URL((await asked).url()).searchParams.get("project")).toBe("Website")
+
+    // The e2e board has no ticket of this project in the period: the empty state, not zeroed charts.
+    await expect(band.getByText("No ticket of this project over this period.")).toBeVisible()
+    await expect(band.getByText("Created, by project", { exact: true })).toHaveCount(0)
+    const width = await page.evaluate(() => document.documentElement.scrollWidth)
+    expect(width, "no sideways scroll").toBeLessThanOrEqual(390)
+
+    await band.getByRole("button", { name: /Statistics/ }).click()
+    await expect(band.getByText("No ticket of this project over this period.")).toBeHidden()
+  })
+})
