@@ -129,6 +129,12 @@ class Preparation(Base):
             kind=kind,
             reference=reference,
         )
+        written = job.model or agent.model
+        if written and self.config.runner.allowed(written) != written:
+            # Written by somebody, so said on the ticket: a Model that is not
+            # the one it ran on would otherwise read as the runner's mistake.
+            job.model = self.config.runner.allowed(written)
+            job.notes.append(self.voice.say("fable-refused"))
         if not job.model and not agent.model and self.config.runner.auto_model:
             self._choose_model(ticket, job)
         where = f"{project.path} · {branch}" if project.is_code else "document → the ticket's page"
@@ -186,7 +192,13 @@ class Preparation(Base):
             code=job.project.is_code,
             priority=str(store.read(ticket.page, self.config.notion.prop("priority")) or ""),
             grid=settings.model_grid(),
-            earlier=models.Earlier(**earlier) if earlier else None,
+            # A run begun on Fable before it was turned off carries on, or
+            # stays, on what is allowed now.
+            earlier=(
+                models.Earlier(**{**earlier, "model": settings.allowed(earlier["model"])})
+                if earlier
+                else None
+            ),
             escalate=settings.auto_model_escalate,
         )
         if not choice.model:
@@ -232,7 +244,7 @@ class Preparation(Base):
                 naming.prompt(body),
                 cwd=workdir,
                 log=state.log_file(f"{short}-name"),
-                model=self.config.runner.model,
+                model=self.config.runner.allowed(self.config.runner.model),
                 # It reads one page and answers one line: the mode a
                 # conversation runs in is more than it needs.
                 permission_mode=self.config.runner.reply_permission_mode,
@@ -313,7 +325,7 @@ class Preparation(Base):
                 ),
                 cwd=workdir,
                 log=state.log_file(f"{short}-kind"),
-                model=self.config.runner.classify_model,
+                model=self.config.runner.allowed(self.config.runner.classify_model),
                 # It reads one page and answers one object: the mode a
                 # conversation runs in is more than it needs.
                 permission_mode=self.config.runner.reply_permission_mode,

@@ -105,7 +105,10 @@ class Execution(Base):
         log = job.log or state.log_file(short_id(job.ticket.id))
         # The ticket first, then its agent, then the runner: the narrower the
         # choice, the more deliberate it was.
-        chosen = job.model or job.agent.model or self.config.runner.model
+        # Whoever named it, Fable only when `use_fable` allows it.
+        chosen = self.config.runner.allowed(
+            job.model or job.agent.model or self.config.runner.model
+        )
         live = job.live = self._live(job)
         run = self._journal(job, log, chosen)
         try:

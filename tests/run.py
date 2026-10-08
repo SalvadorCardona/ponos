@@ -5747,7 +5747,8 @@ def a_board_without_the_column_or_the_setting_runs_tickets_as_before():
 # -- the model of a ticket ----------------------------------------------------
 
 
-_GRID = C.Runner().model_grid()
+# Fable allowed, so the four levels are four models; see the use_fable cases.
+_GRID = C.Runner(use_fable=True).model_grid()
 
 
 def _chosen(title: str, body: str = "", **given) -> models.Choice:
@@ -5847,6 +5848,37 @@ def the_grid_is_the_configurations_and_an_empty_level_borrows_the_nearest():
     assert text.model == "anthropic/claude-opus", text
 
 
+@case
+def without_use_fable_the_heaviest_level_and_an_escalation_stop_at_opus():
+    steps = "\n".join(f"- point {number} à vérifier" for number in range(30))
+    heavy = "Audit complet et migration de l'architecture"
+    assert C.Runner().use_fable is False, "Fable is a choice somebody makes"
+    allowed = _chosen(heavy, steps, grid=C.Runner(use_fable=True).model_grid())
+    assert (allowed.model, allowed.level) == ("fable", "heaviest"), allowed
+    off = C.Runner().model_grid()
+    refused = _chosen(heavy, steps, grid=off)
+    assert (refused.model, refused.level) == ("opus", "heaviest"), refused
+    named = C.Runner(auto_model_standard="claude-fable-5-1").model_grid()
+    assert named.model("standard") == "opus", "any level named after Fable"
+    top = _chosen("Audit complet", grid=off, earlier=models.Earlier("opus", "failed"))
+    assert (top.model, top.escalated) == ("opus", False), top
+    assert all(key != "model-escalated" for key, _ in top.signals)
+
+
+@case
+def a_config_without_use_fable_has_no_fable_and_true_brings_it_back():
+    path = Path(tempfile.mkdtemp()) / "config.toml"
+    path.write_text('[notion]\ntoken = "x"\n[runner]\n', encoding="utf-8")
+    settings = C.load(path).runner
+    assert settings.use_fable is False
+    assert settings.auto_model_heaviest == "fable", "the level keeps its name"
+    assert settings.model_grid().model("heaviest") == "opus"
+    assert settings.allowed("fable") == "opus" and settings.allowed("sonnet") == "sonnet"
+    path.write_text('[notion]\ntoken = "x"\n[runner]\nuse_fable = true\n', encoding="utf-8")
+    settings = C.load(path).runner
+    assert settings.use_fable is True and settings.allowed("fable") == "fable"
+
+
 def _modelled(title: str, body: str, **properties):
     runner, ticket = _nameless(title, body)
     runner.client.said = []
@@ -5886,6 +5918,46 @@ def a_model_somebody_chose_or_a_switched_off_choice_is_the_runner_as_before():
     assert (job.model, job.chosen) == ("", False) and runner.client.said == [], (
         "empty: runner.model, as every ticket had it"
     )
+
+
+@case
+def doctor_says_whether_fable_is_allowed():
+    from ponos.__main__ import _doctor_fable
+
+    for allowed, expected in ((False, "Claude Fable is not allowed: opus"), (True, "Fable allowed")):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            _doctor_fable(C.Runner(use_fable=allowed))
+        assert expected in out.getvalue(), out.getvalue()
+
+
+@case
+def a_fable_written_on_a_ticket_runs_on_opus_and_its_report_says_why():
+    fable = {"Model": {"type": "select", "select": {"name": "fable"}}}
+    runner, ticket = _modelled("Audit complet", "Tout le dépôt.", **fable)
+    runner.config.runner.language = "fr"
+    with _state_home():
+        job = runner.prepare(ticket)
+    assert (job.model, job.chosen) == ("opus", False), job
+    assert job.notes == ["Fable désactivé dans les réglages : lancé sur Opus."], job.notes
+
+    runner, ticket = _modelled("Audit complet", "Tout le dépôt.", **fable)
+    runner.config.runner.use_fable = True
+    with _state_home():
+        job = runner.prepare(ticket)
+    assert (job.model, job.notes) == ("fable", []), "allowed, taken as written"
+
+
+@case
+def a_run_begun_on_fable_carries_on_on_opus_once_it_is_turned_off():
+    with _state_home():
+        runner, ticket = _modelled("Audit complet", "Tout le dépôt.")
+        journal.Run.start(ticket=ticket.id, model="fable", chosen=True, escalated=True).end("failed")
+        job = runner.prepare(ticket)
+        assert job.model == "opus", job
+        runner, ticket = _modelled("Audit complet", "Tout le dépôt.")
+        journal.Run.start(ticket=ticket.id, model="fable", chosen=True).end("waiting")
+        assert runner.prepare(ticket).model == "opus"
 
 
 @case

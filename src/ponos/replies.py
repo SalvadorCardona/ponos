@@ -252,7 +252,7 @@ class Replies(Base):
             if resume
             else text
         )
-        chosen = (
+        chosen = self.config.runner.allowed(
             str(store.read(ticket.page, self.config.notion.prop("model")) or "")
             or agent.model
             or self.config.runner.model

@@ -16,6 +16,19 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Claude Fable is off unless you turn it on.** It costs far more than Opus — one
+  session of it cost more than a day of Opus ones — and it arrived unasked, through the
+  heaviest level of the automatic choice or an escalation. With the new
+  `runner.use_fable` (`false` by default, also in the console's settings, *Models and
+  usage*), nothing the runner starts runs on Fable: those levels run on `opus`, an
+  escalation stops there, a session begun on Fable carries on on Opus, and a `Model` of
+  `fable` on a ticket or its agent runs on Opus with a line in the ticket's report that
+  says why. The console's chat and every other session follow the same rule. **An
+  existing `config.toml` without the key loses Fable**: add `use_fable = true` to keep
+  it. `ponos doctor` says which it is.
+
 ### Added
 
 - **A ticket with no Model no longer runs on the heaviest model by default.** The

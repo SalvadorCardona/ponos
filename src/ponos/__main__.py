@@ -675,6 +675,17 @@ def _timer_line(timer: systemd.Timer) -> None:
         print(f"    {DIM}{timer.row}{RESET}")
 
 
+def _doctor_fable(settings: config_module.Runner) -> None:
+    """Whether Fable may run: off, it never does, whatever a level or a ticket says."""
+    if settings.use_fable:
+        ok("Claude Fable allowed (runner.use_fable = true)")
+    else:
+        print(
+            f"  {DIM}runner.use_fable = false — Claude Fable is not allowed: "
+            f"{models.INSTEAD_OF_FABLE} runs in its place{RESET}"
+        )
+
+
 def _doctor_columns(schema: dict[str, str], settings: config_module.Notion) -> int:
     """Every column the runner works with, and what is off when one is not there.
 
@@ -1087,6 +1098,7 @@ def command_doctor(args: argparse.Namespace) -> int:
     else:
         default = runner_settings.model or "the CLI's default model"
         print(f"  {DIM}runner.auto_model = false — an empty Model runs on {default}{RESET}")
+    _doctor_fable(runner_settings)
     interval = configuration.runner.interval_seconds
     print(f"  {DIM}one run every {interval}s (ponos enable to apply a change){RESET}")
     if shutil.which("systemctl"):

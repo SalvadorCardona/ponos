@@ -587,6 +587,11 @@ auto_model_publication = "standard"   # clicks the wrong button
 # A ticket whose chosen model failed runs one level up when it comes back —
 # once, and its comment says so. The next attempt keeps that model.
 auto_model_escalate = true
+# Claude Fable at all. Off (the default), nothing the runner starts runs on it:
+# the heaviest level, an escalation, a Model written on a ticket or its agent,
+# the console's chat — every one runs on opus instead, and a ticket whose Model
+# said fable says so in its report. Fable costs far more than Opus.
+use_fable = false
 
 # ---------------------------------------------------------------------------
 # Every other model

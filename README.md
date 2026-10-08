@@ -525,6 +525,7 @@ for reading rather than for filling in.
 | `runner.auto_model_light` … `auto_model_heaviest` | `"haiku"`, `"sonnet"`, `"opus"`, `"fable"` | the model of each of the four levels; an empty one borrows the nearest |
 | `runner.auto_model_code` … `auto_model_publication` | `"standard"`, Writing `"light"` | the level each type starts from: `light`, `standard`, `heavy` or `heaviest` |
 | `runner.auto_model_escalate` | `true` | a ticket whose chosen model failed runs one level up next time, once |
+| `runner.use_fable` | `false` | allow Claude Fable at all; off, every session the runner starts — chosen, escalated, written on a ticket or its agent, the console's chat — runs on `opus` instead |
 | `runner.classify_confidence` | `"medium"` | `low`, `medium` or `high` — the least confidence a guess is acted on with; below it, the ticket is blocked with the question |
 | `storage.mode` | `"notion"` | which board answers — `notion`, `markdown`, or `both` kept in step. See *Without Notion: the board as Markdown files* below |
 | `storage.path` | `~/.local/state/ponos/board` | the directory the Markdown board lives in |
@@ -993,6 +994,14 @@ attempt keeps that model rather than climbing to the top of the price list. A ti
 stopped by the quota carries its session on with the model it began on. What a run was
 chosen and how it ended is kept in the local journal, so this works the same on a Notion
 board, a Markdown one, or both. Through OpenRouter, name its slugs in the four levels.
+
+**Fable only when you say so.** It costs far more than Opus, so `runner.use_fable` is
+off by default, and then nothing the runner starts runs on it: the *heaviest* level, and
+any level whose model is `fable`, runs on `opus`, an escalation stops there, a session
+begun on Fable carries on on Opus, and a `Model` of `fable` written on a ticket or its
+agent runs on Opus too — its report says *Fable is turned off in the settings: run on
+Opus.* The console's chat, the naming and classifying sessions and the conflict
+resolution follow the same rule. Turn it on to get the behaviour above unchanged.
 
 ### Following the work
 

@@ -850,6 +850,9 @@ export const FRENCH: Record<string, string> = {
   "One level up after a failure": "Un cran au-dessus après un échec",
   "A ticket whose chosen model failed runs one level higher the next time, once, and says so.":
     "Un ticket dont le modèle choisi a échoué tourne un niveau plus haut la fois suivante, une seule fois, et le dit.",
+  "Use Claude Fable": "Utiliser Claude Fable",
+  "Off by default: Fable costs far more than Opus. Off, every session runs on Opus instead — the heaviest level, an escalation, a Model written on a ticket.":
+    "Désactivé par défaut : Fable coûte beaucoup plus cher qu'Opus. Désactivé, chaque session tourne sur Opus à la place — le niveau le plus lourd, une escalade, un Model écrit sur un ticket.",
   "Model for light work": "Modèle pour le travail léger",
   "A text to remove, a label to rename. Empty: the nearest level below or above.":
     "Un texte à retirer, un libellé à renommer. Vide : le niveau le plus proche, en dessous ou au-dessus.",
