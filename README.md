@@ -2843,6 +2843,23 @@ shape changed — the runner says so once and behaves exactly as it does at `0`:
 that stopped working because it could not find a JSON key would be a far worse failure
 than the one this guards against.
 
+### Spending limits
+
+`[budget]` draws two lines in dollars; empty is no limit, and both count what the CLI reports
+a session cost — which a subscription does not, so they are for an API key or OpenRouter.
+
+- **`budget.daily_usd`** is read where a session is about to *start*, against what the
+  history says was spent since local midnight. Past it nothing new begins — not a ticket, not
+  a publication, not an answer in a thread — and what is running finishes. The ready tickets
+  are ticked as waiting, Telegram and Slack are told once, and the console shows a banner;
+  merges and everything else that costs nothing carry on. It lifts at midnight.
+- **`budget.per_ticket_usd`** is handed to each session as `--max-budget-usd`: the CLI stops
+  at the limit, between two steps, and the ticket goes to *blocked* with the reason. Answering
+  it starts a new session, with a new allowance.
+
+The cost of a session that ended *blocked* or *failed* is written in the ticket's **Cost** like
+any other — it was paid for all the same, and the daily limit counts it.
+
 ---
 
 ## When it does not work

@@ -46,7 +46,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ponos import config as C  # noqa: E402
-from ponos import db, images, journal, notion, store  # noqa: E402
+from ponos import credits, db, images, journal, notion, store  # noqa: E402
 from ponos.config import PRIORITIES  # noqa: E402
 from ponos.runner import Runner  # noqa: E402
 
@@ -518,7 +518,9 @@ log = os.environ.get("FAKE_CLAUDE_LOG")
 if log:
     with open(log, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(
-            {"cwd": os.getcwd(), "session": session, "model": model, "prompt": prompt}
+            {"cwd": os.getcwd(), "session": session, "model": model, "prompt": prompt,
+             "budget": args[args.index("--max-budget-usd") + 1]
+             if "--max-budget-usd" in args else ""}
         ) + "\\n")
 
 
@@ -554,10 +556,27 @@ narrated = os.environ.get("FAKE_CLAUDE_SAY", "")
 if narrated:
     emit({"type": "assistant", "message": {"content": [{"type": "text", "text": narrated}]}})
 
+# What the session cost, for the ones that end badly: `FAKE_CLAUDE_COST`.
+spent = float(os.environ.get("FAKE_CLAUDE_COST", "0") or 0)
+
+# The CLI stopping itself at `--max-budget-usd`, which is how it says so.
+if os.environ.get("FAKE_CLAUDE_OVER_BUDGET") and "--max-budget-usd" in args:
+    emit({"type": "result", "subtype": "error_max_budget_usd", "is_error": False,
+          "session_id": session, "num_turns": 7, "total_cost_usd": spent})
+    raise SystemExit(0)
+
+# A session that stops to ask, and has been paid for.
+asked = os.environ.get("FAKE_CLAUDE_BLOCK", "")
+if asked:
+    emit({"type": "result", "subtype": "success", "is_error": False,
+          "result": "RESULT: blocked — " + asked, "session_id": session,
+          "num_turns": 2, "total_cost_usd": spent})
+    raise SystemExit(0)
+
 refused = os.environ.get("FAKE_CLAUDE_FAIL", "")
 if refused:
     emit({"type": "result", "subtype": "error_during_execution", "is_error": True,
-          "result": refused, "session_id": session, "num_turns": 1, "total_cost_usd": 0.0})
+          "result": refused, "session_id": session, "num_turns": 1, "total_cost_usd": spent})
     raise SystemExit(1)
 
 here = Path.cwd()
@@ -1047,6 +1066,9 @@ def bench(**overrides: object):
                 "FAKE_CLAUDE_KIND": "",
                 "FAKE_CLAUDE_SAY": "",
                 "FAKE_CLAUDE_RESOLVE": "",
+                "FAKE_CLAUDE_COST": "",
+                "FAKE_CLAUDE_BLOCK": "",
+                "FAKE_CLAUDE_OVER_BUDGET": "",
                 "FAKE_GH_REFUSE": "",
                 **{name: str(path) for name, path in logs.items()},
             }
@@ -1571,6 +1593,77 @@ def a_session_that_fails_leaves_a_readable_ticket_and_no_worktree():
         assert not list(worktrees.glob("*")), "the worktree is still on disk"
         assert not machine.pull_requests(), "a failed session still opened a pull request"
         assert machine.branches(repository) == ["main"], machine.branches(repository)
+
+
+def _budget(machine: "Bench", **limits: float) -> None:
+    """The installation's `[budget]`, written into its configuration."""
+    with open(machine.config, "a", encoding="utf-8") as handle:
+        handle.write("\n[budget]\n" + "".join(f"{key} = {value}\n" for key, value in limits.items()))
+
+
+@case
+def a_blocked_or_failed_session_has_its_cost_written_on_the_ticket():
+    """Paid for is paid for: the Cost column used to know only the finished ones."""
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        failing = machine.ticket("Une tâche qui plante", "Fais l'impossible.", project)
+        with _environ({"FAKE_CLAUDE_FAIL": "la session a planté", "FAKE_CLAUDE_COST": "0.42"}):
+            results = machine.run()
+        assert results[0]["status"] == "failed", results
+        assert machine.board.value(failing, "Cost") == 0.42, machine.board.value(failing, "Cost")
+        assert results[0]["cost_usd"] == 0.42, "and the history knows it"
+
+        asking = machine.ticket("Une tâche qui hésite", "Choisis.", project)
+        with _environ({"FAKE_CLAUDE_BLOCK": "A ou B ?", "FAKE_CLAUDE_COST": "0.17"}):
+            results = machine.run()
+        assert results[0]["status"] == "blocked", results
+        assert machine.status(asking) == "Blocked", machine.status(asking)
+        assert machine.board.value(asking, "Cost") == 0.17, machine.board.value(asking, "Cost")
+
+
+@case
+def a_session_past_the_ticket_limit_stops_cleanly_and_blocks_the_ticket_with_the_reason():
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        _budget(machine, per_ticket_usd=2.5)
+        ticket = machine.ticket("Une tâche sans fin", "Continue.", project)
+        with _environ({"FAKE_CLAUDE_OVER_BUDGET": "1", "FAKE_CLAUDE_COST": "2.51"}):
+            results = machine.run()
+
+        assert machine.sessions()[0]["budget"] == "2.50", "the limit reaches the session itself"
+        assert results[0]["status"] == "blocked", results
+        assert machine.status(ticket) == "Blocked", machine.status(ticket)
+        assert machine.board.value(ticket, "Cost") == 2.51, "the cost of the session cut short"
+        assert "per_ticket_usd" in machine.board.said(ticket)[-1], machine.board.said(ticket)
+        assert not machine.worktrees(repository), "and no worktree left behind"
+
+    with bench() as machine:
+        _budget(machine)  # no limit set: nothing is handed to the session
+        repository = machine.repository("site")
+        machine.ticket("Une tâche", "Fais-la.", machine.project("Site", repository))
+        machine.run()
+        assert machine.sessions()[0]["budget"] == ""
+
+
+@case
+def past_the_daily_limit_nothing_new_is_started_and_the_ready_tickets_wait():
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        _budget(machine, daily_usd=1.0)
+        first = machine.ticket("Une tâche chère", "Fais-la.", project)
+        with _environ({"FAKE_CLAUDE_BLOCK": "A ou B ?", "FAKE_CLAUDE_COST": "1.5"}):
+            machine.run()
+        assert machine.status(first) == "Blocked", machine.status(first)
+
+        second = machine.ticket("Une tâche qui attend", "Plus tard.", project)
+        results = machine.run()
+        assert machine.sessions() == [], "a session was started past the daily limit"
+        assert machine.status(second) == "Ready", machine.status(second)
+        assert results == [], results
+        assert credits.held(what="budget") > time.time(), "the wait is written down for the runs after"
 
 
 @case

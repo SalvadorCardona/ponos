@@ -469,6 +469,8 @@ export const FRENCH: Record<string, string> = {
   "{{count}} steps": "{{count}} étapes",
   "Out of credit until {{at}}. The subscription's window is spent: tickets stay where they are, and the first run after that takes them again.":
     "Crédits épuisés jusqu'à {{at}}. La fenêtre de l'abonnement est consommée : les tickets restent où ils sont, et la première passe après ce moment les reprend.",
+  "Today's spending limit is reached: {{spent}} spent, limit {{limit}}. Ready tickets wait, and nothing new starts before midnight.":
+    "Le plafond de dépense du jour est atteint : {{spent}} dépensés, plafond {{limit}}. Les tickets prêts attendent, et rien de nouveau ne démarre avant minuit.",
   "`claude` was not found on this machine: no session can start.":
     "`claude` est introuvable sur cette machine : aucune session ne peut démarrer.",
 

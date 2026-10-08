@@ -520,6 +520,21 @@ class Claude:
     api_key: str = ""
 
 
+@dataclass
+class Budget:
+    """What the runner agrees to spend, in dollars. Zero is no limit.
+
+    Two lines, and they stop different things. `daily_usd` is read before a
+    session is *started*: past it nothing new begins until midnight, and what is
+    in flight is left to finish. `per_ticket_usd` is handed to the session
+    itself, so that one ticket cannot eat the day on its own. Neither does
+    anything on a subscription, where the CLI reports no cost to count.
+    """
+
+    daily_usd: float = 0.0
+    per_ticket_usd: float = 0.0
+
+
 def board_dir() -> Path:
     """Where a Markdown board lives when the file does not say.
 
@@ -573,6 +588,7 @@ class Config:
     notify: Notify = field(default_factory=Notify)
     openrouter: OpenRouter = field(default_factory=OpenRouter)
     claude: Claude = field(default_factory=Claude)
+    budget: Budget = field(default_factory=Budget)
     storage: Storage = field(default_factory=Storage)
     # `[github]`: which of your GitHub accounts each owner is worked under, as
     # `owner = "the gh account"`. Empty is a machine with one account, which is
@@ -1425,6 +1441,12 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         api_key=secret(stored, "claude", "api_key"),
     )
 
+    budget_raw = raw.get("budget", {})
+    budget = Budget(
+        daily_usd=_dollars(budget_raw.get("daily_usd")),
+        per_ticket_usd=_dollars(budget_raw.get("per_ticket_usd")),
+    )
+
     storage_raw = raw.get("storage", {})
     storage_defaults = Storage()
     # Filtered rather than trusted, and for once that is not paranoia: a typo
@@ -1470,10 +1492,23 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         notify=notify,
         openrouter=openrouter,
         claude=claude,
+        budget=budget,
         storage=storage,
         github=github,
         exposed=tuple(f"{table}.{key}" for table, key in exposed(raw)),
     )
+
+
+def _dollars(raw: object) -> float:
+    """An amount, or 0.0 for a limit that is empty, negative or not a number.
+
+    Empty is the line left blank in the file, and it must read as "no limit"
+    rather than as a ceiling of nothing that stops every session.
+    """
+    try:
+        return max(0.0, float(raw))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _channel(raw: object, token: str) -> dict[str, str]:

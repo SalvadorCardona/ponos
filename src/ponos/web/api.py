@@ -825,6 +825,8 @@ class Api:
             if configuration.runner.wait_for_credits
             else 0.0
         )
+        budget_limit = configuration.budget.daily_usd
+        budget_spent = state.spent_today() if budget_limit > 0 else 0.0
         return {
             # In a container the timer is the image's `ponos run --every`, which
             # starts with it and stops with it: on for as long as this answers.
@@ -836,6 +838,11 @@ class Api:
             "sessions": live.active(held=lambda: held),
             "credits": waiting,
             "credits_at": credits.when(waiting) if waiting else "",
+            # The day's spending limit, once reached: asked of the history
+            # rather than of the note a run writes, so that the banner is there
+            # the moment the figure crosses the line, not at the next pass.
+            "budget": budget_limit if budget_spent >= budget_limit > 0 else 0.0,
+            "budget_spent": round(budget_spent, 2),
             "workspace_root": str(configuration.runner.workspace_root),
             # Which board this console is looking at. The panes read it to know
             # whether a Notion link is worth drawing, and whether the sync has

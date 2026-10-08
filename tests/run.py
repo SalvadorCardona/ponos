@@ -3734,6 +3734,33 @@ def the_reserve_stops_the_runner_before_the_subscription_is_spent():
 
 
 @case
+def the_budget_limits_are_empty_unless_the_file_names_an_amount():
+    assert _config("").budget == C.Budget(0.0, 0.0), "no table, no limit"
+    assert _config('[budget]\ndaily_usd = ""\nper_ticket_usd = ""\n').budget == C.Budget(0.0, 0.0)
+    assert _config("[budget]\ndaily_usd = 25\nper_ticket_usd = 2.5\n").budget == C.Budget(25.0, 2.5)
+    assert _config('[budget]\ndaily_usd = -4\nper_ticket_usd = "n/a"\n').budget == C.Budget(0.0, 0.0)
+
+
+@case
+def the_daily_limit_holds_from_the_history_until_midnight_and_lifts_after():
+    """Read off what the history says was spent today, and never before it is."""
+    with _state_home():
+        runner = _reserving([])
+        assert runner.under_reserve() == 0.0, "no limit set"
+        runner.config.budget.daily_usd = 5.0
+        assert runner.under_reserve() == 0.0, "nothing spent yet"
+        state.record({"id": "a", "status": "blocked", "cost_usd": 3.0})
+        assert runner.under_reserve() == 0.0, "3 $ of 5 $"
+        state.record({"id": "b", "status": "failed", "cost_usd": 2.0})
+        until = runner.under_reserve()
+        assert 0 < until - time.time() <= 24 * 3600, "held until the next midnight"
+        assert credits.held(what="budget") == until
+        runner.config.budget.daily_usd = 6.0
+        assert runner.under_reserve() == 0.0, "a raised limit lifts it"
+        assert not credits.held(what="budget"), "and the note goes with it"
+
+
+@case
 def a_reserve_of_ten_percent_stops_ten_percent_earlier():
     """The number is the setting's whole job, so it is the number that is read."""
     with _state_home(), _usage(_windows(92)):

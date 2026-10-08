@@ -515,6 +515,16 @@ def command_status(args: argparse.Namespace) -> int:
             f"{configuration.runner.credit_reserve_percent}% held in reserve"
         )
 
+    limit = configuration.budget.daily_usd
+    if limit > 0:
+        spent = state.spent_today()
+        (warn if spent >= limit else ok)(
+            f"{spent:.2f} $ spent today, daily limit {limit:.2f} $"
+            + (" — nothing new is started until midnight" if spent >= limit else "")
+        )
+    if configuration.budget.per_ticket_usd > 0:
+        ok(f"per-ticket limit {configuration.budget.per_ticket_usd:.2f} $")
+
     title("Board")
     try:
         configuration.require_usable()
