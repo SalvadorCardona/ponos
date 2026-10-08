@@ -97,6 +97,8 @@ export interface Project {
   path?: string
   /** The `[projects]` entry of the configuration, where there is one. */
   configured?: string
+  /** Where the clone really is on this machine — said only by the project's own page, empty when there is none. */
+  located?: string
   /** Where this row came from: the board, or the file on this machine. */
   source?: "board" | "config"
   /** The banner of its page, and the mark in front of its name. See `Picture`. */

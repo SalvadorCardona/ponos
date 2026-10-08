@@ -852,6 +852,54 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
   )
 }
 
+/** A new ticket, written to the board and put on the one the console holds, so it is drawn at once. */
+export async function createTicket(fresh: TicketWrite): Promise<TicketItem> {
+  const title = String(fresh.title ?? "").trim()
+  // Said under the field it is about, not only in a toast in the corner.
+  if (!title) throw new FieldProblem("title", t("A ticket needs a title."))
+  const made = await api.createTicket({
+    title,
+    body: String(fresh.body ?? ""),
+    project: String(fresh.project ?? ""),
+    ready: fresh.ready !== false,
+    priority: String(fresh.priority ?? ""),
+    type: String(fresh.type ?? ""),
+    model: String(fresh.model ?? ""),
+  })
+  const projects = await api.projects().catch(() => ({ projects: [] }))
+  const project = projects.projects.find((candidate) => candidate.id === fresh.project)
+  // A draft lands among the drafts, with the status the board keeps them
+  // under, or none on a board that names no such option.
+  const drafts = currentBoard()?.columns.find((candidate) => candidate.key === "draft")
+  const column = fresh.ready === false ? "draft" : "ready"
+  const card: Ticket = {
+    id: made.id.replace(/-/g, ""),
+    short: made.id.replace(/-/g, "").slice(-8),
+    title: made.title,
+    url: "",
+    status: column === "draft" ? drafts?.name ?? "" : "",
+    column,
+    project: project?.name ?? "",
+    kind: project?.kind ?? "",
+    // The key was sent; the card says it as the board spells it.
+    type: currentBoard()?.choices?.type?.find((choice) => choice.value === fresh.type)?.label ?? "",
+    priority: String(fresh.priority ?? ""),
+    model: String(fresh.model ?? ""),
+    progress: "",
+    runner: "",
+    pull_request: "",
+    session: "",
+    session_link: "",
+    cost: null,
+    duration: null,
+    scheduled: "",
+    created: new Date().toISOString(),
+    edited: new Date().toISOString(),
+  }
+  addTicket(card)
+  return item(card)
+}
+
 /* -- the declaration ------------------------------------------------------ */
 
 export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(TICKETS, {
@@ -902,52 +950,7 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     const after = currentBoard()?.tickets.find((ticket) => ticket.id === id) ?? before
     return { data: after ? item(after) : (patch as unknown as TicketItem) }
   },
-  createItem: async (fresh) => {
-    const title = String(fresh.title ?? "").trim()
-    // Said under the field it is about, not only in a toast in the corner.
-    if (!title) throw new FieldProblem("title", t("A ticket needs a title."))
-    const made = await api.createTicket({
-      title,
-      body: String(fresh.body ?? ""),
-      project: String(fresh.project ?? ""),
-      ready: fresh.ready !== false,
-      priority: String(fresh.priority ?? ""),
-      type: String(fresh.type ?? ""),
-      model: String(fresh.model ?? ""),
-    })
-    const projects = await api.projects().catch(() => ({ projects: [] }))
-    const project = projects.projects.find((candidate) => candidate.id === fresh.project)
-    // A draft lands among the drafts, with the status the board keeps them
-    // under, or none on a board that names no such option.
-    const drafts = currentBoard()?.columns.find((candidate) => candidate.key === "draft")
-    const column = fresh.ready === false ? "draft" : "ready"
-    const card: Ticket = {
-      id: made.id.replace(/-/g, ""),
-      short: made.id.replace(/-/g, "").slice(-8),
-      title: made.title,
-      url: "",
-      status: column === "draft" ? drafts?.name ?? "" : "",
-      column,
-      project: project?.name ?? "",
-      kind: project?.kind ?? "",
-      // The key was sent; the card says it as the board spells it.
-      type: currentBoard()?.choices?.type?.find((choice) => choice.value === fresh.type)?.label ?? "",
-      priority: String(fresh.priority ?? ""),
-      model: String(fresh.model ?? ""),
-      progress: "",
-      runner: "",
-      pull_request: "",
-      session: "",
-      session_link: "",
-      cost: null,
-      duration: null,
-      scheduled: "",
-      created: new Date().toISOString(),
-      edited: new Date().toISOString(),
-    }
-    addTicket(card)
-    return { data: item(card) }
-  },
+  createItem: async (fresh) => ({ data: await createTicket(fresh) }),
   removeItem: async () => {
     throw new Error("a ticket is not deleted from the console; Notion keeps it")
   },

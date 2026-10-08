@@ -1,14 +1,19 @@
+import * as React from "react"
+import { useLocation, useRouter } from "@tanstack/react-router"
 import { ActionList } from "react-data-form"
 import { Link, ResourceViewButton, useCurrentViewResourceContext } from "react-resource-view"
 
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { counted, useT } from "@/lib/i18n"
+import { useRoute } from "@/lib/router"
 import { Repository, Where, isAPage, useTicketCount, whyNotRead, type ProjectItem } from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
 import { ProjectCover } from "./project-picture"
+import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
 import { StatisticsBand } from "./statistics-band"
 import { Away, Chip, reachable } from "./ticket-bits"
@@ -73,40 +78,87 @@ export function ProjectPage() {
               <Repository declared={project.repository} />
             </Fact>
             <Fact label={t("on this machine")}>
-              <Where path={project.where} />
+              <Where path={project.where} kind={project.kind} />
             </Fact>
           </Facts>
 
           <StatisticsBand project={project.name} />
 
-          {page ? (
-            <div className="mt-6">
-              <Eyebrow>{t("the brief")}</Eyebrow>
-              <div className="mt-2">
-                {project.content ? (
-                  <Markdown text={project.content} />
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    {t(
-                      "Nothing is written on this page, so its tickets are told about the workspace and nothing about the project."
-                    )}
-                  </p>
-                )}
+          <ProjectTabs project={project}>
+            {page ? (
+              <div>
+                <Eyebrow>{t("the brief")}</Eyebrow>
+                <div className="mt-2">
+                  {project.content ? (
+                    <Markdown text={project.content} />
+                  ) : (
+                    <p className="text-muted-foreground text-sm">
+                      {t(
+                        "Nothing is written on this page, so its tickets are told about the workspace and nothing about the project."
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <p className="text-muted-foreground mt-6 max-w-prose text-sm leading-relaxed">
-              {t(
-                "This project is a line in config.toml and has no page: the board has never heard of it, so there is nothing here to write a brief on."
-              )}{" "}
-              <Link to={settingsHref("projects")} className="underline underline-offset-2">
-                {t("Change its path in the settings.")}
-              </Link>
-            </p>
-          )}
+            ) : (
+              <p className="text-muted-foreground max-w-prose text-sm leading-relaxed">
+                {t(
+                  "This project is a line in config.toml and has no page: the board has never heard of it, so there is nothing here to write a brief on."
+                )}{" "}
+                <Link to={settingsHref("projects")} className="underline underline-offset-2">
+                  {t("Change its path in the settings.")}
+                </Link>
+              </p>
+            )}
+          </ProjectTabs>
         </>
       )}
     </div>
+  )
+}
+
+/* The two tabs of a project: its tickets, and its brief.
+ *
+ * The tickets come first, because a project is opened more often to see what is
+ * being done on it than to reread what every ticket is told. The one picked is
+ * written in the address (`&tab=brief`), so a reload or a pasted link comes back
+ * to it; the tickets are the tab of an address that says nothing, and of one
+ * that says something else. The facts and the statistics stay above the tabs.
+ */
+const TABS = ["tickets", "brief"] as const
+type Tab = (typeof TABS)[number]
+
+function ProjectTabs({ project, children }: { project: ProjectItem; children: React.ReactNode }) {
+  const t = useT()
+  const { pathname, searchStr } = useLocation()
+  const router = useRouter()
+  const { params } = useRoute()
+  const mine = params.resourceAction === ActionList.read && String(params.id ?? "") === project.id
+  const named = new URLSearchParams(searchStr).get("tab")
+  const tab: Tab = mine && TABS.includes(named as Tab) ? (named as Tab) : "tickets"
+  const pick = (value: string) => {
+    if (!mine) return
+    const rest = searchStr
+      .replace(/^\?/, "")
+      .split("&")
+      .filter((part) => part && !part.startsWith("tab="))
+    router.history.replace(`${pathname}?${[...rest, `tab=${value}`].join("&")}`)
+  }
+  return (
+    <Tabs value={tab} onValueChange={pick} className="mt-6 gap-4">
+      <TabsList className="w-full sm:w-fit">
+        <TabsTrigger value="tickets" data-slot="project-tickets-tab">
+          {t("Tickets")}
+        </TabsTrigger>
+        <TabsTrigger value="brief" data-slot="project-brief-tab">
+          {t("Brief")}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="tickets">
+        <ProjectTickets project={project} />
+      </TabsContent>
+      <TabsContent value="brief">{children}</TabsContent>
+    </Tabs>
   )
 }
 

@@ -188,3 +188,48 @@ test.describe("the statistics of a project", () => {
     await expect(band.getByText("No ticket of this project over this period.")).toBeHidden()
   })
 })
+
+test.describe("the page of a project", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  const tab = (page: Page, name: string) => page.getByRole("tab", { name, exact: true })
+
+  test("opens on the tickets, and the tab picked survives a reload", async ({ page }) => {
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    await expect(tab(page, "Tickets")).toHaveAttribute("aria-selected", "true")
+
+    await tab(page, "Brief").click()
+    await expect(page.getByText("The brief of Website.")).toBeVisible()
+    await expect(page).toHaveURL(/tab=brief/)
+
+    await page.reload()
+    await expect(tab(page, "Brief")).toHaveAttribute("aria-selected", "true")
+    await expect(page.getByText("The brief of Website.")).toBeVisible()
+
+    await tab(page, "Tickets").click()
+    await expect(page).toHaveURL(/tab=tickets/)
+  })
+
+  test("a ticket made from the tickets tab is in its list, for this project", async ({ page }) => {
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    await page.getByRole("button", { name: "New ticket" }).click()
+    const form = page.locator('[data-slot="project-ticket-form"]')
+    await form.getByLabel("Title").fill("Fix the footer of the site")
+    await form.getByRole("button", { name: "Create" }).click()
+    await expect(form).toBeHidden()
+    const list = page.locator('[data-slot="project-ticket-list"]')
+    await expect(list.getByText("Fix the footer of the site")).toBeVisible()
+  })
+
+  test("a project with no clone says so, rather than saying where a clone would be", async ({ page }) => {
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    await expect(page.getByText("Not cloned on this machine yet")).toBeVisible()
+    await expect(page.getByText("wherever the clone is")).toHaveCount(0)
+  })
+})

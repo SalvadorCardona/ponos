@@ -196,6 +196,25 @@ def _workspace(
 
 
 @case
+def locating_a_project_shows_its_clone_and_never_asks_github_nor_clones():
+    """The console shows where the clone is: found by path or by remote, else nowhere."""
+    cloned: list[tuple[str, Path]] = []
+    with _workspace(
+        {"mobile-factory": "git@github.com:SalvadorCardona/mobile-factory.git"}, cloned=cloned
+    ) as (resolver, asked):
+        root = resolver._root  # noqa: SLF001
+        by_remote = resolver.locate("Jeu", "", "SalvadorCardona/mobile-factory")
+        assert by_remote == root / "mobile-factory"
+        assert resolver.locate("Jeu", str(root / "mobile-factory")) == root / "mobile-factory"
+        # A path that points nowhere is not shown as the repository.
+        assert resolver.locate("Jeu", str(root / "gone")) is None
+        # Declared and absent: nothing is cloned, nobody is asked.
+        assert resolver.locate("Autre", "", "SalvadorCardona/never-cloned") is None
+        assert resolver.locate("Document") is None
+    assert asked == [] and cloned == []
+
+
+@case
 def a_path_that_exists_is_taken_before_anything_else():
     """Nothing is noted and GitHub is never asked: the first way answered."""
     with _workspace({"mobile-factory": "git@github.com:SalvadorCardona/mobile-factory.git"}) as (
@@ -11788,6 +11807,8 @@ def _markdown_api(board: files.Board) -> web_api.Api:
     )
     api._runner.config = api._config
     api._runner._workspace = board.workspace(api._config.notion)
+    # Where a project's clone is looked for, for the page that says it.
+    api._runner.resolver = projects.Resolver(api._config.runner.workspace_root, {})
     # What `state()` folds in and nothing here exercises: the chat and the
     # command line are the console's own, and have no board behind them.
     api.chat = type("Chat", (), {"state": lambda self: {}})()
@@ -11851,6 +11872,8 @@ def the_console_opens_a_project_and_writes_it_back():
         assert opened["name"] == "ponos"
         assert opened["repository"] == "user/repo"
         assert opened["content"] == "Écris en français."
+        # No clone under the workspace root: the page says nowhere, not a guess.
+        assert opened["located"] == ""
 
         written = api.save_project(
             page,

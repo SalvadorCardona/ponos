@@ -529,7 +529,17 @@ class Api:
         )
         if row is None:
             raise LookupError(f"no project with id {wanted}")
-        return {**row, "content": self.runner.client.blocks_text(page_id)}
+        # Where the clone really is, which neither declaration says when the
+        # repository was found by its remote. Left out of the list: finding it
+        # walks the disk, and a card has no room for it.
+        located = self.runner.resolver.locate(
+            row["name"], row.get("configured") or row.get("path") or "", row.get("repository") or ""
+        )
+        return {
+            **row,
+            "located": str(located) if located else "",
+            "content": self.runner.client.blocks_text(page_id),
+        }
 
     def save_project(self, page_id: str, values: dict) -> dict:
         """Change one project page from the console.

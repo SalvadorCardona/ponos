@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Clock, FileText, Folder, FolderGit2 } from "lucide-react"
+import { Check, Clock, Copy, FileText, Folder, FolderGit2 } from "lucide-react"
 import { ActionList, type FormInterface } from "react-data-form"
 import {
   Link,
@@ -21,7 +21,7 @@ import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
 import { Chip, LABEL, SEED, ago } from "@/components/console/ticket-bits"
 import { Badge } from "@/components/ui/badge"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
 import { useTicketTallies, type Tally } from "@/lib/board-store"
@@ -95,7 +95,7 @@ const item = (project: Project & { content?: string }): ProjectItem => ({
   "@id": `/api/projects/${idOf(project)}`,
   "@type": PROJECTS,
   work: project.kind === "code" ? t("code work") : t("document work"),
-  where: project.configured || project.path || "",
+  where: project.located ?? (project.configured || project.path || ""),
 })
 
 /* -- what the list last read ---------------------------------------------- */
@@ -533,13 +533,43 @@ export function Repository({ declared }: { declared?: string }) {
   )
 }
 
-/** Where this machine finds a project: whole, or cut from the left with the whole in its title. */
-export function Where({ path, short = false }: { path?: string; short?: boolean }) {
-  if (!path) return <span className="font-mono text-xs">{t("wherever the clone is")}</span>
+/** Where this machine finds a project: whole, or cut from the left with the whole in its title.
+ * Nowhere is said in words, and which words depends on whether it was ever to be cloned. */
+export function Where({ path, kind }: { path?: string; kind?: string }) {
+  if (!path)
+    return (
+      <span className="text-muted-foreground text-sm">
+        {kind === "document" ? t("No repository: this project is a document") : t("Not cloned on this machine yet")}
+      </span>
+    )
   return (
-    <span className="font-mono text-xs" title={path}>
-      {short ? shortPath(path) : path}
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 font-mono text-xs break-all" title={path}>
+        {path}
+      </span>
+      <CopyPath path={path} />
     </span>
+  )
+}
+
+/** The path, on the clipboard. */
+function CopyPath({ path }: { path: string }) {
+  const [copied, setCopied] = React.useState(false)
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      className="shrink-0"
+      aria-label={t("Copy the path")}
+      onClick={() => {
+        void navigator.clipboard?.writeText(path).then(() => {
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1500)
+        })
+      }}
+    >
+      {copied ? <Check /> : <Copy />}
+    </Button>
   )
 }
 

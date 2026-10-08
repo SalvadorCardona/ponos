@@ -165,6 +165,24 @@ class Resolver:
         except store.StoreError:
             return ""
 
+    def locate(self, name: str, path: str = "", github: str = "") -> Path | None:
+        """Where the clone of a project is on this disk, or None if it is nowhere.
+
+        `resolve` for a page that is already read, and without its last two
+        ways: no question to GitHub and no clone, because the console asks this
+        to *show* a path, and showing one must never download anything or wait
+        for the network. A declaration that points nowhere is skipped, as
+        `resolve` skips it, rather than shown as if it were the repository.
+        """
+        for declared in (self._overrides.get(name), path):
+            if declared and git.is_repo(Path(str(declared)).expanduser()):
+                return Path(str(declared)).expanduser()
+        if github:
+            match = self._match(_normalise(github))
+            if isinstance(match, Path):
+                return match
+        return None
+
     def resolve(self, backend: store.Store, page_id: str, *, clone: bool = False) -> Project:
         """The project behind that page, and the repository its tickets run on.
 
