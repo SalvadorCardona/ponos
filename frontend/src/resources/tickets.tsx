@@ -38,6 +38,7 @@ import {
   lasted,
   when,
 } from "@/components/console/ticket-bits"
+import { IdeasButton } from "@/components/console/ideas-deck"
 import { EmptyState } from "@/components/console/empty-state"
 import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
@@ -527,6 +528,9 @@ function BoardTop() {
   if (!isLoading || currentBoard())
     return resourceAction === ActionList.list ? (
       <>
+        <div className="mb-3 flex justify-end">
+          <IdeasButton />
+        </div>
         <RunnerStrip />
         <StatisticsBand />
         <TicketWindow />

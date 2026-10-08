@@ -12584,6 +12584,9 @@ def ideas_for_a_project_are_found_in_one_call_and_never_proposed_twice():
         assert second["dropped"] == ["Idée numéro un !"], "and never proposed again"
         assert ideas.get(thrown["id"]).status == "discarded"
         assert thrown["id"] not in [idea["id"] for idea in api.ideas.proposed(project)["ideas"]]
+        history = api.ideas.proposed(project)["decided"]
+        assert [idea["id"] for idea in history] == [thrown["id"]], "the history holds what was decided"
+        assert history[0]["status"] == "discarded"
 
         with db.transaction(immediate=False) as connection:
             costs = connection.execute(

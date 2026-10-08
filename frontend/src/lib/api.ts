@@ -3,6 +3,9 @@ import type {
   Board,
   Cleaned,
   Disk,
+  Found,
+  Idea,
+  Ideas,
   LogEntry,
   ChatState,
   Context,
@@ -226,6 +229,14 @@ export const api = {
     request<{ id: string }>(`/api/schedules/${id}`, values),
   createSchedule: (values: Record<string, unknown>) =>
     request<{ id: string; name: string }>("/api/schedules", values),
+  ideas: (project = "") =>
+    request<Ideas>(`/api/ideas${project ? `?project=${encodeURIComponent(project)}` : ""}`),
+  /** An empty `project` is the workspace's ideas. */
+  findIdeas: (project = "") => request<Found>("/api/ideas/generate", { project }),
+  keepIdea: (id: number) => request<Idea>(`/api/ideas/${id}/keep`, {}),
+  discardIdea: (id: number) => request<Idea>(`/api/ideas/${id}/discard`, {}),
+  /** Takes back the last decision of one scope. */
+  undoIdea: (project = "") => request<{ idea: Idea; was: string }>("/api/ideas/undo", { project }),
   refresh: () => request<unknown>("/api/refresh", {}),
   disk: () => request<Disk>("/api/disk"),
   clean: () => request<Cleaned>("/api/disk/clean", {}),
