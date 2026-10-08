@@ -131,6 +131,27 @@ def say(event):
     print(json.dumps(event), flush=True)
     time.sleep(0.6)
 
+if "proposing ideas" in prompt:
+    # A batch of ten for the ideas deck: other words every time it is asked,
+    # so that none is dropped as one already proposed.
+    counter = pathlib.Path.home() / "ideas-asked"
+    asked = int(counter.read_text()) if counter.exists() else 0
+    counter.write_text(str(asked + 1))
+    nouns = ["calendar", "invoice", "gallery", "newsletter", "dashboard", "inventory", "booking",
+             "referral", "changelog", "playlist", "quotation", "timeline", "wishlist", "forum",
+             "podcast", "glossary", "roadmap", "checkout", "sitemap", "feedback"]
+    teams = ["sales", "support", "finance", "marketing", "legal"]
+    batch = [
+        {{"title": f"Build the {{nouns[n + 10 * (asked % 2)]}} module for {{teams[asked % 5]}}",
+          "description": f"Because the {{nouns[n + 10 * (asked % 2)]}} is what people ask for.",
+          "kind": "project" if n % 2 else "ticket", "where": "The web app.",
+          "done": ["It works."], "out": ["Nothing else."]}}
+        for n in range(10)
+    ]
+    time.sleep(1)
+    say({{"type": "result", "result": json.dumps(batch), "session_id": session, "total_cost_usd": 0.01, "num_turns": 1}})
+    sys.exit(0)
+
 def use(name, **given):
     say({{"type": "assistant", "message": {{"content": [{{"type": "tool_use", "name": name, "input": given}}]}}}})
 

@@ -13,7 +13,8 @@ import { defineConfig } from "@playwright/test"
  * that opens the console walks into: Escape there stops it instead of closing
  * the drawer, and the chat test then reads "stopped by you" where its answer
  * should be. The chat gets a server of its own, its tests one after another;
- * the rest share the other one and run in parallel. And the first connection
+ * the rest share the other one and run in parallel. The ideas share the chat's: what
+ * they keep is written onto its board, and the others count the tickets of theirs. And the first connection
  * gets a console nobody has claimed, which its test claims — once.
  *
  * The ports are free ones unless `PONOS_E2E_PORT` names the first (the
@@ -67,12 +68,12 @@ export default defineConfig({
   projects: [
     {
       name: "console",
-      testIgnore: ["chat.spec.ts", "setup.spec.ts"],
+      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "setup.spec.ts"],
       use: { baseURL: `http://127.0.0.1:${PORT}` },
     },
     {
       name: "chat",
-      testMatch: "chat.spec.ts",
+      testMatch: ["chat.spec.ts", "ideas.spec.ts"],
       use: { baseURL: `http://127.0.0.1:${CHAT_PORT}` },
     },
     {

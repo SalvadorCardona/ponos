@@ -30,6 +30,9 @@ if TYPE_CHECKING:
 # The README is read for what the project is; these are the names it goes by.
 READMES = ("README.md", "README", "readme.md", "README.rst", "README.txt")
 
+# How many decisions the history tab shows: enough to find the one you doubt.
+HISTORY = 50
+
 # Language names as the prompt says them — see `voice.understood`.
 LANGUAGES = {"en": "English", "fr": "French"}
 
@@ -51,10 +54,18 @@ class Ideas:
             "scope": ideas.scope_of(project),
             "project": project,
             "ideas": [idea.shown() for idea in ideas.listed(project)],
+            "decided": [idea.shown() for idea in self._decided(project)],
             "batches": batches,
             "cost_usd": round(cost, 6),
             "undo": last.shown() if last else None,
         }
+
+    @staticmethod
+    def _decided(project: str) -> list[ideas.Idea]:
+        """The last ideas kept or thrown away, the most recent first: the history tab's."""
+        decided = ideas.listed(project, ("kept", "discarded"))
+        decided.sort(key=lambda idea: (idea.decided_at or "", idea.id), reverse=True)
+        return decided[:HISTORY]
 
     # -- finding --------------------------------------------------------------
 

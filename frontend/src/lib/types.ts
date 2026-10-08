@@ -502,3 +502,42 @@ export interface Statistics {
   /** What a ticket closed in the period cost in all; null when none was. */
   average: number | null
 }
+
+/* -- ideas ---------------------------------------------------------------- */
+
+export type IdeaStatus = "proposed" | "kept" | "discarded"
+
+/** One idea Ponos proposed, as `/api/ideas` says it. */
+export interface Idea {
+  id: number
+  scope: "global" | "project"
+  /** The project it was proposed for; empty for the workspace's. */
+  project: string
+  kind: "ticket" | "project"
+  title: string
+  description: string
+  where: string
+  done: string[]
+  out: string[]
+  status: IdeaStatus
+  /** The draft it became once kept. */
+  ticket: string
+  /** The project it created when it was the idea of one. */
+  created: string
+  decided_at: string | null
+}
+
+/** The ideas of one scope: the pile, the last decisions, and whether one can be taken back. */
+export interface Ideas {
+  scope: "global" | "project"
+  project: string
+  ideas: Idea[]
+  decided: Idea[]
+  undo: Idea | null
+}
+
+/** What asking for a batch brought back. */
+export interface Found {
+  ideas: Idea[]
+  error: string
+}

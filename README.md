@@ -2331,8 +2331,14 @@ creates the project, its description as the brief, and a first draft ticket to f
 Throwing one away only marks it so. The last choice can be taken back — a kept idea's ticket
 stays on the board as a draft, and is what it becomes again if it is kept a second time.
 
+In the console the dashboard's *Find me ideas* and a project's *Find me ideas for this project*
+open the same pile of cards, one idea each: swipe right (or drag, press ♥, or →) to keep, left
+(✕, ←) to throw away, *Undo* for the last card. Ponos waits while a batch is written, and at the
+end of the pile *Ten more* asks for another. The *Kept / Thrown* tab is the history, where a
+thrown idea can still be kept. On a phone the pile fills the screen.
+
 Ideas live in the local database, `ponos.db`, with what each batch cost. The console asks
-for them through `GET /api/ideas[?project=…]`, `POST /api/ideas/generate`,
+for them through `GET /api/ideas[?project=…]` (the pile, and the last fifty decisions), `POST /api/ideas/generate`,
 `POST /api/ideas/<id>/keep`, `POST /api/ideas/<id>/discard` and `POST /api/ideas/undo`.
 
 ### The console's own code

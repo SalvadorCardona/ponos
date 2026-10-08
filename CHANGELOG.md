@@ -18,6 +18,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Ideas, one card at a time.** *Find me ideas* on the dashboard, and *Find me ideas for this
+  project* on a project's page, open a pile of cards — title, short description, a *Ticket* or
+  *New project* badge. Swipe right to keep (the draft or the project is written to the board and
+  a toast links to it), left to throw away: with a finger, the mouse, the ✕ and ♥ buttons or the
+  ← and → keys; a short gesture brings the card back, *Undo* takes the last one back. Ponos waits
+  while a batch is written, *Ten more* closes the pile, and a *Kept / Thrown* tab keeps the
+  history, from which a thrown idea can still be kept. Full screen on a phone.
 - **Ideas, ten at a time — the half underneath.** Ponos can propose ideas for the whole
   workspace (new projects, or improvements across them) or for one project, in one short
   session on a light model (`runner.ideas_model`, `haiku` by default) given the project's

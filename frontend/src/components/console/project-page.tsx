@@ -11,6 +11,7 @@ import { Repository, Where, isAPage, useTicketCount, whyNotRead, type ProjectIte
 import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
+import { IdeasButton } from "./ideas-deck"
 import { Markdown } from "./markdown"
 import { ProjectCover } from "./project-picture"
 import { ProjectTickets } from "./project-tickets"
@@ -203,6 +204,7 @@ export function ProjectActions() {
   return (
     <>
       {away ? <Away label="Notion" href={away} /> : null}
+      {isAPage(project.id) ? <IdeasButton project={project.id} name={project.name} /> : null}
       {count === null ? (
         <Skeleton className="h-5 w-16 rounded-full" />
       ) : count ? (
