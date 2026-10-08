@@ -369,7 +369,8 @@ const createForm: FormInterface = {
 const StatusCell: InputControllerComponentInterface = ({ formInput }) => {
   const status = String(formInput.value ?? "")
   const column =
-    currentBoard()?.columns.find((candidate) => candidate.name === status)?.key ?? "other"
+    currentBoard()?.columns.find((candidate) => candidate.name === status)?.key ??
+    (status ? "other" : "draft")
   return (
     <span className="inline-flex items-center gap-2">
       <TicketRobot column={column} size={18} className="shrink-0" />
@@ -916,10 +917,10 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
     })
     const projects = await api.projects().catch(() => ({ projects: [] }))
     const project = projects.projects.find((candidate) => candidate.id === fresh.project)
-    // A draft lands where the server put it: among the drafts on a board that
-    // keeps some, with no status on one that does not.
+    // A draft lands among the drafts, with the status the board keeps them
+    // under, or none on a board that names no such option.
     const drafts = currentBoard()?.columns.find((candidate) => candidate.key === "draft")
-    const column = fresh.ready === false ? (drafts ? "draft" : "other") : "ready"
+    const column = fresh.ready === false ? "draft" : "ready"
     const card: Ticket = {
       id: made.id.replace(/-/g, ""),
       short: made.id.replace(/-/g, "").slice(-8),
