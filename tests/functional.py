@@ -1870,7 +1870,11 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
                                   capture_output=True, text=True, check=True).stdout.strip()
 
         first = land("one")
-        _git(["clone", str(remote), str(app)], machine.root)
+        # Installed the way install.sh does it: `app` a link to `app-<commit>`.
+        # A plain directory is renamed by the first update, and a pass started in
+        # that one moment does not start at all — `update._versioned` says so.
+        _git(["clone", str(remote), str(app.with_name(f"app-{first[:12]}"))], machine.root)
+        app.symlink_to(f"app-{first[:12]}")
         # The launcher as install.sh writes it, and a PATH with no systemctl on
         # it: the units of the machine running the test are not the test's.
         launcher = home / ".local" / "bin" / "ponos"
@@ -1923,9 +1927,12 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
             installing = threading.Thread(target=lambda: during.append(
                 update.install(update.check(app, "main"), 600, app)))
             installing.start()
-            meanwhile = []
+            meanwhile: list[subprocess.Popen] = []
             while installing.is_alive():
-                meanwhile.append(started("run"))
+                # A few at a time: a pass every 50 ms, unbounded, slowed the
+                # update past a minute in the image — and past the held pass.
+                if sum(one.poll() is None for one in meanwhile) < 3:
+                    meanwhile.append(started("run"))
                 time.sleep(0.05)
             installing.join()
             assert during == [""], during
