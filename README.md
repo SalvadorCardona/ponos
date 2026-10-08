@@ -371,7 +371,7 @@ compare itself against: it says so once per check and carries on.
 ## Configuration
 
 Everything lives in **`~/.config/ponos/config.toml`**, created by the installer
-with mode `600` — it holds your Notion token. `ponos config` opens it in
+with mode `600` — everything but the secrets. `ponos config` opens it in
 `$EDITOR`. The copies the console makes when it saves (`config.toml.bak`, and the scratch
 copy it checks before swapping it in) are created `600` too, as are the console's token,
 the session logs — under a `logs/` directory only your account can enter — and
@@ -381,6 +381,31 @@ between two runs — the history, the claims, the reconciliation stamps, the con
 is written in one SQLite transaction, and what is still a file (the channels' cursors) is
 written to a copy and renamed over the old one, so a run killed mid-write leaves the old
 state whole rather than an empty one.
+
+**Secrets are not in `config.toml`, and are never read from it.** That file is one you
+open, paste into a ticket, copy into an image or onto a shared volume — and a token goes
+wherever it goes. They live in the environment, or in **`~/.config/ponos/secrets.env`**,
+beside it (`PONOS_SECRETS` moves it): one `NAME=value` a line, the shape a shell's
+`source`, compose's `env_file` and systemd's `EnvironmentFile` all read, created `600`. It
+is the file the installer, `ponos init` and the console's Settings write a secret to.
+
+| Variable | What it is | Where it used to be |
+|---|---|---|
+| `PONOS_NOTION_TOKEN` | the Notion integration token | `[notion] token` |
+| `PONOS_WEB_TOKEN` | the console's token | `[web] token` |
+| `PONOS_WEB_PASSWORD` | the console's sign-in password | `[web] password` |
+| `PONOS_TELEGRAM_TOKEN` | the Telegram bot token | `[notify.telegram] token` |
+| `PONOS_SLACK_TOKEN` | the Slack bot token (`xoxb-…`) | `[notify.slack] token` |
+| `ANTHROPIC_API_KEY` | the key of the `api_key` provider | `[claude] api_key` |
+| `OPENROUTER_API_KEY` | the OpenRouter key | `[openrouter] key` |
+
+When both have one, `secrets.env` wins — it is where the key you have just typed in the
+console went, and it must not lose to one a compose file was started with weeks ago —
+except for the console's password, where the environment wins: that is how a unit file or a
+container claims a console before anybody opens it. A secret an older version left in
+`config.toml` is ignored; the next launch moves it into `secrets.env` (and out of
+`config.toml.bak`) and says so on stderr, or says, at every launch, which variable to set
+when it cannot. `ponos doctor` checks that neither file gives a secret away.
 
 Steps 1 to 3 are for a board in Notion. A board of Markdown files needs none of them —
 one line, under [Without Notion](#without-notion-the-board-as-markdown-files) — and goes
@@ -407,7 +432,8 @@ itself access, so it is the one step no command can take for you.
 ponos init https://www.notion.so/your-page --token ntn_…
 ```
 
-It creates everything under that page and writes the result into your configuration:
+It creates everything under that page and writes the result into your configuration —
+the token into `secrets.env`, the workspace into `config.toml`:
 
 ```
 your page                 ← the one you shared
@@ -457,8 +483,8 @@ ponos config      # opens the TOML in your editor — the cleanest
 # or let the installer ask you (it does, on a fresh install):
 curl -LsSf https://raw.githubusercontent.com/SalvadorCardona/ponos/main/install.sh | sh
 
-# or in one line:
-sed -i 's|^token = .*|token = "ntn_…"|' ~/.config/ponos/config.toml
+# or in one line — the token goes beside the file, never in it:
+echo 'PONOS_NOTION_TOKEN=ntn_…' >> ~/.config/ponos/secrets.env && chmod 600 ~/.config/ponos/secrets.env
 ```
 
 ### The step everyone forgets
@@ -599,8 +625,8 @@ provider = "cli"        # or "api_key", or "openrouter"
 | `provider` | What it is | What goes with it |
 |---|---|---|
 | `"cli"` | Claude Code signed in as you, `claude auth login` once on that machine | Your subscription. The only one that keeps **Claude in Chrome**, and the only one whose credits come in windows worth [waiting for](#when-the-credits-run-out). |
-| `"api_key"` | An Anthropic key: `claude.api_key`, or `ANTHROPIC_API_KEY` from the environment | Billed by the token. No browser, nothing to wait for. |
-| `"openrouter"` | The key of `[openrouter]` (below), or `OPENROUTER_API_KEY` | With `route_sessions = true` the sessions run there, and a model is an OpenRouter slug. No browser, nothing to wait for. |
+| `"api_key"` | An Anthropic key: `ANTHROPIC_API_KEY`, in `secrets.env` or the environment | Billed by the token. No browser, nothing to wait for. |
+| `"openrouter"` | The OpenRouter key (below), `OPENROUTER_API_KEY` | With `route_sessions = true` the sessions run there, and a model is an OpenRouter slug. No browser, nothing to wait for. |
 
 An empty `provider` is a file written before the key existed, and it reads the way that
 file always worked: OpenRouter when its sessions are routed there, the CLI otherwise. A key
@@ -619,9 +645,9 @@ What the runner drives is Claude Code, and Claude Code talks to Anthropic: one f
 models, on one subscription. An [OpenRouter](https://openrouter.ai/keys) key is one account
 in front of every provider there is, and it reaches a session two ways.
 
-```toml
-[openrouter]
-key = "sk-or-v1-..."
+```sh
+# ~/.config/ponos/secrets.env — or the environment
+OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
 That alone changes nothing about the runner. The key is simply *there*, in the environment
@@ -1874,7 +1900,7 @@ No public URL, no webhook, no domain: the runner *polls*, which is what makes th
 channel that installs on a laptop behind a NAT.
 
 1. talk to [@BotFather](https://t.me/BotFather) → `/newbot` → put the token in
-   `[notify.telegram] token`;
+   `secrets.env` as `PONOS_TELEGRAM_TOKEN` (or type it in the console's Settings);
 2. open the chat with your new bot and say anything to it;
 3. `ponos notify --pair` — it reads that message and writes the chat id into your
    configuration. (The usual advice is to paste your token into somebody else's bot, which
@@ -1907,7 +1933,7 @@ conversations in it, and a colleague's "ok" is not an approval of anything.
 2. *OAuth & Permissions* → Bot Token Scopes: `chat:write`, and the history scope matching
    where you put it — `channels:history` for a public channel, `groups:history` for a
    private one, `im:history` for a direct message;
-3. *Install to Workspace*, copy the `xoxb-` token into `[notify.slack] token`;
+3. *Install to Workspace*, copy the `xoxb-` token into `secrets.env` as `PONOS_SLACK_TOKEN`;
 4. `/invite @your-bot` in the channel — the step everyone forgets — and put the channel ID
    (`···` → *View channel details*, at the bottom) in `channel`.
 5. `allowed_users = ["U0123ABCD"]` — the member ids of the people whose answers count
@@ -2263,7 +2289,8 @@ Three things it does that a form usually does not.
   see [The statuses](#the-statuses).
 - **Your tokens stay on the machine.** A secret goes to the browser as *set, ending in
   …f3a2* and comes back only if you type a new one — an empty box means "leave it alone",
-  so forgetting one is a button of its own.
+  so forgetting one is a button of its own. What you type is written to `secrets.env`, not
+  to `config.toml`, and the field names its variable rather than a key of the file.
 - **A save is all of it or none of it.** The edits are made on a copy beside the file, the
   copy is loaded — if it would not parse, or would leave a working installation unable to
   run, nothing moves — and only then does it take the file's place, in one rename and with
@@ -2563,10 +2590,9 @@ your address bar. So the console can also be opened the way everything else is �
 email and a password, which is what the first connection above writes for you, and what
 these two lines say by hand:
 
-```toml
-[web]
-email = "you@example.com"
-password = "the one you would actually remember"
+```sh
+# config.toml, [web]:              email = "you@example.com"
+# secrets.env:                     PONOS_WEB_PASSWORD=the one you would actually remember
 ```
 
 Or, on a server, without writing either of them down anywhere:
@@ -2575,7 +2601,7 @@ Or, on a server, without writing either of them down anywhere:
 PONOS_WEB_EMAIL=you@example.com PONOS_WEB_PASSWORD=… ponos serve
 ```
 
-The environment wins over the file, which is what makes it worth setting: a systemd
+The environment wins over the files, which is what makes it worth setting: a systemd
 drop-in or a container carries the credentials, and `config.toml` stays a file you can
 read out loud. Both halves are needed — an email without a password is somebody half-way
 through configuring one, and it is not a way in.
@@ -3009,14 +3035,21 @@ first start.
 | `ponos-gh` | `/home/ponos/.config/gh` | `gh`'s sign-in, when it is not `GH_TOKEN` |
 
 **The variables**, each optional, read from the environment or from a `.env` beside the
-compose file:
+compose file. **This is where a container's secrets go** — Dokploy's *Environment* tab, below
+— and never into a `config.toml` copied into the image or onto a volume: the runner does
+not read a secret from that file anyway (see [Configuration](#configuration)). A secret
+typed in the console's first connection or Settings lands in `/data/config/ponos/secrets.env`,
+`600`, on the `ponos-data` volume, and wins over the variable.
 
 | Variable | What it does |
 |---|---|
 | `PONOS_WEB_EMAIL`, `PONOS_WEB_PASSWORD` | Both set: the console is claimed before anybody opens it, and the first connection starts after the account. |
+| `PONOS_NOTION_TOKEN` | The Notion integration token. |
+| `PONOS_TELEGRAM_TOKEN`, `PONOS_SLACK_TOKEN` | The bots that reach your phone. |
+| `PONOS_WEB_TOKEN` | The console's token, for scripts; drawn and kept in the volume when empty. |
 | `GH_TOKEN` | The account pull requests are opened as; `git` pushes through `gh` with it. |
-| `ANTHROPIC_API_KEY` | The key of the `api_key` provider, when the configuration holds none. |
-| `OPENROUTER_API_KEY` | The key of `[openrouter]`, when the configuration holds none. |
+| `ANTHROPIC_API_KEY` | The key of the `api_key` provider. |
+| `OPENROUTER_API_KEY` | The OpenRouter key. |
 
 **Signing Claude Code in**, for the `cli` provider: once, from a terminal in the container,
 and the sign-in is kept in its volume.
@@ -3053,7 +3086,9 @@ of what the console needs.
    `docker-compose.yml`. Dokploy builds the image; a release's `ghcr.io` image works too.
 2. **Environment** tab: whichever of the variables above you want — at the least
    `GH_TOKEN`, and the provider's key unless you sign the CLI in. `PONOS_WEB_EMAIL` and
-   `PONOS_WEB_PASSWORD` make the console yours before it is ever reachable.
+   `PONOS_WEB_PASSWORD` make the console yours before it is ever reachable. Every secret
+   goes here — `PONOS_NOTION_TOKEN`, `PONOS_TELEGRAM_TOKEN`, `PONOS_SLACK_TOKEN` too —
+   rather than into a file: Dokploy keeps them out of the repository and out of the image.
 3. **Domains** tab: a domain on the service `ponos`, port `8787`, HTTPS on. Traefik
    terminates TLS and says so in `X-Forwarded-Proto`, and every cookie the console sets is
    then `Secure`.

@@ -1008,7 +1008,6 @@ class Bench:
 
 CONFIGURATION = """# Written by tests/functional.py — a whole installation, in a temporary directory.
 [notion]
-token = "ntn_functional_tests"
 tickets_database = "{database}"
 
 [runner]
@@ -1064,6 +1063,11 @@ def bench(**overrides: object):
                     ),
                     encoding="utf-8",
                 )
+                # Beside the file, where secrets live: config.toml holds none.
+                (root / "secrets.env").write_text(
+                    "PONOS_NOTION_TOKEN=ntn_functional_tests\n", encoding="utf-8"
+                )
+                (root / "secrets.env").chmod(0o600)
                 yield Bench(root, board, database, logs)
 
 

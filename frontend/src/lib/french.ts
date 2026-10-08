@@ -714,6 +714,8 @@ export const FRENCH: Record<string, string> = {
   "Show the advanced settings ({{count}})": "Afficher les réglages avancés ({{count}})",
   "Hide the advanced settings": "Masquer les réglages avancés",
   "Its key in config.toml": "Sa clé dans config.toml",
+  "Its variable, in secrets.env or the environment":
+    "Sa variable, dans secrets.env ou l'environnement",
 
   /* -- the two `name = value` tables, each a resource of its own -------------
      `Projects`, `Project` and the two section blurbs are already said where

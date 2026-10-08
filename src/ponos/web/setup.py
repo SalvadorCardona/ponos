@@ -13,8 +13,9 @@ email and password that open the console from here on — which is also what
 closes this door behind them — then the Notion integration and the page to build
 the board under, the rules every ticket is written against, and the Telegram bot
 that reaches your phone. Nothing here is new configuration: every value written
-is a key of `config.toml` you could have typed yourself, saved through the same
-`config.edit` the Settings tab saves through.
+is a key of `config.toml` you could have typed yourself — or, for a secret, a
+line of `secrets.env` — saved through the same `config.edit` the Settings tab
+saves through.
 
 It is drawn by the console itself, in steps (`frontend/src/components/console/
 setup.tsx`), and it is one write per step: who opens the console, which account

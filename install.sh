@@ -173,13 +173,15 @@ else
         printf '    %s(press enter to fill it in later)%s > ' "$DIM" "$RESET"
         read -r token </dev/tty || token=""
         if [ -n "$token" ]; then
-            python3 - "$CONFIG" "$token" <<'PY'
+            # Into secrets.env, created 0600 beside the configuration: a
+            # secret is never written in config.toml.
+            PYTHONPATH="$APP_DIR/src" "$PYTHON" - "$CONFIG" "$token" <<'PY'
 import sys, pathlib
-path, token = pathlib.Path(sys.argv[1]), sys.argv[2].strip()
-text = path.read_text()
-path.write_text(text.replace('token = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"', f'token = "{token}"'))
+from ponos import config
+path = config.secrets_path(pathlib.Path(sys.argv[1]))
+config.write_secrets(path, {config.SECRETS[("notion", "token")]: sys.argv[2].strip()})
 PY
-            ok "token saved"
+            ok "token saved in $(dirname "$CONFIG")/secrets.env"
         fi
         # Nothing needs to exist in Notion yet: give a page shared with the
         # integration and `init` builds the four databases under it.
@@ -200,19 +202,17 @@ fi
 # assumed, so a machine that moved the port is told where its own console is.
 # The second word says how it is opened: "claimed" when somebody chose a token
 # or a sign-in, "open" while its first connection is still waiting for one.
-CONSOLE_STATE=$(python3 - "$CONFIG" <<'PY'
-import pathlib, sys, tomllib
+# Read by the runner's own loader: the token and the password are not in the
+# file, they are in secrets.env or the environment.
+CONSOLE_STATE=$(PYTHONPATH="$APP_DIR/src" "$PYTHON" - "$CONFIG" <<'PY'
+import pathlib, sys
+from ponos import config
 try:
-    with pathlib.Path(sys.argv[1]).open("rb") as handle:
-        web = tomllib.load(handle).get("web", {})
-except (OSError, ValueError):
-    web = {}
-chosen = web.get("token") or (web.get("email") and web.get("password"))
-print("http://%s:%d %s" % (
-    web.get("host") or "127.0.0.1",
-    int(web.get("port") or 8787),
-    "claimed" if chosen else "open",
-))
+    web = config.load(pathlib.Path(sys.argv[1])).web
+except (config.ConfigError, OSError, ValueError):
+    web = config.Web()
+chosen = web.token or (web.email and web.password)
+print("http://%s:%d %s" % (web.host, web.port, "claimed" if chosen else "open"))
 PY
 )
 CONSOLE=${CONSOLE_STATE% *}

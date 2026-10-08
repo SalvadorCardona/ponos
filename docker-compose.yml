@@ -26,8 +26,13 @@ services:
       PONOS_WEB_PASSWORD: ${PONOS_WEB_PASSWORD:-}
       # The pull requests: gh reads it as is, and git pushes through gh.
       GH_TOKEN: ${GH_TOKEN:-}
-      # Read when the configuration holds no key of its own — see [claude] and
-      # [openrouter] in config.example.toml.
+      # Every other secret is a variable too, and never a line of config.toml:
+      # the runner does not read one from there. One the console is given is
+      # written to secrets.env on the data volume, and wins over these.
+      PONOS_NOTION_TOKEN: ${PONOS_NOTION_TOKEN:-}
+      PONOS_TELEGRAM_TOKEN: ${PONOS_TELEGRAM_TOKEN:-}
+      PONOS_SLACK_TOKEN: ${PONOS_SLACK_TOKEN:-}
+      PONOS_WEB_TOKEN: ${PONOS_WEB_TOKEN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:

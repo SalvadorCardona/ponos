@@ -192,10 +192,12 @@ def main() -> None:
     board(here / "board")
     config = here / "config.toml"
     config.write_text(
-        f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n'
-        + ("" if unclaimed else f'\n[web]\ntoken = "{TOKEN}"\n'),
-        encoding="utf-8",
+        f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n', encoding="utf-8"
     )
+    if not unclaimed:
+        # Beside the file, where a secret lives — config.toml holds none.
+        (here / "secrets.env").write_text(f"PONOS_WEB_TOKEN={TOKEN}\n", encoding="utf-8")
+        (here / "secrets.env").chmod(0o600)
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
     ).stdout.strip()

@@ -8,6 +8,27 @@
 # (`ponos serve`). It writes back into this very file, one line at a
 # time, and leaves these comments where they are — so editing it by hand and
 # editing it in a browser are the same gesture, and neither undoes the other.
+#
+# Secrets — every token, key and password — are not in this file, and are not
+# read from it. They live in the environment, or in
+#
+#   ~/.config/ponos/secrets.env      (beside this file; PONOS_SECRETS moves it)
+#
+# one NAME=value a line, created 0600 — the file the console and `ponos init`
+# write them to. When both have a value, secrets.env wins, except for the
+# console's password, where the environment does. The names:
+#
+#   PONOS_NOTION_TOKEN     the Notion integration token        [notion]
+#   PONOS_WEB_TOKEN        the console's token                 [web]
+#   PONOS_WEB_PASSWORD     the console's sign-in password      [web]
+#   PONOS_TELEGRAM_TOKEN   the Telegram bot token              [notify.telegram]
+#   PONOS_SLACK_TOKEN      the Slack bot token (xoxb-…)        [notify.slack]
+#   ANTHROPIC_API_KEY      the Anthropic key                   [claude]
+#   OPENROUTER_API_KEY     the OpenRouter key                  [openrouter]
+#
+# A secret left in this file by an older version is moved into secrets.env by
+# the next launch, which says so; until then it is ignored. `ponos doctor`
+# checks both files.
 
 [storage]
 # Where the board lives. Three answers, and the first is what this tool has
@@ -51,10 +72,10 @@ conflict = "newest"
 on_every_pass = true
 
 [notion]
-# Token of an internal Notion integration (https://www.notion.so/my-integrations).
+# The token of an internal Notion integration (https://www.notion.so/my-integrations)
+# is PONOS_NOTION_TOKEN — in secrets.env or the environment, never here.
 # The workspace page must be shared with it — everything under it is then
 # reachable: the page's ··· menu → Connections → your integration.
-token = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # The workspace database: one database whose rows are your master pages, each
 # holding its own inline database. Name it once, and the runner finds the rest
@@ -621,11 +642,10 @@ use_fable = false
 [claude]
 provider = ""
 
-# Only read when provider = "api_key". Empty: ANTHROPIC_API_KEY from the
-# environment — which is how a container is usually given it. A key written
-# here wins over that one.
+# The key, only read when provider = "api_key", is ANTHROPIC_API_KEY — in the
+# environment, which is how a container is usually given it, or in secrets.env,
+# where the console writes the one you type and where it wins.
 #   console.anthropic.com → API keys
-api_key = ""
 
 # ---------------------------------------------------------------------------
 # Every other model
@@ -640,9 +660,8 @@ api_key = ""
 # or another make the video, and pay for it — without the runner having to know
 # what any of those are.
 #   openrouter.ai/keys   the sk-or- key
-# Empty: OPENROUTER_API_KEY from the environment, when there is one.
+# It is OPENROUTER_API_KEY, in secrets.env or the environment — never here.
 [openrouter]
-key = ""
 
 # And this is the other way, which is a decision rather than a convenience: the
 # sessions themselves run on it. Claude Code then speaks to OpenRouter instead
@@ -693,13 +712,13 @@ events = ["blocked", "failed", "done"]
 # Telegram — the two-minute channel, and the one to start with. No public URL,
 # no webhook, no domain: the runner polls, so it works from a laptop behind a
 # NAT.
-#   1. Talk to @BotFather → /newbot → paste the token below
+#   1. Talk to @BotFather → /newbot → the token is PONOS_TELEGRAM_TOKEN, in
+#      secrets.env or the environment (the console's Settings write it there)
 #   2. Open the chat with your new bot and say anything to it
 #   3. ponos notify --pair   reads that message and fills in `chat`
 # Only that chat is ever read: a bot token is a public address, and anyone who
 # guesses the bot's name can write to it.
 [notify.telegram]
-token = ""
 chat = ""
 # Who may answer, by Telegram user id (the numbers, not the @names). Empty:
 # anybody who can write in `chat` — only you in a private chat, but every member
@@ -714,12 +733,12 @@ chat = ""
 #   1. api.slack.com/apps → Create New App → From scratch
 #   2. OAuth & Permissions → Bot Token Scopes: chat:write and channels:history
 #      (groups:history for a private channel, im:history for a direct message)
-#   3. Install to Workspace → copy the xoxb- token
+#   3. Install to Workspace → the xoxb- token is PONOS_SLACK_TOKEN, in
+#      secrets.env or the environment
 #   4. /invite @your-bot in the channel — the step everyone forgets
 # `channel` is the channel ID: in Slack, ··· → View channel details, at the
 # bottom of the panel.
 [notify.slack]
-token = ""
 channel = ""
 # Who may answer, by Slack member id (profile → ··· → Copy member ID, "U…").
 # Empty: anybody in the channel — and an answer becomes a comment that can wake
@@ -740,42 +759,39 @@ channel = ""
 # READ THIS BEFORE CHANGING host. Behind this port sits a runner that starts
 # Claude Code sessions with bypassPermissions — anything that can reach it can
 # run code on this machine, as you. The default is loopback, and `serve` refuses
-# any other host unless `token` below is set on purpose. To reach the console
+# any other host unless a token (below) is set on purpose. To reach the console
 # from your phone or another machine, tunnel rather than widen:
 #   ssh -L 8787:127.0.0.1:8787 <this machine>
 [web]
 host = "127.0.0.1"
 port = 8787
 
-# Empty = one is drawn on first start and kept in
-# ~/.local/state/ponos/web/token, so the bookmark keeps working.
-# Setting it here is also what unlocks a non-loopback host.
-token = ""
+# The token is PONOS_WEB_TOKEN, in secrets.env or the environment. None = one is
+# drawn on first start and kept in ~/.local/state/ponos/web/token, so the
+# bookmark keeps working. Setting it is also what unlocks a non-loopback host.
 
 # Or open it the way you open everything else: with an address and a password.
 # Both set, the page asks for them instead of for the token, and a bookmark on
 # http://127.0.0.1:8787 is enough — no secret to paste, nothing in the history.
 #
-# Neither has to be typed here either. A console nobody has claimed — no `token`
-# above, no pair here — serves its *first connection* instead of a door: the
+# Neither has to be typed by hand either. A console nobody has claimed — no
+# token, no pair — serves its *first connection* instead of a door: the
 # address alone opens a form that writes these two, and the Notion token, the
 # workspace page, the rules and the Telegram bot with them. Filling it in is
 # what closes it, and there is no second first connection.
 #
 #   email = "you@example.com"
-#   password = "the one you would actually remember"
+#   PONOS_WEB_PASSWORD=the one you would actually remember      (secrets.env)
 #
-# Neither has to be written here. The same two are read from the environment,
-# which is where they belong on a server — a systemd drop-in, a container:
-#   PONOS_WEB_EMAIL   PONOS_WEB_PASSWORD
-# and the environment wins over this file.
+# The password is a secret, and never written here. Both are also read from the
+# environment, which is where they belong on a server — a systemd drop-in, a
+# container: PONOS_WEB_EMAIL and PONOS_WEB_PASSWORD, and the environment wins.
 #
 # Setting the two unlocks a non-loopback host, exactly as a token does — and
 # deserves the same suspicion: read what [web] says above before widening.
 # Changing the password signs out every browser at once. The token does not go
 # away: it stays what a script, and the dev server's proxy, carry.
 email = ""
-password = ""
 
 # How often the console asks Notion what the board looks like — and only while a
 # browser is actually connected. Five seconds is the floor.

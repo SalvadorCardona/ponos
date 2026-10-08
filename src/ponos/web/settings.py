@@ -14,7 +14,8 @@ Three rules hold the whole thing together.
   field *removes the line* rather than writing an empty one.
 - **A secret is never sent to the browser.** A token goes out as "set, ending in
   …f3a2" and comes back only when you type a new one. Clearing one is a gesture
-  of its own, so that an empty field can keep meaning "leave it alone".
+  of its own, so that an empty field can keep meaning "leave it alone". Nor is
+  it written to `config.toml`: `config.edit` puts it in `secrets.env`.
 - **Nothing the browser says is trusted.** Every value is checked here against
   the same rules the loader applies — the floors, the three merge methods, the
   three events — and the file itself is loaded before the save is allowed to
@@ -891,6 +892,7 @@ def _preview(secret: str) -> str:
 def describe(config: Config) -> dict:
     """Every setting, as the console draws it. No secret leaves in here."""
     raw = config_module.read_raw(config.path)
+    stored = config_module.read_secrets(config_module.secrets_path(config.path))
     sections = []
     # On a board kept in Markdown, Notion is a section about something this
     # installation never talks to: it goes last rather than first, where it
@@ -910,6 +912,9 @@ def describe(config: Config) -> dict:
         }
         for entry in section.fields:
             stated = _table(raw, entry.table).get(entry.key)
+            if entry.kind == "secret":
+                # Never the file's: what `secrets.env` holds is what was stated.
+                stated = stored.get(config_module.SECRETS[(entry.table, entry.key)])
             shown: dict = {
                 "name": entry.name,
                 "kind": entry.kind,
@@ -928,7 +933,9 @@ def describe(config: Config) -> dict:
                 # keep in. A token has no default worth showing anyway.
                 shown["value"] = ""
                 shown["fallback"] = ""
-                shown["preview"] = _preview(str(stated or ""))
+                # The one the runner uses, even when the environment gave it.
+                shown["preview"] = _preview(config_module.secret(stored, entry.table, entry.key))
+                shown["variable"] = config_module.SECRETS[(entry.table, entry.key)]
             elif entry.kind == "events":
                 shown["value"] = [str(item) for item in stated] if isinstance(stated, list) else None
             elif entry.kind == "bool":
