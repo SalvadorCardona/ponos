@@ -1,16 +1,19 @@
 import * as React from "react"
-import { ArrowLeft, ChevronRightIcon, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
+import { useLocation, useRouter } from "@tanstack/react-router"
+import { ArrowLeft, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
+import { ActionList } from "react-data-form"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
 import { toast } from "sonner"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConsole, useSteps } from "@/hooks/use-console"
 import { why } from "@/lib/api"
-import { counted, useT } from "@/lib/i18n"
+import { useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import type { TicketDetail } from "@/lib/types"
+import { useRoute } from "@/lib/router"
 import { cn } from "@/lib/utils"
 import {
   boardHref,
@@ -49,14 +52,12 @@ import {
  * banner, and the metadata as a ruled grid — because six facts in a row of pills is six pills, where six
  * facts in a grid is a thing you can read down.
  *
- * Under them, the brief, always there, and two sections that fold under it:
- * the session and the discussion. Tabs made the reader pick one of three and
- * lose the other two; folded, all three are on one page and the headings still
- * say what is in each. The session is live while the ticket is in progress,
- * which is when somebody opens it to see what it is doing, so it is open then.
- * The discussion is counted, and it opens on a ticket waiting on you —
- * blocked, or with a question nobody has answered — because that is the one
- * thing on the page you came to do something about.
+ * Under them, three tabs: the brief, with the facts that describe the ticket;
+ * the discussion; and the session. They were sections folded one under the
+ * other for a while, all three on one page — and a running session, open at the
+ * bottom of a long brief, was a page you scrolled to the end of every time it
+ * moved. A tab is one thing at a time, the whole height for it, and the tab
+ * list says which of the other two has something new — see `TicketTabs`.
  *
  * The way back to the board and the title are the header's, as on every page
  * of the console; the page drew its own under it, and said both twice. The
@@ -112,11 +113,9 @@ export function TicketPage() {
               would say them a second time, one line above. */}
           <TicketActions ticket={ticket} className="-mx-1" />
 
-          <TicketFacts ticket={ticket} />
-
           {/* Chosen once per ticket, not every time the column moves: a
-              section that folded itself under the reader would lose them. */}
-          <TicketBody
+              tab that switched itself under the reader would lose them. */}
+          <TicketTabs
             key={ticket.id}
             ticket={ticket}
             brief={brief}
@@ -283,16 +282,61 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
   )
 }
 
-/* The brief, then the session and the discussion, folded under it.
+/* The three tabs of a ticket: its brief, its discussion, its session.
  *
- * The discussion arrives after the page — it is a second question to the board
- * — so a ticket whose question is still unanswered is known to be waiting only
- * once it has. The discussion opens then, unless the reader has already folded
- * or unfolded it; and it never folds by itself, since an answer sent from it is
- * exactly what makes the ticket stop waiting. `talking` says the discussion
- * held is this ticket's, and not still the last one's.
+ * Which one a ticket opens on says what it is waiting for. A running ticket
+ * opens on its session, because that is what somebody opening it then has
+ * come to watch; a ticket waiting on you, on its discussion, because the
+ * question in it is the one thing on the page you can do something about; any
+ * other, on its brief. The discussion arrives after the page — it is a second
+ * question to the board — so a ticket whose question is still unanswered is
+ * known to be waiting only once it has: the tab follows it then, from the
+ * brief, unless the reader has already picked one. It never moves by itself
+ * after that: a tab that switched under the reader would lose them, and the
+ * end of a run, or an answer sent from the discussion, is exactly when it
+ * would.
+ *
+ * The tab picked is written in the address (`&tab=live`), so a reload, the
+ * way back, or a link pasted elsewhere comes back to it — on the ticket's own
+ * page only: the window over the board has the board's address, and keeps its
+ * tab to itself.
+ *
+ * The status, the actions and the session's whereabouts stay above the tabs,
+ * on every one of them; the facts that describe the ticket are the brief's.
+ * `talking` says the discussion held is this ticket's, and not still the last
+ * one's.
  */
-function TicketBody({
+const TABS = ["brief", "discussion", "live"] as const
+type Tab = (typeof TABS)[number]
+
+const isTab = (value: string | null | undefined): value is Tab => TABS.includes(value as Tab)
+
+/** The query string with its `tab` said again — the rest of it left exactly as written. */
+function withTab(searchStr: string, tab: Tab): string {
+  const rest = searchStr
+    .replace(/^\?/, "")
+    .split("&")
+    .filter((part) => part && !part.startsWith("tab="))
+  return `?${[...rest, `tab=${tab}`].join("&")}`
+}
+
+/** The tab named in the address, and how to name another — when the address is this ticket's page. */
+function useAddressedTab(id: string): [Tab | undefined, (tab: Tab) => void] {
+  const { pathname, searchStr } = useLocation()
+  const router = useRouter()
+  const { params } = useRoute()
+  const mine = params.resourceAction === ActionList.read && String(params.id ?? "") === id
+  const named = new URLSearchParams(searchStr).get("tab")
+  const write = React.useCallback(
+    (tab: Tab) => {
+      if (mine) router.history.replace(pathname + withTab(searchStr, tab))
+    },
+    [mine, router, pathname, searchStr]
+  )
+  return [mine && isTab(named) ? named : undefined, write]
+}
+
+function TicketTabs({
   ticket,
   brief,
   talking,
@@ -304,133 +348,110 @@ function TicketBody({
   const { talk, talkWaiting } = useConsole()
   const { sessions } = useSteps()
   const t = useT()
-  const running = ticket.column === "running"
+  const session = sessions.find((candidate) => candidate.source === ticket.short)
+  const running = ticket.column === "running" || Boolean(session)
   const waiting = ticket.column === "blocked" || (talking && talkWaiting)
-  const [live, setLive] = React.useState(running)
-  const [discussion, setDiscussion] = React.useState(waiting)
-  const picked = React.useRef(false)
+  const [addressed, address] = useAddressedTab(ticket.id)
+  const [tab, setTab] = React.useState<Tab>(
+    () => addressed ?? (running ? "live" : waiting ? "discussion" : "brief")
+  )
+  const picked = React.useRef(Boolean(addressed))
   React.useEffect(() => {
-    if (waiting && !picked.current) setDiscussion(true)
+    if (waiting && !picked.current) setTab((was) => (was === "brief" ? "discussion" : was))
   }, [waiting])
+  // The way back, or forward, to the same ticket on another tab.
+  React.useEffect(() => {
+    if (addressed) setTab(addressed)
+  }, [addressed])
   // What was said, not a line saying the discussion could not be read.
   const count = talking ? talk.filter((message) => message.role !== "error").length : 0
-  const steps = sessions.find((candidate) => candidate.source === ticket.short)?.count ?? 0
 
   return (
-    <>
-      <section className="mt-6">
-        <Eyebrow>{t("the brief")}</Eyebrow>
-        <div className="mt-2">
-          {brief.content === undefined ? (
-            brief.problem !== undefined ? (
-              <EmptyState
-                robot="error"
-                title={t("This ticket could not be read.")}
-                action={
-                  <Button variant="outline" size="sm" onClick={brief.again}>
-                    <RotateCw />
-                    {t("Try again")}
-                  </Button>
-                }
-              >
-                {brief.problem || t("The server gave no reason.")}
-              </EmptyState>
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        if (!isTab(value)) return
+        picked.current = true
+        setTab(value)
+        address(value)
+      }}
+      className="mt-6 gap-4"
+    >
+      {/* The whole width on a phone, three equal thirds: a tab list sized to
+          its words leaves the third one to be scrolled to. */}
+      <TabsList className="w-full sm:w-fit">
+        <TabsTrigger value="brief" data-slot="ticket-brief-tab">
+          {t("Brief")}
+        </TabsTrigger>
+        <TabsTrigger value="discussion" data-slot="ticket-talk-tab">
+          {t("Discussion")}
+          {waiting ? (
+            <MessageCircleQuestion
+              data-slot="ticket-waiting-badge"
+              className="text-tr-amber size-4"
+              aria-label={t("a question is waiting for you")}
+            />
+          ) : null}
+          {count ? (
+            <span className="bg-muted-foreground/15 text-muted-foreground rounded-full px-1.5 text-[0.7rem] tabular-nums">
+              {count}
+            </span>
+          ) : null}
+        </TabsTrigger>
+        <TabsTrigger value="live" data-slot="ticket-live-tab">
+          {t("Live")}
+          {running ? (
+            <>
+              <Pulse />
+              <span className="sr-only">{t("writing now")}</span>
+            </>
+          ) : null}
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="brief">
+        <TicketFacts ticket={ticket} />
+        <section className="mt-6">
+          <Eyebrow>{t("the brief")}</Eyebrow>
+          <div className="mt-2">
+            {brief.content === undefined ? (
+              brief.problem !== undefined ? (
+                <EmptyState
+                  robot="error"
+                  title={t("This ticket could not be read.")}
+                  action={
+                    <Button variant="outline" size="sm" onClick={brief.again}>
+                      <RotateCw />
+                      {t("Try again")}
+                    </Button>
+                  }
+                >
+                  {brief.problem || t("The server gave no reason.")}
+                </EmptyState>
+              ) : (
+                <div className="flex flex-col gap-2" aria-busy="true">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-5/6" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              )
+            ) : brief.content ? (
+              <Markdown text={brief.content} />
             ) : (
-              <div className="flex flex-col gap-2" aria-busy="true">
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-5/6" />
-                <Skeleton className="h-3 w-2/3" />
-              </div>
-            )
-          ) : brief.content ? (
-            <Markdown text={brief.content} />
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              {t("The page is empty: the title is the whole brief.")}
-            </p>
-          )}
-        </div>
-      </section>
-
-      <Fold
-        open={live}
-        onOpenChange={setLive}
-        slot="ticket-live-toggle"
-        title={t("live")}
-        badge={
-          <>
-            {running ? <Pulse /> : null}
-            {steps ? (
-              <span className="text-muted-foreground font-mono text-[0.7rem] tabular-nums">
-                {counted(steps, "{{count}} step", "{{count}} steps")}
-              </span>
-            ) : null}
-          </>
-        }
-      >
-        <TicketLive ticket={ticket} />
-      </Fold>
-
-      <Fold
-        open={discussion}
-        onOpenChange={(open) => {
-          picked.current = true
-          setDiscussion(open)
-        }}
-        slot="ticket-talk-toggle"
-        title={t("discussion")}
-        badge={
-          <>
-            {waiting ? <MessageCircleQuestion className="text-tr-amber size-4" /> : null}
-            {count ? (
-              <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[0.7rem] tabular-nums">
-                {count}
-              </span>
-            ) : null}
-          </>
-        }
-      >
+              <p className="text-muted-foreground text-sm">
+                {t("The page is empty: the title is the whole brief.")}
+              </p>
+            )}
+          </div>
+        </section>
+      </TabsContent>
+      <TabsContent value="discussion">
         <TicketTalk />
-      </Fold>
-    </>
-  )
-}
-
-/* One folded section of the page: a heading that opens it, what is worth
- * knowing before opening it beside the title, and what is in it — drawn only
- * while it is open. */
-function Fold({
-  open,
-  onOpenChange,
-  slot,
-  title,
-  badge,
-  children,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  slot: string
-  title: string
-  badge: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <Collapsible open={open} onOpenChange={onOpenChange} className="mt-6 border-t pt-4">
-      <CollapsibleTrigger
-        data-slot={slot}
-        className="focus-visible:ring-ring/50 flex w-full items-center gap-1.5 rounded-md text-left outline-none focus-visible:ring-2"
-      >
-        <ChevronRightIcon
-          className={cn(
-            "text-muted-foreground size-4 shrink-0 transition-transform",
-            open && "rotate-90"
-          )}
-        />
-        <Eyebrow>{title}</Eyebrow>
-        {badge}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-3">{children}</CollapsibleContent>
-    </Collapsible>
+      </TabsContent>
+      <TabsContent value="live">
+        <TicketLive ticket={ticket} />
+      </TabsContent>
+    </Tabs>
   )
 }
 

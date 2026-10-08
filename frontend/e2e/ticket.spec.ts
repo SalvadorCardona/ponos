@@ -59,8 +59,8 @@ test("a ticket opened by its address, before the board is there, is read once to
   expect(reads).toHaveLength(1)
 })
 
-test("a ticket's page says its type, model and cost, shows its brief, and folds the rest", async ({ page }) => {
-  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+test("a ticket's page says its type, model and cost on its brief, and the other two are tabs", async ({ page }) => {
+  const reads = await counted(page)
   await page.goto(`/?view=console/tickets/read/${LONG}`)
   await expect(page.getByText("Part 40")).toBeAttached()
 
@@ -69,12 +69,28 @@ test("a ticket's page says its type, model and cost, shows its brief, and folds 
     await expect(page.getByText(label, { exact: true })).toBeVisible()
   await expect(page.getByText("default", { exact: false }).first()).toBeVisible()
 
-  // A ticket that is not running opens with its session and its discussion folded.
-  const live = page.locator('[data-slot="ticket-live-toggle"]')
-  const talk = page.locator('[data-slot="ticket-talk-toggle"]')
-  await expect(live).toHaveAttribute("data-state", "closed")
-  await expect(talk).toHaveAttribute("data-state", "closed")
-  await live.click()
-  await expect(live).toHaveAttribute("data-state", "open")
+  // A ticket neither running nor waiting opens on its brief.
+  const tabs = page.getByRole("tablist")
+  await expect(tabs.getByRole("tab")).toHaveText(["Brief", "Discussion", "Live"])
+  await expect(tabs.getByRole("tab", { name: "Brief" })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("tabpanel")).toContainText("Part 40")
+
+  // From the keyboard, as a tab list is: the arrows move from one to the next.
+  await tabs.getByRole("tab", { name: "Brief" }).focus()
+  await page.keyboard.press("ArrowRight")
+  await expect(tabs.getByRole("tab", { name: "Discussion" })).toBeFocused()
+  await page.keyboard.press("ArrowRight")
+  const live = tabs.getByRole("tab", { name: "Live" })
+  await expect(live).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByText("No journal is left for this ticket", { exact: false })).toBeVisible()
+  await expect(page.getByText("Part 40")).not.toBeAttached()
+
+  // The tab is in the address — a reload comes back to it — and changing it
+  // reads nothing again.
+  await expect(page).toHaveURL(/[?&]tab=live$/)
+  await page.waitForTimeout(500)
+  expect(reads).toHaveLength(1)
+  await page.reload()
+  await expect(page.getByRole("tab", { name: "Live" })).toHaveAttribute("aria-selected", "true")
   await expect(page.getByText("No journal is left for this ticket", { exact: false })).toBeVisible()
 })

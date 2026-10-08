@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ArrowDown, ArrowUp, ChevronRight } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronRight, ChevronsDownUp, ChevronsUpDown, TriangleAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -8,6 +8,9 @@ import { useSteps } from "@/hooks/use-console"
 import { api } from "@/lib/api"
 import { counted, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
+import { clock } from "@/lib/composer"
+import { FOLDED, everythingOpen, isOpen, outline, toggled, type Line, type Unfolded } from "@/lib/outline"
+import { doing } from "@/lib/thinking"
 import type { Run, Step, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -29,9 +32,11 @@ import { when } from "./ticket-bits"
  *
  * A session is two kinds of line, and they are not read the same way. What the
  * agent *said* is why somebody opens the journal: it is drawn whole, as the
- * prose it is. What it *did* — forty `Read`s, a `Bash` — is how it got there:
- * one folded line each, the tool and the start of what it was pointed at, open
- * for whoever wants the rest.
+ * prose it is, and it is all that is drawn at first. What it *did* — forty
+ * `Read`s, a `Bash` — is how it got there: folded under the sentence it
+ * followed (see `outline`), the toggle saying how many, how long and how many
+ * failed, and once open, one line each, the tool and the start of what it was
+ * pointed at, open in turn for whoever wants the rest.
  */
 
 /* The worktree a session runs in, as the session sees it: `.`.
@@ -84,30 +89,126 @@ function ToolLine({ step }: { step: Step }) {
   )
 }
 
-/** What the agent said, as prose, set apart from what it did. */
-function Said({ step }: { step: Step }) {
+/* One broad line: what the agent said, and under it, folded, what it did
+ * next. Its toggle says what is behind it — how many steps, how long, and how
+ * many went wrong, in red, so a line that fought its way through can be told
+ * from one that did not without opening it. The line still being written says
+ * what the agent is on, in a few words, without opening anything either. */
+function OutlineLine({
+  line,
+  lead,
+  open,
+  onToggle,
+  current,
+}: {
+  line: Line<Step>
+  lead: string
+  open: boolean
+  onToggle: () => void
+  current: boolean
+}) {
+  const t = useT()
+  const body = React.useId()
+  const summary = [
+    line.steps.length ? counted(line.steps.length, "{{count}} step", "{{count}} steps") : "",
+    line.seconds !== undefined ? clock(line.seconds) : "",
+  ].filter(Boolean)
+  const now = current ? doing(line.steps) : undefined
   return (
-    <div className="border-tr-violet/40 bg-card my-1.5 rounded-lg border-l-2 px-3 py-2">
-      <Markdown text={shorten(step.label)} />
+    <div
+      data-slot="session-line"
+      data-open={open || undefined}
+      className={cn(
+        "bg-card my-1.5 rounded-lg border-l-2 px-3 py-2",
+        line.said ? "border-tr-violet/40" : "border-border"
+      )}
+    >
+      {line.said ? (
+        <Markdown text={shorten(line.said.label)} />
+      ) : (
+        <p className="text-muted-foreground text-sm">{lead}</p>
+      )}
+      {now ? (
+        <p className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[0.7rem]" role="status">
+          <Pulse />
+          <span className="shrink-0">{t("writing now")}</span>
+          <span>·</span>
+          <span className="truncate">{t(now.key, now.params)}</span>
+        </p>
+      ) : null}
+      {line.steps.length ? (
+        <>
+          <button
+            type="button"
+            data-slot="session-line-toggle"
+            aria-expanded={open}
+            aria-controls={body}
+            onClick={onToggle}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 mt-1 flex max-w-full items-center gap-1.5 rounded-md font-mono text-[0.7rem] outline-none focus-visible:ring-2"
+          >
+            <ChevronRight className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-90")} />
+            <span className="truncate">
+              {[open ? t("Hide the steps") : t("Show the steps"), ...summary].join(" · ")}
+            </span>
+            {line.errors ? (
+              <span
+                data-slot="session-line-errors"
+                className="text-tr-red ml-0.5 inline-flex shrink-0 items-center gap-1"
+                title={counted(line.errors, "{{count}} step went wrong", "{{count}} steps went wrong")}
+              >
+                <TriangleAlert aria-hidden="true" className="size-3" />
+                <span className="sr-only">
+                  {counted(line.errors, "{{count}} step went wrong", "{{count}} steps went wrong")}
+                </span>
+                <span aria-hidden="true">{line.errors}</span>
+              </span>
+            ) : null}
+          </button>
+          {open ? (
+            <div id={body} className="mt-1 border-t pt-1">
+              {line.steps.map((step, index) => (
+                <ToolLine key={step.position ?? index} step={step} />
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   )
 }
 
-/* The journal, scrolled to its end while it grows — and left alone the moment
- * somebody scrolls up to read something: a page that pulls you back down every
- * second is a page you cannot read. A button brings the following back. */
+/* The journal, in its broad lines (see `outline`), scrolled to its end while
+ * it grows — and left alone the moment somebody scrolls up to read something:
+ * a page that pulls you back down every second is a page you cannot read. A
+ * button brings the following back.
+ *
+ * What is open is held here, by the key of each line, and not by the lines:
+ * a step arriving draws them all again, and must not fold the one being read.
+ * Whoever draws this for another run gives it another `key`.
+ *
+ * `offset` is where the first step stands in the run when the steps do not
+ * say it themselves; `cut`, that the run goes further back than these steps,
+ * so the steps before the first thing said are not its beginning. */
 export function SessionLog({
   steps,
   live,
+  offset = 0,
+  cut = false,
   className,
 }: {
   steps: Step[]
   live: boolean
+  offset?: number
+  cut?: boolean
   className?: string
 }) {
   const t = useT()
   const box = React.useRef<HTMLDivElement>(null)
   const [following, setFollowing] = React.useState(true)
+  const [unfolded, setUnfolded] = React.useState<Unfolded>(FOLDED)
+  const lines = React.useMemo(() => outline(steps, offset), [steps, offset])
+  const foldable = lines.some((line) => line.steps.length)
+  const everything = everythingOpen(unfolded)
 
   const onScroll = () => {
     const element = box.current
@@ -126,35 +227,56 @@ export function SessionLog({
   }, [steps, following, toEnd])
 
   return (
-    <div className="relative">
-      <div
-        ref={box}
-        onScroll={onScroll}
-        role="log"
-        aria-live={live ? "polite" : "off"}
-        className={cn(
-          "scroll-thin bg-muted/30 max-h-[65vh] overflow-y-auto rounded-xl border px-2 py-2",
-          className
-        )}
-      >
-        {steps.map((step, index) =>
-          step.said ? <Said key={index} step={step} /> : <ToolLine key={index} step={step} />
-        )}
-      </div>
-      {live && !following ? (
+    <div className="flex flex-col gap-1.5">
+      {foldable ? (
         <Button
           size="sm"
-          variant="secondary"
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-md"
-          onClick={() => {
-            setFollowing(true)
-            toEnd()
-          }}
+          variant="ghost"
+          data-slot="session-unfold-all"
+          className="text-muted-foreground h-7 self-end text-xs"
+          onClick={() => setUnfolded(everything ? FOLDED : { all: true, flipped: [] })}
         >
-          <ArrowDown />
-          {t("Follow the session")}
+          {everything ? <ChevronsDownUp /> : <ChevronsUpDown />}
+          {everything ? t("Fold everything") : t("Unfold everything")}
         </Button>
       ) : null}
+      <div className="relative">
+        <div
+          ref={box}
+          onScroll={onScroll}
+          role="log"
+          aria-live={live ? "polite" : "off"}
+          className={cn(
+            "scroll-thin bg-muted/30 max-h-[65vh] overflow-y-auto rounded-xl border px-2 py-2",
+            className
+          )}
+        >
+          {lines.map((line, index) => (
+            <OutlineLine
+              key={line.key}
+              line={line}
+              lead={cut ? t("Before these lines") : t("Getting ready")}
+              open={isOpen(unfolded, line.key)}
+              onToggle={() => setUnfolded((was) => toggled(was, line.key))}
+              current={live && index === lines.length - 1}
+            />
+          ))}
+        </div>
+        {live && !following ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-md"
+            onClick={() => {
+              setFollowing(true)
+              toEnd()
+            }}
+          >
+            <ArrowDown />
+            {t("Follow the session")}
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -374,7 +496,7 @@ function JournalLive({ runs, live, signal }: { runs: Run[]; live: boolean; signa
               {t("Earlier steps")}
             </Button>
           ) : null}
-          <SessionLog steps={read.steps} live={writing} />
+          <SessionLog key={run.id} steps={read.steps} live={writing} cut={read.more} />
         </>
       )}
     </div>
@@ -390,6 +512,8 @@ function LogLive({ ticket, live }: { ticket: Ticket; live: boolean }) {
   const final = useFinalLog(ticket, !live)
 
   const steps = session?.steps.length ? session.steps : live ? ticketSteps : final.steps
+  // The stream keeps the last steps of a session, and counts the ones it let go.
+  const offset = live ? Math.max(0, (session?.count ?? steps.length) - steps.length) : 0
 
   if (!live && final.loading)
     return (
@@ -417,7 +541,7 @@ function LogLive({ ticket, live }: { ticket: Ticket; live: boolean }) {
         <span>·</span>
         {counted(session?.count || steps.length, "{{count}} step", "{{count}} steps")}
       </p>
-      <SessionLog steps={steps} live={live} />
+      <SessionLog steps={steps} live={live} offset={offset} cut={offset > 0} />
     </div>
   )
 }

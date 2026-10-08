@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 /* A ticket's discussion, on its page.
  *
  * `e2e/console.py` writes one ticket blocked on a question a run asked. Its
- * card says it is waiting; its page opens with the discussion unfolded, counted, with the
+ * card says it is waiting; its page opens on the discussion's tab, marked and counted, with the
  * question in it; and the answer is typed in the console's own bar and appears
  * under it — without the bubble, which opens the workspace on every page.
  */
@@ -27,10 +27,11 @@ test("a ticket waiting on you is marked on the board", async ({ page }) => {
   await expect(card).toHaveText("waiting for you")
 })
 
-test("its page opens with the discussion unfolded, and the answer goes through the console's bar", async ({ page }) => {
+test("its page opens on the discussion, marked, and the answer goes through the console's bar", async ({ page }) => {
   await open(page, ASKING)
-  const toggle = page.locator('[data-slot="ticket-talk-toggle"]')
-  await expect(toggle).toHaveAttribute("data-state", "open")
+  const toggle = page.locator('[data-slot="ticket-talk-tab"]')
+  await expect(toggle).toHaveAttribute("aria-selected", "true")
+  await expect(toggle.locator('[data-slot="ticket-waiting-badge"]')).toBeVisible()
   await expect(toggle).toContainText("1")
   await expect(page.getByText("Which header, the dashboard's or the site's?")).toBeVisible()
   // The run's question is signed by Ponos, with its face.
