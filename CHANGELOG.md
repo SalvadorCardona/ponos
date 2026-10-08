@@ -35,6 +35,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   mark when one failed — *Unfold everything* opens them all, and a line you opened stays
   open while the session goes on. A finished session reads the same way.
 
+- **The console says which model a ticket really runs on.** Where it used to read
+  “Claude Code's own · default”, a ticket's page now reads `claude/opus · default`: the
+  model the last session announced about itself (the journal keeps it with each run),
+  else the one the ticket or the runner names, else Claude Code's own setting — and
+  “Claude Code's default, unknown before the first session” when nothing can be said yet.
+  Models are written `provider/model` everywhere (`claude/haiku`, `deepseek/r1`; an
+  OpenRouter `vendor/model` is kept as it is) — on the card, in the table, in the list of a
+  ticket's runs — with the full identifier as a tooltip on the page.
+
 - **Claude Fable is off unless you turn it on.** It costs far more than Opus — one
   session of it cost more than a day of Opus ones — and it arrived unasked, through the
   heaviest level of the automatic choice or an escalation. With the new

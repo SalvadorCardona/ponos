@@ -162,7 +162,12 @@ export function TicketPage() {
  * open, and let go of when the page is left. `content` stays undefined until
  * it is read; `problem` is why it could not be. */
 function useBrief(page: TicketDetail | undefined) {
-  const [brief, setBrief] = React.useState<{ id: string; content?: string; problem?: string }>()
+  const [brief, setBrief] = React.useState<{
+    id: string
+    content?: string
+    model?: TicketDetail["model_in_use"]
+    problem?: string
+  }>()
   const [attempt, setAttempt] = React.useState(0)
   const id = page?.id
   const edited = page?.edited ?? ""
@@ -176,7 +181,7 @@ function useBrief(page: TicketDetail | undefined) {
     if (!id) return
     let live = true
     readTicket(id, edited).then(
-      (detail) => live && setBrief({ id, content: detail.content }),
+      (detail) => live && setBrief({ id, content: detail.content, model: detail.model_in_use }),
       (error) => live && setBrief({ id, problem: why(error) })
     )
     return () => {
@@ -187,6 +192,7 @@ function useBrief(page: TicketDetail | undefined) {
   const mine = brief && brief.id === id ? brief : undefined
   return {
     content: mine?.content,
+    model: mine?.model,
     problem: mine?.problem,
     again: () => {
       setBrief(undefined)
@@ -205,8 +211,11 @@ function useBrief(page: TicketDetail | undefined) {
  * no duration and no agent column, and a row of "—" said so on every ticket.
  */
 function TicketFacts({ ticket }: { ticket: TicketDetail }) {
-  const { board } = useConsole()
   const t = useT()
+  // Until the page's own read has said, a model written on the ticket is the one it has.
+  const used =
+    ticket.model_in_use ??
+    (ticket.model ? { label: ticket.model_label ?? ticket.model, full: ticket.model, default: false } : undefined)
   const none = <span className="text-muted-foreground">—</span>
   const created = ago(ticket.created)
   const pull = ticket.pull_request.match(/\/pull\/(\d+)/)?.[1]
@@ -216,13 +225,20 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
       {/* As the board spells it: Code, Writing, External action, Publication. */}
       <Fact label={t("type")}>{ticket.type || none}</Fact>
       <Fact label={t("priority")}>{ticket.priority || none}</Fact>
-      {/* The column empty is not "no model": it is the one the runner passes
-          for it, or Claude Code's own when the configuration names none. */}
+      {/* The column empty is not "no model": it is the one the session
+          announced, or the runner's, or Claude Code's own. The server says
+          which, as provider/model; the full identifier is the tooltip. */}
       <Fact label={t("model")}>
-        {ticket.model || (
+        {used?.label ? (
+          <span title={used.full}>
+            {used.label}
+            {used.default ? (
+              <span className="text-muted-foreground font-normal"> · {t("default")}</span>
+            ) : null}
+          </span>
+        ) : (
           <span>
-            {board.model || t("Claude Code's own")}
-            <span className="text-muted-foreground font-normal"> · {t("default")}</span>
+            {t("Claude Code's default, unknown before the first session")}
           </span>
         )}
       </Fact>
@@ -410,7 +426,7 @@ function TicketTabs({
       </TabsList>
 
       <TabsContent value="brief">
-        <TicketFacts ticket={ticket} />
+        <TicketFacts ticket={{ ...ticket, model_in_use: brief.model }} />
         <section className="mt-6">
           <Eyebrow>{t("the brief")}</Eyebrow>
           <div className="mt-2">

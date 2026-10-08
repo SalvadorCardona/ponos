@@ -412,6 +412,7 @@ function outcomeOf(run: Run, t: (text: string) => string): string {
 /** One run in the list of a ticket's runs: when, how it ended, what it cost. */
 function runLabel(run: Run, number: number, t: (text: string) => string): string {
   const parts = [`#${number}`, when(run.started_at), outcomeOf(run, t)]
+  if (run.model_label) parts.push(run.model_label)
   if (typeof run.cost_usd === "number" && run.cost_usd) parts.push(money(run.cost_usd))
   return parts.filter(Boolean).join(" · ")
 }

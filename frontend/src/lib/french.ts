@@ -277,7 +277,8 @@ export const FRENCH: Record<string, string> = {
   model: "modèle",
   type: "type",
   default: "par défaut",
-  "Claude Code's own": "celui de Claude Code",
+  "Claude Code's default, unknown before the first session":
+    "défaut de Claude Code, inconnu avant la première session",
   spent: "dépensé",
   took: "durée",
   "taken by": "pris par",

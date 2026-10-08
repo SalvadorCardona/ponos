@@ -13355,6 +13355,77 @@ def a_file_at_schema_version_one_gets_the_tool_and_cost_columns_and_keeps_its_st
 
 
 @case
+def a_model_is_said_as_provider_slash_model_wherever_it_is_shown():
+    from ponos import models
+
+    said = {
+        "opus": "claude/opus",
+        "Sonnet": "claude/sonnet",
+        "haiku": "claude/haiku",
+        "opus[1m]": "claude/opus",
+        "claude-opus-4-1-20250805": "claude/opus",
+        "claude-sonnet-4-5-20250929": "claude/sonnet",
+        "claude-3-5-haiku-20241022": "claude/haiku",
+        "claude-fable-5-1": "claude/fable",
+        "deepseek-reasoner": "deepseek/r1",
+        "deepseek-r1": "deepseek/r1",
+        "DeepSeek-R1-0528": "deepseek/r1",
+        "deepseek-chat": "deepseek/v3",
+        "openrouter/auto": "openrouter/auto",
+        "deepseek/deepseek-r1": "deepseek/deepseek-r1",
+        "anthropic/claude-opus-4": "anthropic/claude-opus-4",
+        "gpt-9": "gpt-9",
+        "": "",
+        "  ": "",
+    }
+    for given, expected in said.items():
+        assert models.label(given) == expected, (given, models.label(given))
+
+
+@case
+def the_model_of_a_ticket_is_the_sessions_word_then_the_column_then_the_defaults():
+    from ponos import models
+
+    settings = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "settings.json"
+    before = os.environ.pop("ANTHROPIC_MODEL", None)
+    try:
+        settings.unlink(missing_ok=True)
+        # Nothing says: honest, not invented.
+        assert models.describe("") == {"label": "", "full": "", "default": True}
+        # Claude Code's own setting, when it has one.
+        settings.write_text('{"model": "opus"}', encoding="utf-8")
+        assert models.describe("") == {"label": "claude/opus", "full": "opus", "default": True}
+        # The runner's configuration comes first.
+        assert models.describe("", configured="sonnet")["label"] == "claude/sonnet"
+        # The session's own word beats the rest, and the default stays said.
+        found = models.describe("", "claude-haiku-4-5-20251001", "sonnet")
+        assert found == {"label": "claude/haiku", "full": "claude-haiku-4-5-20251001", "default": True}
+        # A column chosen is not a default.
+        assert models.describe("haiku", configured="opus") == {
+            "label": "claude/haiku", "full": "haiku", "default": False,
+        }
+        # A settings file that is not JSON is nobody knowing.
+        settings.write_text("not json", encoding="utf-8")
+        assert models.claude_default() == ""
+    finally:
+        settings.unlink(missing_ok=True)
+        if before is not None:
+            os.environ["ANTHROPIC_MODEL"] = before
+
+
+@case
+def a_run_keeps_the_model_its_session_announced():
+    with _state_home():
+        try:
+            run = journal.Run.start(ticket="d" * 32, model="opus")
+            run.event({"type": "system", "subtype": "init", "model": "claude-opus-4-1-20250805"})
+            (found,) = journal.runs("d" * 32)
+            assert (found["model"], found["reported"]) == ("opus", "claude-opus-4-1-20250805")
+        finally:
+            db.close()
+
+
+@case
 def a_run_is_written_step_by_step_and_closed_on_what_the_ticket_came_to():
     with _state_home():
         try:

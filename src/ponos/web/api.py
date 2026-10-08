@@ -24,7 +24,7 @@ from typing import Any
 
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, images, question, session, state, store, sync
-from .. import journal, systemd, voice
+from .. import journal, models, systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -313,6 +313,7 @@ class Api:
             "type": str(store.read(page, settings.prop("type")) or ""),
             "priority": str(store.read(page, settings.prop("priority")) or ""),
             "model": str(store.read(page, settings.prop("model")) or ""),
+            "model_label": models.label(str(store.read(page, settings.prop("model")) or "")),
             "progress": str(store.read(page, settings.prop("progress")) or ""),
             "runner": str(store.read(page, settings.prop("agent")) or ""),
             "pull_request": str(store.read(page, settings.prop("pull_request")) or ""),
@@ -353,6 +354,14 @@ class Api:
         # would be a log opened per card.
         if not card.get("duration"):
             card["duration"] = live.lasted(card["short"]) or card.get("duration")
+        # What it runs on, said once for the page: the last session's own word,
+        # then the column, then the defaults — see `models.describe`.
+        last = next(iter(journal.runs(page_id, limit=1)), {})
+        card["model_in_use"] = models.describe(
+            card["model"],
+            last.get("reported") or last.get("model") or "",
+            self.config.runner.model,
+        )
         return {**card, "content": content}
 
     def attachment(self, block_id: str) -> str:
@@ -922,7 +931,12 @@ class Api:
         agent said, the journal every step — and every run, where the page
         and the logs only ever knew the last one by name. See journal.py.
         """
-        return {"runs": journal.runs(page_id)}
+        return {
+            "runs": [
+                {**run, "model_label": models.label(run.get("reported") or run.get("model") or "")}
+                for run in journal.runs(page_id)
+            ]
+        }
 
     def run_steps(self, identifier: int, before: int = 0, after: int = 0, limit: int = journal.PAGE) -> dict:
         """One page of a run's steps: its end, what came before `before`, or after `after`."""
