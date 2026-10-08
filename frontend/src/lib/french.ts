@@ -980,6 +980,9 @@ export const FRENCH: Record<string, string> = {
   "Model that guesses the type": "Modèle qui devine le type",
   "A light one is enough, e.g. `haiku`. Empty: Claude Code's own default.":
     "Un modèle léger suffit, par ex. `haiku`. Vide : celui de Claude Code par défaut.",
+  "Model that finds ideas": "Modèle qui trouve les idées",
+  "Ten ideas per batch, in one short session. A light one is enough, e.g. `haiku`. Empty: Claude Code's own default.":
+    "Dix idées par lot, en une courte session. Un modèle léger suffit, par ex. `haiku`. Vide : celui de Claude Code par défaut.",
   "Name of the Code type": "Nom du type Code",
   "As written in your Type column.": "Tel qu'il s'écrit dans votre colonne Type.",
   "Name of the Writing type": "Nom du type Rédaction",

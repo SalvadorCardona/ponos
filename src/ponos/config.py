@@ -281,6 +281,9 @@ class Runner:
     # The least confidence a guess is acted on with. Below it, the ticket is
     # blocked with the question rather than run on a guess.
     classify_confidence: str = "medium"
+    # Finding ideas — ten per batch, in one short session — see ideas.py. A
+    # light model is enough to propose; it is the person swiping who chooses.
+    ideas_model: str = "haiku"
     # Choosing the model of a ticket whose Model is empty, by rules read off the
     # ticket — its type, its size, its words, its priority — rather than giving
     # every one `model`. See models.py. Off, `model` for all of them, as before.
@@ -1058,6 +1061,7 @@ def load(path: Path | None = None) -> Config:
         # Empty is the CLI's own model, which is a choice too: a runner routed
         # through OpenRouter has no `haiku` to be given.
         classify_model=str(runner_raw.get("classify_model", defaults.classify_model)).strip(),
+        ideas_model=str(runner_raw.get("ideas_model", defaults.ideas_model)).strip(),
         # Filtered rather than trusted, like the channel: a typo must not turn
         # into a threshold nothing reaches, which would block every ticket.
         classify_confidence=(

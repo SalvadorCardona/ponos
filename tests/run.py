@@ -56,6 +56,8 @@ from ponos.web import console as web_console  # noqa: E402
 from ponos.web import settings as web_settings  # noqa: E402
 from ponos.web import live as web_live  # noqa: E402
 from ponos.web import statistics as web_statistics  # noqa: E402
+from ponos.web import ideas as web_ideas  # noqa: E402
+from ponos import ideas  # noqa: E402
 from ponos.ticket import short_id, slugify  # noqa: E402
 from ponos.projects import _normalise  # noqa: E402
 
@@ -12281,6 +12283,206 @@ def a_ticket_created_from_the_console_carries_its_priority_type_and_model():
     api._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
     api._schema_at = time.time()
     assert api.board()["choices"] == {}
+
+
+# -- ideas -------------------------------------------------------------------
+
+
+def _ideas_api(board: files.Board) -> web_api.Api:
+    """A console on a Markdown board, ready to find and keep ideas."""
+    api = _markdown_api(board)
+    api._schema_at = time.time()
+    api._reader = web_board.Reader(journal=lambda report: None)
+    api._outbox = web_board.Outbox(journal=lambda report: None)
+    api.watch = _Nudged()
+    api.ideas = web_ideas.Ideas(api)
+    return api
+
+
+def _proposing(answers: list[list[dict]], cost: float = 0.02):
+    """A `session.run` that answers each batch in turn, and keeps what it was asked."""
+    asked: list[dict] = []
+
+    def fake_run(text, **rest):
+        asked.append({"prompt": text, **rest})
+        return session.Outcome(
+            ok=True, blocked=False, session_id="s-ideas", summary="",
+            log=Path("/dev/null"), cost_usd=cost,
+            answer="Voici :\n```json\n" + json.dumps(answers[len(asked) - 1], ensure_ascii=False) + "\n```",
+        )
+
+    return fake_run, asked
+
+
+def _idea(title: str, kind: str = "ticket", **more) -> dict:
+    return {
+        "title": title,
+        "description": more.pop("description", f"Parce que {title.lower()}."),
+        "kind": kind,
+        "where": more.pop("where", "frontend/src"),
+        "done": more.pop("done", ["Les tests passent"]),
+        "out": more.pop("out", ["Le reste"]),
+    }
+
+
+@case
+def an_idea_answer_is_read_whatever_wraps_it():
+    """A fence, a sentence, a kind a project cannot have, a description too long."""
+    answer = 'Sure!\n```json\n[{"title": "  Mode   sombre ", "kind": "project",' \
+        ' "description": "un\\ndeux\\ntrois\\nquatre", "done": "ça marche"},' \
+        ' {"title": ""}, "rien"]\n```\nVoilà.'
+    found = ideas.parse(answer, "project")
+    assert [idea["title"] for idea in found] == ["Mode sombre"]
+    assert found[0]["kind"] == "ticket", "a project's ideas are tickets, always"
+    assert found[0]["description"] == "un\ndeux\ntrois", "three lines at most"
+    assert found[0]["detail"]["done"] == ["ça marche"]
+    assert ideas.parse(answer, "global")[0]["kind"] == "project"
+    assert ideas.parse("no JSON here", "global") == []
+
+    assert ideas.similar("Ajouter un mode sombre", "ajouter un mode sombre !")
+    assert ideas.similar("Add a dark mode", "Add dark mode")
+    assert not ideas.similar("Add a dark mode", "Add an export to CSV")
+    assert not ideas.similar("Export to CSV", "Export to PDF"), "ideas share their openings"
+    assert ideas.similar("Mode sombre de la console", "La console en mode sombre")
+    kept, dropped = ideas.fresh(
+        [_idea("Exporter en CSV"), _idea("Exporter en CSV."), _idea("Créer un mode sombre")],
+        ["Créer un mode sombre"],
+    )
+    assert [idea["title"] for idea in kept] == ["Exporter en CSV"]
+    assert len(dropped) == 2
+
+
+@case
+def ideas_for_a_project_are_found_in_one_call_and_never_proposed_twice():
+    """Ten in one light session, given the brief, the README and the tickets.
+
+    What was thrown away goes into the next prompt, and what the model proposes
+    again anyway is dropped on the way in. Every batch's cost is written down.
+    """
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        board.replace_markdown(project, "Un jeu d'usine en navigateur.")
+        done = board.create_row("tickets", "Ajouter le tutoriel", {"Status": "Done"})
+        board.update("tickets", done, {"Project": [project]})
+        clone = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        (clone / "README.md").write_text("# Usine\n\nConstruire des chaînes de production.\n")
+        api = _ideas_api(board)
+        api._config.projects["Usine"] = str(clone)
+
+        first = [_idea(f"Idée numéro {word}") for word in (
+            "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf"
+        )] + [_idea("Ajouter le tutoriel")]
+        again = [_idea("Idée numéro un !"), _idea("Une sauvegarde dans le cloud")]
+        fake_run, asked = _proposing([first, again])
+        original, session.run = session.run, fake_run
+        try:
+            batch = api.ideas.generate(project)
+            listed = api.ideas.proposed(project)
+            thrown = listed["ideas"][0]
+            api.ideas.discard(thrown["id"])
+            second = api.ideas.generate(project)
+        finally:
+            session.run = original
+            shutil.rmtree(clone, ignore_errors=True)
+
+        assert len(asked) == 2, "one call per batch"
+        call = asked[0]
+        assert call["model"] == "haiku", "a light model unless the file says otherwise"
+        assert "Un jeu d'usine en navigateur." in call["prompt"]
+        assert "Construire des chaînes de production." in call["prompt"]
+        assert "Ajouter le tutoriel (done)" in call["prompt"]
+        assert "exactly 10 ideas" in call["prompt"]
+        assert '"ticket", always' in call["prompt"]
+
+        assert len(batch["ideas"]) == 9, "a ticket already on the board is not an idea"
+        assert batch["dropped"] == ["Ajouter le tutoriel"]
+        assert len(listed["ideas"]) == 9 and listed["scope"] == "project"
+        assert all(idea["project"] == project.replace("-", "") for idea in listed["ideas"])
+
+        assert thrown["title"] in asked[1]["prompt"], "a thrown idea is named to the model"
+        assert [idea["title"] for idea in second["ideas"]] == ["Une sauvegarde dans le cloud"]
+        assert second["dropped"] == ["Idée numéro un !"], "and never proposed again"
+        assert ideas.get(thrown["id"]).status == "discarded"
+        assert thrown["id"] not in [idea["id"] for idea in api.ideas.proposed(project)["ideas"]]
+
+        with db.transaction(immediate=False) as connection:
+            costs = connection.execute(
+                "SELECT count, cost_usd FROM idea_batches ORDER BY id"
+            ).fetchall()
+        assert costs == [(9, 0.02), (1, 0.02)], costs
+        assert api.ideas.proposed(project)["cost_usd"] == 0.04
+        assert api.ideas.proposed("")["ideas"] == [], "the workspace's ideas are another scope"
+
+
+@case
+def a_kept_idea_is_a_draft_ticket_and_a_kept_project_is_a_project():
+    """Kept: a draft in the tickets database, What / Where / Done when / Out of
+    scope, attached to its project, no model. A new project's idea creates the
+    project, its description as the brief, and a first ticket to frame it.
+    Taking it back proposes it again — and keeping it again writes nothing twice."""
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        api = _ideas_api(board)
+        api._config.runner.ideas_model = "sonnet"
+        fake_run, asked = _proposing([
+            [_idea("Un mode sombre", where="Les feuilles de style", done=["Le thème bascule"])],
+            [_idea("Un site pour le club", "project", description="Les horaires.\nLes inscriptions."),
+             _idea("Un journal des coûts", "ticket")],
+        ])
+        original, session.run = session.run, fake_run
+        try:
+            mine = api.ideas.generate(project)["ideas"][0]
+            general = api.ideas.generate("")["ideas"]
+        finally:
+            session.run = original
+        assert asked[0]["model"] == "sonnet", "the model is a setting"
+        assert "Usine" in asked[1]["prompt"], "the workspace is told its projects"
+        assert '"project" for a new project' in asked[1]["prompt"]
+
+        settings = api.config.notion
+        kept = api.ideas.keep(mine["id"])
+        assert kept["status"] == "kept" and kept["ticket"]
+        ticket = board.page(kept["ticket"])
+        assert ticket.title == "Un mode sombre"
+        assert store.read(ticket, settings.prop("project")) == [project]
+        assert not store.read(ticket, settings.prop("status")), "a draft"
+        assert not store.read(ticket, settings.prop("model")), "Model left empty"
+        text = board.blocks_text(kept["ticket"])
+        for heading in ("## What", "## Where", "## Done when", "## Out of scope"):
+            assert heading in text, text
+        assert "- [ ] Le thème bascule" in text
+
+        club = next(idea for idea in general if idea["kind"] == "project")
+        made = api.ideas.keep(club["id"])
+        assert made["created"], "the project itself"
+        assert board.page(made["created"]).title == "Un site pour le club"
+        assert "Les inscriptions." in board.blocks_text(made["created"])
+        framing = board.page(made["ticket"])
+        assert framing.title == "Frame the project Un site pour le club"
+        assert store.read(framing, settings.prop("project")) == [made["created"]]
+        assert "## Done when" in board.blocks_text(made["ticket"])
+
+        thrown = next(idea for idea in general if idea["kind"] == "ticket")
+        assert api.ideas.discard(thrown["id"])["status"] == "discarded"
+        tickets_before = len(board.query("tickets"))
+
+        undone = api.ideas.undo()
+        assert undone["was"] == "discarded" and undone["idea"]["status"] == "proposed"
+        assert len(board.query("tickets")) == tickets_before, "throwing away wrote nothing"
+        back = api.ideas.undo("")
+        assert back["idea"]["id"] == club["id"] and back["was"] == "kept"
+        assert club["id"] in [idea["id"] for idea in api.ideas.proposed("")["ideas"]]
+        again = api.ideas.keep(club["id"])
+        assert (again["ticket"], again["created"]) == (made["ticket"], made["created"])
+        assert len(board.query("tickets")) == tickets_before, "kept again, written once"
+        assert api.ideas.undo(project)["idea"]["id"] == mine["id"], "a scope's own last choice"
+        try:
+            api.ideas.undo(project)
+        except LookupError:
+            pass
+        else:
+            raise AssertionError("nothing left to take back in this project")
 
 
 @case

@@ -61,6 +61,12 @@ Migration 10 has a run say which model it ran on, whether that model was
 chosen by the runner rather than written by somebody, and whether it was one
 level up from a run that failed — what models.py reads to climb once, and only
 once.
+
+Migration 12 holds the ideas Ponos proposes and what was decided about them —
+see ideas.py. A batch is a row of its own because a batch is what a session
+costs: ten ideas come out of one call, and the price is the batch's before it
+is anybody's share. An idea outlives the decision taken on it — kept or thrown
+away, it stays, since it is what the next batch is told never to propose again.
 """
 
 from __future__ import annotations
@@ -443,6 +449,45 @@ def _runs_say_the_model_they_ran(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE runs ADD COLUMN reported TEXT NOT NULL DEFAULT ''")
 
 
+def _ideas(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE idea_batches (
+            id          INTEGER PRIMARY KEY,
+            scope       TEXT NOT NULL,
+            project     TEXT NOT NULL DEFAULT '',
+            model       TEXT NOT NULL DEFAULT '',
+            created_at  TEXT NOT NULL,
+            count       INTEGER NOT NULL DEFAULT 0,
+            cost_usd    REAL,
+            error       TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE ideas (
+            id           INTEGER PRIMARY KEY,
+            batch        INTEGER REFERENCES idea_batches (id) ON DELETE SET NULL,
+            scope        TEXT NOT NULL,
+            project      TEXT NOT NULL DEFAULT '',
+            kind         TEXT NOT NULL,
+            title        TEXT NOT NULL,
+            description  TEXT NOT NULL DEFAULT '',
+            detail       TEXT NOT NULL DEFAULT '{}',
+            status       TEXT NOT NULL DEFAULT 'proposed',
+            ticket       TEXT NOT NULL DEFAULT '',
+            created      TEXT NOT NULL DEFAULT '',
+            cost_usd     REAL,
+            created_at   TEXT NOT NULL,
+            decided_at   TEXT
+        )
+        """
+    )
+    connection.execute("CREATE INDEX ideas_by_scope ON ideas (scope, project, status)")
+    connection.execute("CREATE INDEX ideas_by_decision ON ideas (decided_at)")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -462,6 +507,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _images,
     _runs_say_their_model,
     _runs_say_the_model_they_ran,
+    _ideas,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

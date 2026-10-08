@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Ideas, ten at a time — the half underneath.** Ponos can propose ideas for the whole
+  workspace (new projects, or improvements across them) or for one project, in one short
+  session on a light model (`runner.ideas_model`, `haiku` by default) given the project's
+  brief, its README, its latest tickets — and every idea already proposed, so that none comes
+  back: a title too close to a known one is dropped before it is stored. A kept idea becomes
+  a draft ticket written as What / Where / Done when / Out of scope with no model, or, for a
+  new project, the project itself and a first draft ticket to frame it; a thrown-away one is
+  only marked so. What each batch cost is recorded in the local database. The console's API
+  has the five gestures — find, list, keep, throw away, take the last choice back — and the
+  screen to swipe through them comes next.
 - **Ponos in a container, on your machine or on Dokploy.** A `Dockerfile` (Python 3.13,
   git, `gh`, Node and Claude Code, run as a user that is not root) and a
   `docker-compose.yml` with four named volumes — `/data`, `/workspace`, `~/.claude`,

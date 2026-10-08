@@ -473,6 +473,10 @@ SECTIONS: tuple[Section, ...] = (
             Field("runner", "classify_model", "text", "Model that guesses the type",
                   "A light one is enough, e.g. `haiku`. Empty: Claude Code's own default.",
                   advanced=True),
+            Field("runner", "ideas_model", "text", "Model that finds ideas",
+                  "Ten ideas per batch, in one short session. A light one is enough, "
+                  "e.g. `haiku`. Empty: Claude Code's own default.",
+                  advanced=True),
             *_naming(
                 "types",
                 {
