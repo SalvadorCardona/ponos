@@ -325,7 +325,7 @@ class Chat:
                 prompt,
                 cwd=self._cwd(),
                 log=log,
-                model=self.config.runner.model,
+                model=self.config.runner.allowed(self.config.runner.model),
                 permission_mode=self.config.runner.permission_mode,
                 timeout_minutes=self.config.web.chat_timeout_minutes,
                 session_id=self.session_id,

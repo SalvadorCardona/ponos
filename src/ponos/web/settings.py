@@ -301,6 +301,11 @@ SECTIONS: tuple[Section, ...] = (
                 "once, and says so.",
                 advanced=True,
             ),
+            Field(
+                "runner", "use_fable", "bool", "Use Claude Fable",
+                "Off by default: Fable costs far more than Opus. Off, every session runs on "
+                "Opus instead — the heaviest level, an escalation, a Model written on a ticket.",
+            ),
             *(
                 Field("runner", f"auto_model_{level}", "text", label, help, advanced=True)
                 for level, label, help in (

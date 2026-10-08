@@ -276,11 +276,21 @@ class Runner:
     auto_model_publication: str = "standard"
     # A ticket chosen for and failed comes back one level up, once.
     auto_model_escalate: bool = True
+    # Fable at all. Off, nothing the runner starts runs on it — a level, an
+    # escalation, a Model on a ticket or an agent: Opus instead. See models.py.
+    use_fable: bool = False
+
+    def allowed(self, model: str) -> str:
+        """The model a session is given — Opus for a Fable `use_fable` refuses."""
+        return models.allowed(model, self.use_fable)
 
     def model_grid(self) -> models.Grid:
         """The levels and the types' starting points, as models.py reads them."""
         return models.Grid(
-            models={level: getattr(self, f"auto_model_{level}") for level in models.LEVELS},
+            models={
+                level: self.allowed(getattr(self, f"auto_model_{level}"))
+                for level in models.LEVELS
+            },
             starts={
                 kind: getattr(self, f"auto_model_{kind}")
                 for kind in ("code", "writing", "external", "publication")
@@ -1034,6 +1044,7 @@ def load(path: Path | None = None) -> Config:
         auto_model_escalate=bool(
             runner_raw.get("auto_model_escalate", defaults.auto_model_escalate)
         ),
+        use_fable=bool(runner_raw.get("use_fable", defaults.use_fable)),
     )
 
     projects = {

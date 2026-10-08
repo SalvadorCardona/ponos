@@ -39,7 +39,12 @@ run was chosen and how it ended is read from the local journal (journal.py), so
 this works the same on any board.
 
 A Model somebody wrote is never second-guessed, and neither is an agent's: this
-only ever fills the gap that `runner.model` used to fill.
+only ever fills the gap that `runner.model` used to fill. With one exception,
+which is the price list again: **Fable is only run when `runner.use_fable` says
+so.** One Fable session cost more than a day of Opus ones, and it arrived
+unasked — through the heaviest level, through an escalation, through a Model
+left on an old ticket. Off, every one of those runs on Opus instead, whoever
+wrote it; see `allowed`.
 """
 
 from __future__ import annotations
@@ -82,6 +87,9 @@ LONG_WORDS, LONG_STEPS = 600, 25
 # A small change says so in its title — “Remove the paragraph…” — whatever its
 # body explains around it, as long as the body stays about that long.
 SMALL_WORDS, SMALL_STEPS = 250, 10
+
+# What a Fable that is not allowed runs on instead: the heaviest of the others.
+INSTEAD_OF_FABLE = "opus"
 
 # The priorities a ticket is not run lightly at.
 URGENT = ("urgent", "high")
@@ -139,6 +147,16 @@ class Choice:
     level: str
     signals: tuple[tuple[str, dict], ...] = ()
     escalated: bool = False
+
+
+def is_fable(model: str) -> bool:
+    """Is this Fable — `fable`, `claude-fable-5-1`, an OpenRouter slug of it?"""
+    return "fable" in model.lower()
+
+
+def allowed(model: str, fable: bool) -> str:
+    """The model a session is given: this one, unless it is a Fable not allowed."""
+    return INSTEAD_OF_FABLE if not fable and is_fable(model) else model
 
 
 def _fold(text: str) -> str:

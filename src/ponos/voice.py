@@ -238,6 +238,10 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "kept since the escalation to {model}, which happens only once",
         "fr": "gardé depuis l'escalade vers {model}, qui n'a lieu qu'une fois",
     },
+    "fable-refused": {
+        "en": "Fable is turned off in the settings: run on Opus.",
+        "fr": "Fable désactivé dans les réglages : lancé sur Opus.",
+    },
     "model-resumed": {
         "en": "the model the interrupted session began on",
         "fr": "le modèle sur lequel la session interrompue avait commencé",
