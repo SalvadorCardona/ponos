@@ -74,6 +74,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The site has a domain of its own: [the-ponos.app](https://the-ponos.app/).**
+  It is still the same page on GitHub Pages, now at the root of its own address;
+  `cardona.digital/ponos/` and the older `cardona.digital/ticket-runner/` send
+  every link, sub-pages included, to the same page there.
+
 - **The board's first column is always the drafts, and "No status" is gone from
   it.** A ticket with no status is a draft: it sits with the ones the board
   already calls drafts, on the left, whether or not `[notion.status]` names a

@@ -53,7 +53,7 @@ const og = `<!doctype html><html class="dark"><meta charset="utf-8">${fonts}
 <div class="bot">${standalone({ state: 'success', theme: 'dark' })}</div>
 <div><div class="mark">Ponos</div><h1>Write the ticket.<br><span>It comes back done.</span></h1>
 <p>The robot does the work <b>on your machine</b> — a pull request, a text, an action.</p>
-<code>cardona.digital/ponos</code></div>`;
+<code>the-ponos.app</code></div>`;
 
 const cells = (theme) => Object.entries(STATES).map(([name, s]) => `
   <figure><div class="bot">${standalone({ state: name, theme })}</div><figcaption><b>${name}</b>${s.means}</figcaption></figure>`).join('');

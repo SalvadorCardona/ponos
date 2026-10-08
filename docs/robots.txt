@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://cardona.digital/ponos/sitemap.xml
+Sitemap: https://the-ponos.app/sitemap.xml
