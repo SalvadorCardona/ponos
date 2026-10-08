@@ -2007,17 +2007,27 @@ where you left it underneath. The full page has an address of its own, the one a
 link, the palette and a notification open. Either way it is the brief you wrote, the
 report a run appended, the notes in between — the page under the card, as the runner
 reads it — with its links out (Notion, the pull request, the session) and the gestures it
-offers where it stands. Under the facts, three tabs: the brief, **live** — the one a
-ticket in progress opens on — and **discussion**. It is the session's journal, growing as it is written and
-following its end until you scroll up to read something; what the agent says is drawn as
-prose, each tool call is one folded line — the tool and the start of its command, the
-worktree's path written `./` — that a click unfolds. The steps come from the local run
+offers where it stands. Under the column it stands in, three tabs: **Brief** — the facts
+(project, type, priority, model, cost, pull request) and the page you wrote —,
+**Discussion** and **Live**. A ticket in progress opens on *Live*, one waiting on you on
+*Discussion*, any other on *Brief*; the tab you pick goes into the address (`&tab=live`),
+so a reload or a shared link comes back to it. *Live* wears a green dot while a session
+runs, *Discussion* a question mark while a question waits for you. *Live* is the session's
+journal in its broad lines, growing as it is written and following its end until you
+scroll up to read something: what the agent says is one line each, drawn as prose, and the
+tool calls that followed it — up to the next thing it said — are folded under it, the
+toggle saying how many steps, how long, and how many failed, marked in red. The steps
+before it said anything are a group of their own, *Getting ready*. The line being written
+says what the agent is on, in a few words, without unfolding anything; *Unfold
+everything* opens them all at once, and a line you opened stays open as new steps arrive.
+Unfolded, each tool call is one line — the tool and the start of its command, the
+worktree's path written `./` — that a click unfolds in turn. The steps come from the local run
 journal (`ponos.db`, below), not from the page: the tab opens on the end of the newest run,
 *Earlier steps* reads further back two hundred at a time, and while the run goes on each
 step the stream announces is read from the journal as it lands. Every run the ticket has
 had is kept there — a select over the steps picks an earlier one, by its date, how it
 ended and what it cost — and the line above them says how it ended, with the pull request
-or the reason. A ticket whose runs all predate the journal is read back from its last log,
+or the reason; a finished run reads in the same broad lines. A ticket whose runs all predate the journal is read back from its last log,
 as before. The **discussion** tab is the ticket's own terminal, counted on the
 tab itself: everything said on it, oldest first — the runner's reports, your answers, the
 answers you gave from Telegram — and the console's own message bar to say the next thing

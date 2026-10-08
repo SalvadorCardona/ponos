@@ -10991,13 +10991,14 @@ def a_session_is_followed_on_its_ticket_rather_than_on_a_page_of_sessions():
     assert 'live: "/?view=console/tickets/list"' in router, "/?page=live no longer reaches the board"
     page = (FRONTEND / "src/components/console/ticket-page.tsx").read_text(encoding="utf-8")
     assert "<TicketLive" in page, "a ticket's page no longer shows its session"
-    assert "React.useState(running)" in page, "a running ticket opens with its session folded"
+    assert '(running ? "live"' in page, "a running ticket no longer opens on its session"
     tickets = (FRONTEND / "src/resources/tickets.tsx").read_text(encoding="utf-8")
     assert "<CardLive" in tickets, "a running card no longer says what it is doing"
     assert "<RunnerStrip" in tickets, "the runner's figures are nowhere on the board"
     log = (FRONTEND / "src/components/console/session-log.tsx").read_text(encoding="utf-8")
     assert "<details" in log, "a tool call is no longer folded"
     assert "/worktrees/" in log, "the worktree's path is written out in full again"
+    assert "outline(steps" in log, "the session is drawn step by step again, not in its broad lines"
 
 
 @case

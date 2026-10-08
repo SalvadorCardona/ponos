@@ -18,6 +18,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A ticket's page is three tabs again, and its session reads in broad lines.** *Brief*
+  (the facts and the page), *Discussion* and *Live*: a ticket in progress opens on *Live*,
+  one waiting on you on *Discussion*, any other on *Brief*, and the tab you pick is kept in
+  the address. *Live* shows what the agent says, one line each; the commands, tool calls
+  and errors that followed are folded under it, with how many steps, how long, and a red
+  mark when one failed — *Unfold everything* opens them all, and a line you opened stays
+  open while the session goes on. A finished session reads the same way.
+
 - **Claude Fable is off unless you turn it on.** It costs far more than Opus — one
   session of it cost more than a day of Opus ones — and it arrived unasked, through the
   heaviest level of the automatic choice or an escalation. With the new

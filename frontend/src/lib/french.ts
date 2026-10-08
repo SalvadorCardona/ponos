@@ -284,6 +284,12 @@ export const FRENCH: Record<string, string> = {
   created: "créé",
   scheduled: "prévu",
   "the brief": "le brief",
+  Brief: "Brief",
+  Live: "En direct",
+  "Unfold everything": "Tout déplier",
+  "Fold everything": "Tout replier",
+  "Getting ready": "Préparation",
+  "Before these lines": "Avant ces lignes",
   "The page is empty: the title is the whole brief.":
     "La page est vide : le titre est tout le brief.",
   "This ticket could not be read.": "Ce ticket n'a pas pu être lu.",
@@ -335,7 +341,8 @@ export const FRENCH: Record<string, string> = {
   "timer state unknown": "état de la minuterie inconnu",
 
   /* -- a ticket's terminal -------------------------------------------------- */
-  discussion: "discussion",
+  Discussion: "Discussion",
+  "a question is waiting for you": "une question vous attend",
   "waiting for you": "vous attend",
   "Nothing has been said on this ticket yet.": "Rien n'a encore été dit sur ce ticket.",
   "reading the discussion…": "lecture de la discussion…",
