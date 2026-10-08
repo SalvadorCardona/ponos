@@ -43,6 +43,11 @@ old one as `app-<commit>`, checked, and `app` is moved onto it by one rename.
 The launcher resolves the link once, when it starts, so a process imports every
 module from the one version it found, however long it runs. The version it
 replaced stays on disk — for what is still running on it, and for going back.
+
+**In a container, none of this.** There is no link to move, no unit to restart,
+and the code is the image's: a version written into it would be gone at the
+next `docker compose up`. A new version is a new image, pulled by whoever runs
+it — so every road here stops at `CONTAINER`, said once rather than tried.
 """
 
 from __future__ import annotations
@@ -59,7 +64,11 @@ from pathlib import Path
 from typing import Callable
 
 from . import disk, git
-from .config import Runner, state_dir
+from .config import Runner, in_container, state_dir
+
+# What a container says instead of updating itself, and what to type instead.
+PULL = "docker compose pull && docker compose up -d"
+CONTAINER = f"this is a container: a new version is a new image — {PULL}"
 
 
 def app_dir() -> Path:
@@ -217,6 +226,8 @@ def check(app: Path | None = None, channel: str = "release") -> Status:
     become unreadable, are answers like any other. Checking a version is not
     worth failing a run over.
     """
+    if in_container():
+        return Status(reason=CONTAINER)
     try:
         status = _look(app or app_dir(), channel)
     except (OSError, subprocess.SubprocessError) as error:
@@ -244,6 +255,8 @@ def between_runs(
     then the tickets.
     """
     if not settings.auto_update or not due(settings.update_interval_seconds):
+        return
+    if in_container():
         return
     status = check(channel=settings.update_channel)
     if status.reason:
@@ -356,6 +369,8 @@ def apply(status: Status, interval_seconds: int, app: Path | None = None) -> str
     console is restarted onto it, because it is the one part of the installation
     that would otherwise keep running the old code.
     """
+    if in_container():
+        return CONTAINER
     error = install(status, interval_seconds, app)
     if error:
         return error

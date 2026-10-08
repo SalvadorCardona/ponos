@@ -819,7 +819,9 @@ class Api:
             else 0.0
         )
         return {
-            "timer": systemd.read().label,
+            # In a container the timer is the image's `ponos run --every`, which
+            # starts with it and stops with it: on for as long as this answers.
+            "timer": "enabled" if config_module.in_container() else systemd.read().label,
             "running": bool(held),
             "lock": held,
             # The sessions in flight, read from their logs: what a page that has

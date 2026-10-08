@@ -20,6 +20,9 @@ commit that exists nowhere, so that a click on "Update now" could only ever fail
 The blocked ticket has two runs in the local journal, for the session tab that
 reads them.
 
+Given `unclaimed`, the same console with no token and no sign-in: what a
+fresh installation serves, its first connection.
+
 And a `claude` of its own, first in the PATH, for the conversation with the
 workspace: it reads a file, runs a command that fails, and answers — or, told
 to take its time, starts a command that would run for ten minutes, for Stop to
@@ -183,11 +186,14 @@ def _tool(name: str, payload: dict) -> dict:
 
 def main() -> None:
     port = sys.argv[1] if len(sys.argv) > 1 else "8790"
+    # `unclaimed`: no token and no sign-in, for the first connection's steps.
+    unclaimed = len(sys.argv) > 2 and sys.argv[2] == "unclaimed"
     here = Path(tempfile.mkdtemp(prefix="ponos-e2e-"))
     board(here / "board")
     config = here / "config.toml"
     config.write_text(
-        f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n\n[web]\ntoken = "{TOKEN}"\n',
+        f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n'
+        + ("" if unclaimed else f'\n[web]\ntoken = "{TOKEN}"\n'),
         encoding="utf-8",
     )
     head = subprocess.run(

@@ -594,6 +594,35 @@ auto_model_escalate = true
 use_fable = false
 
 # ---------------------------------------------------------------------------
+# Who answers the sessions
+# ---------------------------------------------------------------------------
+# The account every session runs on, and the choice that matters most on a
+# server. Three of them, and they are not the same thing:
+#
+#   "cli"         Claude Code signed in as you — `claude auth login` once, on
+#                 this machine (in a container: the terminal Dokploy opens, or
+#                 `docker compose exec ponos claude auth login`). Your
+#                 subscription. The only one that keeps Claude in Chrome, and
+#                 the only one whose credits come in windows worth waiting for
+#                 (wait_for_credits above).
+#   "api_key"     an Anthropic key, below — billed by the token, no browser.
+#   "openrouter"  the key of [openrouter] further down; with route_sessions
+#                 there, the sessions run on OpenRouter and every model is
+#                 named as an OpenRouter slug.
+#
+# Empty (or a word that is none of these) reads the way a file written before
+# this key always did: "openrouter" when its sessions are routed there, "cli"
+# otherwise. `ponos doctor` says which is in use, and whether it works.
+[claude]
+provider = ""
+
+# Only read when provider = "api_key". Empty: ANTHROPIC_API_KEY from the
+# environment — which is how a container is usually given it. A key written
+# here wins over that one.
+#   console.anthropic.com → API keys
+api_key = ""
+
+# ---------------------------------------------------------------------------
 # Every other model
 # ---------------------------------------------------------------------------
 # What the runner drives is Claude Code, and Claude Code talks to Anthropic —
@@ -606,6 +635,7 @@ use_fable = false
 # or another make the video, and pay for it — without the runner having to know
 # what any of those are.
 #   openrouter.ai/keys   the sk-or- key
+# Empty: OPENROUTER_API_KEY from the environment, when there is one.
 [openrouter]
 key = ""
 

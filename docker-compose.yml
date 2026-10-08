@@ -1,0 +1,43 @@
+# Ponos on a server: the runner and its console in one service.
+#
+#   docker compose up -d             then open the console, and read the code:
+#   docker compose logs ponos        "code  XXXX-XXXX", asked by the first connection
+#
+# On Dokploy, create a Compose service from this repository: the domain is
+# attached to the service and port 8787 in Dokploy's Domains tab, which is why
+# nothing is published under `ports:` — Traefik reaches the container on
+# Dokploy's network, and nobody else does. Locally, without Traefik, publish it
+# yourself: `docker compose run --service-ports`, or add
+#   ports: ["127.0.0.1:8787:8787"]
+# The variables are read from the environment (Dokploy's Environment tab, or a
+# .env file beside this one); each may be left empty. See README, "Docker".
+
+services:
+  ponos:
+    image: ghcr.io/salvadorcardona/ponos:latest
+    build: .
+    restart: unless-stopped
+    expose:
+      - "8787"
+    environment:
+      # Both set: the console is claimed before anybody opens it, and the first
+      # connection starts after the account.
+      PONOS_WEB_EMAIL: ${PONOS_WEB_EMAIL:-}
+      PONOS_WEB_PASSWORD: ${PONOS_WEB_PASSWORD:-}
+      # The pull requests: gh reads it as is, and git pushes through gh.
+      GH_TOKEN: ${GH_TOKEN:-}
+      # Read when the configuration holds no key of its own — see [claude] and
+      # [openrouter] in config.example.toml.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - ponos-data:/data
+      - ponos-workspace:/workspace
+      - ponos-claude:/home/ponos/.claude
+      - ponos-gh:/home/ponos/.config/gh
+
+volumes:
+  ponos-data:
+  ponos-workspace:
+  ponos-claude:
+  ponos-gh:

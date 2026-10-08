@@ -7,6 +7,12 @@ and only because the file is not always where they belong: the console's
 `PONOS_WEB_PASSWORD`, so a unit file or a container can carry the
 credentials without a secret being written down. The environment wins over the
 file — that is what makes it worth setting.
+
+The two keys a provider is paid with go the other way round. `ANTHROPIC_API_KEY`
+and `OPENROUTER_API_KEY` fill `claude.api_key` and `openrouter.key` when the
+file leaves them empty, and only then: the first connection writes a key into
+the file, and a key somebody has just typed and checked must not lose to one a
+compose file was started with weeks ago.
 """
 
 from __future__ import annotations
@@ -28,6 +34,22 @@ PLACEHOLDER = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 # Where the console's sign-in may be written instead of in the file.
 WEB_EMAIL_ENV = "PONOS_WEB_EMAIL"
 WEB_PASSWORD_ENV = "PONOS_WEB_PASSWORD"
+
+# Where a provider's key may come from when the file holds none — the names
+# every tool already reads, so a container is given them once.
+ANTHROPIC_KEY_ENV = "ANTHROPIC_API_KEY"
+OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
+
+# Set by the image (see the Dockerfile): this process runs in a container, where
+# there is no systemd, no desktop and no install directory to move — a new
+# version is a new image. Read, never guessed from `/.dockerenv`: a machine that
+# happens to run its own installation inside a container still has the
+# install.sh layout, and is not this case.
+CONTAINER_ENV = "PONOS_CONTAINER"
+
+
+def in_container() -> bool:
+    return os.environ.get(CONTAINER_ENV, "").strip().lower() in ("1", "true", "yes")
 
 
 def config_dir() -> Path:
@@ -441,6 +463,26 @@ class OpenRouter:
     transcription_model: str = "openai/whisper-1"
 
 
+# Who answers a session. `cli` is Claude Code signed in as you (`claude login`),
+# which is the subscription, Claude in Chrome and the wait for credits. `api_key`
+# is an Anthropic key, billed by the token. `openrouter` is the key of
+# `[openrouter]`, and the sessions run there when `route_sessions` says so.
+PROVIDERS = ("cli", "api_key", "openrouter")
+
+
+@dataclass
+class Claude:
+    """Which account the sessions run on. See provider.py.
+
+    `provider` empty is a file written before the key existed, and it reads the
+    way that file always worked: OpenRouter when its sessions were routed there,
+    the CLI's own sign-in otherwise. Nothing changes until somebody chooses.
+    """
+
+    provider: str = ""
+    api_key: str = ""
+
+
 def board_dir() -> Path:
     """Where a Markdown board lives when the file does not say.
 
@@ -493,6 +535,7 @@ class Config:
     web: Web = field(default_factory=Web)
     notify: Notify = field(default_factory=Notify)
     openrouter: OpenRouter = field(default_factory=OpenRouter)
+    claude: Claude = field(default_factory=Claude)
     storage: Storage = field(default_factory=Storage)
     # `[github]`: which of your GitHub accounts each owner is worked under, as
     # `owner = "the gh account"`. Empty is a machine with one account, which is
@@ -1098,7 +1141,8 @@ def load(path: Path | None = None) -> Config:
     router_raw = raw.get("openrouter", {})
     router_defaults = OpenRouter()
     openrouter = OpenRouter(
-        key=str(router_raw.get("key", router_defaults.key)).strip(),
+        key=str(router_raw.get("key", router_defaults.key)).strip()
+        or os.environ.get(OPENROUTER_KEY_ENV, "").strip(),
         # A trailing slash here would produce `…/v1//messages`, which some
         # gateways answer and others refuse. Emptied, the default answers.
         base_url=str(router_raw.get("base_url", "")).strip().rstrip("/")
@@ -1106,6 +1150,16 @@ def load(path: Path | None = None) -> Config:
         route_sessions=bool(router_raw.get("route_sessions", router_defaults.route_sessions)),
         transcription_model=str(router_raw.get("transcription_model", "")).strip()
         or router_defaults.transcription_model,
+    )
+
+    claude_raw = raw.get("claude", {})
+    # Filtered rather than trusted: a typo must not leave the sessions on an
+    # account nobody chose. An unknown word is the file that says nothing.
+    chosen = str(claude_raw.get("provider", "")).strip().lower()
+    claude = Claude(
+        provider=chosen if chosen in PROVIDERS else "",
+        api_key=str(claude_raw.get("api_key", "")).strip()
+        or os.environ.get(ANTHROPIC_KEY_ENV, "").strip(),
     )
 
     storage_raw = raw.get("storage", {})
@@ -1152,6 +1206,7 @@ def load(path: Path | None = None) -> Config:
         web=web,
         notify=notify,
         openrouter=openrouter,
+        claude=claude,
         storage=storage,
         github=github,
     )

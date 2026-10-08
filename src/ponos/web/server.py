@@ -16,7 +16,12 @@ is why:
   sets, or as the cookie signing in with an email and a password sets;
 - until somebody has said how this console is opened, there is nothing to carry:
   a console nobody claimed serves the first connection instead (see `setup`),
-  and the password typed there is what closes that door;
+  and the password typed there is what closes that door — to this machine
+  alone, or to whoever has the installation code `serve` printed when it
+  started: a console behind a domain is a console the whole Internet reaches
+  first;
+- behind a proxy that says the browser came in over HTTPS (`X-Forwarded-Proto`),
+  every cookie is `Secure`, so it never travels in clear on the way back;
 - a request from a browser page that is not the console is rejected: writes
   demand a header a cross-origin form cannot set, and the `Host` header must
   name the address the console was reached on, which is what stops a hostile
@@ -45,6 +50,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlparse
 
+from .. import __version__
 from .. import config as config_module
 from .. import journal, legacy, openrouter, store, voice
 from ..config import Config, state_dir
@@ -177,6 +183,30 @@ def sign_in(config: Config, secret: str) -> SignIn | None:
     return SignIn(email=email, password=password, cookie=proof)
 
 
+# The installation code's letters: no 0 and O, no 1 and I, nothing a log line
+# read off a phone gets wrong.
+CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+# The headers a proxy adds. A request carrying one came through something — a
+# Traefik, an nginx on the same machine — and is not "somebody at this machine",
+# whatever address it arrived from.
+FORWARDED = ("Forwarded", "X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Real-IP")
+
+
+def installation_code() -> str:
+    """Eight letters, drawn once per start of a console nobody has claimed."""
+    letters = "".join(secrets.choice(CODE_LETTERS) for _ in range(8))
+    return f"{letters[:4]}-{letters[4:]}"
+
+
+def same_code(offered: str, expected: str) -> bool:
+    """The code as somebody types it: any case, with or without its dash."""
+    def bare(code: str) -> bytes:
+        return re.sub(r"[^0-9A-Za-z]", "", code).upper().encode()
+
+    return bool(expected) and hmac.compare_digest(bare(offered), bare(expected))
+
+
 def claimable(config: Config, entry: SignIn | None) -> bool:
     """Has anybody decided how this console is opened? — see `setup`.
 
@@ -194,12 +224,21 @@ class Console(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(
-        self, address, handler, api: Api, secret: str, entry: SignIn | None = None
+        self,
+        address,
+        handler,
+        api: Api,
+        secret: str,
+        entry: SignIn | None = None,
+        code: str = "",
     ) -> None:
         super().__init__(address, handler)
         self.api = api
         self.secret = secret
         self.entry = entry
+        # What a first connection from outside this machine has to say first.
+        # Empty: none was drawn, and such a connection is refused outright.
+        self.code = code
 
     def handle_error(self, request, client_address) -> None:
         # A tab closed or reloaded mid-request is how a browser says goodbye,
@@ -283,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
         and have your browser talk to the console as if it were the console.
         """
         configured = self.api.config.web.host
-        if configured not in LOOPBACK:
+        if configured not in LOOPBACK or str(self.server.server_address[0]) not in LOOPBACK:
             # A wider bind was asked for on purpose, and is reached under a name
             # or address this process cannot enumerate — a LAN IP, a tailnet
             # name, whatever the tunnel calls it. The token is the guard there;
@@ -302,6 +341,26 @@ class Handler(BaseHTTPRequestHandler):
         """The request comes from this machine — not only to an address of it."""
         address = str(self.client_address[0])
         return address in ("127.0.0.1", "::1") or address.startswith(("127.", "::ffff:127."))
+
+    def _outside(self) -> bool:
+        """Not somebody at this machine: another address, or through a proxy."""
+        return not self._local() or any(self.headers.get(name) for name in FORWARDED)
+
+    def _secure(self) -> bool:
+        """The browser reached the proxy in front of this console over HTTPS.
+
+        `http.server` itself only ever speaks plain HTTP; what is encrypted is the
+        leg between the browser and Traefik, and the proxy says so in this header.
+        A browser that came in over HTTPS must never send the cookie back over
+        anything else.
+        """
+        proto = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0]
+        return proto.strip().lower() == "https"
+
+    def _cookie(self, value: str) -> str:
+        """The `Set-Cookie` of a way in — the token's, or a sign-in's."""
+        secure = "; Secure" if self._secure() else ""
+        return f"{COOKIE}={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000{secure}"
 
     def _same_origin(self) -> bool:
         """The page that sent this is the console, as far as the browser says.
@@ -359,6 +418,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_is_ours():
             return self._fail(421, "this console is not served under that name")
         if not self._authorised(query):
+            # An unclaimed console is drawn by the bundle, which is no secret:
+            # it is the same files for everybody, and what it asks first is the
+            # code, the email and the password.
+            if claimable(self.api.config, self.entry):
+                if route.startswith("/static/"):
+                    return self._static(route[len("/static/") :])
+                if route == "/api/setup":
+                    return self._json(self._setup_state(False))
             return self._unauthorised(route)
 
         # The token arrived in the URL: put it in a cookie and get it out of the
@@ -374,17 +441,19 @@ class Handler(BaseHTTPRequestHandler):
                 "text/plain",
                 {
                     "Location": landing(parsed.query),
-                    "Set-Cookie": (
-                        f"{COOKIE}={query['token'][0]}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000"
-                    ),
+                    "Set-Cookie": self._cookie(query["token"][0]),
                 },
             )
 
-        # The way in, for somebody who already has one: a console still
-        # unclaimed has a password waiting to be set, and whoever opened it with
-        # its token would otherwise never be shown where.
-        if route == "/setup" and claimable(self.api.config, self.entry):
-            return self._send(200, setup_page(self._language()).encode(), "text/html; charset=utf-8")
+        # The steps of the first connection, for somebody already in: a console
+        # still unclaimed has a password waiting to be set, one claimed from the
+        # environment has everything after it — and the bare address of a
+        # console with no board yet leads there, rather than to an empty board.
+        if route == "/setup":
+            claim = claimable(self.api.config, self.entry)
+            return self._static("index.html", setup="claim" if claim else "steps")
+        if route == "/" and not parsed.query and not self._usable():
+            return self._send(303, b"", "text/plain", {"Location": "/setup"})
 
         if route == "/":
             return self._static("index.html")
@@ -440,6 +509,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._attachment(match.group(1))
             if route == "/api/settings":
                 return self._json(self.api.settings())
+            if route == "/api/setup":
+                return self._json(self._setup_state(True))
+            if route == "/api/setup/summary":
+                return self._json(setup.summary(self.api))
+            if route == "/api/setup/claude":
+                return self._json(setup.claude_login())
+            if route == "/api/setup/github":
+                return self._json(setup.github())
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.ticket(match.group(1)))
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
@@ -529,6 +606,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.set_picture(picture.group(1), picture.group(2), chosen))
             if route == "/api/setup":
                 return self._setup(payload)
+            if route == "/api/setup/provider":
+                return self._json(setup.save_provider(self.api, payload))
+            if route == "/api/setup/notion":
+                return self._json(setup.save_notion(self.api, payload))
+            if route == "/api/setup/channels":
+                return self._json(setup.save_channels(self.api, payload))
             if route == "/api/tickets":
                 return self._json(
                     self.api.create_ticket(
@@ -733,7 +816,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- the three kinds of response ------------------------------------------
 
-    def _static(self, name: str) -> None:
+    def _static(self, name: str, setup: str = "") -> None:
         target = (STATIC / name).resolve()
         if not str(target).startswith(str(STATIC)) or not target.is_file():
             return self._fail(404, f"no such file: {name}")
@@ -743,6 +826,10 @@ class Handler(BaseHTTPRequestHandler):
         if name == "index.html":
             marked = self._configured()
             body = configured(body, marked)
+            if setup:
+                # What the page draws instead of the console: see `main.tsx`.
+                body = re.sub(rb"<html\b", f'<html data-setup="{setup}"'.encode(), body, count=1)
+                marked = f"{marked}:{setup}"
         extra: dict[str, str] = {}
         if kind.startswith(COMPRESSIBLE):
             extra["Vary"] = "Accept-Encoding"
@@ -775,16 +862,7 @@ class Handler(BaseHTTPRequestHandler):
             # attempt is nothing to type through and a wall to grind against.
             time.sleep(1)
             return self._fail(401, "wrong email or password")
-        self._send(
-            200,
-            b'{"ok": true}',
-            "application/json",
-            {
-                "Set-Cookie": (
-                    f"{COOKIE}={entry.cookie}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000"
-                )
-            },
-        )
+        self._send(200, b'{"ok": true}', "application/json", {"Set-Cookie": self._cookie(entry.cookie)})
 
     def _setup(self, payload: dict) -> None:
         """The first connection: everything at once, and a way in at the end.
@@ -797,29 +875,60 @@ class Handler(BaseHTTPRequestHandler):
         """
         if not claimable(self.api.config, self.entry):
             return self._fail(404, "this console has already been set up")
+        if self._outside():
+            # From outside this machine, the code `serve` printed — or nothing.
+            # Compared before anything is written, and a second per wrong guess,
+            # as a password is: eight letters out of thirty-two are a lot of
+            # guesses, and this keeps them that way.
+            if not self.server.code:  # type: ignore[attr-defined]
+                return self._fail(
+                    403,
+                    "the first connection is only offered on this machine, or with the "
+                    "installation code the console prints when it starts",
+                )
+            if not same_code(str(payload.get("code", "")), self.server.code):  # type: ignore[attr-defined]
+                time.sleep(1)
+                return self._fail(403, "wrong installation code")
         result = setup.apply(self.api, payload)
         entry = sign_in(self.api.config, self.server.secret)  # type: ignore[attr-defined]
         if entry is None:  # the write went through and said nothing: refuse to guess
             return self._fail(500, "the credentials were not written")
         self.server.entry = entry  # type: ignore[attr-defined]
+        self.server.code = ""  # type: ignore[attr-defined]  # used once, and the door is shut anyway
         self._send(
             200,
             json.dumps(result, ensure_ascii=False).encode(),
             "application/json",
-            {
-                "Set-Cookie": (
-                    f"{COOKIE}={entry.cookie}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000"
-                )
-            },
+            {"Set-Cookie": self._cookie(entry.cookie)},
         )
+
+    def _setup_state(self, signed_in: bool) -> dict:
+        """What the first connection's page needs before it draws a step."""
+        claim = claimable(self.api.config, self.entry)
+        return {
+            "claimed": not claim,
+            "signed_in": signed_in,
+            "code": claim and self._outside(),
+            "code_drawn": bool(self.server.code),  # type: ignore[attr-defined]
+            "container": config_module.in_container(),
+            "version": __version__,
+            "storage": self.api.config.storage.mode,
+        }
+
+    def _usable(self) -> bool:
+        try:
+            self.api.config.require_usable()
+        except config_module.ConfigError:
+            return False
+        return True
 
     def _unauthorised(self, route: str) -> None:
         if route.startswith("/api/"):
             return self._fail(401, "token missing or wrong")
         language = self._language()
         if claimable(self.api.config, self.entry):
-            page = setup_page(language)
-        elif self.entry:
+            return self._static("index.html", setup="claim")
+        if self.entry:
             page = sign_in_page(language)
         else:
             page = gate_page(language, self._token_whereabouts())
@@ -894,7 +1003,7 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
 
-# -- the three pages a browser sees before it is in ---------------------------
+# -- the pages a browser sees before it is in ---------------------------
 
 # Accent and ladder are the console's own (see `frontend/src/index.css`): the
 # lime on near-black it is drawn in, and its light translation for a browser
@@ -927,7 +1036,6 @@ _STYLE = """<style>
 _FRENCH = {
     "token": "jeton",
     "sign in": "connexion",
-    "first connection": "première connexion",
     "Token": "Jeton",
     "Email": "E-mail",
     "Password": "Mot de passe",
@@ -939,54 +1047,6 @@ _FRENCH = {
         "Cette console demande son jeton. <code>ponos serve --print-token</code> "
         "l'affiche, et il est écrit dans {where}.",
     "<code>web.token</code> of <code>{path}</code>": "le <code>web.token</code> de <code>{path}</code>",
-    "Nobody has claimed this console yet. What you fill in here is written into "
-    "your <code>config.toml</code>, and the first two lines are how you open it "
-    "from now on — this page does not come back.":
-        "Personne n'a encore pris cette console. Ce que vous remplissez ici est écrit "
-        "dans votre <code>config.toml</code>, et les deux premières lignes sont ce qui "
-        "l'ouvrira désormais — cette page ne reviendra pas.",
-    "You": "Vous",
-    "The email and the password the console will ask for instead of its token.":
-        "L'e-mail et le mot de passe que la console demandera à la place de son jeton.",
-    "The same password again": "Le même mot de passe, encore",
-    "— or leave it for later": "— ou plus tard",
-    "Create an internal integration on <code>notion.so/my-integrations</code>, share one "
-    "page with it — the <code>···</code> menu → <em>Connections</em> — and paste the two "
-    "here. The board, its five databases and their columns are built under that page.":
-        "Créez une intégration interne sur <code>notion.so/my-integrations</code>, partagez "
-        "une page avec elle — menu <code>···</code> → <em>Connexions</em> — et collez les deux "
-        "ici. Le tableau, ses cinq bases et leurs colonnes sont construits sous cette page.",
-    "Integration token": "Jeton d'intégration",
-    "Link of the page you shared": "Lien de la page partagée",
-    "Your rules": "Vos règles",
-    "— read into every ticket": "— lues dans chaque ticket",
-    "Who you are, what the stack is, how you like things written. It reaches every "
-    "session before the project's brief and before the ticket itself, which is what "
-    "makes an answer sound like you. One screen: you pay for it on every ticket. "
-    "What you write here <em>replaces</em> the Context page; left empty, it is left alone.":
-        "Qui vous êtes, quelle est la stack, comment vous aimez qu'on écrive. Chaque "
-        "session le lit avant le brief du projet et avant le ticket lui-même : c'est ce "
-        "qui fait qu'une réponse sonne comme vous. Un écran au plus : vous le payez à "
-        "chaque ticket. Ce que vous écrivez ici <em>remplace</em> la page Context ; vide, "
-        "elle n'est pas touchée.",
-    "Rules": "Règles",
-    "I am …, I work on …, never …": "Je suis …, je travaille sur …, jamais …",
-    "— optional": "— facultatif",
-    "Where a blocked ticket asks its question, and what you answer lands on the ticket. "
-    "@BotFather → <code>/newbot</code>, then say anything to your new bot: the chat id is "
-    "read back from it, so leave it empty unless you know it.":
-        "Là où un ticket bloqué pose sa question, et ce que vous répondez arrive sur le "
-        "ticket. @BotFather → <code>/newbot</code>, puis écrivez n'importe quoi à votre "
-        "nouveau bot : l'identifiant de discussion est relu depuis lui, laissez-le vide "
-        "sauf si vous le connaissez.",
-    "Bot token": "Jeton du bot",
-    "Chat id": "Identifiant de discussion",
-    "found on its own": "trouvé tout seul",
-    "Set it up": "Tout configurer",
-    "Setting it up…": "Configuration…",
-    "that did not work": "ça n'a pas marché",
-    "Set up — one thing did not work": "Configuré — une chose n'a pas marché",
-    "Open the console →": "Ouvrir la console →",
 }
 
 
@@ -1027,8 +1087,10 @@ def _words(language: str):
 def _page(title: str, body: str, style: str = "", language: str = "en") -> str:
     """The way in, drawn by this server rather than by the bundle.
 
-    A browser that has not got in cannot load the console, so these three pages
-    are the only HTML written in Python — and, like everything else served
+    A browser that has not got in cannot load the console, so these two pages
+    are the only HTML written in Python — the first connection is the
+    exception, drawn by the bundle, which is served to a console nobody has
+    claimed — and, like everything else served
     here, they reach for nothing that is not on this machine.
     """
     return (
@@ -1107,157 +1169,10 @@ async function enter(form){{
     )
 
 
-# The first connection. One page, in the order somebody would say it: who opens
-# this console, then the board, then the words every ticket is written against,
-# then the phone. Everything but the first pair may be left empty and set later
-# in the Settings tab — the password is the only thing that cannot wait, since
-# it is what shuts this door.
-_SETUP_STYLE = """<style>
- body{place-items:start center;padding:3rem 0}
- form{width:min(36rem,92vw)}
- fieldset{border:1px solid var(--line);border-radius:11px;padding:.9rem 1rem 1.1rem;margin:0 0 1rem}
- legend{color:var(--fg);font-weight:600;padding:0 .4rem}
- legend span{color:var(--muted);font-weight:400}
- fieldset p{margin:0 0 .4rem}
- fieldset label:first-of-type{margin-top:.4rem}
- label small{color:var(--muted);font-weight:400}
- textarea{width:100%;box-sizing:border-box;background:var(--field);border:1px solid var(--line);color:inherit;
-          border-radius:9px;padding:.7rem .8rem;font:inherit;min-height:7rem;resize:vertical}
- button[disabled]{background:var(--line);color:var(--muted);cursor:progress}
- ul{margin:1rem 0 0;padding-left:1.1rem;color:var(--muted);font-size:.9rem}
- li b{color:var(--good);font-weight:600}
- a{color:var(--accent)}
-</style>
-"""
-
-
-def setup_page(language: str = "en") -> str:
-    say = _words(language)
-    words = json.dumps(
-        {
-            key: say(key)
-            for key in ("Set it up", "Setting it up…", "that did not work", "Set up — one thing did not work")
-        },
-        ensure_ascii=False,
-    )
-    return _page(
-        say("first connection"),
-        f"""<form onsubmit="start(this);return false">
-  <h1>Ponos</h1>
-  <p>{say("Nobody has claimed this console yet. What you fill in here is written into "
-          "your <code>config.toml</code>, and the first two lines are how you open it "
-          "from now on — this page does not come back.")}</p>
-
-  <fieldset>
-    <legend>{say("You")}</legend>
-    <p>{say("The email and the password the console will ask for instead of its token.")}</p>
-    <label for="email">{say("Email")}</label>
-    <input id="email" name="email" type="email" autofocus autocomplete="username" spellcheck="false">
-    <label for="password">{say("Password")}</label>
-    <input id="password" name="password" type="password" autocomplete="new-password">
-    <label for="confirm">{say("The same password again")}</label>
-    <input id="confirm" name="confirm" type="password" autocomplete="new-password">
-  </fieldset>
-
-  <fieldset>
-    <legend>Notion <span>{say("— or leave it for later")}</span></legend>
-    <p>{say("Create an internal integration on <code>notion.so/my-integrations</code>, share one "
-             "page with it — the <code>···</code> menu → <em>Connections</em> — and paste the two "
-             "here. The board, its five databases and their columns are built under that page.")}</p>
-    <label for="notion_token">{say("Integration token")}</label>
-    <input id="notion_token" name="notion_token" placeholder="ntn_…" autocomplete="off" spellcheck="false">
-    <label for="notion_page">{say("Link of the page you shared")}</label>
-    <input id="notion_page" name="notion_page" placeholder="https://www.notion.so/…"
-           autocomplete="off" spellcheck="false">
-  </fieldset>
-
-  <fieldset>
-    <legend>{say("Your rules")} <span>{say("— read into every ticket")}</span></legend>
-    <p>{say("Who you are, what the stack is, how you like things written. It reaches every "
-            "session before the project's brief and before the ticket itself, which is what "
-            "makes an answer sound like you. One screen: you pay for it on every ticket. "
-            "What you write here <em>replaces</em> the Context page; left empty, it is left alone.")}</p>
-    <label for="rules">{say("Rules")}</label>
-    <textarea id="rules" name="rules" placeholder="{html.escape(say("I am …, I work on …, never …"))}"></textarea>
-  </fieldset>
-
-  <fieldset>
-    <legend>Telegram <span>{say("— optional")}</span></legend>
-    <p>{say("Where a blocked ticket asks its question, and what you answer lands on the ticket. "
-            "@BotFather → <code>/newbot</code>, then say anything to your new bot: the chat id is "
-            "read back from it, so leave it empty unless you know it.")}</p>
-    <label for="telegram_token">{say("Bot token")}</label>
-    <input id="telegram_token" name="telegram_token" autocomplete="off" spellcheck="false">
-    <label for="telegram_chat">{say("Chat id")} <small>— {say("found on its own")}</small></label>
-    <input id="telegram_chat" name="telegram_chat" autocomplete="off" spellcheck="false">
-  </fieldset>
-
-  <button type="submit">{say("Set it up")}</button>
-  <p class="said" id="said" role="alert"></p>
-  <ul id="steps"></ul>
-  <p id="after" hidden><a href="/">{say("Open the console →")}</a></p>
-</form>
-<script>
-const WORDS = {words};
-async function start(form){{
-  const said = document.getElementById('said');
-  const steps = document.getElementById('steps');
-  const after = document.getElementById('after');
-  const button = form.querySelector('button');
-  said.textContent = '';
-  steps.textContent = '';
-  const body = {{}};
-  for (const field of form.elements) if (field.name) body[field.name] = field.value;
-  button.disabled = true;
-  button.textContent = WORDS['Setting it up…'];
-  try {{
-    const answer = await fetch('/api/setup', {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/json', '{GUARD_HEADER}': '1'}},
-      body: JSON.stringify(body),
-    }});
-    const payload = await answer.json().catch(() => ({{}}));
-    if (!answer.ok) {{
-      said.textContent = payload.error || WORDS['that did not work'];
-      button.disabled = false;
-      button.textContent = WORDS['Set it up'];
-      return;
-    }}
-    for (const step of payload.steps || []) {{
-      const line = document.createElement('li');
-      const verb = document.createElement('b');
-      verb.textContent = step[0] + ' ';
-      line.appendChild(verb);
-      line.appendChild(document.createTextNode(step[1]));
-      steps.appendChild(line);
-    }}
-    /* A step that failed is said, and the console is opened all the same: the
-       sign-in is already yours, and the rest is the Settings tab's to finish. */
-    if (payload.problem) {{
-      said.textContent = payload.problem;
-      button.textContent = WORDS['Set up — one thing did not work'];
-      after.hidden = false;
-      return;
-    }}
-    location = '/';
-  }} catch (error) {{
-    said.textContent = String(error);
-    button.disabled = false;
-    button.textContent = WORDS['Set it up'];
-  }}
-}}
-</script>
-""",
-        _SETUP_STYLE,
-        language,
-    )
-
-
 # The English pages, as they stand: what a test reads, and what a browser that
 # says nothing about its language is given.
 GATE = gate_page()
 SIGN_IN = sign_in_page()
-SETUP = setup_page()
 
 
 def serve(
@@ -1273,7 +1188,10 @@ def serve(
     secret = token(config)
     entry = sign_in(config, secret)
 
-    if host not in LOOPBACK and not config.web.token and entry is None:
+    # In a container the console listens to a network by nature — Docker's, and
+    # behind it Traefik's — and what guards a console nobody has claimed there is
+    # the installation code drawn below. Everywhere else, as it always was.
+    if host not in LOOPBACK and not config.web.token and entry is None and not config_module.in_container():
         print(
             f"refusing to listen on {host}: behind this port sits a runner that starts\n"
             "Claude Code sessions with bypassPermissions, and a generated token is not a\n"
@@ -1296,9 +1214,13 @@ def serve(
             return f"{address}  —  not set up yet: the first browser to open it sets its password"
         return f"{address}/?token={secret}"
 
+    # Drawn once per start, and only while nobody has claimed the console: it is
+    # what a first connection from anywhere but this machine has to give.
+    code = installation_code() if claimable(config, entry) else ""
+
     api = Api(config)
     try:
-        server = Console((host, port), Handler, api, secret, entry)
+        server = Console((host, port), Handler, api, secret, entry, code)
     except OSError as error:
         if error.errno == errno.EADDRINUSE:
             # The console's unit starts with the machine, so a taken port is the
@@ -1316,7 +1238,9 @@ def serve(
     if announce:
         print(f"Ponos console on {shown}")
         print(f"  open  {opening(shown)}")
-        print(f"  stop  Ctrl-C\n")
+        if code:
+            print(f"  code  {code}  —  asked by the first connection from anywhere but this machine")
+        print(f"  stop  Ctrl-C\n", flush=True)
 
     thread = threading.Thread(target=server.serve_forever, name="tr-console", daemon=True)
     thread.start()

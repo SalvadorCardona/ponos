@@ -195,6 +195,8 @@ export const FRENCH: Record<string, string> = {
   "a ticket is running": "un ticket est en cours",
   "a conversation turn is being answered": "une réponse de la conversation est en cours",
   "a command is running": "une commande est en cours",
+  "this is a container: a new version is a new image — docker compose pull && docker compose up -d":
+    "c'est un conteneur : une nouvelle version est une nouvelle image — docker compose pull && docker compose up -d",
   "an update is started from the machine the runner is on":
     "une mise à jour se lance depuis la machine où tourne le runner",
 
@@ -1053,6 +1055,18 @@ export const FRENCH: Record<string, string> = {
   "“Read only” is the guardrail: an answer that quietly changed a repository is the last thing anybody expects.":
     "« Lecture seule » est le garde-fou : une réponse qui modifierait un dépôt en silence est bien la dernière chose qu'on attend.",
 
+  "Claude provider": "Provider Claude",
+  "Who answers the sessions: Claude Code signed in as you, an Anthropic key, or OpenRouter. The first connection asks, and checks the answer works.":
+    "Qui répond aux sessions : Claude Code connecté à votre compte, une clé Anthropic, ou OpenRouter. La première connexion le demande, et vérifie que la réponse fonctionne.",
+  Provider: "Provider",
+  "Only the CLI keeps Claude in Chrome and the wait for credits. Empty: OpenRouter when its sessions are routed there, the CLI otherwise.":
+    "Seul le CLI garde Claude in Chrome et l'attente des crédits. Vide : OpenRouter si ses sessions y passent, le CLI sinon.",
+  "Claude Code CLI — your subscription (claude login)": "Claude Code CLI — votre abonnement (claude login)",
+  "Anthropic API key — billed by the token": "Clé API Anthropic — facturée au token",
+  "OpenRouter — the key of the OpenRouter section": "OpenRouter — la clé de la section OpenRouter",
+  "Anthropic API key": "Clé API Anthropic",
+  "From console.anthropic.com. Used only when the provider is the key; empty, `ANTHROPIC_API_KEY` from the environment is.":
+    "Depuis console.anthropic.com. Utilisée seulement quand le provider est la clé ; vide, c'est `ANTHROPIC_API_KEY` de l'environnement qui l'est.",
   "OpenRouter (other models)": "OpenRouter (autres modèles)",
   "One key for every other AI provider — a GPT, images, transcription. Sessions get it as `OPENROUTER_API_KEY`, and this console dictates with it.":
     "Une seule clé pour tous les autres fournisseurs d'IA — un GPT, des images, de la transcription. Les sessions la reçoivent sous le nom `OPENROUTER_API_KEY`, et cette console s'en sert pour la dictée.",
@@ -1214,4 +1228,143 @@ export const FRENCH: Record<string, string> = {
   Writing: "Rédaction",
   "External action": "Action externe",
   Publication: "Publication",
+  // The first connection, in steps — components/console/setup.tsx and lib/setup.ts.
+  "First connection": "Première connexion",
+  "Steps": "Étapes",
+  "Access": "Accès",
+  "Channels": "Canaux",
+  "Summary": "Récapitulatif",
+  "Who opens this console": "Qui ouvre cette console",
+  "Nobody has claimed this console yet. The email and the password typed here are what it asks for from now on — and what closes this page behind you.":
+    "Personne n'a encore réclamé cette console. L'e-mail et le mot de passe saisis ici sont ce qu'elle demandera désormais — et ce qui referme cette page derrière vous.",
+  "Claiming…": "Réclamation…",
+  "Claim the console": "Réclamer la console",
+  "Installation code": "Code d'installation",
+  "Printed by the console when it started — in a container, its logs (`docker compose logs ponos`, or the Logs tab in Dokploy). It is asked because this page is reached from outside the machine.":
+    "Affiché par la console à son démarrage — dans un conteneur, ses logs (`docker compose logs ponos`, ou l'onglet Logs de Dokploy). Il est demandé parce que cette page est ouverte depuis l'extérieur de la machine.",
+  "This console is reached from outside its machine and was started without an installation code: restart it, and read the code in its logs.":
+    "Cette console est ouverte depuis l'extérieur de sa machine et a démarré sans code d'installation : redémarrez-la, et lisez le code dans ses logs.",
+  "Email": "E-mail",
+  "Password": "Mot de passe",
+  "8 characters at the least: behind this console sits a runner that runs code on its machine.":
+    "8 caractères au moins : derrière cette console tourne un runner qui exécute du code sur sa machine.",
+  "The same password again": "Le même mot de passe, encore",
+  "Claude Code CLI": "Claude Code CLI",
+  "Your Claude subscription, signed in with `claude auth login`.":
+    "Votre abonnement Claude, connecté avec `claude auth login`.",
+  "The only one that keeps Claude in Chrome and waits for credits when the window runs out.":
+    "Le seul qui garde Claude in Chrome et attend les crédits quand la fenêtre est épuisée.",
+  "In a container, the command is typed once in its terminal.":
+    "Dans un conteneur, la commande se tape une fois dans son terminal.",
+  "A key from console.anthropic.com, billed by the token.":
+    "Une clé de console.anthropic.com, facturée au token.",
+  "Nothing to sign in, nothing to wait for — and no Claude in Chrome.":
+    "Rien à connecter, rien à attendre — et pas de Claude in Chrome.",
+  "One key for every provider, billed by OpenRouter.":
+    "Une clé pour tous les providers, facturée par OpenRouter.",
+  "Models are then named as OpenRouter slugs (`anthropic/claude-sonnet-4.5`, `openai/gpt-5`).":
+    "Les modèles se nomment alors en slugs OpenRouter (`anthropic/claude-sonnet-4.5`, `openai/gpt-5`).",
+  "No Claude in Chrome, nothing to wait for.": "Pas de Claude in Chrome, rien à attendre.",
+  "Written to the configuration: {{said}}": "Écrit dans la configuration : {{said}}",
+  "Claude Code is signed in as {{who}}.": "Claude Code est connecté en tant que {{who}}.",
+  "Who answers the sessions": "Qui répond aux sessions",
+  "The choice that matters most: it decides who bills the work, which models a ticket can name, and whether a ticket can use the browser. It can be changed later in the settings.":
+    "Le choix le plus important : il décide qui facture le travail, quels modèles un ticket peut nommer, et si un ticket peut se servir du navigateur. Il se change plus tard dans les réglages.",
+  "Continue": "Continuer",
+  "Open a terminal in the container — Dokploy's Terminal tab on the service, or `docker compose exec ponos bash` — and sign in there. The sign-in is kept in the `~/.claude` volume.":
+    "Ouvrez un terminal dans le conteneur — l'onglet Terminal du service dans Dokploy, ou `docker compose exec ponos bash` — et connectez-vous là. La connexion est gardée dans le volume `~/.claude`.",
+  "In a terminal on this machine, sign Claude Code in:":
+    "Dans un terminal de cette machine, connectez Claude Code :",
+  "Use the CLI": "Utiliser le CLI",
+  "Check the sign-in": "Vérifier la connexion",
+  "Left empty, the key already in the configuration — or in the container's environment — is the one checked.":
+    "Laissé vide, c'est la clé déjà dans la configuration — ou dans l'environnement du conteneur — qui est vérifiée.",
+  "Run the sessions on OpenRouter": "Faire tourner les sessions sur OpenRouter",
+  "Off, the key is only handed to the sessions, and they keep running on the CLI's sign-in.":
+    "Décoché, la clé est seulement transmise aux sessions, qui continuent de tourner sur la connexion du CLI.",
+  "Checking…": "Vérification…",
+  "Check and save": "Vérifier et enregistrer",
+  "The board": "Le tableau",
+  "This console keeps its board in Markdown files: there is nothing to connect.":
+    "Cette console garde son tableau en fichiers Markdown : il n'y a rien à connecter.",
+  "The board, in Notion": "Le tableau, dans Notion",
+  "Create an internal integration on `notion.so/my-integrations`, share one page with it — the `···` menu → Connections — and paste the two here. The board, its databases and their columns are built under that page, as `ponos init` would.":
+    "Créez une intégration interne sur `notion.so/my-integrations`, partagez une page avec elle — menu `···` → Connexions — et collez les deux ici. Le tableau, ses bases et leurs colonnes sont construits sous cette page, comme le ferait `ponos init`.",
+  "A board is already connected: {{count}} ticket(s) on it.":
+    "Un tableau est déjà connecté : {{count}} ticket(s) dessus.",
+  "No board yet.": "Pas encore de tableau.",
+  "Link of the page you shared": "Lien de la page partagée",
+  "Only to build a second board: the one above stays where it is otherwise.":
+    "Seulement pour construire un second tableau : sinon celui ci-dessus reste où il est.",
+  "Left empty, only the token is written — `ponos init <page>` builds the board later.":
+    "Laissé vide, seul le jeton est écrit — `ponos init <page>` construira le tableau plus tard.",
+  "Building the board…": "Construction du tableau…",
+  "Connect and build the board": "Connecter et construire le tableau",
+  "GitHub, for the pull requests": "GitHub, pour les pull requests",
+  "A code ticket comes back as a pull request, opened with `gh`. It is signed in with `gh auth login`, or given a token in `GH_TOKEN` — the way a container usually is.":
+    "Un ticket de code revient en pull request, ouverte avec `gh`. Il se connecte avec `gh auth login`, ou reçoit un jeton dans `GH_TOKEN` — comme un conteneur le reçoit d'habitude.",
+  "Check again": "Vérifier à nouveau",
+  "Pull requests are opened as {{account}}, with the token in `GH_TOKEN`.":
+    "Les pull requests sont ouvertes en tant que {{account}}, avec le jeton de `GH_TOKEN`.",
+  "Pull requests are opened as {{account}}.":
+    "Les pull requests sont ouvertes en tant que {{account}}.",
+  "gh is not signed in.": "gh n'est pas connecté.",
+  "Set `GH_TOKEN` in the service's environment and redeploy — or sign in from its terminal:":
+    "Renseignez `GH_TOKEN` dans l'environnement du service et redéployez — ou connectez-vous depuis son terminal :",
+  "In a terminal on this machine:": "Dans un terminal de cette machine :",
+  "Asking gh…": "Question à gh…",
+  "Being told, and answering": "Être prévenu, et répondre",
+  "Optional — but on a server, the only way to hear about a blocked ticket: no desktop notification reaches you from a container. A question asked there is answered in the chat, and the answer lands on the ticket.":
+    "Facultatif — mais sur un serveur, le seul moyen d'apprendre qu'un ticket est bloqué : aucune notification de bureau ne vous atteint depuis un conteneur. Une question posée là se répond dans la discussion, et la réponse arrive sur le ticket.",
+  "Optional. A blocked ticket asks its question there, and what you answer lands on the ticket.":
+    "Facultatif. Un ticket bloqué y pose sa question, et ce que vous répondez arrive sur le ticket.",
+  "Bot token": "Jeton du bot",
+  "@BotFather → `/newbot`, then say anything to your new bot: the chat id is read back from it.":
+    "@BotFather → `/newbot`, puis écrivez n'importe quoi à votre nouveau bot : l'identifiant de discussion est relu depuis lui.",
+  "Chat id": "Identifiant de discussion",
+  "Found on its own — leave it empty unless you know it.":
+    "Trouvé tout seul — laissez-le vide sauf si vous le connaissez.",
+  "Then `/invite @your-bot` in the channel — the step everyone forgets.":
+    "Puis `/invite @votre-bot` dans le canal — l'étape que tout le monde oublie.",
+  "Save and check": "Enregistrer et vérifier",
+  "What this console runs on": "Ce sur quoi tourne cette console",
+  "One line per thing that has to work. A line that is missing can be fixed from its step now, or later from the settings — this summary is at the top of them.":
+    "Une ligne par chose qui doit fonctionner. Une ligne manquante se corrige depuis son étape maintenant, ou plus tard depuis les réglages — ce récapitulatif est en haut de ceux-ci.",
+  "Open the console": "Ouvrir la console",
+  "OK": "OK",
+  "Missing": "Manquant",
+  "Error": "Erreur",
+  "The installation code is eight letters, printed in the console's logs.":
+    "Le code d'installation fait huit caractères, affichés dans les logs de la console.",
+  "An email address is what the console will ask you for.":
+    "C'est une adresse e-mail que la console vous demandera.",
+  "A password of 8 characters at the least.": "Un mot de passe de 8 caractères au moins.",
+  "The two passwords are not the same.": "Les deux mots de passe ne sont pas les mêmes.",
+  "Claude Code CLI (subscription)": "Claude Code CLI (abonnement)",
+  "{{name}} — signed in as {{account}}": "{{name}} — connecté en tant que {{account}}",
+  "{{name}} — not signed in": "{{name}} — pas connecté",
+  "{{name}} — {{key}}, sessions on OpenRouter": "{{name}} — {{key}}, sessions sur OpenRouter",
+  "{{name}} — {{key}}, sessions still on the CLI":
+    "{{name}} — {{key}}, sessions toujours sur le CLI",
+  "Markdown board in {{path}}": "Tableau Markdown dans {{path}}",
+  "Notion workspace {{workspace}}": "Espace Notion {{workspace}}",
+  "Notion workspace {{workspace}} — {{count}} ticket(s)":
+    "Espace Notion {{workspace}} — {{count}} ticket(s)",
+  "No board yet": "Pas encore de tableau",
+  "{{model}} by default, chosen per ticket by the rules":
+    "{{model}} par défaut, choisi par ticket selon les règles",
+  "Chosen per ticket by the rules": "Choisi par ticket selon les règles",
+  "{{model}} for every ticket": "{{model}} pour tous les tickets",
+  "The CLI's default model for every ticket": "Le modèle par défaut du CLI pour tous les tickets",
+  "Board": "Tableau",
+  "GitHub account": "Compte GitHub",
+  "Not signed in": "Pas connecté",
+  "{{root}} — {{count}} repository(ies) found": "{{root}} — {{count}} dépôt(s) trouvé(s)",
+  "None — nothing reaches your phone": "Aucun — rien n'atteint votre téléphone",
+  "Environment": "Environnement",
+  "Container — Ponos {{version}}": "Conteneur — Ponos {{version}}",
+  "Machine — Ponos {{version}}": "Machine — Ponos {{version}}",
+  "Hide the summary": "Masquer le récapitulatif",
+  "Go through the first connection again": "Refaire la première connexion",
+  "Change": "Modifier",
 }

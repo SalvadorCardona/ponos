@@ -56,8 +56,9 @@ ce soit ; le job frontend ne se déclenche que si `frontend/**` ou
 fait `npm ci`, `npm run lint`, `npm test`, `npm run build` (sous Node 24),
 échoue si `src/ponos/web/static` diffère de ce que le build vient
 d'écrire, puis lance `npm run test:e2e`.
-`release.yml` reste séparé, ne se déclenche que sur un tag, et relance les deux
-suites.
+Un job `image` construit le `Dockerfile` et relance `tests/functional.py`
+dedans. `release.yml` reste séparé, ne se déclenche que sur un tag, relance les
+deux suites, puis publie l'image sur `ghcr.io`.
 
 ## Arborescence utile
 
@@ -74,7 +75,8 @@ suites.
 - `src/ponos/` — autour du run : `config.py`, `store.py` (la couture
   vers un tableau, quel qu'il soit) et les trois qui la remplissent —
   `notion.py`, `files.py` (le board en fichiers Markdown), `sync.py` (les deux
-  en phase) —, `git.py`, `session.py`, `voice.py` (les mots et la langue),
+  en phase) —, `git.py`, `session.py`, `provider.py` (qui répond aux sessions :
+  le CLI connecté, une clé Anthropic ou OpenRouter), `voice.py` (les mots et la langue),
   `channels/` (Telegram, Slack), `web/` (serveur de la console et API ;
   `web/console.py` tient la conversation avec l'espace de travail, et
   `web/attachments.py` les fichiers qu'un message y emporte).
@@ -93,6 +95,9 @@ suites.
   un faux Notion en local (`http.server`), un dépôt git et son remote bare, un
   `claude` et un `gh` en tête du `PATH`. Le seul point d'injection côté cœur est
   `PONOS_NOTION_API` (voir `notion.endpoint`).
+- `Dockerfile`, `docker-compose.yml`, `docker/entrypoint.sh` — l'image : une
+  autre façon d'installer, pas un autre programme. `PONOS_CONTAINER` y dit au
+  cœur qu'il n'y a ni systemd ni mise à jour automatique (`config.in_container`).
 - `systemd/` — gabarits des unités (`.service.in`, `.timer.in`) posées par
   `install.sh` pour le timer et la console.
 - `desktop/` — gabarit du handler `ponos://` enregistré sur le bureau.

@@ -18,6 +18,41 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Ponos in a container, on your machine or on Dokploy.** A `Dockerfile` (Python 3.13,
+  git, `gh`, Node and Claude Code, run as a user that is not root) and a
+  `docker-compose.yml` with four named volumes — `/data`, `/workspace`, `~/.claude`,
+  `~/.config/gh` — the port exposed to the proxy rather than published, and
+  `PONOS_WEB_EMAIL`, `PONOS_WEB_PASSWORD`, `GH_TOKEN`, `ANTHROPIC_API_KEY` and
+  `OPENROUTER_API_KEY` from the environment. In a container nothing updates itself: the
+  header says a new version is a new image. The CI builds the image and runs the
+  functional suite in it; a release publishes it to `ghcr.io`. See README, *Docker* and
+  *Deploying on Dokploy*.
+
+- **`ponos run --every [seconds]`: the timer, where there is no systemd.** One run each
+  interval (`runner.interval_seconds` when none is given), each in a process of its own
+  that takes the run lock, and the next one started at once when the configuration
+  changes. It is what the container runs beside the console.
+
+- **`claude.provider`: who answers the sessions.** `cli` (Claude Code signed in as you —
+  the only one with Claude in Chrome and the wait for credits), `api_key` (an Anthropic
+  key, `claude.api_key` or `ANTHROPIC_API_KEY`) or `openrouter`. A file without it works
+  as it always did; `ponos doctor` says which one is in use and whether the CLI is
+  signed in, and the Settings page has a section for it.
+
+- **The first connection, in steps.** Access, Claude provider (three cards, the key
+  tried before it is written, the `claude auth login` command shown and checked),
+  Notion (`ponos init` from the page), GitHub, the channels, and a summary of what the
+  console runs on — one line each, ok, missing or error, each leading to the step that
+  changes it. The Settings page keeps the summary at its top.
+
+### Security
+
+- **Outside its machine, nobody claims a console without its installation code.** An
+  unclaimed console draws a code when it starts and prints it beside its address; the
+  first connection asks for it from any other address, or through a proxy, and refuses
+  outright when none was drawn. Behind HTTPS (`X-Forwarded-Proto: https`) every cookie the
+  console sets is `Secure`.
+
 - Console, a project's page: two tabs, **Tickets** (the default — the project's tickets, and a form to add one that is attached to the project) and **Brief**; the tab is in the address (`&tab=brief`), so a reload or a pasted link comes back to it. "On this machine" now shows the clone's real path, with a button to copy it — or says the project is not cloned yet.
 
 - **A project's page has its own statistics.** The same folding band as the

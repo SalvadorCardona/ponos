@@ -13,6 +13,7 @@ import {
   GitPullRequest,
   Globe,
   HardDrive,
+  ListChecks,
   MessageSquareReply,
   MessageSquareText,
   NotebookText,
@@ -35,6 +36,7 @@ import {
 
 import { PageHead } from "@/components/console/frame"
 import { LanguagePicker } from "@/components/console/language-picker"
+import { SetupSummary } from "@/components/console/setup"
 import {
   FoldContext,
   SectionForm,
@@ -99,6 +101,7 @@ const ICONS: Record<string, IconType> = {
   storage: HardDrive,
   runner: Timer,
   models: Coins,
+  claude: Bot,
   openrouter: Bot,
   git: GitBranch,
   validation: BadgeCheck,
@@ -343,6 +346,35 @@ function DiskLine() {
   )
 }
 
+/* What the first connection ended on, kept: the provider, the board, GitHub,
+ * the projects, the channels and where this runs, each with its state and a
+ * link to the section that changes it. Folded by default — it asks the CLI and
+ * GitHub who they are, which is a second or two nobody needs on every visit. */
+function Overview() {
+  const t = useT()
+  const [open, setOpen] = React.useState(false)
+  return (
+    <section className="mb-4" data-testid="settings-overview">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="xs" variant="outline" onClick={() => setOpen(!open)} aria-expanded={open}>
+          <ListChecks />
+          {open ? t("Hide the summary") : t("What this console runs on")}
+        </Button>
+        <a href="/setup" className="text-muted-foreground text-xs underline underline-offset-2">
+          {t("Go through the first connection again")}
+        </a>
+      </div>
+      {open ? (
+        <div className="mt-3 max-w-4xl">
+          <SetupSummary
+            change={(row) => <a href={settingsHref(row.section)}>{t("Change")}</a>}
+          />
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 /* What sits above the tabs: where you are, which file it is writing, and
  * whatever `doctor` would refuse to start over. */
 function SettingsHead() {
@@ -373,6 +405,7 @@ function SettingsHead() {
         title={t("Configure the runner.")}
         action={<span className="text-muted-foreground font-mono text-xs break-all">{drawn.path}</span>}
       />
+      <Overview />
       <DiskLine />
       {drawn.problem ? (
         <Alert variant="destructive" className="mb-3">

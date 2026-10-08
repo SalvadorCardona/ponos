@@ -22,6 +22,9 @@ own to whichever version answers. Under its systemd unit that is the unit's
 restart; started by hand, the process replaces itself with the same command
 line. What was going on is written down first, so the process that comes back
 knows it came back from an update.
+
+In a container there is nothing of the kind to do: the header says that a new
+version is a new image, and gives the command that pulls it — see `update.py`.
 """
 
 from __future__ import annotations
@@ -39,7 +42,7 @@ from typing import Callable
 
 from .. import disk, state
 from .. import update as update_module
-from ..config import Runner, state_dir
+from ..config import Runner, in_container, state_dir
 
 # The steps a page draws, in order. `waiting` is the lock; `failed` and `done`
 # are where it ends.
@@ -140,7 +143,9 @@ class Upgrade:
         if self._page is None:
             self._page = update_module.repository_page(self.app)
         why = ""
-        if not local:
+        if in_container():
+            why = update_module.CONTAINER
+        elif not local:
             why = "an update is started from the machine the runner is on"
         elif not os.access(self.app.parent, os.W_OK):
             # A version is written beside the one in use, not over it.
@@ -155,7 +160,7 @@ class Upgrade:
             ),
             "automatic": not why,
             "manual": why,
-            "command": COMMAND,
+            "command": update_module.PULL if in_container() else COMMAND,
             **self.progress(),
         }
 
@@ -174,6 +179,8 @@ class Upgrade:
     def start(self) -> dict:
         """Queue the update. Refused while one is under way, or with nothing to install."""
         with self._lock:
+            if in_container():
+                raise RuntimeError(update_module.CONTAINER)
             if self.phase in UNDER_WAY:
                 raise RuntimeError("an update is already under way")
             if not update_module.waiting(self.app).stale:

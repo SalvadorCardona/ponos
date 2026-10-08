@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from .. import disk, openrouter, progress, session, voice
+from .. import disk, openrouter, progress, provider, session, voice
 from ..config import Config, state_dir
 from . import attachments as files
 
@@ -330,7 +330,7 @@ class Chat:
                 timeout_minutes=self.config.web.chat_timeout_minutes,
                 session_id=self.session_id,
                 resume=not first,
-                environment=openrouter.environment(self.config.openrouter),
+                environment=provider.environment(self.config),
                 on_event=self._on_event,
                 stop=stop,
             )
