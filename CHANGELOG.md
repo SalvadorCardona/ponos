@@ -18,6 +18,8 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- Console, a project's page: two tabs, **Tickets** (the default — the project's tickets, and a form to add one that is attached to the project) and **Brief**; the tab is in the address (`&tab=brief`), so a reload or a pasted link comes back to it. "On this machine" now shows the clone's real path, with a button to copy it — or says the project is not cloned yet.
+
 - **A project's page has its own statistics.** The same folding band as the
   dashboard's — same periods, same four cards, same two curves — limited to that
   project's tickets and to what their sessions spent, with the average cost of a
