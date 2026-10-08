@@ -27,6 +27,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The board's first column is always the drafts, and "No status" is gone from
+  it.** A ticket with no status is a draft: it sits with the ones the board
+  already calls drafts, on the left, whether or not `[notion.status]` names a
+  `draft` option. Moving a card to the drafts writes that option, or clears the
+  status on a board that names none; a status nobody configured still gets its
+  own column.
+
 - **A ticket's page is three tabs again, and its session reads in broad lines.** *Brief*
   (the facts and the page), *Discussion* and *Live*: a ticket in progress opens on *Live*,
   one waiting on you on *Discussion*, any other on *Brief*, and the tab you pick is kept in

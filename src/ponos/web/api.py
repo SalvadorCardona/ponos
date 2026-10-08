@@ -62,7 +62,7 @@ DISK_TTL = 600
 
 # The columns, in the order they are meant to be read. Anything the board
 # carries that is none of them lands in "other" rather than being hidden. The
-# drafts come before them, on a board that names its own — see `_keys`.
+# drafts come before them, whether or not the board names its own — see `_keys`.
 COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done")
 
 
@@ -233,18 +233,19 @@ class Api:
         order = {key: index for index, key in enumerate(keys)}
         tickets.sort(key=lambda item: (order.get(item["column"], len(keys)), item["title"].lower()))
         columns = [
-            {"key": key, "name": settings.state(key)}
+            {"key": key, "name": _status(settings, key)}
             for key in keys
             # A board whose `blocked` and `failed` are one column must not
             # be drawn twice under two headings.
-            if settings.state(key) not in [settings.state(other) for other in keys[: keys.index(key)]]
+            if key == "draft"
+            or _status(settings, key) not in [_status(settings, other) for other in keys[: keys.index(key)]]
         ]
-        # A ticket with no status, or with one nobody configured, is a ticket
-        # somebody wrote and the runner will never claim. Dropping it from the
-        # board because it fits no heading would be hiding exactly the card
-        # that needs a look — so it gets a column of its own, and only while
-        # something is in it. No name: the board has none for it, and the
-        # console says "No status" in whichever language it is in.
+        # A ticket with no status is a draft — see `_columns`. One with a status
+        # nobody configured is a ticket somebody wrote and the runner will never
+        # claim. Dropping it from the board because it fits no heading would be
+        # hiding exactly the card that needs a look — so it gets a column of its
+        # own, and only while something is in it. No name: the board has none
+        # for it, and the console says "No status" in whichever language it is in.
         if any(item["column"] == "other" for item in tickets):
             columns.append({"key": "other", "name": ""})
         return {
@@ -1009,8 +1010,8 @@ class Api:
         # be inventing a workflow.
         if ready:
             values[settings.prop("status")] = settings.state("ready")
-        elif "draft" in _keys(settings):
-            values[settings.prop("status")] = settings.state("draft")
+        elif _draft(settings):
+            values[settings.prop("status")] = _draft(settings)
         if project:
             values[settings.prop("project")] = [project]
         # Each one left out when it is not said: an empty type is the runner's
@@ -1038,6 +1039,7 @@ class Api:
         if key not in _keys(self.config.notion):
             raise ValueError(f"unknown column “{key}”")
         settings = self.config.notion
+        status = _status(settings, key)
         held = self.reader.get(page_id)
         if seen is None:
             seen = str(store.read(held, settings.prop("status")) or "") if held else ""
@@ -1045,13 +1047,13 @@ class Api:
             board_module.Write(
                 page=page_id.replace("-", ""),
                 column=key,
-                status=settings.state(key),
+                status=status,
                 seen=seen,
                 title=held.title if held else "",
             )
         )
         self.watch.nudge()
-        return {"id": page_id, "status": settings.state(key), "sync": "pending"}
+        return {"id": page_id, "status": status, "sync": "pending"}
 
     def _send(self, write: board_module.Write) -> store.Page:
         """One attempt at one queued move, and the page it left, held."""
@@ -1245,24 +1247,37 @@ def _columns(settings) -> dict[str, str]:
     went to a `failed` column that was never drawn: three tickets Notion shows
     as blocked, and a console that showed none.
     """
-    names: dict[str, str] = {}
+    names: dict[str, str] = {"": "draft"}
     for key in _keys(settings):
-        names.setdefault(settings.state(key), key)
+        names.setdefault(_status(settings, key), key)
     return names
 
 
 def _keys(settings) -> tuple[str, ...]:
-    """The columns this board draws, drafts first when it keeps any.
+    """The columns this board draws: the drafts, then the runner's.
 
-    `draft` is an option the board already had — see `Notion.state` — and is
-    a column only when it is named, and named apart from every status the
-    runner moves a ticket through: a draft that is also `ready` is a ticket
-    the runner takes, and calling its column "Drafts" would be lying.
+    A ticket with no status is a draft, so the drafts are always the first
+    column, named or not — see `_draft`.
+    """
+    return ("draft", *COLUMNS)
+
+
+def _status(settings, key: str) -> str:
+    """What a column writes: the board's word for it, and for the drafts `_draft`'s."""
+    return _draft(settings) if key == "draft" else settings.state(key)
+
+
+def _draft(settings) -> str:
+    """The status a draft is written with: the option the board already had, or none.
+
+    `draft` is an option the board already had — see `Notion.state` — and it
+    counts only when named apart from every status the runner moves a ticket
+    through: a draft that is also `ready` is a ticket the runner takes, and
+    calling its column "Drafts" would be lying. Unnamed, a draft is a ticket
+    with no status, and a move to the drafts clears it.
     """
     draft = settings.state("draft")
-    if draft and draft not in [settings.state(key) for key in COLUMNS]:
-        return ("draft", *COLUMNS)
-    return COLUMNS
+    return draft if draft and draft not in [settings.state(key) for key in COLUMNS] else ""
 
 
 def outbox_path() -> Path:
