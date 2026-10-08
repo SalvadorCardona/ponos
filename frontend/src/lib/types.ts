@@ -425,6 +425,8 @@ export interface SettingField {
   stated: boolean
   value: string | number | boolean | string[] | null
   preview?: string
+  /** A secret's variable, in secrets.env or the environment — never config.toml. */
+  variable?: string
 }
 
 export interface SettingSection {

@@ -435,6 +435,9 @@ def a_clone_that_cannot_be_made_joins_the_ways_that_were_tried():
 def _config(body: str) -> C.Config:
     path = Path(tempfile.mkdtemp()) / "config.toml"
     path.write_text('[notion]\ntoken = "ntn_real"\ntickets_database = "abc"\n' + body)
+    # Written the way a file used to be, and read the way a launch leaves it:
+    # its secrets moved into secrets.env.
+    C.move_secrets(path)
     return C.load(path)
 
 
@@ -571,6 +574,7 @@ def a_workspace_alone_is_enough_to_run():
         '[notion]\ntoken = "ntn_real"\n'
         'workspace = "https://www.notion.so/w/3a8451680af480918afcf0eb9cf70e7b?v=1"\n'
     )
+    C.move_secrets(path)
     config = C.load(path)
     assert config.notion.workspace == "3a8451680af480918afcf0eb9cf70e7b", "URL reduced to an ID"
     assert not config.notion.tickets_database
@@ -7394,9 +7398,12 @@ def the_first_connection_writes_the_whole_installation_at_once():
     assert report["steps"] and report["steps"][0][1].endswith("me@example.com from now on")
 
     written = path.read_text(encoding="utf-8")
-    assert 'email = "me@example.com"' in written and 'password = "one I remember"' in written
-    assert 'chat = "4242"' in written and 'token = "123:abc"' in written
-    assert 'token = "ntn_real"' in written, "the rest of the file is left where it was"
+    secrets = C.read_secrets(C.secrets_path(path))
+    assert 'email = "me@example.com"' in written and "one I remember" not in written
+    assert secrets["PONOS_WEB_PASSWORD"] == "one I remember", "a secret goes beside the file"
+    assert 'chat = "4242"' in written and "123:abc" not in written
+    assert secrets["PONOS_TELEGRAM_TOKEN"] == "123:abc"
+    assert secrets["PONOS_NOTION_TOKEN"] == "ntn_real", "the rest is left where it was"
     assert api.context == "I am Salva. Answer in French.", "the rules reach every ticket"
 
     entry = web_server.sign_in(api.config, "tok")
@@ -7761,6 +7768,175 @@ def the_consoles_sign_in_may_live_in_the_environment_rather_than_the_file():
                 os.environ[name] = value
     assert fresh.web.email == "unit@example.com"
     assert fresh.web.password == "from the unit"
+
+
+@contextmanager
+def _environ(**values: str):
+    """Variables set for the length of a block, and put back as they were."""
+    previous = {name: os.environ.get(name) for name in values}
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+@case
+def a_secret_left_in_config_toml_is_never_read():
+    """The file is copied into images and pasted into tickets: no secret in it.
+
+    Every key `SECRETS` names is ignored there, and said to be — `exposed` is
+    what the launch and `doctor` read to tell somebody.
+    """
+    path = Path(tempfile.mkdtemp()) / "config.toml"
+    path.write_text(
+        '[notion]\ntoken = "ntn_real"\nworkspace = "3a8451680af480918afcf0eb9cf70e7b"\n'
+        '[web]\ntoken = "tok"\npassword = "pw"\n[claude]\napi_key = "sk-ant-x"\n'
+        '[openrouter]\nkey = "sk-or-x"\n'
+        '[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n[notify.slack]\ntoken = "xoxb-1"\n'
+    )
+    config = C.load(path)
+    assert not config.notion.token and not config.web.token and not config.web.password
+    assert not config.claude.api_key and not config.openrouter.key
+    assert "token" not in config.notify.telegram and config.notify.telegram["chat"] == "42"
+    assert "token" not in config.notify.slack
+    assert set(config.exposed) == {f"{table}.{key}" for table, key in C.SECRETS}
+    try:
+        config.require_usable()
+    except C.ConfigError as error:
+        assert "PONOS_NOTION_TOKEN" in str(error) and "secrets.env" in str(error), error
+    else:
+        raise AssertionError("a token only config.toml holds is no token")
+
+    # The example's placeholder is where a token went, not one.
+    path.write_text('[notion]\ntoken = "%s"\n' % C.PLACEHOLDER)
+    assert C.load(path).exposed == ()
+
+
+@case
+def a_launch_moves_the_secrets_out_of_config_toml_and_says_so():
+    """An installation that updates itself must not wake up without its token.
+
+    Moved, not copied: the file and its backup are left with no secret in them,
+    the comments around stay, and `secrets.env` is private from its first byte.
+    A variable secrets.env already holds was put there later: it is kept.
+    """
+    from ponos import __main__ as cli
+
+    folder = Path(tempfile.mkdtemp())
+    path = folder / "config.toml"
+    text = (
+        '[notion]\n# the integration\ntoken = "ntn_real"\nworkspace = "w"\n'
+        '[notify.telegram]\ntoken = "123:abc"\nchat = "42"\n'
+        '[openrouter]\nkey = "sk-or-old"\n'
+    )
+    path.write_text(text)
+    path.chmod(0o640)
+    (folder / "config.toml.bak").write_text(text)
+    C.write_secrets(C.secrets_path(path), {"OPENROUTER_API_KEY": "sk-or-new"})
+
+    said: list[str] = []
+    with _environ(PONOS_CONFIG=str(path)):
+        cli.secrets_out_of_config(said.append)
+    assert len(said) == 1 and "notion.token" in said[0] and "secrets.env" in said[0], said
+
+    stored = C.read_secrets(C.secrets_path(path))
+    assert stored == {
+        "PONOS_NOTION_TOKEN": "ntn_real",
+        "PONOS_TELEGRAM_TOKEN": "123:abc",
+        "OPENROUTER_API_KEY": "sk-or-new",
+    }, stored
+    assert (C.secrets_path(path).stat().st_mode & 0o777) == 0o600
+    for left in (path, folder / "config.toml.bak"):
+        written = left.read_text()
+        assert "ntn_real" not in written and "123:abc" not in written and "sk-or" not in written
+        assert "# the integration" in written and 'chat = "42"' in written
+    assert (path.stat().st_mode & 0o777) == 0o640, "the file keeps its own mode"
+
+    config = C.load(path)
+    assert config.notion.token == "ntn_real" and config.notify.telegram["token"] == "123:abc"
+    assert config.openrouter.key == "sk-or-new" and config.exposed == ()
+
+    said.clear()
+    with _environ(PONOS_CONFIG=str(path)):
+        cli.secrets_out_of_config(said.append)
+    assert said == [], "a second launch has nothing to say"
+
+    C.secrets_path(path).chmod(0o644)
+    with _environ(PONOS_CONFIG=str(path)):
+        cli.secrets_out_of_config(said.append)
+    assert said and "chmod 600" in said[0], said
+
+
+@case
+def the_console_writes_a_secret_beside_the_file_never_in_it():
+    """The Settings tab and the first connection save through `config.edit`."""
+    path, config = _saved('\n[claude]\nprovider = "api_key"\n')
+    saved = web_settings.save(
+        config, {"settings": {"claude.api_key": "sk-ant-typed", "runner.max_concurrent": 3}}
+    )
+    assert set(saved["saved"]) == {"claude.api_key", "runner.max_concurrent"}, saved
+    written = path.read_text()
+    assert "sk-ant-typed" not in written and "max_concurrent = 3" in written
+    assert C.read_secrets(C.secrets_path(path))["ANTHROPIC_API_KEY"] == "sk-ant-typed"
+    assert "sk-ant" not in (path.parent / "config.toml.bak").read_text()
+
+    fresh = C.load(path)
+    assert fresh.claude.api_key == "sk-ant-typed"
+    field = next(
+        item
+        for section in web_settings.describe(fresh)["sections"]
+        for item in section["fields"]
+        if item["name"] == "claude.api_key"
+    )
+    assert field["stated"] and field["preview"] == "…yped" and field["value"] == ""
+
+    web_settings.save(fresh, {"settings": {"claude.api_key": None}})
+    assert "ANTHROPIC_API_KEY" not in C.read_secrets(C.secrets_path(path))
+    assert C.read_secrets(C.secrets_path(path))["PONOS_NOTION_TOKEN"] == "ntn_real"
+
+
+@case
+def a_typed_key_wins_over_the_environment_and_the_environment_over_a_password():
+    """Who wrote it last: the console writes secrets.env, a compose file the
+    environment — except for the sign-in, which the environment is there to claim."""
+    path, _ = _saved()
+    C.write_secrets(
+        C.secrets_path(path), {"ANTHROPIC_API_KEY": "typed", "PONOS_WEB_PASSWORD": "typed too"}
+    )
+    with _environ(ANTHROPIC_API_KEY="composed", PONOS_WEB_PASSWORD="from the unit",
+                  PONOS_SLACK_TOKEN="xoxb-env"):
+        config = C.load(path)
+    assert config.claude.api_key == "typed"
+    assert config.web.password == "from the unit"
+    assert config.notify.slack == {"token": "xoxb-env"}, "the environment alone is enough"
+
+
+@case
+def secrets_env_reads_what_a_shell_and_compose_read():
+    """One file for `source`, `env_file` and `EnvironmentFile` — and for us."""
+    path = Path(tempfile.mkdtemp()) / "secrets.env"
+    awkward = 'a "quoted" pass $HOME `x` \\ end'
+    assert C.write_secrets(path, {"PONOS_WEB_PASSWORD": awkward, "PONOS_WEB_TOKEN": "t0k"}) == [
+        "PONOS_WEB_PASSWORD",
+        "PONOS_WEB_TOKEN",
+    ]
+    assert C.read_secrets(path) == {"PONOS_WEB_PASSWORD": awkward, "PONOS_WEB_TOKEN": "t0k"}
+    shell = subprocess.run(
+        ["sh", "-c", f'. "{path}"; printf %s "$PONOS_WEB_PASSWORD"'],
+        capture_output=True, text=True,
+    )
+    assert shell.stdout == awkward, shell.stdout
+
+    path.write_text("# mine\nexport OTHER='kept'\nPONOS_WEB_TOKEN=old\n")
+    assert C.write_secrets(path, {"PONOS_WEB_TOKEN": "new"}) == ["PONOS_WEB_TOKEN"]
+    assert C.write_secrets(path, {"PONOS_WEB_TOKEN": "new"}) == [], "nothing moved, nothing written"
+    assert path.read_text() == "# mine\nexport OTHER='kept'\nPONOS_WEB_TOKEN=new\n"
+    assert C.read_secrets(path)["OTHER"] == "kept"
 
 
 class _TalkClient:
@@ -8669,6 +8845,7 @@ def _saved(body: str = "") -> tuple[Path, C.Config]:
         '[notion]\ntoken = "ntn_real"\ntickets_database = "abc"\n' + body,
         encoding="utf-8",
     )
+    C.move_secrets(path)  # as a launch leaves it, see `_config`
     return path, C.load(path)
 
 
@@ -8726,7 +8903,9 @@ def a_save_is_all_of_it_or_none_of_it():
     else:
         raise AssertionError("a merge method gh would refuse must not be saved")
     assert path.read_text() == before, "the good half must not have landed either"
-    assert not [item for item in path.parent.iterdir() if item.name != "config.toml"]
+    assert not [
+        item for item in path.parent.iterdir() if item.name not in ("config.toml", "secrets.env")
+    ]
 
 
 @case

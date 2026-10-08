@@ -63,6 +63,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   outright when none was drawn. Behind HTTPS (`X-Forwarded-Proto: https`) every cookie the
   console sets is `Secure`.
 
+- **No secret in `config.toml` any more.** The Notion token, the console's token and
+  password, the Telegram and Slack bot tokens and the Anthropic and OpenRouter keys are
+  read from the environment or from `secrets.env` beside the configuration (`NAME=value`,
+  created `600`; `PONOS_SECRETS` moves it), never from `config.toml` — which is copied into
+  images, onto volumes and into tickets. The variables: `PONOS_NOTION_TOKEN`,
+  `PONOS_WEB_TOKEN`, `PONOS_WEB_PASSWORD`, `PONOS_TELEGRAM_TOKEN`, `PONOS_SLACK_TOKEN`,
+  `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`. The console, `ponos init` and the installer
+  write a secret there; a secret an older version left in `config.toml` (or its `.bak`) is
+  moved out by the next launch, which says so on stderr — or says which variable to set
+  when it cannot. `ponos doctor` checks both files. The Docker documentation passes every
+  secret as a Dokploy variable.
+
 - Console, a project's page: two tabs, **Tickets** (the default — the project's tickets, and a form to add one that is attached to the project) and **Brief**; the tab is in the address (`&tab=brief`), so a reload or a pasted link comes back to it. "On this machine" now shows the clone's real path, with a button to copy it — or says the project is not cloned yet.
 
 - **A project's page has its own statistics.** The same folding band as the

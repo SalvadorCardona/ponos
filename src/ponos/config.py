@@ -1,18 +1,21 @@
 """Reading and validating ~/.config/ponos/config.toml.
 
 The file is the single source of truth, and a missing value is reported at
-install time rather than in the middle of a ticket. Two keys make an exception,
-and only because the file is not always where they belong: the console's
-`web.email` and `web.password` are also read from `PONOS_WEB_EMAIL` and
-`PONOS_WEB_PASSWORD`, so a unit file or a container can carry the
-credentials without a secret being written down. The environment wins over the
-file — that is what makes it worth setting.
+install time rather than in the middle of a ticket — for everything but its
+secrets. A token or a password is not read from `config.toml`, ever: that file
+is one you open in an editor, paste into a ticket, copy into an image or onto a
+shared volume, and a secret has no business going wherever it goes. They live in
+the environment, or in `secrets.env` beside it — `NAME=value` lines, created
+`0600` and written by the console the way it writes everything else (`SECRETS`
+says which names). A secret still found in `config.toml` is ignored, moved out
+by the next launch (`move_secrets`), and said so on stderr.
 
-The two keys a provider is paid with go the other way round. `ANTHROPIC_API_KEY`
-and `OPENROUTER_API_KEY` fill `claude.api_key` and `openrouter.key` when the
-file leaves them empty, and only then: the first connection writes a key into
-the file, and a key somebody has just typed and checked must not lose to one a
-compose file was started with weeks ago.
+Which of the two wins depends on who wrote it last. The console writes
+`secrets.env`, and a key somebody has just typed and checked must not lose to
+one a compose file was started with weeks ago: the file wins. The console's
+sign-in goes the other way round — `PONOS_WEB_EMAIL` and `PONOS_WEB_PASSWORD`
+are how a unit file or a container claims a console before anybody arrives, and
+the environment wins over the file; that is what makes it worth setting.
 """
 
 from __future__ import annotations
@@ -35,10 +38,28 @@ PLACEHOLDER = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 WEB_EMAIL_ENV = "PONOS_WEB_EMAIL"
 WEB_PASSWORD_ENV = "PONOS_WEB_PASSWORD"
 
-# Where a provider's key may come from when the file holds none — the names
-# every tool already reads, so a container is given them once.
+# Where a provider's key may come from — the names every tool already reads, so
+# a container is given them once.
 ANTHROPIC_KEY_ENV = "ANTHROPIC_API_KEY"
 OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
+
+# Every secret the configuration knows: where `config.toml` used to hold it, and
+# the variable that holds it now — in the environment, or in `secrets.env`.
+SECRETS: dict[tuple[str, str], str] = {
+    ("notion", "token"): "PONOS_NOTION_TOKEN",
+    ("web", "token"): "PONOS_WEB_TOKEN",
+    ("web", "password"): WEB_PASSWORD_ENV,
+    ("notify.telegram", "token"): "PONOS_TELEGRAM_TOKEN",
+    ("notify.slack", "token"): "PONOS_SLACK_TOKEN",
+    ("claude", "api_key"): ANTHROPIC_KEY_ENV,
+    ("openrouter", "key"): OPENROUTER_KEY_ENV,
+}
+
+# The ones the environment wins for — see the module's docstring.
+_ENVIRONMENT_FIRST = (WEB_PASSWORD_ENV,)
+
+# Where the secrets file is, when it is not beside the configuration.
+SECRETS_PATH_ENV = "PONOS_SECRETS"
 
 # Set by the image (see the Dockerfile): this process runs in a container, where
 # there is no systemd, no desktop and no install directory to move — a new
@@ -65,6 +86,19 @@ def state_dir() -> Path:
 def config_path() -> Path:
     override = os.environ.get("PONOS_CONFIG")
     return Path(override) if override else config_dir() / "config.toml"
+
+
+def secrets_path(config: Path | None = None) -> Path:
+    """`secrets.env`, beside the configuration it goes with.
+
+    Beside rather than under the configuration directory: a test, or a second
+    installation started with `PONOS_CONFIG`, gets its own secrets with its own
+    file, and never reads the real ones.
+    """
+    override = os.environ.get(SECRETS_PATH_ENV)
+    if override:
+        return Path(override)
+    return (config or config_path()).parent / "secrets.env"
 
 
 class ConfigError(Exception):
@@ -544,6 +578,9 @@ class Config:
     # `owner = "the gh account"`. Empty is a machine with one account, which is
     # every machine until it is not — see `git.token_for`.
     github: dict[str, str] = field(default_factory=dict)
+    # The secrets `config.toml` still holds, as `table.key` — ignored, and said
+    # so: see `move_secrets`.
+    exposed: tuple[str, ...] = ()
 
     def require_usable(self) -> None:
         """Raise ConfigError if the file is not complete enough to run."""
@@ -553,14 +590,18 @@ class Config:
             return
         missing = []
         if not self.notion.token or self.notion.token == PLACEHOLDER:
-            missing.append("notion.token")
+            # Named twice: the key everybody knows it by, and where it goes now.
+            missing.append(
+                f"notion.token ({SECRETS[('notion', 'token')]}, "
+                f"in {secrets_path(self.path)} or the environment)"
+            )
         # Either way of naming the tickets database will do: the workspace page
         # that holds it, or the database itself.
         if not self.notion.workspace and not self.notion.tickets_database:
-            missing.append("notion.workspace (or notion.tickets_database)")
+            missing.append(f"notion.workspace (or notion.tickets_database) in {self.path}")
         if missing:
             raise ConfigError(
-                f"{', '.join(missing)} must be set in {self.path}\n"
+                f"{', '.join(missing)} must be set\n"
                 "  ponos init <page-url>   builds the databases and fills this in\n"
                 "  ponos config            opens the file in your editor\n"
                 "  storage.mode = \"markdown\"       runs the whole thing without Notion"
@@ -808,6 +849,9 @@ def edit(path: Path, changes: list[tuple[str, str, object]]) -> list[str]:
     a working installation unable to run, nothing moves — and only then does it
     take the file's place, in one `os.replace` and with its permissions.
 
+    A secret is not the file's: it goes to `secrets.env`, by the same copy and
+    the same replace, and whatever line `config.toml` still had for it goes.
+
     The file it displaces is kept as `config.toml.bak`, which is what you want
     the first time a save turns out to have been the wrong idea.
 
@@ -820,23 +864,49 @@ def edit(path: Path, changes: list[tuple[str, str, object]]) -> list[str]:
     except ConfigError:
         was_usable = False
 
+    secrets_file = secrets_path(path)
+    try:
+        secrets_text = secrets_file.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        secrets_text = ""
+    pending = secrets_text
+    touched: list[str] = []
+    file_changes: list[tuple[str, str, object]] = []
+    for table, key, value in changes:
+        if (table, key) not in SECRETS:
+            file_changes.append((table, key, value))
+            continue
+        name = SECRETS[(table, key)]
+        updated = _set_secret(pending, name, None if value is None else str(value))
+        if read_secrets_text(updated).get(name) != read_secrets_text(pending).get(name):
+            touched.append(f"{table}.{key}")
+        pending = updated
+        file_changes.append((table, key, None))
+
     # Named per call: two saves at once — two browser tabs, a tab and the CLI —
     # would otherwise edit the same copy and the loser would win.
-    scratch = path.parent / f".{path.name}.saving.{os.getpid()}.{threading.get_ident()}"
-    # Created private rather than tightened afterwards: this copy holds every
+    suffix = f"saving.{os.getpid()}.{threading.get_ident()}"
+    scratch = path.parent / f".{path.name}.{suffix}"
+    secrets_scratch = secrets_file.parent / f".{secrets_file.name}.{suffix}"
+    # Created private rather than tightened afterwards: this copy may hold every
     # token the file does, and a chmod after the write leaves a moment in which
     # the umask decides who reads them.
     disk.write_private(scratch, original)
     try:
-        touched = [
+        written = [
             f"{table}.{key}"
-            for table, key, value in changes
+            for table, key, value in file_changes
             if write_value(scratch, table, key, value)
         ]
+        touched += [name for name in written if name not in touched]
         if not touched:
             return []
+        if pending != secrets_text:
+            disk.write_private(secrets_scratch, pending)
         try:
-            fresh = load(scratch)
+            fresh = load(
+                scratch, secrets=secrets_scratch if pending != secrets_text else secrets_file
+            )
             if was_usable:
                 fresh.require_usable()
         # Broad on purpose: the loader coerces as it reads, and anything it
@@ -848,17 +918,24 @@ def edit(path: Path, changes: list[tuple[str, str, object]]) -> list[str]:
                 f"that would leave the configuration unusable — "
                 f"{str(error).splitlines()[0].replace(str(scratch), str(path))}"
             ) from error
-        try:
-            mode = path.stat().st_mode & 0o777
-        except OSError:
-            mode = 0o600
-        backup = path.parent / f"{path.name}.bak"
-        disk.write_private(backup, original)
-        scratch.chmod(mode)
-        os.replace(scratch, path)
+        if pending != secrets_text:
+            os.replace(secrets_scratch, secrets_file)
+        if written:
+            try:
+                mode = path.stat().st_mode & 0o777
+            except OSError:
+                mode = 0o600
+            backup = path.parent / f"{path.name}.bak"
+            # What the backup keeps is the file as it was, less its secrets:
+            # yesterday's copy is no place for one either.
+            disk.write_private(backup, original)
+            _scrub(backup, exposed(read_raw(backup)))
+            scratch.chmod(mode)
+            os.replace(scratch, path)
     finally:
-        if scratch.exists():
-            scratch.unlink()
+        for leftover in (scratch, secrets_scratch):
+            if leftover.exists():
+                leftover.unlink()
     return touched
 
 
@@ -874,6 +951,186 @@ def read_raw(path: Path) -> dict:
             return tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError):
         return {}
+
+
+def _section(raw: dict, table: str) -> dict:
+    """One table of a parsed file, dots followed: "notify.telegram" too."""
+    node: object = raw
+    for part in table.split("."):
+        node = node.get(part, {}) if isinstance(node, dict) else {}
+    return node if isinstance(node, dict) else {}
+
+
+def exposed(raw: dict) -> list[tuple[str, str]]:
+    """The secrets a parsed `config.toml` still holds — which `load` ignores.
+
+    An empty value is no secret, and nor is the example's placeholder: both are
+    only where one used to go.
+    """
+    return [
+        (table, key)
+        for table, key in SECRETS
+        if (value := str(_section(raw, table).get(key, "") or "").strip())
+        and value != PLACEHOLDER
+    ]
+
+
+# One line of `secrets.env`. The shape compose's `env_file`, systemd's
+# `EnvironmentFile` and a shell's `source` all read, so one file serves them all.
+_ASSIGNMENT = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$")
+# A value written as it is. Anything else is double-quoted, with what a shell or
+# systemd would interpret inside the quotes escaped.
+_BARE_VALUE = re.compile(r"^[A-Za-z0-9_\-.:/+@=,%~^]*$")
+
+
+def read_secrets(path: Path) -> dict[str, str]:
+    """`secrets.env` as `NAME → value`; nothing at all when there is no file."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    return read_secrets_text(text)
+
+
+def read_secrets_text(text: str) -> dict[str, str]:
+    """The same, from a text already in hand."""
+    found: dict[str, str] = {}
+    for line in text.splitlines():
+        match = _ASSIGNMENT.match(line)
+        if not match:
+            continue
+        value = match.group(2).strip()
+        if len(value) >= 2 and value[0] == value[-1] == "'":
+            value = value[1:-1]
+        elif len(value) >= 2 and value[0] == value[-1] == '"':
+            value = re.sub(r"\\(.)", r"\1", value[1:-1])
+        found[match.group(1)] = value
+    return found
+
+
+def _secret_line(name: str, value: str) -> str:
+    # No line breaks and no control characters: a value is one line, or it is
+    # the next variable's name.
+    value = "".join(character for character in value.strip() if character >= " ")
+    if _BARE_VALUE.match(value):
+        return f"{name}={value}"
+    for raw in ("\\", '"', "$", "`"):
+        value = value.replace(raw, "\\" + raw)
+    return f'{name}="{value}"'
+
+
+_SECRETS_HEADER = (
+    "# Ponos's secrets, one NAME=value a line. Kept 0600, and never in config.toml:\n"
+    "# see config.example.toml for the names. The environment holds them as well.\n"
+)
+
+
+def _set_secret(text: str, name: str, value: str | None) -> str:
+    """A secrets file's text with one variable set — or removed, for `None`."""
+    lines = text.splitlines()
+    at = [
+        index
+        for index, line in enumerate(lines)
+        if (match := _ASSIGNMENT.match(line)) and match.group(1) == name
+    ]
+    if value is None or not str(value).strip():
+        lines = [line for index, line in enumerate(lines) if index not in at]
+    elif at:
+        lines[at[0]] = _secret_line(name, str(value))
+        lines = [line for index, line in enumerate(lines) if index not in at[1:]]
+    else:
+        if not lines:
+            lines = _SECRETS_HEADER.splitlines()
+        lines.append(_secret_line(name, str(value)))
+    return "\n".join(lines) + "\n" if lines else ""
+
+
+def write_secrets(path: Path, values: dict[str, str | None]) -> list[str]:
+    """Set — or, with `None`, remove — variables of a secrets file, in one write.
+
+    The file's other lines stay where they are, comments included, and it is
+    replaced whole and private from its first byte (`disk.write_atomic`).
+    Returns the names whose value actually changed.
+    """
+    try:
+        original = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        original = ""
+    before = read_secrets(path)
+    text = original
+    for name, value in values.items():
+        text = _set_secret(text, name, value)
+    if text == original:
+        return []
+    disk.write_atomic(path, text)
+    after = read_secrets(path)
+    return [name for name in values if before.get(name) != after.get(name)]
+
+
+def _scrub(target: Path, keys: list[tuple[str, str]]) -> None:
+    """Remove those keys from a TOML file, in one replace and with its mode."""
+    if not keys:
+        return
+    mode = target.stat().st_mode & 0o777
+    scratch = target.parent / f".{target.name}.scrubbing.{os.getpid()}.{threading.get_ident()}"
+    disk.write_private(scratch, target.read_text(encoding="utf-8"))
+    try:
+        for table, key in keys:
+            write_value(scratch, table, key, None)
+        scratch.chmod(mode)
+        os.replace(scratch, target)
+    finally:
+        if scratch.exists():
+            scratch.unlink()
+
+
+def move_secrets(path: Path) -> list[str]:
+    """Take every secret out of `config.toml` and into `secrets.env`.
+
+    What a launch does before anything else (see `__main__`), because the file
+    was where the installer, `ponos init` and the console used to write them,
+    and an installation that updates itself must not wake up without its token.
+    Moved rather than copied: a secret left in the file is the very thing this
+    is about. A variable `secrets.env` already holds is not overwritten — it was
+    put there later than the line the file kept.
+
+    `config.toml.bak` is scrubbed too, being yesterday's copy of the same file.
+
+    Returns the keys moved, `table.key` each; raises OSError when the files
+    cannot be written, and then the file is left as it was.
+    """
+    raw = read_raw(path)
+    found = exposed(raw)
+    if not found:
+        return []
+    file = secrets_path(path)
+    stored = read_secrets(file)
+    write_secrets(
+        file,
+        {
+            SECRETS[(table, key)]: str(_section(raw, table)[key]).strip()
+            for table, key in found
+            if SECRETS[(table, key)] not in stored
+        },
+    )
+    _scrub(path, found)
+    backup = path.parent / f"{path.name}.bak"
+    if backup.exists():
+        _scrub(backup, exposed(read_raw(backup)))
+    # A line `write_value` cannot reach — an inline table — stays, and `load`
+    # keeps saying so: only what actually left is reported as moved.
+    left = set(exposed(read_raw(path)))
+    return [f"{table}.{key}" for table, key in found if (table, key) not in left]
+
+
+def secret(stored: dict[str, str], table: str, key: str) -> str:
+    """One secret, from `secrets.env` or the environment — see the docstring."""
+    name = SECRETS[(table, key)]
+    environment = os.environ.get(name, "").strip()
+    written = stored.get(name, "").strip()
+    if name in _ENVIRONMENT_FIRST:
+        return environment or written
+    return written or environment
 
 
 def defaults(table: str) -> dict[str, str]:
@@ -899,7 +1156,12 @@ def is_identifier(value: str) -> bool:
     return len(stripped) == 32 and all(char in "0123456789abcdefABCDEF" for char in stripped)
 
 
-def load(path: Path | None = None) -> Config:
+def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
+    """The runner's reading of the file — and of its secrets, which are elsewhere.
+
+    `secrets` names the secrets file when it is not the one beside `path`: the
+    copy `edit` checks before it replaces anything.
+    """
     target = path or config_path()
     if not target.exists():
         raise ConfigError(
@@ -912,9 +1174,11 @@ def load(path: Path | None = None) -> Config:
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f"{target} is not valid TOML: {error}") from error
 
+    stored = read_secrets(secrets or secrets_path(target))
+
     notion_raw = raw.get("notion", {})
     notion = Notion(
-        token=str(notion_raw.get("token", "")).strip(),
+        token=secret(stored, "notion", "token"),
         workspace=_database_id(str(notion_raw.get("workspace", ""))),
         mention=str(notion_raw.get("mention", "")).strip(),
         tickets_database=_database_id(str(notion_raw.get("tickets_database", ""))),
@@ -1112,7 +1376,7 @@ def load(path: Path | None = None) -> Config:
     web = Web(
         host=str(web_raw.get("host", web_defaults.host)).strip() or web_defaults.host,
         port=int(web_raw.get("port", web_defaults.port)),
-        token=str(web_raw.get("token", web_defaults.token)).strip(),
+        token=secret(stored, "web", "token"),
         # The environment first, so a unit file or a container can hold the
         # credentials rather than the file. Stripped like every other secret
         # here: a password read out of a file would otherwise carry the
@@ -1120,10 +1384,7 @@ def load(path: Path | None = None) -> Config:
         email=(
             os.environ.get(WEB_EMAIL_ENV) or str(web_raw.get("email", web_defaults.email))
         ).strip(),
-        password=(
-            os.environ.get(WEB_PASSWORD_ENV)
-            or str(web_raw.get("password", web_defaults.password))
-        ).strip(),
+        password=secret(stored, "web", "password"),
         # Five seconds is the floor for the same reason as the live report's:
         # below that, a page left open in a tab becomes a second full-time
         # reader of the board.
@@ -1145,8 +1406,7 @@ def load(path: Path | None = None) -> Config:
     router_raw = raw.get("openrouter", {})
     router_defaults = OpenRouter()
     openrouter = OpenRouter(
-        key=str(router_raw.get("key", router_defaults.key)).strip()
-        or os.environ.get(OPENROUTER_KEY_ENV, "").strip(),
+        key=secret(stored, "openrouter", "key"),
         # A trailing slash here would produce `…/v1//messages`, which some
         # gateways answer and others refuse. Emptied, the default answers.
         base_url=str(router_raw.get("base_url", "")).strip().rstrip("/")
@@ -1162,8 +1422,7 @@ def load(path: Path | None = None) -> Config:
     chosen = str(claude_raw.get("provider", "")).strip().lower()
     claude = Claude(
         provider=chosen if chosen in PROVIDERS else "",
-        api_key=str(claude_raw.get("api_key", "")).strip()
-        or os.environ.get(ANTHROPIC_KEY_ENV, "").strip(),
+        api_key=secret(stored, "claude", "api_key"),
     )
 
     storage_raw = raw.get("storage", {})
@@ -1198,8 +1457,8 @@ def load(path: Path | None = None) -> Config:
             for name in (str(value).strip().lower() for value in events)
             if name in EVENTS
         ),
-        telegram=_channel(notify_raw.get("telegram")),
-        slack=_channel(notify_raw.get("slack")),
+        telegram=_channel(notify_raw.get("telegram"), secret(stored, "notify.telegram", "token")),
+        slack=_channel(notify_raw.get("slack"), secret(stored, "notify.slack", "token")),
     )
 
     return Config(
@@ -1213,19 +1472,20 @@ def load(path: Path | None = None) -> Config:
         claude=claude,
         storage=storage,
         github=github,
+        exposed=tuple(f"{table}.{key}" for table, key in exposed(raw)),
     )
 
 
-def _channel(raw: object) -> dict[str, str]:
+def _channel(raw: object, token: str) -> dict[str, str]:
     """One [notify.<channel>] table, as strings — a chat id is not a number.
 
     Telegram's chat ids are integers, negative for a group, and TOML will hand
     them over as such. Everything downstream compares them to what the API
-    returns in JSON, where they are strings.
+    returns in JSON, where they are strings. The bot's token is put in from
+    where secrets live, and a `token` the table still carries is left out.
     """
-    if not isinstance(raw, dict):
-        return {}
-    return {
+    table = raw if isinstance(raw, dict) else {}
+    read = {
         # A list — `allowed_users` — is kept as one comma-separated string, so
         # the table stays the flat mapping every reader of it expects.
         str(key): (
@@ -1233,5 +1493,10 @@ def _channel(raw: object) -> dict[str, str]:
             if isinstance(value, (list, tuple))
             else str(value)
         ).strip()
-        for key, value in raw.items()
+        for key, value in table.items()
+        # Never the file's own: see `SECRETS`.
+        if key != "token"
     }
+    if token:
+        read["token"] = token
+    return read

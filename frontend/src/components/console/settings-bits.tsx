@@ -135,7 +135,7 @@ function placeholder(field: SettingField): string {
  * string, because it is three: what the setting does, — where a change does
  * not simply take on the next run — what has to happen for it to count, and
  * the key it is in `config.toml`, small, for whoever edits the file by hand or
- * reads the README's table. */
+ * reads the README's table — or, for a secret, the variable it is instead. */
 function saying(field: SettingField): React.ReactNode {
   return (
     <>
@@ -147,9 +147,13 @@ function saying(field: SettingField): React.ReactNode {
       ) : null}
       <code
         className="text-muted-foreground/70 mt-1 block font-mono text-[10px]"
-        title={translate("Its key in config.toml")}
+        title={
+          field.variable
+            ? translate("Its variable, in secrets.env or the environment")
+            : translate("Its key in config.toml")
+        }
       >
-        {field.name}
+        {field.variable ?? field.name}
       </code>
     </>
   )
