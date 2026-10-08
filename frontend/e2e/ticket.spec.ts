@@ -97,7 +97,8 @@ test("a ticket's page says its type, model and cost on its brief, and the other 
 
 test("a ticket with sessions says the model the last one announced, as provider/model", async ({ page }) => {
   await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
-  await page.goto("/?view=console/tickets/read/00000000000000000000000000000a5c")
+  // A question waits on this one, so it opens on its discussion: the facts are the brief's.
+  await page.goto("/?view=console/tickets/read/00000000000000000000000000000a5c&tab=brief")
 
   // The column is empty: the model is the last session's own word, said short
   // and still a default, with the full identifier a hover away.
