@@ -564,6 +564,11 @@ classify = true
 classify_model = "haiku"         # empty: the CLI's own — routed through OpenRouter, name a slug
 classify_confidence = "medium"   # low, medium or high: the least a guess is acted on with
 
+# "Find ideas", from the dashboard or a project's page: one short session
+# proposes ten at once, given the project's brief, its README and its latest
+# tickets — never one already kept or thrown away. Its cost is recorded per batch.
+ideas_model = "haiku"            # empty: the CLI's own — routed through OpenRouter, name a slug
+
 # A ticket whose Model is empty (and whose agent names none) gets a model chosen
 # for it before it runs — by rules, not by a session, so it costs nothing: its
 # type sets the level it starts from, its size and its wording move it (remove,

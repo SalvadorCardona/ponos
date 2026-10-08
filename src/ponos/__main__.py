@@ -1189,6 +1189,14 @@ def command_doctor(args: argparse.Namespace) -> int:
     else:
         default = runner_settings.model or "the CLI's default model"
         print(f"  {DIM}runner.auto_model = false — an empty Model runs on {default}{RESET}")
+    finder = runner_settings.ideas_model or "the CLI's default model"
+    ok(f"ideas are found by {finder}, ten at a batch — see runner.ideas_model")
+    if (
+        configuration.openrouter.key
+        and configuration.openrouter.route_sessions
+        and runner_settings.ideas_model in {"haiku", "sonnet", "opus", "fable"}
+    ):
+        warn("sessions go through OpenRouter — name its slug in runner.ideas_model")
     _doctor_fable(runner_settings)
     interval = configuration.runner.interval_seconds
     if config_module.in_container():

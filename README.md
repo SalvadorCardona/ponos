@@ -2288,6 +2288,26 @@ drawn by the server and read `Accept-Language` the same way. What is *not* trans
 columns of your board are Notion's, the output of `> status` is the CLI's, and a report a run
 wrote is in the language [`runner.language`](#4-the-rest-of-the-file) asked for.
 
+### Ideas
+
+Ponos can also propose what to do next. From the dashboard the ideas are the workspace's —
+new projects, or improvements that cut across them; from a project's page they are that
+project's. One short session writes ten at once on `runner.ideas_model` (`haiku` unless you
+say otherwise), given the project's brief, its README when the clone has one, its latest
+tickets and, for the workspace, the list of projects. Every idea already proposed for the same
+scope is in the prompt too, and a title too close to one of them — or to a ticket — is dropped
+on the way in: an idea thrown away is never proposed again.
+
+Keeping an idea writes it onto the board as a draft with no model, under *What*, *Where*,
+*Done when* and *Out of scope*, attached to its project; keeping the idea of a new project
+creates the project, its description as the brief, and a first draft ticket to frame it.
+Throwing one away only marks it so. The last choice can be taken back — a kept idea's ticket
+stays on the board as a draft, and is what it becomes again if it is kept a second time.
+
+Ideas live in the local database, `ponos.db`, with what each batch cost. The console asks
+for them through `GET /api/ideas[?project=…]`, `POST /api/ideas/generate`,
+`POST /api/ideas/<id>/keep`, `POST /api/ideas/<id>/discard` and `POST /api/ideas/undo`.
+
 ### The console's own code
 
 The page is a **React** application — TypeScript, [Vite](https://vite.dev),

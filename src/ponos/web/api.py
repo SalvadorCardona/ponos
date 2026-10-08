@@ -35,6 +35,7 @@ from ..schedules import scheduled_for
 from ..ticket import short_id
 from . import board as board_module
 from . import console, live, statistics
+from . import ideas as ideas_module
 from . import upgrade as upgrade_module
 from . import settings as settings_module
 
@@ -78,6 +79,7 @@ class Api:
         self.hub = live.Hub()
         self.commands = console.Commands(self.hub.publish, _subcommands())
         self.chat = console.Chat(config, self.hub.publish, self.brief)
+        self.ideas = ideas_module.Ideas(self)
         self.watch = live.Watch(
             self.hub, self.board, interval=config.web.poll_seconds, status=self.synchronised
         )
@@ -437,6 +439,11 @@ class Api:
         self._projects = index
         self._projects_at = time.time()
         return index
+
+    def forget_projects(self) -> None:
+        """Read the projects again next time: one was created or renamed meanwhile."""
+        self._projects = {}
+        self._projects_at = 0.0
 
     def _pictures(self, page: store.Page) -> dict[str, dict]:
         """A project's cover and icon, read with the rest of the page.

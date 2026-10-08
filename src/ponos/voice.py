@@ -689,6 +689,32 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "Notion refused that answer: {error}",
         "fr": "Notion a refusé cette réponse : {error}",
     },
+    # -- an idea kept, as the draft it becomes ---------------------------------
+    # The four headings a ticket is written under, so that a kept idea reads
+    # like a ticket somebody wrote rather than like a note — see ideas.py.
+    "idea-what": {"en": "What", "fr": "Quoi"},
+    "idea-where": {"en": "Where", "fr": "Où"},
+    "idea-done": {"en": "Done when", "fr": "Fini quand"},
+    "idea-out": {"en": "Out of scope", "fr": "Hors périmètre"},
+    "idea-frame": {"en": "Frame the project {name}", "fr": "Cadrer le projet {name}"},
+    "idea-frame-what": {
+        "en": "Turn this idea into a project: who it is for, what the first version does, "
+        "what it is built with, and the tickets that get it there.",
+        "fr": "Faire de cette idée un projet : pour qui, ce que fait la première version, "
+        "avec quoi on la construit, et les tickets qui y mènent.",
+    },
+    "idea-frame-where": {
+        "en": "The project's page, whose brief this ticket writes.",
+        "fr": "La page du projet, dont ce ticket écrit le brief.",
+    },
+    "idea-frame-done": {
+        "en": "The brief is written on the project's page, and the first tickets are drafted.",
+        "fr": "Le brief est écrit sur la page du projet, et les premiers tickets sont en brouillon.",
+    },
+    "idea-frame-out": {
+        "en": "Building any of it: that is what the tickets are for.",
+        "fr": "En construire quoi que ce soit : c'est le rôle des tickets.",
+    },
     # -- counted things -------------------------------------------------------
     # Both languages happen to make their plural the same way here, which is
     # luck and not a rule: the day one of them does not, this is where it says so.
