@@ -35,6 +35,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   only marked so. What each batch cost is recorded in the local database. The console's API
   has the five gestures — find, list, keep, throw away, take the last choice back — and the
   screen to swipe through them comes next.
+
+- **`[budget]`: a daily and a per-ticket spending limit.** `budget.daily_usd` stops any new
+  session once the day's sessions have cost that much (the ready tickets wait, Telegram and
+  Slack are told once, the console shows a banner, midnight lifts it); `budget.per_ticket_usd`
+  stops a session cleanly at the limit and puts its ticket in *blocked* with the reason. Both
+  empty by default. See README, *Spending limits*.
+
 - **Ponos in a container, on your machine or on Dokploy.** A `Dockerfile` (Python 3.13,
   git, `gh`, Node and Claude Code, run as a user that is not root) and a
   `docker-compose.yml` with four named volumes — `/data`, `/workspace`, `~/.claude`,
@@ -61,6 +68,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   Notion (`ponos init` from the page), GitHub, the channels, and a summary of what the
   console runs on — one line each, ok, missing or error, each leading to the step that
   changes it. The Settings page keeps the summary at its top.
+
+### Fixed
+
+- **The cost of a blocked or failed session is now written in Cost.** Only finished tickets
+  recorded theirs, so those sessions were missing from the board, the history and the
+  statistics.
 
 ### Security
 
@@ -837,6 +850,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   on the decision, both buttons on show.
 
 ### Fixed
+
+- **The cost of a blocked or failed session is now written in Cost.** Only finished tickets
+  recorded theirs, so those sessions were missing from the board, the history and the
+  statistics.
 
 - **A forced merge that is only late no longer sticks in review.** With
   `force_validated_code`, a pull request overtaken while its CI ran — behind

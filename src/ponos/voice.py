@@ -309,6 +309,14 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "the session stopped to ask you something",
         "fr": "la session s'est arrêtée pour poser une question",
     },
+    "over-ticket-budget": {
+        "en": "the session reached the ticket's spending limit ({limit})",
+        "fr": "la session a atteint le plafond de dépense du ticket ({limit})",
+    },
+    "over-ticket-budget-detail": {
+        "en": "Raise `budget.per_ticket_usd` or split the ticket, then answer here to carry on.",
+        "fr": "Relève `budget.per_ticket_usd` ou découpe le ticket, puis réponds ici pour reprendre.",
+    },
     "session-failed": {
         "en": "the session did not make it to the end",
         "fr": "la session n'est pas allée au bout",
@@ -641,6 +649,18 @@ _SAID: dict[str, dict[str, str]] = {
     "credit-again-detail": {
         "en": "{used}% of the subscription spent — back to work.",
         "fr": "{used} % de l'abonnement consommé — retour au travail.",
+    },
+    "budget-reached": {
+        "en": "Ponos reached today's spending limit",
+        "fr": "Ponos a atteint le plafond de dépense du jour",
+    },
+    "budget-reached-detail": {
+        "en": "{spent} spent today, limit {limit} — nothing new is started before {when}.",
+        "fr": "{spent} dépensés aujourd'hui, plafond {limit} — rien de nouveau ne démarre avant {when}.",
+    },
+    "budget-parked": {
+        "en": "nothing was started for it: today's spending limit is reached, it resumes at {when}",
+        "fr": "rien n'a été lancé pour lui : le plafond de dépense du jour est atteint, il reprend à {when}",
     },
     "reserve-reached": {
         "en": "Ponos is leaving you the rest",

@@ -89,6 +89,16 @@ export function RunnerStrip() {
           </AlertDescription>
         </Alert>
       ) : null}
+      {runner?.budget ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {t(
+              "Today's spending limit is reached: {{spent}} spent, limit {{limit}}. Ready tickets wait, and nothing new starts before midnight.",
+              { spent: money(runner.budget_spent), limit: money(runner.budget) }
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {runner && !runner.claude ? (
         <Alert variant="destructive">
           <AlertDescription>

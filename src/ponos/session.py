@@ -54,6 +54,9 @@ class Outcome:
     # Ended by whoever started it, on purpose: not a failure, and not an answer.
     # `answer` is what it had said by then; the conversation is still on disk.
     stopped: bool = False
+    # Ended by the CLI because it spent what `--max-budget-usd` allowed. Always
+    # `blocked` too: the work is unfinished and somebody has to decide.
+    over_budget: bool = False
     # What a blocked session asked, in the parts it was told to hand over —
     # see question.py. None when it wrote only its RESULT line.
     question: Question | None = None
@@ -121,6 +124,7 @@ def run(
     environment: dict[str, str] | None = None,
     on_event: Callable[[dict], None] | None = None,
     stop: threading.Event | None = None,
+    max_budget_usd: float = 0.0,
 ) -> Outcome:
     binary = available()
     if not binary:
@@ -149,6 +153,10 @@ def run(
     ]
     if model:
         command += ["--model", model]
+    # The CLI stops itself at the limit, between two steps, and says so in its
+    # last line: a clean end, with the cost of what was done.
+    if max_budget_usd > 0:
+        command += ["--max-budget-usd", f"{max_budget_usd:.2f}"]
 
     # What the caller adds comes last: an OpenRouter key configured for the
     # runner is meant to win over one that happens to be in this shell. See
@@ -273,8 +281,11 @@ def run(
         )
 
     answer = str(final.get("result") or "\n".join(texts)).strip()
-    failed = bool(final.get("is_error")) or (process.returncode != 0 and not interrupted.is_set())
-    blocked = _verdict(answer) == "blocked"
+    over_budget = final.get("subtype") == "error_max_budget_usd"
+    failed = not over_budget and (
+        bool(final.get("is_error")) or (process.returncode != 0 and not interrupted.is_set())
+    )
+    blocked = over_budget or _verdict(answer) == "blocked"
     error = ""
     resets_at = 0.0
     if failed:
@@ -297,8 +308,9 @@ def run(
         turns=int(final.get("num_turns") or 0),
         seconds=seconds,
         exhausted=bool(resets_at),
-        question=parse(answer) if blocked else None,
+        question=parse(answer) if blocked and not over_budget else None,
         resets_at=resets_at,
+        over_budget=over_budget,
     )
 
 

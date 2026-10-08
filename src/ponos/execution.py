@@ -194,6 +194,7 @@ class Execution(Base):
             resume=job.resume,
             environment=self.environment,
             on_event=_both(run.event, live.event if live else None),
+            max_budget_usd=self.config.budget.per_ticket_usd,
         )
 
     def _journal(self, job: Job, log: Path, model: str = "") -> journal.Run:
@@ -284,11 +285,12 @@ class Execution(Base):
             )
 
         if not outcome.ok:
-            reason = said.say("asked-something" if outcome.blocked else "session-failed")
+            reason, detail = self._why_stopped(
+                outcome, "asked-something" if outcome.blocked else "session-failed"
+            )
             # An agent that asked a question is waiting for you; a session that
             # crashed is waiting for someone to look at the log. Different rows
             # on the board, when the board has somewhere to put them.
-            detail = (outcome.summary if outcome.blocked else outcome.error) or ""
             kept = ""
             if self.config.runner.keep_worktree_on_failure:
                 kept = said.say("worktree-kept", path=job.workdir, branch=job.branch)
@@ -301,6 +303,7 @@ class Execution(Base):
                 blocked=outcome.blocked,
                 question=(outcome.question or detail) if outcome.blocked else "",
                 note=self._filed(job, outcome, kept),
+                outcome=outcome,
             )
 
         commits = git.commits_ahead(job.workdir, job.base)
@@ -314,6 +317,7 @@ class Execution(Base):
                 blocked=True,
                 question=outcome.summary,
                 note=self._filed(job, outcome),
+                outcome=outcome,
             )
 
         pull_request = ""
@@ -360,6 +364,7 @@ class Execution(Base):
                     note=self._filed(
                         job, outcome, said.say("push-refused-detail", branch=job.branch)
                     ),
+                    outcome=outcome,
                 )
             if self.config.runner.open_pull_request:
                 body = said.pull_request_body(
@@ -498,10 +503,9 @@ class Execution(Base):
             content = answer_file.read_text(encoding="utf-8", errors="replace").strip()
 
         if not outcome.ok or not content:
-            reason = said.say(
-                "no-answer" if outcome.blocked or not content else "session-failed"
+            reason, detail = self._why_stopped(
+                outcome, "no-answer" if outcome.blocked or not content else "session-failed"
             )
-            detail = (outcome.summary if outcome.blocked else outcome.error) or ""
             if not content and outcome.ok:
                 detail = said.say("no-answer-detail", summary=outcome.summary)
             kept = ""
@@ -516,6 +520,7 @@ class Execution(Base):
                 blocked=outcome.blocked or not content,
                 question=outcome.question or detail,
                 note=self._filed(job, outcome, kept),
+                outcome=outcome,
             )
 
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -532,6 +537,7 @@ class Execution(Base):
                 note=self._filed(
                     job, outcome, said.say("answer-on-disk", path=answer_file)
                 ),
+                outcome=outcome,
             )
 
         shutil.rmtree(job.workdir, ignore_errors=True)

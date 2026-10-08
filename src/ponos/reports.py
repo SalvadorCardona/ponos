@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
@@ -414,6 +415,20 @@ class Reports(Base):
 
     # -- the endings that are not a result -------------------------------------
 
+    def _why_stopped(self, outcome: session.Outcome, reason: str) -> tuple[str, str]:
+        """The sentence a session that did not finish ends a ticket on, and its detail.
+
+        `reason` is the runner's word for the ordinary case. A session the CLI
+        cut short at the ticket's spending limit says so instead, because "it
+        asked you something" would send somebody looking for a question that
+        is not there.
+        """
+        said = self.voice
+        if outcome.over_budget:
+            limit = said.money(self.config.budget.per_ticket_usd)
+            return said.say("over-ticket-budget", limit=limit), said.say("over-ticket-budget-detail")
+        return said.say(reason), (outcome.summary if outcome.blocked else outcome.error) or ""
+
     def _fail(
         self,
         ticket: Ticket,
@@ -423,6 +438,7 @@ class Reports(Base):
         blocked: bool = False,
         question: str | question_module.Question | None = "",
         note: str = "",
+        outcome: session.Outcome | None = None,
     ) -> dict:
         """A run that did not get there, said in as few lines as it takes.
 
@@ -434,19 +450,36 @@ class Reports(Base):
         said before it stopped. `note` is where the rest went — the folded
         block, usually, and the trace itself on a ticket that has no such block:
         see `_filed`.
+
+        `outcome` is the session that ended this way, when there was one: what it
+        cost is written like any other run's — a session that asked a question
+        or crashed has been paid for all the same, and the day's limit counts it.
         """
+        spent = self._measures(outcome) if outcome else {}
+        ended = (
+            {"seconds": round(outcome.seconds, 1), "cost_usd": outcome.cost_usd} if outcome else {}
+        )
         if blocked:
-            return self._block(ticket, reason, detail, question, note)
+            return self._block(ticket, reason, detail, question, note, spent, ended)
         said = self.voice
         self.say(f"    ✗ {ticket.title} — {reason}")
         asked = said.sentence(reason)
         self._tell("failed", ticket, "failed", said.brief(asked), urgent=True)
-        self._set(ticket, **{self.config.notion.prop("status"): self.config.notion.state("failed")})
+        self._set(
+            ticket,
+            **{self.config.notion.prop("status"): self.config.notion.state("failed"), **spent},
+        )
         self._comment(
             ticket,
             said.report(said.verdict("failed", said.brief(asked)), said.brief(detail), note),
         )
-        return {"ticket": ticket.title, "id": ticket.id, "status": "failed", "reason": reason}
+        return {
+            "ticket": ticket.title,
+            "id": ticket.id,
+            "status": "failed",
+            "reason": reason,
+            **ended,
+        }
 
     def _block(
         self,
@@ -455,6 +488,8 @@ class Reports(Base):
         detail: str,
         question: str | question_module.Question | None,
         note: str,
+        spent: dict[str, object],
+        ended: dict[str, object],
     ) -> dict:
         """A ticket that stopped on a question, asked in four lines at most.
 
@@ -488,7 +523,10 @@ class Reports(Base):
             "\n".join(line for line in (done, *lines) if line),
             ask=True,
         )
-        self._set(ticket, **{self.config.notion.prop("status"): self.config.notion.state("blocked")})
+        self._set(
+            ticket,
+            **{self.config.notion.prop("status"): self.config.notion.state("blocked"), **spent},
+        )
         if under == said.brief(question.ask):
             under = ""
         if note.strip() == said.say("trace-in-page"):
@@ -501,7 +539,13 @@ class Reports(Base):
                 note,
             ),
         )
-        return {"ticket": ticket.title, "id": ticket.id, "status": "blocked", "reason": reason}
+        return {
+            "ticket": ticket.title,
+            "id": ticket.id,
+            "status": "blocked",
+            "reason": reason,
+            **ended,
+        }
 
     def _guarded(
         self, ticket: Ticket, work: Callable[..., dict | None], *arguments: object
@@ -678,6 +722,55 @@ class Reports(Base):
         }
 
     def under_reserve(self) -> float:
+        """The moment nothing new may be started until, or 0.0 while there is room.
+
+        Two lines answer it, and a place that is about to start a session asks
+        both at once: the subscription's reserve, below, and the day's spending
+        limit — `budget_reached`. Either one is "do not start anything", so
+        every gate that already stops on the first stops on the second.
+        """
+        return self._reserve() or self.budget_reached()
+
+    def budget_reached(self) -> float:
+        """The next midnight, once `budget.daily_usd` has been spent; 0.0 before.
+
+        What the sessions cost is read off the history, so a session still in
+        flight counts when it ends, not before: the limit is a gate on starting,
+        and a session that began under it is left to finish. Said once — by the
+        note, as the reserve is — to the journal and to the phone, because
+        a ready column that stays full with nothing running reads as a broken
+        runner.
+        """
+        limit = self.config.budget.daily_usd
+        if limit <= 0:
+            return 0.0
+        spent = state.spent_today()
+        if spent < limit:
+            if credits.release(what="budget"):
+                self.say("  ▶ a new day — carrying on")
+            return 0.0
+        tomorrow = datetime.now().astimezone().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+        until = tomorrow.timestamp()
+        if not credits.held(what="budget"):
+            credits.hold(until, what="budget")
+            when = credits.when(until)
+            self.say(
+                f"  ⏸ {spent:.2f} $ spent today, limit {limit:.2f} $ — nothing new until {when}"
+            )
+            self._announce(
+                self.voice.say("budget-reached"),
+                self.voice.say(
+                    "budget-reached-detail",
+                    spent=self.voice.money(spent),
+                    limit=self.voice.money(limit),
+                    when=when,
+                ),
+            )
+        return until
+
+    def _reserve(self) -> float:
         """The moment the reserve lifts, or 0.0 while there is credit to spend.
 
         `credit_reserve_percent` is the share of the window this runner refuses
@@ -767,11 +860,14 @@ class Reports(Base):
             return []
         said = self.voice
         when = credits.when(until or self.under_reserve() or credits.held())
+        # The day's limit has its own sentence: "the credit comes back" would be
+        # a lie about money that is not missing, only not to be spent.
+        parked_for = "budget-parked" if self.budget_reached() else "credit-parked"
         parked: list[dict] = []
         for ticket in tickets:
             if store.read(ticket.page, flag):
                 continue
-            self.say(f"  ⏸ {ticket.title} — {said.say('credit-parked', when=when)}")
+            self.say(f"  ⏸ {ticket.title} — {said.say(parked_for, when=when)}")
             # The Session cell is emptied on the way in, and that is what tells
             # this ticket from one `_requeue` ticked on its way out: nothing was
             # started for this one, so there is no conversation to carry on.
@@ -783,7 +879,7 @@ class Reports(Base):
             self._set(ticket, **{flag: True, self.config.notion.prop("session"): ""})
             self._comment(
                 ticket,
-                said.report(said.verdict("waiting", said.say("credit-parked", when=when))),
+                said.report(said.verdict("waiting", said.say(parked_for, when=when))),
             )
             parked.append(
                 {

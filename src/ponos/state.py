@@ -236,6 +236,25 @@ def record_all(entries: Iterable[dict | None]) -> list[dict]:
     return kept
 
 
+def spent_today() -> float:
+    """What the sessions have cost since local midnight, from the history.
+
+    The history records a run when it ends, so a session still in flight is not
+    in the figure yet: the daily limit is read where a session is about to
+    *start*, and one that began under it is left to finish.
+    """
+    midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    since = midnight.astimezone(timezone.utc).isoformat(timespec="seconds")
+    try:
+        with db.transaction(immediate=False) as connection:
+            (total,) = connection.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM history WHERE at >= ?", (since,)
+            ).fetchone()
+    except db.ERRORS:
+        return 0.0
+    return float(total or 0.0)
+
+
 def history(limit: int = 20) -> list[dict]:
     """The last `limit` entries, oldest first."""
     with db.transaction(immediate=False) as connection:

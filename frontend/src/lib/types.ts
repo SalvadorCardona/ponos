@@ -227,6 +227,10 @@ export interface RunnerState {
   credits: number
   /** The same moment, as a clock reads it. */
   credits_at: string
+  /** `budget.daily_usd` once it is spent — 0 while there is room, or no limit. */
+  budget: number
+  /** What the sessions have cost since midnight. */
+  budget_spent: number
   workspace_root: string
   /** `storage.mode`: "notion", "markdown", or "both". */
   storage: string

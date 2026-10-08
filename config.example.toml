@@ -648,6 +648,25 @@ provider = ""
 #   console.anthropic.com → API keys
 
 # ---------------------------------------------------------------------------
+# What the runner may spend
+# ---------------------------------------------------------------------------
+# Two ceilings, in dollars, and empty (or 0) is no limit at all. They count what
+# the CLI reports a session cost, which a subscription does not — so they are
+# for an API key or OpenRouter.
+#
+# daily_usd       since local midnight, every session counted, blocked and
+#                 failed ones too. Past it nothing new is started — not a
+#                 ticket, not a publication, not an answer in a thread; what is
+#                 running finishes, the ready tickets are ticked as waiting, you
+#                 are told once on Telegram / Slack, and the console shows a
+#                 banner. Everything else resumes at midnight.
+# per_ticket_usd  one session. The CLI stops it cleanly at the limit and the
+#                 ticket goes to blocked with the reason; answer it to carry on.
+[budget]
+daily_usd = ""
+per_ticket_usd = ""
+
+# ---------------------------------------------------------------------------
 # Every other model
 # ---------------------------------------------------------------------------
 # What the runner drives is Claude Code, and Claude Code talks to Anthropic —

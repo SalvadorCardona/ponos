@@ -944,6 +944,7 @@ class Delivery(Base):
                     forced,
                     self._filed(job, outcome, said.say("workdir-kept", path=job.workdir)),
                 ),
+                outcome=outcome,
             )
 
         shutil.rmtree(job.workdir, ignore_errors=True)
