@@ -378,6 +378,13 @@ const StatusCell: InputControllerComponentInterface = ({ formInput }) => {
   )
 }
 
+/* The model, in the table, as `provider/model` like everywhere else: the
+ * server says it, the column holds what was typed. */
+const ModelCell: InputControllerComponentInterface = ({ formInput }) => {
+  const original = useFormContext().form.originalData as TicketItem | undefined
+  return <>{original?.model_label || String(formInput.value ?? "")}</>
+}
+
 /* The title, in the table, as the way into the ticket — the window over the
  * list, as a card's title is. */
 const TitleCell: InputControllerComponentInterface = ({ formInput }) => {
@@ -401,7 +408,7 @@ const rowForm: FormInterface = {
     project: { label: "Project", readonly: true },
     status: { label: "Status", readonly: true, controller: StatusCell },
     priority: { label: "Priority", readonly: true },
-    model: { label: "Model", readonly: true },
+    model: { label: "Model", readonly: true, controller: ModelCell },
     spent: { label: "Cost", readonly: true },
     took: { label: "Took", readonly: true },
     due: { label: "Scheduled", readonly: true },

@@ -43,7 +43,7 @@ test("the session tab reads the newest run from its end, and further back on req
 test("an earlier run of the ticket is a choice away", async ({ page }) => {
   await open(page)
   await page.getByRole("combobox", { name: "Run" }).click()
-  await page.getByRole("option", { name: /^#1 .* failed · \$0\.12$/ }).click()
+  await page.getByRole("option", { name: /^#1 .* failed · claude\/sonnet · \$0\.12$/ }).click()
   await expect(page.getByText("an earlier session, read-only")).toBeVisible()
   await expect(page.getByText("3 steps")).toBeVisible()
   const log = page.getByRole("log")

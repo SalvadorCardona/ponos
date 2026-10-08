@@ -33,6 +33,8 @@ export interface Ticket {
   type: string
   priority: string
   model: string
+  /** `model` as `provider/model` — claude/haiku, deepseek/r1 — said by `models.label`. */
+  model_label?: string
   progress: string
   runner: string
   pull_request: string
@@ -57,6 +59,8 @@ export interface Ticket {
 export interface TicketDetail extends Ticket {
   /** The page's blocks, flattened the way the runner reads them. */
   content: string
+  /** The model it runs on: the last session's own word, then the column, then the defaults. */
+  model_in_use?: { label: string; full: string; default: boolean }
 }
 
 export interface Board {
@@ -297,6 +301,11 @@ export interface Run {
   reason: string
   cost_usd: number | null
   steps: number
+  /** What the run was asked to run on, and what its session said it ran on. */
+  model?: string
+  reported?: string
+  /** Whichever of the two is known, as `provider/model`. */
+  model_label?: string
 }
 
 /** A page of a run's steps. `more`: there are older ones than the first here. */

@@ -438,6 +438,11 @@ def _runs_say_their_model(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE runs ADD COLUMN escalated INTEGER NOT NULL DEFAULT 0")
 
 
+def _runs_say_the_model_they_ran(connection: sqlite3.Connection) -> None:
+    # What the session announced of itself, as opposed to `model`, what it was asked to run on.
+    connection.execute("ALTER TABLE runs ADD COLUMN reported TEXT NOT NULL DEFAULT ''")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -456,6 +461,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _sync,
     _images,
     _runs_say_their_model,
+    _runs_say_the_model_they_ran,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

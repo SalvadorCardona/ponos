@@ -49,9 +49,12 @@ wrote it; see `allowed`.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from pathlib import Path
 
 # From the lightest to the heaviest. A level is what a ticket asks for; which
 # model answers it is the configuration's to say.
@@ -157,6 +160,72 @@ def is_fable(model: str) -> bool:
 def allowed(model: str, fable: bool) -> str:
     """The model a session is given: this one, unless it is a Fable not allowed."""
     return INSTEAD_OF_FABLE if not fable and is_fable(model) else model
+
+
+# The families Claude Code names, whichever way the model is spelled: `opus`,
+# `claude-opus-4-1-20250805`, `claude-3-5-haiku-20241022`, `opus[1m]`.
+FAMILIES = ("opus", "sonnet", "haiku", "fable")
+
+
+def label(model: str) -> str:
+    """A model as the console says it, `provider/model`: claude/opus, deepseek/r1.
+
+    One function for every place a model is shown, so that the board, a ticket's
+    page and the list of its runs never spell the same model three ways. The
+    version stays out — it is in `describe`'s full identifier, for a tooltip —
+    and a spelling nobody here knows is kept as it was written: an honest
+    `gpt-9` beats a provider guessed. An OpenRouter slug already has the
+    `vendor/model` shape and is left alone.
+    """
+    text = re.sub(r"\[[^\]]*\]$", "", model.strip())
+    lowered = text.lower()
+    if not lowered:
+        return ""
+    if "/" in lowered:
+        return text
+    for family in FAMILIES:
+        if re.search(rf"(?<![a-z]){family}(?![a-z])", lowered):
+            return f"claude/{family}"
+    if lowered.startswith("deepseek"):
+        name = lowered.removeprefix("deepseek").lstrip("-_ ")
+        if name == "reasoner" or re.match(r"r1(?![a-z0-9])", name):
+            return "deepseek/r1"
+        if name == "chat" or re.match(r"v3(?![a-z0-9])", name):
+            return "deepseek/v3"
+        return f"deepseek/{name}" if name else text
+    return text
+
+
+def claude_default() -> str:
+    """The model Claude Code runs on when nothing is passed, if it can be told.
+
+    `ANTHROPIC_MODEL`, then the `model` of its settings. Empty when neither
+    says: the CLI then picks by plan, and which one it picked is only known once
+    a session announces it. Read, never written, and never a reason to fail.
+    """
+    named = os.environ.get("ANTHROPIC_MODEL", "").strip()
+    if named:
+        return named
+    directory = os.environ.get("CLAUDE_CONFIG_DIR", "").strip()
+    settings = (Path(directory).expanduser() if directory else Path.home() / ".claude") / "settings.json"
+    try:
+        value = json.loads(settings.read_text(encoding="utf-8")).get("model")
+    except (OSError, ValueError, AttributeError):
+        return ""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def describe(ticket: str, announced: str = "", configured: str = "") -> dict:
+    """The model a ticket runs on, for its page: what it is and how sure we are.
+
+    In order of trust: the model its last session announced about itself (the
+    `init` line of the stream — what actually ran), the one the ticket names,
+    the runner's, Claude Code's own. `default` is true when nobody chose it for
+    this ticket; `label` is empty only when nothing can be said before a first
+    session has run. `full` is the identifier as it was given, for a tooltip.
+    """
+    full = announced.strip() or ticket.strip() or configured.strip() or claude_default()
+    return {"label": label(full), "full": full, "default": not ticket.strip()}
 
 
 def _fold(text: str) -> str:

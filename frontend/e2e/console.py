@@ -154,6 +154,7 @@ def journal_of(ticket: str) -> None:
     from ponos import db, journal
 
     first = journal.Run.start(ticket=ticket, title="A ticket that asked", session="first")
+    first.event({"type": "system", "subtype": "init", "model": "claude-sonnet-4-5-20250929"})
     first.event(_said("I read the brief first."))
     first.event(_tool("Bash", {"command": "make test"}))
     first.event({"type": "user", "message": {"content": [
@@ -162,6 +163,7 @@ def journal_of(ticket: str) -> None:
     first.event({"type": "result", "total_cost_usd": 0.12})
     first.end("failed", "the session ended badly")
     second = journal.Run.start(ticket=ticket, title="A ticket that asked", session="second")
+    second.event({"type": "system", "subtype": "init", "model": "claude-opus-4-1-20250805"})
     second.event(_said("Starting again, from the start."))
     for index in range(1, 249):
         second.event(_tool("Read", {"file_path": f"/repo/src/part-{index}.py"}))

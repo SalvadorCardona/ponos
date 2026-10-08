@@ -94,3 +94,13 @@ test("a ticket's page says its type, model and cost on its brief, and the other 
   await expect(page.getByRole("tab", { name: "Live" })).toHaveAttribute("aria-selected", "true")
   await expect(page.getByText("No journal is left for this ticket", { exact: false })).toBeVisible()
 })
+
+test("a ticket with sessions says the model the last one announced, as provider/model", async ({ page }) => {
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.goto("/?view=console/tickets/read/00000000000000000000000000000a5c")
+
+  // The column is empty: the model is the last session's own word, said short
+  // and still a default, with the full identifier a hover away.
+  const model = page.getByTitle("claude-opus-4-1-20250805")
+  await expect(model).toHaveText("claude/opus · default")
+})

@@ -129,6 +129,13 @@ class Run:
         """One stream-json event: its steps, and its price when it is the last one."""
         if not self.open:
             return
+        if payload.get("type") == "system" and payload.get("subtype") == "init":
+            # The model the session says it runs on: what was asked (`--model`,
+            # or nothing) is not always what answers.
+            announced = payload.get("model")
+            if isinstance(announced, str) and announced.strip():
+                self._write("UPDATE runs SET reported = ? WHERE id = ?", (announced.strip(), self.id))
+            return
         if payload.get("type") == "result":
             spent = payload.get("total_cost_usd")
             if isinstance(spent, (int, float)):
@@ -194,6 +201,7 @@ def _run(row: sqlite3.Row | tuple, names: list[str]) -> dict:
 _RUN = (
     "SELECT runs.id, runs.ticket, runs.title, runs.kind, runs.project, runs.agent, runs.session,"
     " runs.log, runs.started_at, runs.ended_at, runs.status, runs.reason, runs.cost_usd,"
+    " runs.model, runs.reported,"
     " (SELECT count(*) FROM steps WHERE steps.run = runs.id) AS steps FROM runs"
 )
 
