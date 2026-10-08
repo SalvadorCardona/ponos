@@ -16,6 +16,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ## [Unreleased]
 
+### Added
+
+- **A project's page has its own statistics.** The same folding band as the
+  dashboard's — same periods, same four cards, same two curves — limited to that
+  project's tickets and to what their sessions spent, with the average cost of a
+  closed ticket under *Spent*. The third panel is the tickets created, by column
+  (*by project* means nothing for one). `/api/statistics` takes an optional
+  `project`; the dashboard's figures are unchanged.
+
 ### Changed
 
 - **A ticket's page is three tabs again, and its session reads in broad lines.** *Brief*

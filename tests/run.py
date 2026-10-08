@@ -7541,6 +7541,48 @@ def the_open_curve_starts_from_the_board_as_it_stood_and_ends_on_it():
 
 
 @case
+def the_projects_figures_add_up_to_the_boards():
+    """Created and spent, project by project, are the board's — less the tickets with no project.
+
+    A project's figures are the board's over its tickets alone, and its
+    sessions are the history lines of those tickets. A line about a ticket the
+    board no longer has belongs to nobody, so it is in the global spend only.
+    """
+    from datetime import date
+
+    tickets = [
+        _card("a", "done", "2026-09-02T09:00:00.000Z", edited="2026-09-04T09:00:00.000Z", project="Opoil"),
+        _card("b", "ready", "2026-09-03T09:00:00.000Z", project="Opoil"),
+        _card("c", "review", "2026-09-03T10:00:00.000Z", project="ponos"),
+        _card("d", "ready", "2026-09-04T10:00:00.000Z"),
+    ]
+    history = [
+        {"at": "2026-09-02T12:00:00+00:00", "id": "a", "status": "done", "kind": "document", "cost_usd": 1.0},
+        {"at": "2026-09-03T12:00:00+00:00", "id": "b", "status": "blocked", "cost_usd": 0.5},
+        {"at": "2026-09-03T13:00:00+00:00", "id": "c", "status": "done", "cost_usd": 2.0},
+        {"at": "2026-09-04T13:00:00+00:00", "id": "d", "status": "blocked", "cost_usd": 4.0},
+        {"at": "2026-09-04T14:00:00+00:00", "id": "gone", "status": "done", "cost_usd": 8.0},
+    ]
+    first, last = date(2026, 9, 1), date(2026, 9, 10)
+    whole = web_statistics.figures(tickets, history, first, last, timezone.utc)
+    by_project = {
+        name: web_statistics.figures(tickets, history, first, last, timezone.utc, project=name)
+        for name in ("Opoil", "ponos", "")
+    }
+    assert whole["totals"]["created"] == sum(f["totals"]["created"] for f in by_project.values())
+    assert whole["totals"]["closed"] == sum(f["totals"]["closed"] for f in by_project.values())
+    # 8.0 is a session of a ticket that left the board: in the whole only.
+    assert whole["totals"]["cost"] == 15.5
+    assert sum(f["totals"]["cost"] for f in by_project.values()) == 7.5
+    assert by_project["Opoil"]["totals"] == {"open": 1, "closed": 1, "created": 2, "cost": 1.5}
+    assert by_project[""]["totals"]["cost"] == 4.0
+    # One closed ticket, 1.0 spent on it.
+    assert by_project["Opoil"]["average"] == 1.0
+    assert by_project["ponos"]["average"] is None
+    assert [item["name"] for item in by_project["Opoil"]["projects"]] == ["Opoil"]
+
+
+@case
 def a_day_is_this_machines_day():
     """23:30 in Paris is that evening, not the next UTC morning's."""
     from datetime import date

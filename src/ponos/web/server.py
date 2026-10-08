@@ -425,7 +425,10 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/statistics":
                 try:
                     figures = self.api.statistics(
-                        (query.get("from") or [""])[0], (query.get("to") or [""])[0]
+                        (query.get("from") or [""])[0],
+                        (query.get("to") or [""])[0],
+                        # No `project` (or a blank one, which `parse_qs` drops) is the whole board.
+                        query["project"][0] if "project" in query else None,
                     )
                 except ValueError as error:
                     # A period that makes no sense, said as the page's mistake.

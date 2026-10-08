@@ -22,6 +22,13 @@ closed that evening, not the next morning.
 
 The series are computed here rather than in the browser because this is where
 the tests are: the page only draws what it is handed.
+
+A project's figures are the same computation over its tickets alone, and over
+the history lines of those tickets: a history line knows its ticket's id, not
+the project's name as the board spells it today, so the board is what says
+whose a session was. That is also why the projects' costs add up to the
+global one only up to the lines of tickets with no project — or no longer on
+the board, which nobody can say a project for.
 """
 
 from __future__ import annotations
@@ -85,14 +92,21 @@ def figures(
     first: date,
     last: date,
     zone: tzinfo | None = None,
+    project: str | None = None,
 ) -> dict:
     """The cards, the curves and the breakdowns of one period.
 
     `tickets` are the board's, as `Api.board` builds them, with `edited`.
+    With a `project` (its name, "" for the tickets that have none) only its
+    tickets are counted, and only what its sessions spent.
     A ticket is open on a day if it was created by the end of it and not yet
     closed: that is every status but done, failed and blocked included — they
     are still somebody's to deal with.
     """
+    if project is not None:
+        tickets = [ticket for ticket in tickets if (ticket.get("project") or "") == project]
+        mine = {str(ticket.get("id", "")) for ticket in tickets}
+        history = [entry for entry in history if str(entry.get("id", "")).replace("-", "") in mine]
     dated = closings(history, zone)
     known = {}
     from_history = from_edit = 0
@@ -154,6 +168,19 @@ def figures(
         )
         day += timedelta(days=1)
 
+    # What the tickets closed in the period cost in all, sessions from before
+    # the period included: a ticket is not cheaper for having been started
+    # last month.
+    cost_of: Counter[str] = Counter()
+    for entry in history:
+        cost_of[str(entry.get("id", "")).replace("-", "")] += float(entry.get("cost_usd") or 0)
+    shut = [
+        str(ticket.get("id", ""))
+        for ticket, _, closed in known.values()
+        if closed and first <= closed <= last
+    ]
+    average = round(sum(cost_of[key] for key in shut) / len(shut), 2) if shut else None
+
     born = [ticket for ticket, created, _ in known.values() if created and first <= created <= last]
     statuses = Counter(str(ticket.get("column") or "other") for ticket in born)
     projects = Counter(str(ticket.get("project") or "") for ticket in born)
@@ -170,4 +197,5 @@ def figures(
         "statuses": [{"key": key, "count": count} for key, count in statuses.most_common()],
         "projects": [{"name": name, "count": count} for name, count in projects.most_common()],
         "dated": {"history": from_history, "edited": from_edit},
+        "average": average,
     }

@@ -153,8 +153,11 @@ export const api = {
   schedule: (id: string) => request<ScheduleDetail>(`/api/schedules/${id}`),
   chat: () => request<{ messages: Message[] } & ChatState & { busy?: boolean }>("/api/chat"),
   settings: () => request<Settings>("/api/settings"),
-  statistics: (from: string, to: string) =>
-    request<Statistics>(`/api/statistics?from=${from}&to=${to}`),
+  statistics: (from: string, to: string, project?: string) =>
+    request<Statistics>(
+      `/api/statistics?from=${from}&to=${to}` +
+        (project === undefined ? "" : `&project=${encodeURIComponent(project)}`)
+    ),
   project: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),
   talk: (id: string) => request<Talk>(`/api/tickets/${id}/talk`),

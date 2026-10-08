@@ -486,4 +486,6 @@ export interface Statistics {
   projects: { name: string; count: number }[]
   /** How many closings the runner's history dated, and how many Notion's last edit had to. */
   dated: { history: number; edited: number }
+  /** What a ticket closed in the period cost in all; null when none was. */
+  average: number | null
 }
