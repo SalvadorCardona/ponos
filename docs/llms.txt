@@ -24,6 +24,6 @@ command and the Python package are called ponos.
 
 ## Docs
 
-- [Landing page](https://cardona.digital/ponos/): what it is, the loop — the console filmed doing it —, the four kinds of task, the console, the integrations, installation without Notion
+- [Landing page](https://the-ponos.app/): what it is, the loop — the console filmed doing it —, the four kinds of task, the console, the integrations, installation without Notion
 - [Documentation](https://github.com/SalvadorCardona/ponos#readme): installation, the board and its columns, the types of ticket, the Validated column, recurring tickets, Telegram and Slack, the web console, the Markdown board, Notion, OpenRouter, several GitHub accounts, usage limits, configuration, safety, troubleshooting, Ponos the mascot
 - [Changelog](https://github.com/SalvadorCardona/ponos/blob/main/CHANGELOG.md): what changed, release by release

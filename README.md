@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://cardona.digital/ponos/"><img src="docs/mascot/robot.svg" width="144" height="144" alt="Ponos, the robot, in his Greek tunic"></a>
+  <a href="https://the-ponos.app/"><img src="docs/mascot/robot.svg" width="144" height="144" alt="Ponos, the robot, in his Greek tunic"></a>
 </p>
 
 <h1 align="center">Ponos</h1>
@@ -18,8 +18,8 @@
 </p>
 
 <p align="center">
-  <a href="https://cardona.digital/ponos/"><b>📖 The documentation, online</b></a> ·
-  <a href="https://cardona.digital/ponos/#video"><b>▶ The one-minute video</b></a> ·
+  <a href="https://the-ponos.app/"><b>📖 The documentation, online</b></a> ·
+  <a href="https://the-ponos.app/#video"><b>▶ The one-minute video</b></a> ·
   <a href="#install-it"><b>Install</b></a> ·
   <a href="CHANGELOG.md"><b>CHANGELOG</b></a>
 </p>
@@ -32,9 +32,9 @@ brings back a pull request, a text, an action carried out or a post ready to go.
 in a word, even from your phone, and nothing ships until you say yes. Notion, GitHub,
 Telegram, Slack and OpenRouter plug in when you want them; none of them is required.
 
-[![Ponos — Write the ticket. It comes back done. Play the one-minute video on the site.](docs/media/ponos-promo-poster.jpg)](https://cardona.digital/ponos/#video)
+[![Ponos — Write the ticket. It comes back done. Play the one-minute video on the site.](docs/media/ponos-promo-poster.jpg)](https://the-ponos.app/#video)
 
-<sub>▶ **[Ponos in a minute](https://cardona.digital/ponos/#video)** — one ticket, from *Ready* to *Done*. The video plays on the site, sound on.</sub>
+<sub>▶ **[Ponos in a minute](https://the-ponos.app/#video)** — one ticket, from *Ready* to *Done*. The video plays on the site, sound on.</sub>
 
 The name is a robot's, after the Greek god of toil: he does the tedious part of a ticket in
 your place, and you keep the decisions. The repository, the `ponos` command, the Python
@@ -55,13 +55,13 @@ Two of them are yours, and each takes a few seconds. The two in between are Pono
    published — and only then is it *Done*.
 
 <p align="center">
-  <a href="https://cardona.digital/ponos/#loop">
+  <a href="https://the-ponos.app/#loop">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="docs/media/console-loop-dark-poster.webp">
       <img src="docs/media/console-loop-light-poster.webp" width="720" alt="The console, filmed doing the loop: a ticket written in New ticket, taken to In progress, back in review with its cost, then validated. The film plays on the site.">
     </picture>
   </a>
-  <br><sub>The console, filmed doing the four gestures — <a href="https://cardona.digital/ponos/#loop">the film plays on the site</a>.</sub>
+  <br><sub>The console, filmed doing the four gestures — <a href="https://the-ponos.app/#loop">the film plays on the site</a>.</sub>
 </p>
 
 ## Three things it does that a to-do list does not
