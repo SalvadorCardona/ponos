@@ -8379,7 +8379,7 @@ def a_ticket_read_on_its_own_is_the_card_and_the_page_under_it():
 
     elsewhere = _bare_api(_PageClient("", status="Parked"))
     elsewhere._runner._workspace = type("W", (), {"projects": ""})()
-    assert elsewhere.ticket("1a2b3c4d000000000000000000000000")["column"] == "other"
+    assert elsewhere.ticket("1a2b3c4d000000000000000000000000")["column"] == "draft"
 
 
 class _EditedPageClient(_PageClient):
@@ -8477,30 +8477,22 @@ class _ColumnsClient(_TalkClient):
 
 
 @case
-def a_ticket_under_no_known_status_is_drawn_in_a_column_of_its_own():
-    """The board used to say "other" on the card and then draw no such column.
+def a_ticket_under_no_known_status_is_a_draft_and_no_column_is_added_for_it():
+    """The board used to draw a "No status" column of its own, after Done.
 
-    A ticket written without a status is a draft, in the first column. One
-    under a status nobody configured is the card that needs a look — it is
-    never claimed — and a console that left it off the board was hiding exactly
-    that one. The column carries no name: the board has none for it, and the
-    console says it in its own language.
+    A ticket written without a status is a draft, and so is one under a status
+    nobody configured: it is never claimed, but dropping it from the board
+    would hide exactly the card that needs a look. Both sit in the one column
+    the drafts have, on the left — no column is added for them.
     """
     api = _bare_api(_ColumnsClient(["Ready", "", "Parked"]))
     api._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
     api._schema_at = time.time()
     board = api.board()
     keys = [column["key"] for column in board["columns"]]
-    assert keys[0] == "draft" and keys[-1] == "other", keys
-    assert board["columns"][-1]["name"] == "", "the console names it, not the board"
-    assert [item["column"] for item in board["tickets"]] == ["draft", "ready", "other"]
-
-    tidy = _bare_api(_ColumnsClient(["Ready", "Done"]))
-    tidy._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
-    tidy._schema_at = time.time()
-    assert "other" not in [column["key"] for column in tidy.board()["columns"]], (
-        "an empty column of nothing is drawn only when something is in it"
-    )
+    assert keys[0] == "draft" and "other" not in keys, keys
+    assert board["columns"][0] == {"key": "draft", "name": ""}, "the console names the drafts, not the board"
+    assert [item["column"] for item in board["tickets"]] == ["draft", "draft", "ready"]
 
 
 class _DraftClient(_ColumnsClient):
@@ -8551,7 +8543,7 @@ def a_ticket_with_no_status_is_a_draft_whether_or_not_the_board_names_them():
     plain.watch = quiet
     board = plain.board()
     assert board["columns"][0] == {"key": "draft", "name": ""}
-    assert [item["column"] for item in board["tickets"]] == ["draft", "ready", "other"]
+    assert [item["column"] for item in board["tickets"]] == ["draft", "draft", "ready"]
     plain.create_ticket("Écrire l'audit", ready=False)
     assert plain._runner.client.created == [("Écrire l'audit", {})], "no key, no status, as before"
     assert plain.set_status("1" * 32, "draft")["status"] == "", "a move to the drafts clears the status"

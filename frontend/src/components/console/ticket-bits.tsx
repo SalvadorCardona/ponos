@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils"
  * here, and translated where it is drawn: the board's own words come from
  * Notion and are repeated as they are. */
 export const LABEL: Record<string, string> = {
-  draft: "Drafts",
+  draft: "Draft",
   ready: "Ready",
   running: "In progress",
   review: "In review",
@@ -42,7 +42,6 @@ export const LABEL: Record<string, string> = {
   blocked: "Blocked",
   failed: "Failed",
   done: "Done",
-  other: "No status",
 }
 
 /** A column's name as the board heads it: the board's word, with a capital — Notion's may have none. */
@@ -51,7 +50,7 @@ export const capital = (name: string): string => name.charAt(0).toUpperCase() + 
 /* The heading over a column: the board's own word for it, except over the
  * drafts. There the word is the option a draft is written with — often a bare
  * "draft" — rather than a name anybody gave a column, and the column says
- * "Drafts" in whichever language the console is in. */
+ * "Draft" in whichever language the console is in. */
 export function columnTitle(key: string, name?: string): string {
   if (key === "draft") return t(LABEL.draft)
   return name || t(LABEL[key] ?? "") || key

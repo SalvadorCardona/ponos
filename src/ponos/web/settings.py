@@ -760,7 +760,7 @@ SECTIONS: tuple[Section, ...] = (
         )
         + (
             Field(
-                "notion.status", "draft", "text", "Drafts",
+                "notion.status", "draft", "text", "Draft",
                 "Optional: the option your board already has for tickets still being "
                 "written. Never picked up. Empty: a draft has no status.",
             ),

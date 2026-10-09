@@ -62,8 +62,8 @@ BRIEFS = 200
 DISK_TTL = 600
 
 # The columns, in the order they are meant to be read. Anything the board
-# carries that is none of them lands in "other" rather than being hidden. The
-# drafts come before them, whether or not the board names its own — see `_keys`.
+# carries that is none of them is a draft, so it is never hidden. The drafts
+# come before them, whether or not the board names its own — see `_keys`.
 COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done")
 
 
@@ -210,7 +210,7 @@ class Api:
                 board_module.overlay(
                     self._ticket(page, names, projects, host),
                     writes.get(page.id.replace("-", "")),
-                    lambda status: names.get(status, "other"),
+                    lambda status: names.get(status, "draft"),
                 ),
                 refused.get(page.id.replace("-", "")),
             )
@@ -242,14 +242,6 @@ class Api:
             if key == "draft"
             or _status(settings, key) not in [_status(settings, other) for other in keys[: keys.index(key)]]
         ]
-        # A ticket with no status is a draft — see `_columns`. One with a status
-        # nobody configured is a ticket somebody wrote and the runner will never
-        # claim. Dropping it from the board because it fits no heading would be
-        # hiding exactly the card that needs a look — so it gets a column of its
-        # own, and only while something is in it. No name: the board has none
-        # for it, and the console says "No status" in whichever language it is in.
-        if any(item["column"] == "other" for item in tickets):
-            columns.append({"key": "other", "name": ""})
         return {
             "tickets": tickets,
             "validate": offers,
@@ -309,7 +301,7 @@ class Api:
             "title": page.title,
             "url": page.url,
             "status": status,
-            "column": names.get(status, "other"),
+            "column": names.get(status, "draft"),
             "project": (project or {}).get("name", ""),
             "kind": (project or {}).get("kind", ""),
             # The ticket's type as the board spells it — `kind` is the project's.
@@ -350,7 +342,7 @@ class Api:
         card = board_module.overlay(
             self._ticket(page, names, self.projects(), self.config.runner.session_host),
             self.outbox.marks().get(page_id.replace("-", "")),
-            lambda status: names.get(status, "other"),
+            lambda status: names.get(status, "draft"),
         )
         # A board without the duration column still ran the session: its log
         # says how long. Only here, where one ticket is read — on the board it
@@ -1272,6 +1264,9 @@ def _columns(settings) -> dict[str, str]:
     that one. A plain `{status: key}` kept the *last*, and every blocked ticket
     went to a `failed` column that was never drawn: three tickets Notion shows
     as blocked, and a console that showed none.
+
+    A status none of them names — the draft's own, `draft`, included when the
+    board does not name it — is a draft as well: the callers fall back on it.
     """
     names: dict[str, str] = {"": "draft"}
     for key in _keys(settings):
@@ -1299,7 +1294,7 @@ def _draft(settings) -> str:
     `draft` is an option the board already had — see `Notion.state` — and it
     counts only when named apart from every status the runner moves a ticket
     through: a draft that is also `ready` is a ticket the runner takes, and
-    calling its column "Drafts" would be lying. Unnamed, a draft is a ticket
+    calling its column "Draft" would be lying. Unnamed, a draft is a ticket
     with no status, and a move to the drafts clears it.
     """
     draft = settings.state("draft")

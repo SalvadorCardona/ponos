@@ -182,7 +182,7 @@ def figures(
     average = round(sum(cost_of[key] for key in shut) / len(shut), 2) if shut else None
 
     born = [ticket for ticket, created, _ in known.values() if created and first <= created <= last]
-    statuses = Counter(str(ticket.get("column") or "other") for ticket in born)
+    statuses = Counter(str(ticket.get("column") or "draft") for ticket in born)
     projects = Counter(str(ticket.get("project") or "") for ticket in born)
     return {
         "from": first.isoformat(),
