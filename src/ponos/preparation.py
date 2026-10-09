@@ -123,7 +123,7 @@ class Preparation(Base):
             session_id=carried or session.new_id(),
             resume=bool(carried),
             log=state.log_file(short),
-            model=str(store.read(ticket.page, self.config.notion.prop("model")) or ""),
+            model=self._written_model(ticket),
             agent=agent,
             comments=self.discussion(ticket),
             kind=kind,
@@ -174,14 +174,27 @@ class Preparation(Base):
             )
         return job
 
+    def _written_model(self, ticket: Ticket) -> str:
+        """The model somebody wrote on the ticket — not the one this runner did.
+
+        The choice is written into the Model column (see `_choose_model`), so
+        on the next attempt the column holds the runner's own pick. That one
+        reads as no model at all, or a run that failed could never climb. A
+        model that differs from the last pick is somebody's, and stays theirs.
+        """
+        written = str(store.read(ticket.page, self.config.notion.prop("model")) or "")
+        earlier = journal.chosen(ticket.id)
+        return "" if written and earlier and earlier["model"] == written else written
+
     def _choose_model(self, ticket: Ticket, job: Job) -> None:
         """Pick the model of a ticket nobody gave one, and say so on it.
 
         Rules rather than a session — see models.py — so it costs nothing and
         cannot fail a ticket: a journal that cannot be read is a ticket chosen
-        for as if it had never run. The reason goes into a comment, not into
-        the Model column: written there, it would read on the next attempt as
-        a model somebody chose, and a run that failed could never climb.
+        for as if it had never run. The reason goes into a comment, and the
+        model into the Model column, so the board shows what the ticket ran
+        on. `_written_model` is what keeps that from reading, on the next
+        attempt, as a model somebody chose.
         """
         settings = self.config.runner
         earlier = journal.chosen(ticket.id)
@@ -213,6 +226,12 @@ class Preparation(Base):
             parts.append(said.say(key, **values))
         reason = ", ".join(parts)
         self.say(f"    · model {choice.model} ({choice.level}) — {reason}")
+        # Commentary, like the cost: a column Notion refuses is a line in the
+        # log and the run carries on; a board without one is left out by the store.
+        try:
+            self._set(ticket, **{self.config.notion.prop("model"): choice.model})
+        except store.StoreError as error:
+            self.say(f"    ! the model could not be written on the ticket ({error})")
         if choice.signals and choice.signals[0][0] == "model-resumed":
             # The session carried on is the one the first comment was about.
             return

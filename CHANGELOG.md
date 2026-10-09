@@ -168,6 +168,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- The model the runner chooses for a ticket with none is now written in its
+  Model column, not only announced in the comment, so boards, filters and
+  statistics show it. A model somebody wrote is never overwritten, and a board
+  without the column goes without. A failed write is a line in the log.
+
 - **The cost of a blocked or failed session is now written in Cost.** Only finished tickets
   recorded theirs, so those sessions were missing from the board, the history and the
   statistics.

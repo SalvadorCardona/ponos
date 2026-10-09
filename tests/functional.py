@@ -860,6 +860,7 @@ TICKETS = {
     "Pull Request": {"type": "url", "url": {}},
     "Session": {"type": "rich_text", "rich_text": {}},
     "Priority": {"type": "select", "select": {"options": [{"name": name} for name in PRIORITIES]}},
+    "Model": {"type": "select", "select": {"options": [{"name": "opus"}]}},
     "Scheduled": {"type": "date", "date": {}},
     "Duration": {"type": "number", "number": {}},
     "Cost": {"type": "number", "number": {}},
@@ -1529,6 +1530,11 @@ def a_ticket_with_no_model_runs_on_the_one_chosen_for_it_and_a_model_written_as_
         assert machine.board.said(light)[0].startswith("🧠 Model chosen automatically — haiku")
         assert "heavy work (audit, sécurité, performance)" in machine.board.said(heavy)[0]
         assert not any(line.startswith("🧠") for line in machine.board.said(forced))
+        # The pick is on the board as well as in the comment; a model somebody
+        # wrote is left as it was.
+        assert machine.board.value(light, "Model") == "haiku", machine.board.value(light, "Model")
+        assert machine.board.value(heavy, "Model") == "opus", machine.board.value(heavy, "Model")
+        assert machine.board.value(forced, "Model") == "opus"
 
 
 @case
