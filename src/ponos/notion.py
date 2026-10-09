@@ -370,6 +370,33 @@ class Client:
             cursor = payload.get("next_cursor")
         return "\n".join(line for line in lines if line is not None).strip()
 
+    def losses(self, block_id: str, depth: int = 0) -> dict[str, int]:
+        """What `replace_markdown` would not give back of this page, and how many times.
+
+        Walks the page the way `blocks_text` does — the same blocks, nested the
+        same depth — and asks `markdown.lost` of each one. Whatever is deeper
+        than `blocks_text` goes is lost too, and said as `nested`.
+        """
+        from . import markdown as converter
+
+        found: dict[str, int] = {}
+        cursor: str | None = None
+        while True:
+            suffix = f"?page_size=100&start_cursor={cursor}" if cursor else "?page_size=100"
+            payload = self._request("GET", f"/blocks/{block_id}/children{suffix}")
+            for block in payload.get("results", []):
+                for kind in converter.lost(block):
+                    found[kind] = found.get(kind, 0) + 1
+                if block.get("has_children") and block.get("type") != "child_page":
+                    if depth >= 3:
+                        found["nested"] = found.get("nested", 0) + 1
+                        continue
+                    for kind, count in self.losses(block["id"], depth + 1).items():
+                        found[kind] = found.get(kind, 0) + count
+            if not payload.get("has_more"):
+                return found
+            cursor = payload.get("next_cursor")
+
     def attachment(self, block_id: str) -> str:
         block = self._request("GET", f"/blocks/{block_id}")
         kind = block.get("type", "")

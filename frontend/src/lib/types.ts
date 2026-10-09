@@ -134,6 +134,16 @@ export interface Pictures {
 /** One project, opened: the row, and what is written on its page. */
 export interface ProjectDetail extends Project {
   content: string
+  version: string
+}
+
+/** A project's brief as the editor opens it, and what saving it would not keep. */
+export interface ProjectBrief {
+  content: string
+  /** What `saveProject` is handed back as `base`: refused if the page no longer says it. */
+  version: string
+  /** The kinds of Notion content Markdown cannot hold, and how many of each. */
+  losses: Record<string, number>
 }
 
 export interface Projects {

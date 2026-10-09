@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A project's brief is edited where it is read.** The *Brief* tab of a project has a
+  *Modifier* button that opens the same Notion-like editor as the context and the tickets,
+  with *Enregistrer* and *Annuler*; Ctrl+S saves, Escape leaves when nothing changed, and
+  leaving the tab or the page with unsaved changes asks first. The brief is written where
+  the runner reads it, so the next ticket of the project is told the new version. Nothing is
+  overwritten silently: if the brief changed in Notion since the editor was opened, the
+  console says so and offers to reload it; if the page holds what Markdown cannot keep
+  (toggles, tables, mentions, embedded databases, bold and links…), it lists them and asks
+  before saving.
+
 - **Ponos from claude.ai, from Claude Code, from a phone: an MCP server.** The console
   answers MCP at `/mcp`: list the projects and the tasks (those waiting for you among them),
   open one with its discussion and its question, see what the runner is doing and what it

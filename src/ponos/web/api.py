@@ -17,6 +17,7 @@ edited — see `Api._brief`.
 
 from __future__ import annotations
 
+import hashlib
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -534,10 +535,30 @@ class Api:
         located = self.runner.resolver.locate(
             row["name"], row.get("configured") or row.get("path") or "", row.get("repository") or ""
         )
+        content = self.runner.client.blocks_text(page_id)
         return {
             **row,
             "located": str(located) if located else "",
-            "content": self.runner.client.blocks_text(page_id),
+            "content": content,
+            "version": _digest(content),
+        }
+
+    def project_brief(self, page_id: str) -> dict:
+        """The brief as the editor opens it: the text, its version, what saving it would lose.
+
+        Read when somebody starts editing rather than with the page, because
+        that is the moment the two other answers are measured from. `version`
+        is what `save_project` is handed back as `base`: a brief that no longer
+        says that has been written to since, and is not overwritten. `losses` is
+        what the Markdown cannot hold of the page as it is now — see
+        `markdown.lost` — kind by kind, for the editor to say before it saves.
+        """
+        client = self.runner.client
+        content = client.blocks_text(page_id)
+        return {
+            "content": content,
+            "version": _digest(content),
+            "losses": client.losses(page_id),
         }
 
     def save_project(self, page_id: str, values: dict) -> dict:
@@ -568,6 +589,8 @@ class Api:
             written[self.runner.client.title_property(database)] = str(values["name"]).strip()
         if not written and "content" not in values:
             raise ValueError("nothing to change")
+        if "content" in values:
+            self._guard_brief(page_id, values)
         if written:
             self.runner.client.update(database, page_id, written)
         # Replacing, not appending: the brief is a value. See `save_context`,
@@ -580,6 +603,24 @@ class Api:
         self._projects_at = 0.0
         self.hub.publish("projects", saved=page_id)
         return self.project(page_id)
+
+    def _guard_brief(self, page_id: str, values: dict) -> None:
+        """Refuse a brief that would overwrite what it was not written from.
+
+        Two refusals, both only asked for by a caller that says what it saw. A
+        `base` — the `version` it opened the brief at — that the page no longer
+        has is a conflict (409: somebody wrote to it in Notion meanwhile). And
+        a page that holds what Markdown cannot is rewritten only once the caller
+        says it knows (`accept_losses`), so that nothing a page holds goes
+        without having been shown. A caller that sends neither, like the edit
+        form, keeps the plain replacement it always had.
+        """
+        client = self.runner.client
+        if "base" in values and _digest(client.blocks_text(page_id)) != values["base"]:
+            raise RuntimeError("this brief changed in the board since it was opened")
+        if "base" in values and not values.get("accept_losses"):
+            if client.losses(page_id):
+                raise ValueError("this brief holds what Markdown cannot keep; saving it would lose it")
 
     def set_picture(self, page_id: str, slot: str, picture: store.Picture) -> dict:
         """Change a project's cover or icon, and say where that leaves it.
@@ -1254,6 +1295,11 @@ def _session_id(value: str) -> str:
     if "://" in value:
         return value.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
     return value
+
+
+def _digest(text: str) -> str:
+    """A short name for a text, to tell whether it is still the one that was read."""
+    return hashlib.sha1(text.strip().encode("utf-8")).hexdigest()[:16]
 
 
 def _columns(settings) -> dict[str, str]:

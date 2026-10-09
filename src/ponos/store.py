@@ -250,6 +250,15 @@ class Store(Protocol):
 
     def replace_markdown(self, page_id: str, markdown: str) -> int: ...
 
+    def losses(self, block_id: str, depth: int = 0) -> dict[str, int]:
+        """What `replace_markdown` would drop of this page, by kind and count.
+
+        Empty on a board that is Markdown already; on Notion, the blocks and
+        the bits of rich text a line of Markdown cannot hold. See
+        `markdown.lost`.
+        """
+        ...
+
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None: ...
 
     def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
