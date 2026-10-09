@@ -1574,6 +1574,9 @@ export const FRENCH: Record<string, string> = {
   "Ten more": "Encore 10",
   "New project": "Nouveau projet",
   "Workspace": "Espace de travail",
+  "What Ponos proposed, kept or thrown away, for the workspace and for each project.":
+    "Ce que Ponos a proposé, gardé ou jeté, pour l'espace de travail et pour chaque projet.",
+  "All projects": "Tous les projets",
   "Project created: {{title}}": "Projet créé : {{title}}",
   "Ticket created: {{title}}": "Ticket créé : {{title}}",
   "Open the project": "Ouvrir le projet",

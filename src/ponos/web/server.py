@@ -505,7 +505,12 @@ class Handler(BaseHTTPRequestHandler):
                 # No `project` is the workspace's ideas, the dashboard's.
                 return self._json(self.api.ideas.proposed((query.get("project") or [""])[0]))
             if route == "/api/ideas/all":
-                return self._json(self.api.ideas.every((query.get("project") or [""])[0]))
+                # `scope=all` is every project's ideas and the workspace's together.
+                return self._json(
+                    self.api.ideas.every(
+                        None if query.get("scope") == ["all"] else (query.get("project") or [""])[0]
+                    )
+                )
             if route == "/api/history":
                 return self._json(self.api.history())
             if route == "/api/disk":

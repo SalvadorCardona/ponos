@@ -585,11 +585,15 @@ def forget(project: str) -> int:
     return gone
 
 
-def every(project: str) -> list[Idea]:
-    """Every idea of one scope, whatever became of it, the newest first."""
-    ideas = listed(project, STATUSES)
-    ideas.reverse()
-    return ideas
+def every(project: str | None) -> list[Idea]:
+    """Every idea of one scope — of all of them when None — whatever became of it, the newest first."""
+    if project is not None:
+        ideas = listed(project, STATUSES)
+        ideas.reverse()
+        return ideas
+    with db.transaction(immediate=False) as connection:
+        rows = connection.execute(f"SELECT {_COLUMNS} FROM ideas ORDER BY id DESC").fetchall()
+    return [_idea(row) for row in rows]
 
 
 def known(project: str) -> list[str]:

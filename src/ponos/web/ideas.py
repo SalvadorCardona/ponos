@@ -72,17 +72,18 @@ class Ideas:
             "undo": last.shown() if last else None,
         }
 
-    def every(self, project: str = "") -> dict:
+    def every(self, project: str | None = "") -> dict:
         """Every idea of one scope, thrown away and turned into tickets included,
-        and how many there are in each status — the list on a project's page."""
-        project = ideas.bare(project)
+        and how many there are in each status — the list on a project's page.
+        With None, those of every scope at once: the Ideas page's."""
+        project = None if project is None else ideas.bare(project)
         found = ideas.every(project)
         counts = {status: 0 for status in ideas.STATUSES}
         for idea in found:
             counts[idea.status] = counts.get(idea.status, 0) + 1
         return {
-            "scope": ideas.scope_of(project),
-            "project": project,
+            "scope": "all" if project is None else ideas.scope_of(project),
+            "project": project or "",
             "ideas": [idea.shown() for idea in found],
             "counts": counts,
         }

@@ -242,8 +242,10 @@ export const api = {
   /** An empty `project` is the workspace's ideas. */
   findIdeas: (project = "") => request<Found>("/api/ideas/generate", { project }),
   /** Every idea of one scope, thrown away and turned into tickets included. */
-  allIdeas: (project = "") =>
-    request<IdeaList>(`/api/ideas/all${project ? `?project=${encodeURIComponent(project)}` : ""}`),
+  allIdeas: (project = "", everywhere = false) =>
+    request<IdeaList>(
+      `/api/ideas/all${everywhere ? "?scope=all" : project ? `?project=${encodeURIComponent(project)}` : ""}`
+    ),
   /** An idea written by hand; an empty `project` is the workspace's. */
   writeIdea: (values: { title: string; description: string; project: string; kind?: Idea["kind"] }) =>
     request<Idea>("/api/ideas", values),
