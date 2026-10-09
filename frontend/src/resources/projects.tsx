@@ -1,9 +1,10 @@
 import * as React from "react"
-import { Check, Clock, Copy, FileText, Folder, FolderGit2 } from "lucide-react"
+import { Check, Clock, Copy, FileText, Folder, FolderGit2, Plus } from "lucide-react"
 import { ActionList, type FormInterface } from "react-data-form"
 import {
   Link,
   ListPagination,
+  ResourceViewButton,
   cardViewOptionFactory,
   createResourceCollection,
   createViewResource,
@@ -34,6 +35,7 @@ import { useRoute } from "@/lib/router"
 import type { Project, Projects } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { settingsHref } from "@/resources/settings"
+import { tickets } from "@/resources/tickets"
 
 /* The projects, declared once for react-resource-view.
  *
@@ -411,6 +413,25 @@ function RowMenu({ project, onDeleted, className }: { project: ProjectItem; onDe
   return <ProjectMenu project={project} tickets={tickets} onDeleted={onDeleted} className={className} />
 }
 
+/** “+ Ticket”, beside the link of a card or a row and not inside it: the dialog is the dashboard's
+ * “New ticket”, with the project already in its field — and none to point at for a line of `config.toml`. */
+function NewTicket({ project, className }: { project: ProjectItem; className?: string }) {
+  if (!isAPage(project.id)) return null
+  return (
+    <div className={className}>
+      <ResourceViewButton action={ActionList.create} resource={tickets} defaultData={{ project: project.id }}>
+        <span
+          data-project-new-ticket
+          className={cn(buttonVariants({ variant: "outline", size: "xs" }), "bg-card whitespace-nowrap")}
+        >
+          <Plus />
+          {t("Ticket")}
+        </span>
+      </ResourceViewButton>
+    </div>
+  )
+}
+
 function ProjectCard({ project, onDeleted }: { project: ProjectItem; onDeleted: () => void }) {
   return (
     <div className="relative h-full">
@@ -423,7 +444,7 @@ function ProjectCard({ project, onDeleted }: { project: ProjectItem; onDeleted: 
           REACHABLE
         )}
       >
-        <div className={cn("flex min-w-0 items-center gap-3", isAPage(project.id) && "pr-7")}>
+        <div className={cn("flex min-w-0 items-center gap-3", isAPage(project.id) && "pr-24")}>
           <ProjectThumb project={project} className="size-10" />
           <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
             <span className="w-full truncate text-[0.95rem] leading-snug font-semibold" title={project.name}>
@@ -445,6 +466,7 @@ function ProjectCard({ project, onDeleted }: { project: ProjectItem; onDeleted: 
           <LastActivity project={project} />
         </div>
       </Link>
+      <NewTicket project={project} className="absolute top-3 right-11" />
       <RowMenu project={project} onDeleted={onDeleted} className="absolute top-2.5 right-2.5" />
     </div>
   )
@@ -497,7 +519,7 @@ function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
                 <Link
                   to={projectHref(project.id)}
                   data-project-row
-                  className={cn(COLUMNS, "hover:bg-accent/40 py-2.5 pr-12 text-sm", REACHABLE)}
+                  className={cn(COLUMNS, "hover:bg-accent/40 py-2.5 pr-28 text-sm", REACHABLE)}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
                     <ProjectThumb project={project} className="size-8 rounded-md" />
@@ -519,6 +541,7 @@ function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
                     <TicketTally project={project} withStatuses={false} />
                   </span>
                 </Link>
+                <NewTicket project={project} className="absolute top-1/2 right-11 -translate-y-1/2" />
                 <RowMenu
                   project={project}
                   onDeleted={() => void fetchData?.()}
