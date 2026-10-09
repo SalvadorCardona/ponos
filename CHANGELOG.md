@@ -18,6 +18,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **An *Ideas* page.** A new entry in the menu lists every idea — the workspace's and each
+  project's, new, kept, thrown or turned into tickets — as cards with the title, the
+  description, the *Ticket* / *New project* badge, the project's icon and name (or *Workspace*)
+  and the idea's state. Filter by state and by project; *Keep*, *Throw away*, *Back to new* and
+  *Turn into a ticket*, which writes the draft to Master Tickets in the idea's project.
+  *Ponos, find me ideas* is there too, for the project picked in the filter, and its swipe cards
+  now show the project's icon and name.
+
 - **The global context sits at the top of the Projects page.** *Context* is gone from the
   menu: the text every ticket is told first, for all the projects, is the first block of
   *Projects* — folded to a few lines in Markdown, *See all* to read it, *Edit* to write it in

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { projectHref } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
+import { IdeaOrigin } from "./idea-origin"
 import { Byline, IdeaList } from "./ideas-list"
 import { Robot } from "./robot"
 
@@ -503,9 +504,7 @@ function Card({
         <Badge variant={idea.kind === "project" ? "default" : "secondary"} data-slot="ideas-kind">
           {idea.kind === "project" ? t("New project") : t("Ticket")}
         </Badge>
-        <span className="text-muted-foreground min-w-0 truncate text-xs">
-          {idea.kind === "project" ? t("Workspace") : name || t("Workspace")}
-        </span>
+        <IdeaOrigin project={idea.kind === "project" ? "" : idea.project} name={name} />
       </div>
       <h3 className="text-xl leading-snug font-semibold tracking-tight">{idea.title}</h3>
       <p className="text-muted-foreground line-clamp-6 text-sm leading-relaxed">

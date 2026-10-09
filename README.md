@@ -2376,6 +2376,12 @@ short form — title, description, project (the page's own, already picked) — 
 stored as written by hand; *Find me ideas for this project* is there too. The deck's *All ideas*
 tab is the same list, the workspace's when opened from the dashboard.
 
+The *Ideas* entry of the menu is that same list for every scope at once: each card also says
+whom it is for — the project's icon and name, or *Workspace* — and a filter by project sits
+beside the filter by status. *Ponos, find me ideas* asks for a batch for the project picked in
+that filter, and the swipe it opens stays the quick way to sort them. The console reads the
+list through `GET /api/ideas/all?scope=all`.
+
 Ideas live in the local database, `ponos.db`, with what each batch cost, who wrote them, and
 when their status last changed — they survive restarts and updates. The console asks for them
 through `GET /api/ideas[?project=…]` (the pile, and the last fifty decisions), `GET

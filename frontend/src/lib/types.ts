@@ -623,7 +623,7 @@ export interface Idea {
 
 /** Every idea of one scope, and how many are in each status. */
 export interface IdeaList {
-  scope: "global" | "project"
+  scope: "global" | "project" | "all"
   project: string
   ideas: Idea[]
   counts: Record<IdeaStatus, number>

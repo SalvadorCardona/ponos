@@ -16,6 +16,7 @@ const PAGES: [string, RegExp][] = [
   ["Dashboard", /\/\?view=console\/tickets\//],
   ["Projects", /\/\?view=console\/projects\//],
   ["Schedules", /\/\?view=console\/schedules\//],
+  ["Ideas", /\/\?view=console\/ideas\//],
   ["Settings", /\/\?view=console\/settings\//],
 ]
 

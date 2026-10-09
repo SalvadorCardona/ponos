@@ -13172,6 +13172,13 @@ def an_idea_is_kept_thrown_reopened_and_nothing_is_ever_deleted():
         assert every["counts"] == {"proposed": 0, "kept": 1, "discarded": 1, "ticket": 1}
         assert {idea["id"] for idea in every["ideas"]} == {dark["id"], export["id"], tutorial["id"]}
 
+        # The Ideas page asks for every scope at once, the workspace's included.
+        api.ideas.write("", "ticket", "Une idée de l'espace")
+        everywhere = api.ideas.every(None)
+        assert everywhere["scope"] == "all" and len(everywhere["ideas"]) == 4
+        assert {idea["project"] for idea in everywhere["ideas"]} == {"", ideas.bare(project)}
+        assert everywhere["counts"]["proposed"] == 1
+
         back = api.ideas.reopen(tutorial["id"])
         assert back["status"] == "proposed" and back["ticket"] == made["ticket"]
         assert back["changed_at"] >= made["changed_at"] and back["decided_at"] is None

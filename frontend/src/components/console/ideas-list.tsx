@@ -14,10 +14,11 @@ import { api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import type { Idea, IdeaAuthor, IdeaList as Listed, IdeaStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { isAPage, projectHref, projectsOnce } from "@/resources/projects"
+import { isAPage, projectHref, projectsOnce, useProjects } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
 import { EmptyState } from "./empty-state"
+import { IdeaOrigin } from "./idea-origin"
 import { IdeasButton } from "./ideas-deck"
 import { Robot } from "./robot"
 import { Chip, ago } from "./ticket-bits"
@@ -34,10 +35,18 @@ import { Chip, ago } from "./ticket-bits"
  * the workspace's when the deck was opened from the dashboard. An idea written
  * here goes through the same table as Ponos's, so the next batch is told about
  * it and never proposes it again.
+ *
+ * Opened as the *Ideas* page (`everywhere`) it is every scope at once, each card
+ * saying whom it is for — the project's icon and name — with a project filter
+ * beside the status one.
  */
 
 const STATUSES: IdeaStatus[] = ["proposed", "kept", "discarded", "ticket"]
 type Who = "all" | "ponos" | "human"
+/** What the project filter holds besides a project's id; Radix cannot hold an empty value. */
+const ANY = "__any__"
+const NONE = "__workspace__"
+const bare = (id: string) => id.replace(/-/g, "")
 
 /** What a status is called on a card, and on its filter. */
 function useStatusWords() {
@@ -62,6 +71,7 @@ export function IdeaList({
   project = "",
   name = "",
   find = false,
+  everywhere = false,
   className,
 }: {
   /** The project's page; none for the workspace. */
@@ -69,6 +79,8 @@ export function IdeaList({
   name?: string
   /** Offer Ponos's deck as well, for a list that is not already inside it. */
   find?: boolean
+  /** The ideas of every scope, filtered by project, instead of one scope's. */
+  everywhere?: boolean
   className?: string
 }) {
   const t = useT()
@@ -77,18 +89,24 @@ export function IdeaList({
   const [problem, setProblem] = React.useState("")
   const [status, setStatus] = React.useState<IdeaStatus | "all">("all")
   const [who, setWho] = React.useState<Who>("all")
+  const [where, setWhere] = React.useState(ANY)
+  const projects = useProjects()
   const [writing, setWriting] = React.useState(false)
   const [editing, setEditing] = React.useState<number | null>(null)
   const [busy, setBusy] = React.useState<number | null>(null)
 
   const load = React.useCallback(async () => {
     try {
-      setListed(await api.allIdeas(project))
+      setListed(await api.allIdeas(project, everywhere))
       setProblem("")
     } catch (error) {
       setProblem(why(error))
     }
-  }, [project])
+  }, [project, everywhere])
+
+  React.useEffect(() => {
+    if (everywhere) void projectsOnce().catch(() => undefined)
+  }, [everywhere])
 
   React.useEffect(() => {
     void load()
@@ -108,7 +126,23 @@ export function IdeaList({
     }
   }
 
-  const theirs = (listed?.ideas ?? []).filter((idea) => who === "all" || idea.author.kind === who)
+  // A project idea is the workspace's: it is for a project that does not exist yet.
+  const scopeOf = (idea: Idea) => (idea.kind === "project" ? "" : bare(idea.project))
+  const theirs = (listed?.ideas ?? []).filter(
+    (idea) =>
+      (who === "all" || idea.author.kind === who) &&
+      (where === ANY || scopeOf(idea) === (where === NONE ? "" : where))
+  )
+  // Every project that has an idea, named by the list the console holds.
+  const named = [
+    ...new Set((listed?.ideas ?? []).map(scopeOf).filter(Boolean)),
+  ]
+    .map((id) => ({
+      id,
+      name: projects?.projects.find((one) => bare(one.id) === id)?.name ?? t("Project"),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const asking = where === ANY || where === NONE ? "" : where
   const counts = Object.fromEntries(
     STATUSES.map((key) => [key, theirs.filter((idea) => idea.status === key).length])
   ) as Record<IdeaStatus, number>
@@ -124,6 +158,13 @@ export function IdeaList({
           </Button>
         ) : null}
         {find && project ? <IdeasButton project={project} name={name} onClose={() => void load()} /> : null}
+        {everywhere ? (
+          <IdeasButton
+            project={asking}
+            name={named.find((one) => one.id === asking)?.name}
+            onClose={() => void load()}
+          />
+        ) : null}
       </div>
 
       {writing ? (
@@ -160,6 +201,22 @@ export function IdeaList({
             </Button>
           ))}
         </div>
+        {everywhere ? (
+          <Select value={where} onValueChange={setWhere}>
+            <SelectTrigger size="sm" className="h-7 w-auto text-xs" data-slot="ideas-project-filter" aria-label={t("Project")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{t("All projects")}</SelectItem>
+              <SelectItem value={NONE}>{t("Workspace")}</SelectItem>
+              {named.map((one) => (
+                <SelectItem key={one.id} value={one.id}>
+                  {one.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
         <Select value={who} onValueChange={(value) => setWho(value as Who)}>
           <SelectTrigger size="sm" className="h-7 w-auto text-xs" data-slot="ideas-author-filter" aria-label={t("Written by")}>
             <SelectValue />
@@ -196,6 +253,7 @@ export function IdeaList({
                 key={idea.id}
                 idea={idea}
                 status={words.one[idea.status]}
+                named={!project}
                 busy={busy === idea.id}
                 onKeep={() => void act(idea, api.keepIdea)}
                 onDiscard={() => void act(idea, api.discardIdea)}
@@ -228,6 +286,7 @@ export function IdeaList({
 function IdeaCard({
   idea,
   status,
+  named,
   busy,
   onKeep,
   onDiscard,
@@ -237,6 +296,8 @@ function IdeaCard({
 }: {
   idea: Idea
   status: string
+  /** Say whom it is for: a list that is not already one project's. */
+  named: boolean
   busy: boolean
   onKeep: () => void
   onDiscard: () => void
@@ -264,7 +325,9 @@ function IdeaCard({
       <div className="flex flex-wrap items-center gap-2">
         <Byline author={idea.author} when={idea.created_at} />
         <span className="flex-1" />
-        {idea.kind === "project" ? <Badge variant="default">{t("New project")}</Badge> : null}
+        <Badge variant={idea.kind === "project" ? "default" : "secondary"} data-slot="ideas-kind">
+          {idea.kind === "project" ? t("New project") : t("Ticket")}
+        </Badge>
         <Chip
           className={cn(
             idea.status === "discarded" && "text-red-600 dark:text-red-400",
@@ -275,7 +338,11 @@ function IdeaCard({
         </Chip>
       </div>
       <div className="min-w-0">
-        <p className={cn("text-sm leading-snug font-medium", idea.status === "discarded" && "text-muted-foreground")}>
+        {named ? <IdeaOrigin project={idea.kind === "project" ? "" : idea.project} className="mb-1" /> : null}
+        <p
+          data-slot="ideas-title"
+          className={cn("text-sm leading-snug font-medium", idea.status === "discarded" && "text-muted-foreground")}
+        >
           {idea.title}
         </p>
         {idea.description ? (
