@@ -83,6 +83,13 @@ becoming a ticket part ways: `kept` is a decision, `ticket` is a page on the
 board — every idea kept before this migration had become one, so it is moved
 there. `changed_at` is when the status last changed, whichever way: unlike
 `decided_at`, it is not cleared when an idea is proposed again.
+
+Migration 15 is why a ready ticket is still where it is: the pass writes it
+down each time it reads the column and leaves a ticket there — still running,
+every place taken — and the console reads it to say so on the card. Nothing
+about it outlives the pass that wrote it, so the table is rewritten whole, and
+emptied when the pass ends; it is a table and not a file because the console
+reads it while the run writes it.
 """
 
 from __future__ import annotations
@@ -563,6 +570,18 @@ def _ideas_say_who_wrote_them(connection: sqlite3.Connection) -> None:
     connection.execute("UPDATE ideas SET changed_at = COALESCE(decided_at, created_at)")
 
 
+def _held(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE held (
+            ticket  TEXT PRIMARY KEY,
+            reason  TEXT NOT NULL,
+            detail  TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -585,6 +604,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _ideas,
     _mcp,
     _ideas_say_who_wrote_them,
+    _held,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

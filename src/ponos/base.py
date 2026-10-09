@@ -93,6 +93,12 @@ class Base:
         # opened with its session and closed by `_guarded` once the ticket's
         # outcome is known — see journal.py.
         self._journals: dict[str, journal.Run] = {}
+        # Why each ready ticket the last reading did not take was left there,
+        # and what the journal was last told of it — see `Board.explain`. None
+        # until the first look, so that a record left by a pass that died is
+        # replaced even when this one holds nothing back.
+        self._holding: dict[str, tuple[Ticket, str]] = {}
+        self._explained: dict[str, str] | None = None
 
     @property
     def agent_labels(self) -> set[str]:

@@ -507,3 +507,37 @@ def describe(reader: Reader, tickets: list[dict]) -> dict[str, Any]:
         "failed": marks.count("failed"),
         "conflicts": marks.count("conflict"),
     }
+
+
+def held(
+    ticket: dict,
+    noted: dict[str, tuple[str, str]],
+    *,
+    passing: bool,
+    timer: bool,
+    waits: dict[str, str] | None = None,
+    now: datetime | None = None,
+) -> dict[str, str]:
+    """Why a ready card is still in its column — or nothing, for any other card.
+
+    A ready column that stays full with nothing to say why reads as a broken
+    runner, and for half an hour it was one. So every ready card says what it is
+    waiting for, from the first of these that holds: its date, the credit, the
+    reserve or the day's limit (`waits`: what each has written down, as a
+    clock reads it), what the pass under way wrote down about it (`noted`, see
+    `Board.explain` — read only while a pass holds the lock, since a pass that
+    died leaves its record behind), and otherwise the next reading of the board:
+    the pass's own if one is under way, the timer's if it is on.
+    """
+    if ticket.get("column") != "ready":
+        return {}
+    moment = _moment(str(ticket.get("scheduled") or ""))
+    if moment is not None and moment > (now or datetime.now(timezone.utc)):
+        return {"reason": "date", "detail": str(ticket["scheduled"])}
+    for what, until in (waits or {}).items():
+        if until:
+            return {"reason": what, "detail": until}
+    if passing:
+        reason, detail = noted.get(_key(ticket.get("id", "")), ("pass", ""))
+        return {"reason": reason, "detail": detail}
+    return {"reason": "next" if timer else "timer", "detail": ""}

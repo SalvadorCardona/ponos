@@ -607,6 +607,14 @@ publication takes the next one that frees, before any ready ticket. Work you hav
 accepted is one gesture from done, and nothing about a session in flight has anything to
 do with it. See [Validated, and what it sets off](#validated-and-what-it-sets-off).
 
+A ticket moved back to ready is asked for again, whether or not this pass already ran
+it: it is held out only while a session of the pass is still on it — and fifteen seconds
+after, for Notion to stop serving its old status — then played again on its branch and
+its pull request, with a new report on the ticket. A ready card in the console always
+says what it is waiting for: its date, the credit, the reserve or the day's limit, a
+session still on it, every place taken, the next reading of the board, or a timer that
+is off. The pass writes the same reasons in its log as they change, starting with `…`.
+
 Two things follow. `ponos run --limit 3` means three tickets for that pass, not
 three at a time — the limit caps what is taken off the ready column, `max_concurrent`
 caps what runs at once, and a validated ticket carried out along the way is counted by

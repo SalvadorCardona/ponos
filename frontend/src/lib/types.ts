@@ -52,6 +52,8 @@ export interface Ticket {
   sync_error?: string
   /** The status the move was to. */
   sync_status?: string
+  /** On a ready card only: why it is still there — see `held` in `web/board.py`. */
+  held?: { reason: string; detail: string }
 }
 
 /** A ticket, with the page under it: the brief, the report, the notes between. */

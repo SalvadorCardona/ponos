@@ -19,6 +19,8 @@ reads next is true.
 
 from __future__ import annotations
 
+import time
+from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
 
 from . import conversation, git, state, store
@@ -32,6 +34,58 @@ from .question import Question
 # two readings of them that drift apart is a bug nobody would ever find.
 from .schedules import scheduled_for
 from .ticket import Ticket
+
+
+# How long a ticket a pass has just finished with stays out of its readings of
+# the ready column. Measured: a query sees a write one to four seconds after it
+# was made (see web/board.py), so a ticket failed in a second could still come
+# back "ready" from the status it had before — and be run a second time.
+SETTLE = 15.0
+
+
+class InHand:
+    """The tickets a pass is working on, held out of its readings of the board.
+
+    It used to be every ticket the pass had *ever* started, for as long as the
+    pass lasted — and a pass lasts for hours now that it refills itself. Two
+    tickets run at 22:53, blocked at 23:20 and moved back to ready by hand were
+    still being skipped at 23:50, with nothing anywhere to say why, while every
+    new ticket went straight through. Being moved back to ready is asking for
+    the ticket to be run again: it is held out only while a session of this pass
+    is really on it, and `SETTLE` seconds after, for Notion to stop serving the
+    status it had before.
+    """
+
+    def __init__(self, settle: float | None = None) -> None:
+        self.settle = SETTLE if settle is None else settle
+        self._working: set[str] = set()
+        self._left: dict[str, float] = {}
+        self._futures: dict[Future, str] = {}
+
+    def take(self, ticket_id: str) -> None:
+        self._working.add(ticket_id)
+        self._left.pop(ticket_id, None)
+
+    def leave(self, ticket_id: str) -> None:
+        """The pass is done with it: whatever it wrote on the board stands."""
+        self._working.discard(ticket_id)
+        self._left[ticket_id] = time.monotonic()
+
+    def carry(self, future: Future, ticket_id: str) -> Future:
+        """The ticket's session, followed to its end — see `land`."""
+        self._futures[future] = ticket_id
+        return future
+
+    def land(self, done: set[Future]) -> None:
+        for future in done:
+            if future in self._futures:
+                self.leave(self._futures.pop(future))
+
+    def __contains__(self, ticket_id: object) -> bool:
+        if ticket_id in self._working:
+            return True
+        left = self._left.get(str(ticket_id))
+        return left is not None and time.monotonic() - left < self.settle
 
 
 class Board(Base):
@@ -445,6 +499,13 @@ class Board(Base):
             )
             state.release(ticket.id)
             recovered += 1
+        # A note of a claim whose ticket is no longer in progress: let go of
+        # some other way — moved by hand, or by a run that died before it could
+        # say so. Kept, it would go on holding a worktree (see cleanup.py) and
+        # turn the ticket's next claim into a publication "interrupted".
+        working = {Ticket(page).id for page in running} | self._claimed
+        for orphan in set(state.claims()) - working:
+            state.release(orphan)
         return recovered
 
     def close_merged(self) -> int:
@@ -493,7 +554,7 @@ class Board(Base):
             closed += 1
         return closed
 
-    def _again(self, started: set[str]) -> list[Ticket]:
+    def _again(self, hand: InHand) -> list[Ticket]:
         """The tickets a freed place can be filled with, board read afresh.
 
         Read afresh on purpose: a pass that lasts hours must not run on the
@@ -521,10 +582,58 @@ class Board(Base):
         except store.StoreError as error:
             self.say(f"  ! the board could not be read again: {voice_module.line(error)}")
             return []
-        fresh = [ticket for ticket in tickets if ticket.id not in started]
+        fresh = [ticket for ticket in tickets if ticket.id not in hand]
+        # In the column and in a session of this pass at once: moved back to
+        # ready while it ran. It is run again — once that session is over, not
+        # beside it.
+        self._holding = {
+            ticket.id: (ticket, "running") for ticket in tickets if ticket.id in hand
+        }
         # Queued or held for later, both are work about to happen: `converse`
         # leaves them alone, because their comments are going into a prompt.
         self._claimed |= {ticket.id for ticket in fresh} | {ticket.id for ticket, _ in waiting}
         if fresh:
             self.say(f"  ↺ {len(fresh)} ticket(s) ready since — filling the free place(s).")
         return fresh
+
+    def explain(
+        self, queued: list[Ticket], width: int, *, limited: bool = False, done: bool = False
+    ) -> None:
+        """Write down why each ready ticket this pass knows of is still waiting.
+
+        A ready column that stays full while nothing says why reads as a broken
+        runner — which is how two tickets waited for half an hour unnoticed.
+        Only what this pass alone knows is written here: a session of its own
+        still on the ticket, every place taken, or `--limit` reached. What
+        anybody can read elsewhere — a date, the credit, the reserve, the timer
+        — the console says by itself (see `web/board.held`).
+
+        Written to the journal when it changes rather than at every look: at the
+        timer's cadence, the same line would be the whole of it within an hour.
+        `done` is the pass ending: nothing it held is held any more.
+        """
+        if done:
+            self._holding = {}
+        reasons = dict(self._holding)
+        crowded = "limit" if limited else "places"
+        for ticket in queued:
+            reasons.setdefault(ticket.id, (ticket, crowded))
+        if {key: why for key, (_, why) in reasons.items()} == self._explained and not done:
+            return
+        if not self.dry_run:
+            state.hold(
+                {
+                    key: (why, str(width) if why == "places" else "")
+                    for key, (_, why) in reasons.items()
+                }
+            )
+        for key, (ticket, why) in reasons.items():
+            if (self._explained or {}).get(key) == why:
+                continue
+            said = {
+                "running": "a session of this pass is still on it — run again once it ends",
+                "places": f"all {width} place(s) taken — it starts at the next free one",
+                "limit": "--limit reached for this pass",
+            }[why]
+            self.say(f"  … {ticket.title} — waiting: {said}")
+        self._explained = {key: why for key, (_, why) in reasons.items()}
