@@ -18,6 +18,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The console from your phone, over Tailscale.** `tailscale serve --bg 8787` and
+  `web.url = "https://<machine>.<tailnet>.ts.net"` in `[web]`: the console stays on
+  `127.0.0.1`, and now answers that name — that one exactly — instead of a 421. Any other
+  name is still turned away; with `web.url` empty, nothing changes.
 - **An *Ideas* page.** A new entry in the menu lists every idea — the workspace's and each
   project's, new, kept, thrown or turned into tickets — as cards with the title, the
   description, the *Ticket* / *New project* badge, the project's icon and name (or *Workspace*)

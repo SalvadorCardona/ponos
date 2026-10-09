@@ -2565,6 +2565,12 @@ Then `http://127.0.0.1:8787` on the near side, over a channel that already authe
 you. A console bound to `0.0.0.0` with a token is possible — set `web.token` and say so —
 but the tunnel is the answer that does not depend on the token never leaking.
 
+[Tailscale](https://tailscale.com) does the same without a terminal on the phone:
+`tailscale serve --bg 8787` relays `https://<machine>.<tailnet>.ts.net` to the loopback
+console, inside your tailnet only. Set `web.url` to that address — the console answers the
+name `web.url` gives it, that one exactly, and still turns any other away with a 421.
+Never `tailscale funnel`: that one is the whole Internet.
+
 | Key | Default | Effect |
 | --- | --- | --- |
 | `web.host` | `127.0.0.1` | what to bind. Anything else needs `web.token`, or a sign-in, set |
