@@ -77,6 +77,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The Settings action bar, redone.** On every section, *Cancel* (secondary) and *Save*
+  (primary, blue, with a spinner while it saves and a clearly greyed state when nothing
+  changed) sit on the right; on the left a quiet status says *No changes*, *Unsaved changes*
+  (with an accent dot), *Saved ✓* for a few seconds, or the error in red. The bar sticks to the
+  bottom of the screen only while something is waiting, and the browser asks before you leave
+  the page with unsaved settings. Empty fields no longer say "nothing": the instructions files
+  show *Ponos's default instructions*, the others *not set*.
+
 - **The console and the site are blue, the robot's blue.** The lime accent is gone: buttons,
   the active sidebar item, focus rings and the sign-in page take the mascot's blue (a deeper
   shade of it in the light theme, so white text stays above 4.5:1). *In progress* and the

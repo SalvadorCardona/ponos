@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Loader2Icon } from "lucide-react"
 import {
   FormElement,
   MultiSelectInputController,
@@ -13,6 +13,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import { t as translate, useT } from "@/lib/i18n"
@@ -127,7 +128,10 @@ function placeholder(field: SettingField): string {
     return field.preview
       ? translate("set · ends {{preview}}", { preview: field.preview })
       : translate("not set")
-  if (field.fallback === "" || field.fallback === null) return translate("nothing")
+  if (field.fallback === "" || field.fallback === null)
+    return field.name.endsWith("prompt_file")
+      ? translate("Ponos's default instructions")
+      : translate("not set")
   return translate("default · {{value}}", { value: String(field.fallback) })
 }
 
@@ -325,7 +329,9 @@ export const FoldContext = React.createContext<{
   advanced: number
   unfolded: boolean
   fold: () => void
-}>({ advanced: 0, unfolded: false, fold: () => {} })
+  /** What the last save said, for the few seconds the page keeps it. */
+  note: SaveNote | null
+}>({ advanced: 0, unfolded: false, fold: () => {}, note: null })
 
 /* The bar every section ends on: what is waiting to be saved, the command that
  * says whether this part of the file actually works, and the two gestures.
@@ -334,13 +340,15 @@ export const FoldContext = React.createContext<{
  * the count it shows is read off the form the package is holding rather than
  * off a second copy kept in a parent.
  *
- * The room at its right end is the discussion's bubble, which floats over the
- * bottom corner of every page: without it, Save sat under the bubble. On a
- * phone it sticks to the top of the bottom bar rather than behind it. */
+ * It sticks to the bottom of the screen only while something is waiting to be
+ * saved — that is the moment it must not be scrolled away from. The room at its
+ * right end then is the discussion's bubble, which floats over the bottom
+ * corner of every page: without it, Save sat under the bubble. On a phone it
+ * sticks to the top of the bottom bar rather than behind it. */
 function SaveBar({ sectionKey }: { sectionKey: string }) {
   const { form, onSubmit, updateData, isLoading } = useFormContext()
   const { runCommand } = useConsole()
-  const { advanced, unfolded, fold } = React.useContext(FoldContext)
+  const { advanced, unfolded, fold, note } = React.useContext(FoldContext)
   const t = useT()
   const section = sectionOf(sectionKey)
   if (!section) return null
@@ -348,14 +356,33 @@ function SaveBar({ sectionKey }: { sectionKey: string }) {
   const changed = Object.keys(written(section, form.data as Record<string, SettingValue>)).length
   const check = CHECKS[sectionKey]
 
+  const saving = isLoading.value
+  const status = saving
+    ? { text: t("Saving…"), tone: "text-muted-foreground" }
+    : changed > 0
+      ? { text: t("Unsaved changes"), tone: "text-foreground" }
+      : note?.bad
+        ? { text: note.text, tone: "text-destructive" }
+        : note
+          ? { text: t("Saved ✓"), tone: "text-tr-green" }
+          : { text: t("No changes"), tone: "text-muted-foreground" }
+
   return (
-    <div className="bg-card sticky bottom-(--bottom-nav) col-span-full mt-5 flex flex-wrap items-center gap-2 border-t py-2.5 pr-16">
-      <span className="text-muted-foreground text-xs">
-        {changed === 0
-          ? t("nothing typed here")
-          : changed === 1
-            ? t("one change, unsaved")
-            : t("{{count}} changes, unsaved", { count: String(changed) })}
+    <div
+      className={cn(
+        "col-span-full mt-5 flex flex-wrap items-center gap-2 border-t py-3",
+        changed > 0 &&
+          "bg-card sticky bottom-(--bottom-nav) z-10 pr-16 shadow-[0_-6px_12px_-8px_rgb(0_0_0/0.2)]"
+      )}
+    >
+      <span
+        role="status"
+        className={cn("flex min-w-0 items-center gap-1.5 text-xs", status.tone)}
+      >
+        {changed > 0 && !saving ? (
+          <span aria-hidden className="bg-primary size-1.5 shrink-0 rounded-full" />
+        ) : null}
+        {status.text}
       </span>
       {advanced ? (
         <Button
@@ -392,14 +419,20 @@ function SaveBar({ sectionKey }: { sectionKey: string }) {
       ) : null}
       <Button
         type="button"
-        variant="outline"
-        disabled={!changed || isLoading.value}
+        variant="secondary"
+        disabled={!changed || saving}
         onClick={() => updateData(sectionData(section), false)}
       >
-        {t("revert")}
+        {t("Cancel")}
       </Button>
-      <Button type="button" disabled={!changed || isLoading.value} onClick={() => void onSubmit()}>
-        {isLoading.value ? t("saving…") : t("Save")}
+      <Button
+        type="button"
+        className="disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+        disabled={!changed || saving}
+        onClick={() => void onSubmit()}
+      >
+        {saving ? <Loader2Icon className="animate-spin" /> : null}
+        {saving ? t("Saving…") : t("Save")}
       </Button>
     </div>
   )
