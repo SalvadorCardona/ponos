@@ -268,6 +268,12 @@ test.describe("the page of a project", () => {
     await open(page)
     await card(page, "Website").click()
     await onThePageOf(page, "Website")
+    // The board is shared with the other tests: this one brings its own ticket.
+    await page.getByRole("button", { name: "New ticket" }).click()
+    const dialog = page.getByRole("dialog")
+    await dialog.getByLabel("Title").fill("Rows of the table")
+    await dialog.getByRole("button", { name: "Create" }).click()
+    await expect(dialog).toBeHidden()
     const layouts = page.getByRole("tablist").filter({ hasText: "table" })
     await expect(layouts).toBeVisible()
 
@@ -280,7 +286,8 @@ test.describe("the page of a project", () => {
 
     // Nothing of another project, and the layout is the dashboard's next time.
     await expect(page.locator('[data-slot="table-row"]', { hasText: "Elsewhere" })).toHaveCount(0)
-    await expect(page.getByRole("link", { name: /^Dashboard/ })).toHaveAttribute("href", /variant=table/)
+    await page.getByRole("link", { name: /^Dashboard/ }).click()
+    await expect(page).toHaveURL(/variant=table/)
   })
 
   test("the page takes the width the dashboard does, tickets and brief alike", async ({ page }) => {
