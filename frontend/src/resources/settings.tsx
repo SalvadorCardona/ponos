@@ -1,28 +1,15 @@
 import * as React from "react"
 import {
-  Activity,
-  BadgeCheck,
   Bell,
-  Bot,
-  CalendarClock,
-  Coins,
-  Columns3,
-  FileStack,
+  Cpu,
   FolderGit2,
-  GitBranch,
-  GitPullRequest,
-  Globe,
-  HardDrive,
+  Inbox,
   ListChecks,
-  MessageSquareReply,
-  MessageSquareText,
-  NotebookText,
-  RefreshCw,
-  Trash2,
+  Play,
+  Search,
   Settings2,
-  Shapes,
-  TableProperties,
-  Timer,
+  SlidersHorizontal,
+  Trash2,
 } from "lucide-react"
 import { ActionList } from "react-data-form"
 import {
@@ -30,6 +17,7 @@ import {
   createViewResource,
   generateLink,
   useCurrentViewResourceContext,
+  useNavigate,
   type IconType,
   type SubViewResourceInterface,
 } from "react-resource-view"
@@ -38,44 +26,54 @@ import { PageHead } from "@/components/console/frame"
 import { LanguagePicker } from "@/components/console/language-picker"
 import { SetupSummary } from "@/components/console/setup"
 import {
-  FoldContext,
-  SectionForm,
-  written,
+  GroupForm,
+  cardId,
+  inputName,
   type SaveNote,
 } from "@/components/console/settings-bits"
 import { Rich } from "@/components/console/text"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { useConsole } from "@/hooks/use-console"
 import { api } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
+import { search } from "@/lib/settings-search"
 import {
+  ask,
+  asked,
   currentSettings,
-  draftOf,
+  groupOf,
   publishSettings,
   sectionOf,
+  sectionsIn,
+  showKeys,
   somethingIsEdited,
+  takeAsked,
+  useAsked,
+  useKeysShown,
   useSettingsRevision,
 } from "@/lib/settings-store"
-import type { Disk, SettingSection, Settings } from "@/lib/types"
+import type { Disk, SettingGroup, SettingSection, Settings } from "@/lib/types"
 
 import { pairResources, type PairTable } from "./pairs"
 
 /* The configuration, declared once for react-resource-view.
  *
  * `config.toml` is one thing, so it is one record: the page is the `read` view
- * of a resource with a single item, and each of the file's sections is a
- * sub-page of it. That is what the package's `subViewResource` is — one page,
- * its sub-pages, and the tab you are on carried in the address, so a link to
- * the notification settings is a link you can send somebody.
+ * of a resource with a single item, and each of its six groups is a sub-page
+ * of it — the tab you are on carried in the address, so a link to the
+ * notification settings is a link you can send somebody.
  *
- * It replaces a column of collapsibles that drew all seventy fields at once,
- * open or folded, and redrew every one of them on every keystroke. A tab draws
- * the section you are looking at and nothing else, which is most of what made
- * the page slow; what you type in a section you leave is kept in the store and
- * given back when you come to it again.
+ * Six rather than one per table of the file: the file is organised the way the
+ * loader reads it, the page the way somebody looks for a setting. A tab draws
+ * the group you are looking at and nothing else; what you type on a page you
+ * leave is kept in the store and given back when you come to it again.
  *
- * The tabs are built from what the server says the file holds — a section the
+ * The tabs are built from what the server says the file holds — a group the
  * runner gains is a sub-page the day it is described — which is why the list
  * is read from the store rather than written down here. See `settings-store`.
  */
@@ -94,165 +92,18 @@ export interface SettingsItem extends Settings {
   name: string
 }
 
-/* What each section is, at a glance. Decoration rather than a second list of
- * sections: a key nobody has drawn an icon for gets the page's own. */
+/* What each page is, at a glance. Decoration rather than a second list of
+ * groups: a key nobody has drawn an icon for gets the page's own. */
 const ICONS: Record<string, IconType> = {
-  notion: NotebookText,
-  storage: HardDrive,
-  runner: Timer,
-  models: Coins,
-  claude: Bot,
-  openrouter: Bot,
-  git: GitBranch,
-  validation: BadgeCheck,
-  types: Shapes,
-  schedules: CalendarClock,
-  live: Activity,
-  replies: MessageSquareReply,
-  prompts: MessageSquareText,
-  notify: Bell,
-  web: Globe,
-  update: RefreshCw,
-  projects: FolderGit2,
-  github: GitPullRequest,
-  status: Columns3,
-  properties: TableProperties,
-  pages: FileStack,
+  general: SlidersHorizontal,
+  source: Inbox,
+  execution: Play,
+  models: Cpu,
+  code: FolderGit2,
+  communication: Bell,
 }
 
-/** The line under a section's name: the file's own words, code spans and all. */
-function Blurb({ text }: { text: string }) {
-  const t = useT()
-  return (
-    <p className="text-muted-foreground mb-5 max-w-prose text-xs leading-relaxed">
-      <Rich text={t(text)} />
-    </p>
-  )
-}
-
-/* -- one sub-page ---------------------------------------------------------- */
-
-/* The sections whose advanced fields somebody unfolded, for as long as the page
- * is open: coming back to a section shows it the way it was left. */
-const UNFOLDED = new Set<string>()
-
-/** Whether a section has an advanced field waiting to be saved. */
-function advancedTyped(sectionKey: string): boolean {
-  const section = sectionOf(sectionKey)
-  const draft = draftOf(sectionKey)
-  if (!section || !draft) return false
-  const typed = Object.keys(written(section, draft))
-  return section.fields.some((field) => field.advanced && typed.includes(field.name))
-}
-
-function SectionPage({ sectionKey }: { sectionKey: string }) {
-  const revision = useSettingsRevision()
-  const [note, setNote] = React.useState<SaveNote | null>(null)
-  // Unfolded already when something typed in a folded field is waiting: a
-  // change you cannot see is a change you save without knowing.
-  const [unfolded, setUnfolded] = React.useState(
-    () => UNFOLDED.has(sectionKey) || advancedTyped(sectionKey)
-  )
-  const section = sectionOf(sectionKey)
-
-  React.useEffect(() => {
-    // A problem stays until it is read; a confirmation has been read by then.
-    if (!note || note.bad) return
-    const timer = window.setTimeout(() => setNote(null), 8000)
-    return () => window.clearTimeout(timer)
-  }, [note])
-
-  if (!section) return null
-  const advanced = section.fields.filter((field) => field.advanced).length
-
-  const fold = () => {
-    if (unfolded) UNFOLDED.delete(sectionKey)
-    else UNFOLDED.add(sectionKey)
-    setUnfolded(!unfolded)
-  }
-
-  return (
-    // The advanced fields are in the form either way; this attribute is what
-    // hides them. See `ADVANCED` in `settings-bits`.
-    <div className="group/settings min-w-0" data-advanced={unfolded ? "unfolded" : "folded"}>
-      <Blurb text={section.blurb} />
-      {/* The console's own language, at the top of the section that is about
-          this console. It is the browser's rather than the file's, so it is
-          not a field of the form under it — but it is a setting, and this is
-          where somebody looking for a setting looks. */}
-      {sectionKey === "web" ? <LanguagePicker /> : null}
-      {note ? (
-        <Alert variant={note.bad ? "destructive" : "success"} className="mb-4">
-          <AlertDescription>
-            <Rich text={note.text} />
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {/* Keyed by the revision: a save reads the file again, and the fields of
-          every section are redrawn from what it now says. */}
-      {/* The switch is drawn in the section's save bar, which sticks to the
-          bottom of the screen: anywhere after the form it sat under the bar. */}
-      <FoldContext.Provider value={{ advanced, unfolded, fold, note }}>
-        <SectionForm key={revision} section={section} onSaved={setNote} />
-      </FoldContext.Provider>
-    </div>
-  )
-}
-
-/* The sections that are a list rather than a list of keys — `[projects]` and
- * `[github]`. Each is a resource of its own, drawn here as a resource is drawn
- * — the package's table, its own dialogs — under the sentence that says what
- * the mapping is for. */
-function pairsPage(sectionKey: string, table: PairTable): React.FC {
-  return function PairsPage() {
-    const section = sectionOf(sectionKey)
-    return (
-      <div className="min-w-0">
-        {section ? <Blurb text={section.blurb} /> : null}
-        <ViewResourceContextProvider
-          resource={pairResources[table]}
-          resourceAction={ActionList.list}
-        />
-      </div>
-    )
-  }
-}
-
-/* One component per section rather than one built as the tabs are drawn: a
- * component born in a render is a component React remounts on the next one. */
-const PAGES = new Map<string, React.FC>()
-
-function pageFor(section: SettingSection): React.FC {
-  const known = PAGES.get(section.key)
-  if (known) return known
-  // A `pairs` the console has no resource for is drawn as any other section:
-  // no fields described, so nothing but the sentence — which is a good deal
-  // better than a tab that throws.
-  const table = section.pairs in pairResources ? (section.pairs as PairTable) : ""
-  const page = table
-    ? pairsPage(section.key, table)
-    : () => <SectionPage sectionKey={section.key} />
-  PAGES.set(section.key, page)
-  return page
-}
-
-/* The tabs, as the description last read says them.
- *
- * Read as they are drawn rather than fixed when the resource is declared: the
- * sections arrive with the configuration, and the page is drawn from what the
- * server says the file holds — never from a list kept here.
- */
-function tabs(): SubViewResourceInterface[] {
-  return (currentSettings()?.sections ?? []).map((section) => ({
-    slug: section.key,
-    // Drawn by the package, which translates it as it draws.
-    name: section.title,
-    icon: ICONS[section.key] ?? Settings2,
-    viewComponent: pageFor(section),
-  }))
-}
-
-/* -- the page itself ------------------------------------------------------- */
+/* -- the general page's state ------------------------------------------------ */
 
 /** A size the way the runner's `doctor` says it: 25 GB, 764 MB, 12 kB. */
 function bytes(size: number): string {
@@ -266,10 +117,8 @@ function bytes(size: number): string {
 }
 
 /* The room the runner takes, and the button that applies its retention now.
- *
- * Above the tabs because it is no one section's: the retention is two keys of
- * "Running tickets", but what fills the disk is every ticket. A run tidies once
- * a day on its own — the button is for the day you would rather not wait. */
+ * A run tidies once a day on its own — the button is for the day you would
+ * rather not wait. */
 function DiskLine() {
   const t = useT()
   const [disk, setDisk] = React.useState<Disk | null>(null)
@@ -287,7 +136,7 @@ function DiskLine() {
     }
   }, [])
 
-  if (!disk) return null
+  if (!disk) return <span className="text-muted-foreground">…</span>
 
   const clean = async () => {
     setCleaning(true)
@@ -322,9 +171,9 @@ function DiskLine() {
           })
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" data-testid="disk">
+    <div className="flex flex-col gap-1.5" data-testid="disk">
       <span>
-        <span className="font-medium">{t("Disk space: {{total}}", { total: bytes(disk.total) })}</span>
+        <span className="font-medium">{bytes(disk.total)}</span>
         <span className="text-muted-foreground">
           {" — "}
           {t("worktrees {{worktrees}} · logs {{logs}} · scratch {{scratch}}", {
@@ -334,27 +183,31 @@ function DiskLine() {
           })}
         </span>
       </span>
-      <span className="text-muted-foreground">{rule}</span>
-      <Button size="xs" variant="outline" onClick={() => void clean()} disabled={cleaning}>
-        <Trash2 />
-        {cleaning ? t("Cleaning up…") : t("Clean up")}
-      </Button>
-      {said ? (
-        <span className={said.bad ? "text-destructive" : "text-muted-foreground"}>{said.text}</span>
-      ) : null}
+      <span className="text-muted-foreground text-xs">{rule}</span>
+      <span className="flex flex-wrap items-center gap-2">
+        <Button size="xs" variant="outline" onClick={() => void clean()} disabled={cleaning}>
+          <Trash2 />
+          {cleaning ? t("Cleaning up…") : t("Clean up")}
+        </Button>
+        {said ? (
+          <span className={said.bad ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
+            {said.text}
+          </span>
+        ) : null}
+      </span>
     </div>
   )
 }
 
 /* What the first connection ended on, kept: the provider, the board, GitHub,
  * the projects, the channels and where this runs, each with its state and a
- * link to the section that changes it. Folded by default — it asks the CLI and
+ * link to the card that changes it. Folded by default — it asks the CLI and
  * GitHub who they are, which is a second or two nobody needs on every visit. */
 function Overview() {
   const t = useT()
   const [open, setOpen] = React.useState(false)
   return (
-    <section className="mb-4" data-testid="settings-overview">
+    <div data-testid="settings-overview">
       <div className="flex flex-wrap items-center gap-2">
         <Button size="xs" variant="outline" onClick={() => setOpen(!open)} aria-expanded={open}>
           <ListChecks />
@@ -365,20 +218,298 @@ function Overview() {
         </a>
       </div>
       {open ? (
-        <div className="mt-3 max-w-4xl">
-          <SetupSummary
-            change={(row) => <a href={settingsHref(row.section)}>{t("Change")}</a>}
-          />
+        <div className="mt-3">
+          <SetupSummary change={(row) => <a href={settingsHref(row.section)}>{t("Change")}</a>} />
         </div>
       ) : null}
-    </section>
+    </div>
   )
 }
 
-/* What sits above the tabs: where you are, which file it is writing, and
- * whatever `doctor` would refuse to start over. */
+/* The top of the general page: which version runs, which file this page
+ * writes, the room the runner takes — what used to crowd the head of every
+ * page, said once, where somebody looking at the runner itself looks. */
+function StateCard() {
+  const t = useT()
+  const { runner } = useConsole()
+  const drawn = currentSettings()
+  const line = (label: string, value: React.ReactNode) => (
+    <div className="grid gap-1 py-3 first:pt-0 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4">
+      <dt className="font-semibold">{label}</dt>
+      <dd className="min-w-0">{value}</dd>
+    </div>
+  )
+  return (
+    <Card data-card="state" className="gap-0 py-0">
+      <CardHeader className="gap-1 px-5 pt-5 pb-3 sm:px-6">
+        <CardTitle className="text-base">{t("State")}</CardTitle>
+        <CardDescription className="text-[13px]">
+          {t("The runner as it stands on this machine.")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="px-5 pb-5 text-sm sm:px-6">
+        <dl className="divide-y">
+          {line(t("Version"), runner ? <span className="font-mono">v{runner.version}</span> : "…")}
+          {line(
+            t("Configuration file"),
+            <span className="font-mono text-[13px] break-all" data-testid="settings-path">
+              {drawn?.path}
+            </span>
+          )}
+          {line(t("Disk space"), <DiskLine />)}
+          {line(t("First connection"), <Overview />)}
+        </dl>
+      </CardContent>
+    </Card>
+  )
+}
+
+/* -- one page ------------------------------------------------------------- */
+
+/** Whether a field or a card the search asked for is on this page. */
+function onPage(group: string, target: string): boolean {
+  return sectionsIn(group).some(
+    (section) => section.key === target || section.fields.some((field) => field.name === target)
+  )
+}
+
+/* The page's own extras to its cards: the browser's language on the languages
+ * card — it is the browser's rather than the file's, so it is not a field of
+ * the form, but it is a setting, and this is where somebody looks for one —
+ * and the two cards that are lists of rows, each a resource of its own, drawn
+ * as a resource is drawn: the package's table, its own dialogs. */
+const extra = (section: SettingSection) => (section.key === "languages" ? <LanguagePicker /> : null)
+
+function pairs(section: SettingSection) {
+  if (!(section.pairs in pairResources)) return null
+  return (
+    <ViewResourceContextProvider
+      resource={pairResources[section.pairs as PairTable]}
+      resourceAction={ActionList.list}
+    />
+  )
+}
+
+function GroupPage({ group }: { group: string }) {
+  const revision = useSettingsRevision()
+  const target = useAsked()
+  const [note, setNote] = React.useState<SaveNote | null>(null)
+
+  React.useEffect(() => {
+    // A problem stays until it is read; a confirmation has been read by then.
+    if (!note || note.bad) return
+    const timer = window.setTimeout(() => setNote(null), 8000)
+    return () => window.clearTimeout(timer)
+  }, [note])
+
+  React.useEffect(() => {
+    // What a search or an old link asked for, once its block has unfolded —
+    // which the blocks do in their own effects, before this one runs.
+    if (!target || !onPage(group, target)) return
+    const timer = window.setTimeout(() => {
+      takeAsked()
+      const found =
+        document.querySelector<HTMLElement>(`[data-field="${inputName(target)}"]`) ??
+        document.getElementById(cardId(target))
+      if (!found) return
+      found.scrollIntoView({ block: "center", behavior: "smooth" })
+      found.querySelector<HTMLElement>("input, button[role=switch], button[role=combobox]")?.focus({
+        preventScroll: true,
+      })
+      found.setAttribute("data-found", "")
+      window.setTimeout(() => found.removeAttribute("data-found"), 1800)
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [group, target])
+
+  return (
+    <div className="flex max-w-[720px] min-w-0 flex-col gap-5">
+      {group === "general" ? <StateCard /> : null}
+      {note ? (
+        <Alert variant={note.bad ? "destructive" : "success"}>
+          <AlertDescription>
+            <Rich text={note.text} />
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {/* Keyed by the revision: a save reads the file again, and the fields of
+          every page are redrawn from what it now says. */}
+      <GroupForm
+        key={revision}
+        group={group}
+        extra={extra}
+        pairs={pairs}
+        note={note}
+        onSaved={setNote}
+      />
+    </div>
+  )
+}
+
+/* One component per page rather than one built as the tabs are drawn: a
+ * component born in a render is a component React remounts on the next one. */
+const PAGES = new Map<string, React.FC>()
+
+function pageFor(group: SettingGroup): React.FC {
+  const known = PAGES.get(group.key)
+  if (known) return known
+  const page = () => <GroupPage group={group.key} />
+  PAGES.set(group.key, page)
+  return page
+}
+
+/* The tabs, as the description last read says them.
+ *
+ * Read as they are drawn rather than fixed when the resource is declared: the
+ * groups arrive with the configuration, and the page is drawn from what the
+ * server says the file holds — never from a list kept here.
+ */
+function tabs(): SubViewResourceInterface[] {
+  return (currentSettings()?.groups ?? []).map((group) => ({
+    slug: group.key,
+    // Drawn by the package, which translates both as it draws.
+    name: group.title,
+    description: group.blurb,
+    icon: ICONS[group.key] ?? Settings2,
+    viewComponent: pageFor(group),
+  }))
+}
+
+/* -- the head of the page ---------------------------------------------------- */
+
+/** One answer of the search: a field, or a card that is a list of rows. */
+interface Found {
+  name: string
+  words: string[]
+  target: string
+  group: string
+  label: string
+  where: string
+}
+
+/* A search over every field of every page, by what it is called, what it does
+ * or its key — in the console's language and in the file's. A click opens the
+ * page it is on, unfolds what hides it, and brings it into view. */
+function SettingsSearch() {
+  const t = useT()
+  useSettingsRevision()
+  const navigate = useNavigate()
+  const { setViewResource } = useCurrentViewResourceContext()
+  const [typed, setTyped] = React.useState("")
+  const [open, setOpen] = React.useState(false)
+  const box = React.useRef<HTMLDivElement>(null)
+  const drawn = currentSettings()
+
+  const items = React.useMemo<Found[]>(() => {
+    if (!drawn) return []
+    return drawn.sections.flatMap((section) => {
+      const where = `${t(groupOf(section.group)?.title ?? "")} › ${t(section.title)}`
+      if (section.pairs)
+        return [
+          {
+            name: section.pairs,
+            words: [t(section.title), t(section.blurb), section.title],
+            target: section.key,
+            group: section.group,
+            label: t(section.title),
+            where,
+          },
+        ]
+      return section.fields.map((field) => ({
+        name: field.variable ? `${field.name} ${field.variable}` : field.name,
+        words: [t(field.label), t(field.help), field.label, field.help],
+        target: field.name,
+        group: section.group,
+        label: t(field.label),
+        where,
+      }))
+    })
+  }, [drawn, t])
+
+  const found = search(items, typed)
+
+  const go = (item: Found) => {
+    setTyped("")
+    setOpen(false)
+    ask(item.target)
+    setViewResource((current) => ({ ...current, subResource: item.group }))
+    void navigate({ to: settingsHref(item.group), replace: true, resetScroll: false })
+  }
+
+  return (
+    <div
+      ref={box}
+      className="relative w-full sm:w-80"
+      onBlur={(event) => {
+        if (!box.current?.contains(event.relatedTarget as Node | null)) setOpen(false)
+      }}
+    >
+      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <Input
+        type="search"
+        aria-label={t("Search the settings")}
+        placeholder={t("Search the settings")}
+        className="pl-9"
+        value={typed}
+        onChange={(event) => {
+          setTyped(event.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && found[0]) go(found[0])
+          if (event.key === "Escape") {
+            setTyped("")
+            setOpen(false)
+          }
+        }}
+      />
+      {open && typed.trim().length >= 2 ? (
+        <div
+          role="listbox"
+          aria-label={t("Settings found")}
+          className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-40 mt-1 max-h-96 overflow-y-auto rounded-md border p-1 shadow-md"
+        >
+          {found.length ? (
+            found.map((item) => (
+              <button
+                key={item.target}
+                type="button"
+                role="option"
+                aria-selected={false}
+                className="hover:bg-muted focus-visible:bg-muted flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left outline-none"
+                onClick={() => go(item)}
+              >
+                <span className="text-sm font-medium">{item.label}</span>
+                <span className="text-muted-foreground text-xs">{item.where}</span>
+              </button>
+            ))
+          ) : (
+            <p className="text-muted-foreground px-2 py-1.5 text-sm">{t("No setting by that name.")}</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** The switch that shows `config.toml`'s keys under every field. */
+function KeysSwitch() {
+  const t = useT()
+  const shown = useKeysShown()
+  return (
+    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+      <Switch checked={shown} onCheckedChange={showKeys} />
+      {t("Show keys")}
+    </label>
+  )
+}
+
+/* What sits above the tabs: where you are, how to find a setting, and whatever
+ * `doctor` would refuse to start over. */
 function SettingsHead() {
-  const { fetchData } = useCurrentViewResourceContext()
+  const { fetchData, subResource, setViewResource } = useCurrentViewResourceContext()
+  const navigate = useNavigate()
   const t = useT()
   useSettingsRevision()
   const drawn = currentSettings()
@@ -386,9 +517,8 @@ function SettingsHead() {
   const latest = React.useRef(fetchData)
   latest.current = fetchData
   React.useEffect(() => {
-    // Another tab saved, or `ponos config` did. Read it again — unless
-    // a section is in the middle of an edit, which is not something to take
-    // away from you.
+    // Another tab saved, or `ponos config` did. Read it again — unless a page
+    // is in the middle of an edit, which is not something to take away from you.
     const listener = () => {
       if (!somethingIsEdited()) void latest.current()
     }
@@ -405,6 +535,18 @@ function SettingsHead() {
     return () => window.removeEventListener("beforeunload", warn)
   }, [])
 
+  React.useEffect(() => {
+    // An address that names a card rather than a page — a link written before
+    // there were pages, or one that means "the notifications" wherever they
+    // are: the page it is on, scrolled to it.
+    if (!drawn || !subResource || groupOf(subResource)) return
+    const section = sectionOf(subResource)
+    if (!section) return
+    if (asked() !== section.key) ask(section.key)
+    setViewResource((current) => ({ ...current, subResource: section.group }))
+    void navigate({ to: settingsHref(section.group), replace: true })
+  }, [drawn, subResource, navigate, setViewResource])
+
   if (!drawn)
     return <p className="text-muted-foreground text-sm">{t("Reading the configuration…")}</p>
 
@@ -412,12 +554,15 @@ function SettingsHead() {
     <>
       <PageHead
         title={t("Configure the runner.")}
-        action={<span className="text-muted-foreground font-mono text-xs break-all">{drawn.path}</span>}
+        action={
+          <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 sm:w-auto">
+            <SettingsSearch />
+            <KeysSwitch />
+          </div>
+        }
       />
-      <Overview />
-      <DiskLine />
       {drawn.problem ? (
-        <Alert variant="destructive" className="mb-3">
+        <Alert variant="destructive" className="mb-4">
           <AlertDescription>{drawn.problem}</AlertDescription>
         </Alert>
       ) : null}
@@ -456,7 +601,7 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
     throw new Error("the configuration is not created from the console")
   },
   updateItem: async () => {
-    throw new Error("a section saves itself; see settings-bits")
+    throw new Error("a page saves itself; see settings-bits")
   },
   removeItem: async () => {
     throw new Error("the configuration is not deleted from the console")
@@ -470,14 +615,14 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
       // — a way back, "Settings", "#config" — and its way back led to a list
       // the one file does not have.
       components: { navigation: NoHeader },
-      // The page's whole width rather than the layout's column: a column of
-      // tabs beside two columns of fields left each field the width of a word.
+      // The page's whole width rather than the layout's column: the column of
+      // tabs and the column of fields side by side.
       fullWidth: true,
       // The object is what the package reads the tabs off, so the getter on it
       // survives the copy `createViewResource` makes of the view itself.
       subViewResource: {
-        // Twenty sections read as a column: a bar would push most of them off
-        // the screen, and the one you are on with them.
+        // Six pages read as a short column beside the fields; on a phone the
+        // package lays them out as a row that scrolls.
         orientation: "vertical",
         get list() {
           return tabs()
@@ -487,12 +632,12 @@ export const settings = createViewResource<SettingsItem>(SETTINGS, {
   },
 })
 
-/** Where the settings are — or one section of them. */
-export const settingsHref = (section?: string) =>
+/** Where the settings are — one page of them, or the page a card is on. */
+export const settingsHref = (page?: string) =>
   generateLink({
     scope: SCOPE,
     resourceId: SETTINGS,
     resourceAction: ActionList.read,
     id: THE_FILE,
-    subResource: section,
+    subResource: page,
   })

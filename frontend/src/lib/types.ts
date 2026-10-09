@@ -464,6 +464,16 @@ export interface SettingField {
   preview?: string
   /** A secret's variable, in secrets.env or the environment — never config.toml. */
   variable?: string
+  /** What a number counts — "seconds", "days" — drawn beside its box. */
+  unit?: string
+  /** What an empty box says when there is no default to show. */
+  placeholder?: string
+  /** The variable the runner reads this from instead of the file, when it is set. */
+  environment?: string
+  /** A cell of the model table: the model of a `level`, or where a `type` starts. */
+  grid?: "" | "level" | "type"
+  /** The word heading its row or its column in that table. */
+  short?: string
 }
 
 export interface SettingSection {
@@ -471,7 +481,37 @@ export interface SettingSection {
   title: string
   blurb: string
   pairs: string
+  /** The page this card is on. */
+  group: string
+  /** The folded block it sits in, if any. */
+  fold: string
+  /** `grid` for the model table; empty for a column of fields. */
+  layout: string
   fields: SettingField[]
+}
+
+/** One of the six pages of the settings. */
+export interface SettingGroup {
+  key: string
+  title: string
+  blurb: string
+}
+
+/** A folded block at the end of a page — the board's names, for one. */
+export interface SettingFold {
+  key: string
+  title: string
+  blurb: string
+}
+
+/** A folder of the runner's machine, for a path field to pick from. */
+export interface Folder {
+  folder: string
+  /** Empty at the root. */
+  parent: string
+  entries: { name: string; folder: boolean }[]
+  /** How many more there were than the list holds. */
+  more: number
 }
 
 /** One row of a `name = value` table: a project and its path, an owner and its
@@ -485,6 +525,8 @@ export interface Settings {
   path: string
   usable: boolean
   problem: string
+  groups: SettingGroup[]
+  folds: SettingFold[]
   sections: SettingSection[]
   projects: Pair[]
   github: Pair[]

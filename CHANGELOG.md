@@ -130,6 +130,20 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **Settings in six pages you can find your way in.** Twenty-two sections at one rank become
+  six pages, each at its own address: *General* (state of the runner, languages, test mode,
+  updates, console access, logs), *Ticket source* (where the board lives, Notion's token,
+  workspace page and tickets database — every column, property, database and type name folded
+  under *Advanced mapping*), *Execution*, *Models and costs* (every model choice in one place,
+  the automatic choice drawn as a small level × type table), *Code and repositories* and
+  *Communication*. One column of cards, a bold label, one line of help and the rest behind a
+  « ? », switches for yes/no, a unit beside every number, a *Browse* button for paths, a search
+  that opens the right page and unfolds what hid the field, and the `config.toml` keys hidden
+  until *Show keys* is on. A token the environment gives says so. `config.toml` does not change;
+  `runner.notify` is now drawn as *Notify on this computer's screen* (`notify.desktop`), which
+  already fell back on it, and saving that switch removes the old line. An old link to a
+  section opens the page it is on.
+
 - **The Settings action bar, redone.** On every section, *Cancel* (secondary) and *Save*
   (primary, blue, with a spinner while it saves and a clearly greyed state when nothing
   changed) sit on the right; on the left a quiet status says *No changes*, *Unsaved changes*

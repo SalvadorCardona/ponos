@@ -526,6 +526,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._attachment(match.group(1))
             if route == "/api/settings":
                 return self._json(self.api.settings())
+            if route == "/api/settings/folder":
+                try:
+                    return self._json(self.api.folder((query.get("path") or [""])[0]))
+                except ValueError as error:
+                    return self._fail(400, str(error))
             if route == "/api/setup":
                 return self._json(self._setup_state(True))
             if route == "/api/setup/summary":

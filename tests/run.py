@@ -8882,6 +8882,23 @@ def a_client_that_hangs_up_mid_answer_leaves_no_trace():
 
 
 @case
+def a_path_field_picks_from_the_folder_it_points_at():
+    """Names, folders first; a file typed half-way lists its folder."""
+    root = Path(tempfile.mkdtemp())
+    (root / "prompts").mkdir()
+    (root / "ticket.md").write_text("x", encoding="utf-8")
+    (root / ".hidden").write_text("x", encoding="utf-8")
+    listed = web_settings.folder(str(root))
+    assert listed["folder"] == str(root) and listed["parent"] == str(root.parent)
+    assert listed["entries"] == [
+        {"name": "prompts", "folder": True},
+        {"name": "ticket.md", "folder": False},
+    ], "hidden ones stay hidden"
+    assert web_settings.folder(str(root / "tic"))["folder"] == str(root)
+    assert any(item["name"] == ".hidden" for item in web_settings.folder(str(root / ".h"))["entries"])
+
+
+@case
 def an_example_token_is_not_a_token_the_settings_call_set():
     """The `ntn_xxxx…` the example file ships with is where a token goes, not one."""
     assert web_settings._preview(C.PLACEHOLDER) == ""
@@ -8890,14 +8907,88 @@ def an_example_token_is_not_a_token_the_settings_call_set():
 
 
 @case
-def a_board_kept_in_markdown_does_not_open_its_settings_on_notion():
+def the_settings_are_six_pages_and_every_key_is_on_one_of_them_once():
+    """Grouped by the question somebody asks, not by the table the loader reads.
+
+    Twenty-two sections at one rank put the Notion token beside the twenty-one
+    names of its properties. Six pages now, the names folded at the end of the
+    one about where tickets come from — and every model the runner can be told
+    to use on the page about models, rather than wherever its table was.
+    """
+    groups = [group.key for group in web_settings.GROUPS]
+    assert len(groups) == 6 and len(set(groups)) == 6, groups
+    for section in web_settings.SECTIONS:
+        assert section.group in groups, f"{section.key} is on no page"
+        assert not section.fold or section.fold in web_settings.FOLDS, section.key
+    assert {section.group for section in web_settings.SECTIONS} == set(groups), "an empty page"
+
+    names = [field.name for section in web_settings.SECTIONS for field in section.fields]
+    twice = sorted({name for name in names if names.count(name) > 1})
+    assert not twice, f"drawn on two cards: {twice}"
+    keys = [section.key for section in web_settings.SECTIONS]
+    assert len(keys) == len(set(keys)), "two cards under one key"
+
+    where = {
+        field.name: section
+        for section in web_settings.SECTIONS
+        for field in section.fields
+    }
+    for name in where:
+        if not name.startswith("notion.") and "model" in name.rpartition(".")[2]:
+            assert where[name].group == "models", f"{name} is not with the models"
+    for table in ("status", "properties", "pages", "types"):
+        for key in C.defaults(table):
+            assert where[f"notion.{table}.{key}"].fold == "mapping", f"notion.{table}.{key}"
+    notion = [name for name in where if name.startswith("notion.") and not where[name].fold]
+    assert sorted(notion) == ["notion.mention", "notion.tickets_database", "notion.token",
+                              "notion.workspace"], notion
+    assert where["notion.mention"].key == "replies", "the word that asks is about answers"
+    source = [section.key for section in web_settings.SECTIONS if section.group == "source"]
+    assert source.index("storage") < source.index("notion"), "a board need not be in Notion"
+
     path, config = _saved()
-    notion_first = [section["key"] for section in web_settings.describe(config)["sections"]]
-    assert notion_first[0] == "notion", "on a Notion board, Notion is where it starts"
-    config.storage = C.Storage(mode="markdown")
-    keys = [section["key"] for section in web_settings.describe(config)["sections"]]
-    assert keys[-1] == "notion", keys
-    assert sorted(keys) == sorted(notion_first), "moved, not dropped"
+    drawn = web_settings.describe(config)
+    assert [group["key"] for group in drawn["groups"]] == groups
+    assert drawn["folds"][0]["key"] == "mapping"
+    assert {section["group"] for section in drawn["sections"]} == set(groups)
+
+
+@case
+def the_old_desktop_switch_is_one_field_and_moves_when_touched():
+    """`runner.notify` and `notify.desktop` said the same thing in two places.
+
+    The page draws the second only, which already falls back on the first; a
+    save of it takes the old line away, so the file ends up saying it once —
+    and a file nobody touches keeps working as it did.
+    """
+    assert "runner.notify" not in web_settings.FIELDS
+    assert web_settings.LEGACY["runner.notify"] in web_settings.FIELDS
+    path, config = _saved('\n[runner]\nnotify = false\n')
+    drawn = {
+        field["name"]: field
+        for section in web_settings.describe(config)["sections"]
+        for field in section["fields"]
+    }
+    assert drawn["notify.desktop"]["fallback"] is False, "the old key still answers"
+    web_settings.save(config, {"settings": {"notify.desktop": True}})
+    text = path.read_text()
+    assert "notify = false" not in text and "desktop = true" in text, text
+    assert C.load(path).notify.desktop is True
+
+
+@case
+def a_value_the_environment_gives_is_said_to_come_from_it():
+    """Retyping a token the environment overrides changes nothing — the page says so."""
+    path, config = _saved()
+    with _environment(PONOS_SLACK_TOKEN="xoxb-from-the-environment", PONOS_WEB_EMAIL="me@example.com"):
+        drawn = {
+            field["name"]: field
+            for section in web_settings.describe(config)["sections"]
+            for field in section["fields"]
+        }
+    assert drawn["notify.slack.token"]["environment"] == "PONOS_SLACK_TOKEN"
+    assert drawn["web.email"]["environment"] == "PONOS_WEB_EMAIL"
+    assert drawn["notion.token"]["environment"] == "", "secrets.env holds this one"
 
 
 # -- the settings tab ---------------------------------------------------------
@@ -9085,6 +9176,8 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
     expected |= {"notify.telegram.token", "notify.telegram.chat"}
     expected |= {"notify.slack.token", "notify.slack.channel"}
 
+    # A key the page draws under its newer name instead: see `LEGACY`.
+    expected -= set(web_settings.LEGACY)
     missing = expected - set(web_settings.FIELDS)
     assert not missing, f"not reachable from the console: {sorted(missing)}"
     unknown = set(web_settings.FIELDS) - expected
@@ -9115,7 +9208,7 @@ def a_choice_is_shown_in_words_and_saved_as_the_file_spells_it():
         for field in section["fields"]
     }
     assert drawn["runner.merge_method"]["options"]["squash"] == "One commit (squash)"
-    assert drawn["runner.permission_mode"]["advanced"] is True
+    assert drawn["runner.branch_prefix"]["advanced"] is True
     assert drawn["runner.max_concurrent"]["advanced"] is False
     web_settings.save(config, {"settings": {"runner.merge_method": "rebase"}})
     assert 'merge_method = "rebase"' in path.read_text()
@@ -11737,15 +11830,20 @@ def the_console_says_the_configuration_in_french_too():
     console somebody set to French.
     """
     dictionary = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
+    said = [words for group in web_settings.GROUPS for words in (group.title, group.blurb)]
+    said += [words for fold in web_settings.FOLDS.values() for words in fold]
     for section in web_settings.SECTIONS:
-        said = [section.title, section.blurb]
+        said += [section.title, section.blurb]
         for field in section.fields:
-            said += [field.label, field.help, field.after]
+            said += [field.label, field.help, field.after, field.unit, field.placeholder, field.short]
             said += [label for _, label in field.options]
-        for sentence in said:
-            assert not sentence or sentence in dictionary, (
-                f"nothing translates “{sentence}” — add it to french.ts"
-            )
+    for sentence in said:
+        # As a key, not anywhere in the file: "Check the board every" is
+        # in "Check the board every (seconds)", which translates nothing of it.
+        keyed = f'"{sentence}":' in dictionary or re.search(
+            rf"^\s*{re.escape(sentence)}:", dictionary, re.MULTILINE
+        )
+        assert not sentence or keyed, f"nothing translates “{sentence}” — add it to french.ts"
 
 
 @case

@@ -1,27 +1,32 @@
 import * as React from "react"
 
-import type { SettingSection, Settings, SettingValue } from "./types"
+import type { SettingGroup, SettingSection, Settings, SettingValue } from "./types"
 
 /* The configuration, as the server last described it.
  *
- * The settings page is a resource with one sub-page per section, and a
- * sub-page is declared before anything has been fetched — `subViewResource`
- * is read off the view as the tabs are drawn. So the description has to be
- * reachable from outside React: `getItem` writes it here, the tab list reads
- * it back, and the page stays what it has always been — drawn from what the
- * server says the configuration holds, never from a list kept in the console.
+ * The settings page is a resource with one sub-page per group, and a sub-page
+ * is declared before anything has been fetched — `subViewResource` is read off
+ * the view as the tabs are drawn. So the description has to be reachable from
+ * outside React: `getItem` writes it here, the tab list reads it back, and the
+ * page stays what it has always been — drawn from what the server says the
+ * configuration holds, never from a list kept in the console.
  *
- * Two other things live here for the same reason.
+ * Four other things live here for the same reason.
  *
- * A *draft* is what you have typed in a section and not saved. Only one
- * sub-page is mounted at a time — that is the whole point of tabs, and it is
- * why the page no longer draws seventy fields at once — so a form leaving the
- * screen would otherwise take your edits with it. It writes them here instead
- * and reads them back on the way in.
+ * A *draft* is what you have typed on a page and not saved. Only one page is
+ * mounted at a time — that is the whole point of tabs — so a form leaving the
+ * screen would otherwise take your edits with it. It writes them here instead,
+ * under its group, and reads them back on the way in.
  *
- * And the *revision*, which is how a save reaches the sections it did not
- * touch: every form is keyed by it, so a fresh description redraws them all —
- * previews, defaults and what the file now states included.
+ * The *revision*, which is how a save reaches the pages it did not touch: every
+ * form is keyed by it, so a fresh description redraws them all — previews,
+ * defaults and what the file now states included.
+ *
+ * Whether the *keys* are shown: a choice of whoever reads the page, kept with
+ * the browser like the theme, and read by every field at once.
+ *
+ * And what a search, or an old link to a section, *asked for*: the page it
+ * leads to is mounted after the click, and unfolds and scrolls to it then.
  */
 
 let drawn: Settings | null = null
@@ -41,9 +46,17 @@ export function publishSettings(fresh: Settings) {
 
 export const currentSettings = (): Settings | null => drawn
 
-/** One section of it, by the key the server names it with. */
+/** One card of it, by the key the server names it with. */
 export const sectionOf = (key: string): SettingSection | undefined =>
   drawn?.sections.find((section) => section.key === key)
+
+/** One page of it. */
+export const groupOf = (key: string): SettingGroup | undefined =>
+  drawn?.groups.find((group) => group.key === key)
+
+/** The cards of one page, in the order the server lists them. */
+export const sectionsIn = (group: string): SettingSection[] =>
+  drawn?.sections.filter((section) => section.group === group) ?? []
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
@@ -57,15 +70,67 @@ export function useSettingsRevision(): number {
   return React.useSyncExternalStore(subscribe, () => revision)
 }
 
-/** What a section holds that the file does not — or nothing, once it is saved. */
-export function rememberDraft(key: string, data: Record<string, SettingValue>, dirty: boolean) {
-  if (dirty) drafts.set(key, data)
-  else drafts.delete(key)
+/** What a page holds that the file does not — or nothing, once it is saved. */
+export function rememberDraft(group: string, data: Record<string, SettingValue>, dirty: boolean) {
+  if (dirty) drafts.set(group, data)
+  else drafts.delete(group)
 }
 
-export const draftOf = (key: string): Record<string, SettingValue> | undefined => drafts.get(key)
+export const draftOf = (group: string): Record<string, SettingValue> | undefined => drafts.get(group)
 
-export const forgetDraft = (key: string) => drafts.delete(key)
+export const forgetDraft = (group: string) => drafts.delete(group)
 
 /** Whether anything typed is waiting to be saved — asked before a redraw takes it away. */
 export const somethingIsEdited = (): boolean => drafts.size > 0
+
+/* -- the keys, shown or not -------------------------------------------------- */
+
+const KEYS = "ponos:settings-keys"
+
+let keysShown = (() => {
+  try {
+    return window.localStorage.getItem(KEYS) === "shown"
+  } catch {
+    return false
+  }
+})()
+
+/** Show `config.toml`'s keys under every field, or hide them again. */
+export function showKeys(shown: boolean) {
+  keysShown = shown
+  try {
+    window.localStorage.setItem(KEYS, shown ? "shown" : "hidden")
+  } catch {
+    // A browser that keeps nothing still shows them for as long as the page is open.
+  }
+  tell()
+}
+
+export function useKeysShown(): boolean {
+  return React.useSyncExternalStore(subscribe, () => keysShown)
+}
+
+/* -- what was asked for -------------------------------------------------------- */
+
+/** A field's name (`notion.token`) or a card's key (`notify`) the page should bring into view. */
+let wanted = ""
+
+export function ask(target: string) {
+  wanted = target
+  tell()
+}
+
+/** What was asked for, once: a page that has scrolled to it lets it go. */
+export function takeAsked(): string {
+  const target = wanted
+  wanted = ""
+  if (target) tell()
+  return target
+}
+
+export const asked = (): string => wanted
+
+/** The same, for a block to unfold when it holds what was asked for. */
+export function useAsked(): string {
+  return React.useSyncExternalStore(subscribe, () => wanted)
+}
