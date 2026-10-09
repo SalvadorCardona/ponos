@@ -210,8 +210,7 @@ export const FRENCH: Record<string, string> = {
   Blocked: "Bloqué",
   Failed: "Échoué",
   Done: "Terminé",
-  "No status": "Sans statut",
-  Drafts: "Brouillons",
+  Draft: "Brouillon",
   "(untitled ticket)": "(ticket sans titre)",
   // The pages of a long list, which the console draws itself (`pagination.tsx`).
   Pagination: "Pagination",

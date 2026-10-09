@@ -365,13 +365,12 @@ const createForm: FormInterface = {
 
 /* The status, in the table, with the robot the card wears beside it. The cell
  * holds the board's word for the column, not its key: the key is found again
- * by that word, and a status the board has no column for is "other", as it is
+ * by that word, and a status the board has no column for is a draft, as it is
  * on the board. */
 const StatusCell: InputControllerComponentInterface = ({ formInput }) => {
   const status = String(formInput.value ?? "")
   const column =
-    currentBoard()?.columns.find((candidate) => candidate.name === status)?.key ??
-    (status ? "other" : "draft")
+    currentBoard()?.columns.find((candidate) => candidate.name === status)?.key ?? "draft"
   return (
     <span className="inline-flex items-center gap-2">
       <TicketRobot column={column} size={18} className="shrink-0" />
@@ -755,11 +754,8 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
   }, [])
 
   const columns = board.columns.filter(
-    (column) =>
-      // Offered only where the runner would honour a card dropped there.
-      (column.key !== "validated" || board.validate) &&
-      // A column of what is elsewhere is drawn only when something is.
-      (column.key !== "other" || rows.some((row) => row.data?.column === "other"))
+    // Offered only where the runner would honour a card dropped there.
+    (column) => column.key !== "validated" || board.validate
   )
   // Counted on the rows the list was handed, so on what the filters left: a
   // column emptied by a search is as empty as one with nothing in it.

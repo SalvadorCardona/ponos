@@ -1533,9 +1533,9 @@ failed = "Needs you"
 An eighth key, `draft`, is optional and has no default: it names the option your board
 **already has** for a ticket still being written — `ponos init` creates none, and
 the runner never writes nor picks one up. Named, the console draws those tickets in a
-*Drafts* column of their own, first, and *New ticket* with *Ready to run* off puts the
-ticket there; `doctor` checks the option exists and is none of the seven above. Left out,
-a draft has no status and sits under *No status*, as before:
+*Draft* column of their own (*Brouillon* in French), first, and *New ticket* with *Ready to
+run* off puts the ticket there; `doctor` checks the option exists and is none of the seven
+above. Left out, a draft has no status and sits in that same column, as before:
 
 ```toml
 [notion.status]
@@ -2054,9 +2054,8 @@ Notion* on the card, and stays said until *resynchronise* or another move. The q
 kept on disk (`~/.local/state/ponos/web/outbox.json`), so a console restarted
 mid-way still sends it. A gesture that sends a card off the screen —
 *hold*, into your *Blocked* column — says where it went. A ticket with no status, or one
-your board has not named, is not hidden: it gets a *No status* column of its own while
-there is one — and a board that names its `draft` option draws those apart, under
-*Drafts*. Seven columns do not fit a laptop, so the board scrolls sideways, and each
+your board has not named, is not hidden: it sits in the first column, *Draft* (*Brouillon*
+in French), with the drafts. Seven columns do not fit a laptop, so the board scrolls sideways, and each
 edge with more beyond it shows a fade and an arrow. The *table* tab shows the same tickets
 as rows, one column per property.
 

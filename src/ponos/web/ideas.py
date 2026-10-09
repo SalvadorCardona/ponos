@@ -178,7 +178,7 @@ class Ideas:
             ticket
             for ticket in tickets
             if ticket["title"]
-            and ticket["column"] not in ("draft", "other")
+            and ticket["column"] != "draft"
             and (not project or ticket["project"] == project)
         ]
         chosen.sort(key=lambda ticket: ticket.get("edited") or "", reverse=True)

@@ -111,12 +111,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   `cardona.digital/ponos/` and the older `cardona.digital/ticket-runner/` send
   every link, sub-pages included, to the same page there.
 
-- **The board's first column is always the drafts, and "No status" is gone from
-  it.** A ticket with no status is a draft: it sits with the ones the board
-  already calls drafts, on the left, whether or not `[notion.status]` names a
-  `draft` option. Moving a card to the drafts writes that option, or clears the
-  status on a board that names none; a status nobody configured still gets its
-  own column.
+- **The board's first column is always the drafts, and it is the only one for
+  them: *Brouillon* in French, on the left, before *Ready*.** A ticket with no
+  status, one whose status is `draft`, and one under a status nobody configured
+  all sit there, so no ticket is hidden and no "No status" column is drawn at
+  the end. Moving a card to the drafts writes that option, or clears the status
+  on a board that names none. The list view says the same, in the same order.
 
 - **A ticket's page is three tabs again, and its session reads in broad lines.** *Brief*
   (the facts and the page), *Discussion* and *Live*: a ticket in progress opens on *Live*,
@@ -208,7 +208,7 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 - **Drafts have a column of their own.** A board that already keeps an option
   for tickets still being written — Master Tickets says `draft` — can name it
   under `[notion.status]` as `draft = "draft"`: the console draws those tickets
-  in a *Drafts* column (*Brouillons* in French) instead of *No status*, and
+  in a *Draft* column (*Brouillon* in French), first on the board, and
   *New ticket* with *Ready to run* off writes that status rather than none. The
   runner never picks a draft up. Optional, with no default: left out, nothing
   changes, and no status is ever created in Notion. `ticket-runner doctor`

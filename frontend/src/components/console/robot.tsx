@@ -74,7 +74,6 @@ export const MOOD: Record<ColumnKey, RobotState> = {
   blocked: "error",
   failed: "error",
   done: "success",
-  other: "sleep",
 }
 
 export function TicketRobot({

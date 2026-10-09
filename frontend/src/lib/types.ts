@@ -17,7 +17,6 @@ export type ColumnKey =
   | "blocked"
   | "failed"
   | "done"
-  | "other"
 
 export interface Ticket {
   id: string
