@@ -970,8 +970,9 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       {
         ...columnViewOptionFactory({
           id: "board",
-          // The page's whole width, the board alone: the table and the forms
-          // keep the column every other page is drawn in.
+          // The page's whole width, for the board and the table alike: switching
+          // between them must not move the page. The forms keep the column every
+          // other page is drawn in.
           fullWidth: true,
           listComponent: BoardColumns,
           rowComponent: TicketCard,
@@ -982,7 +983,11 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
         },
       },
       {
-        ...tableViewOptionFactory({ id: "table", behavior: { rowActions: [] } }),
+        ...tableViewOptionFactory({
+          id: "table",
+          fullWidth: true,
+          behavior: { rowActions: [] },
+        }),
         get name() {
           return t("table")
         },
