@@ -74,7 +74,7 @@ export const FRENCH: Record<string, string> = {
 
   /* -- where you are ------------------------------------------------------- */
   workspace: "espace de travail",
-  board: "tableau",
+  board: "board",
   table: "liste",
   live: "en direct",
   schedules: "récurrences",

@@ -64,3 +64,25 @@ test("a ticket written elsewhere reaches the board as a change, and stays after 
   await page.reload()
   await expect(page.getByText(title).filter({ visible: true }).first()).toBeVisible()
 })
+
+/* The board and the table take the page's whole width, and a switch between
+ * them does not move it: the table once fell back into the column every other
+ * page is drawn in. Measured at the width of a desktop and of a phone.
+ */
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`the list keeps the whole width of the page at ${viewport.width}px, board or table`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+    const content = page.locator('[data-slot="admin-content"]')
+    const widthOf = async (variant: string) => {
+      await page.goto(`/?view=console/tickets/list&variant=${variant}`)
+      await expect(page.getByText("A long ticket").filter({ visible: true }).first()).toBeVisible()
+      await expect(content).toHaveAttribute("data-full-width", "true")
+      return Math.round((await content.boundingBox())!.width)
+    }
+    expect(await widthOf("table")).toBe(await widthOf("board"))
+  })
+}
