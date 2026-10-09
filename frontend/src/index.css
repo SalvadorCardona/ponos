@@ -275,6 +275,13 @@
     }
   }
 
+  /* The sidebar's head is the bar's twin: the package gives both the same
+     height, but only the bar draws its lower edge, so the two lines stopped
+     short of each other. The same border puts the second one under the mark. */
+  [data-slot="sidebar-header"] {
+    border-bottom: 1px solid var(--border);
+  }
+
   /* The path in the bar cut at the room it has, rather than written under
      what the bar's end says. Its first steps never shrink, and on a phone the
      settings' "Settings ›" ran under the status pill; the page's own heading
