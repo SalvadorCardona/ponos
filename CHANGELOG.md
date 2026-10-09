@@ -161,6 +161,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   already fell back on it, and saving that switch removes the old line. An old link to a
   section opens the page it is on.
 
+- **A project's page is as wide as the dashboard, and its tickets are the dashboard's list.**
+  The page takes the whole width and the same margins; the *Tickets* tab draws the same
+  react-resource-view list as the dashboard, kept to the project, as a board (one column per
+  status) or as a table (id, title, status, priority, type, cost, last modified) with a search
+  and filters on status, priority and type. The layout picked is shared with the dashboard, and
+  *New ticket* opens the dashboard's form with the project already chosen. The *Brief* tab
+  keeps its content, at the same width. The table has no column sorting yet: react-resource-view
+  has no sort for a local source, to be asked of the library.
 - **The Settings action bar, redone.** On every section, *Cancel* (secondary) and *Save*
   (primary, blue, with a spinner while it saves and a clearly greyed state when nothing
   changed) sit on the right; on the left a quiet status says *No changes*, *Unsaved changes*

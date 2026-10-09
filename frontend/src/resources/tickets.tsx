@@ -19,6 +19,7 @@ import {
   useCurrentViewResourceContext,
   useListViewContext,
   type ListComponentPropsInterface,
+  type ResourceOptionInterface,
   type RowComponentPropsInterface,
   type RowInterface,
 } from "react-resource-view"
@@ -62,7 +63,7 @@ import {
 } from "@/lib/board-store"
 import { counted, t } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
-import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
+import { SCOPE, layoutOf, useLayoutInTheAddress, useRememberedLayout } from "@/lib/resource-view"
 import type { ColumnKey, Ticket, TicketDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -137,6 +138,8 @@ export type TicketItem = Ticket & {
   took: string
   /** When it is due, written the way the console writes a date. */
   due: string
+  /** When it last changed, in the words a card has room for. */
+  changed: string
 }
 
 /** What the console writes about a ticket: a new one, or the column an old one moves to. */
@@ -161,6 +164,7 @@ const item = (ticket: Ticket | TicketDetail): TicketItem => ({
   spent: typeof ticket.cost === "number" && ticket.cost ? money(ticket.cost) : "",
   took: typeof ticket.duration === "number" && ticket.duration ? lasted(ticket.duration) : "",
   due: when(ticket.scheduled),
+  changed: ago(ticket.edited),
 })
 
 /** The column's name, as the board spells it. */
@@ -510,7 +514,38 @@ function TicketCard({ row }: RowComponentPropsInterface) {
  * over the dots, says the same thing with the runner's own face.
  */
 function BoardTop() {
-  const { fetchData, isLoading, resourceAction } = useCurrentViewResourceContext()
+  const { fetchData, isLoading, resourceAction, parentResource } = useCurrentViewResourceContext()
+  const embedded = Boolean(parentResource) && resourceAction === ActionList.list
+  return embedded ? (
+    <EmbeddedTop />
+  ) : (
+    <DashboardTop
+      fetchData={fetchData}
+      loading={isLoading && !currentBoard()}
+      listing={resourceAction === ActionList.list}
+    />
+  )
+}
+
+/** The same list drawn inside another page: reread when the stream moves, with the window for its tickets, and none of the dashboard's figures. */
+function EmbeddedTop() {
+  const { fetchData } = useCurrentViewResourceContext()
+  useRememberedLayout(TICKETS)
+  const latest = React.useRef(fetchData)
+  latest.current = fetchData
+  React.useEffect(() => subscribeBoard(() => latest.current()), [])
+  return <TicketWindow />
+}
+
+function DashboardTop({
+  fetchData,
+  loading,
+  listing,
+}: {
+  fetchData: () => void
+  loading: boolean
+  listing: boolean
+}) {
   useLayoutInTheAddress(TICKETS)
   const latest = React.useRef(fetchData)
   latest.current = fetchData
@@ -518,8 +553,8 @@ function BoardTop() {
   // The figures are the board's: a ticket's page is drawn under the same
   // `top`, and has its own column to say what it is doing. So is the window a
   // ticket opens in over the list — once, for every card and row of it.
-  if (!isLoading || currentBoard())
-    return resourceAction === ActionList.list ? (
+  if (!loading)
+    return listing ? (
       <>
         <div className="mb-3 flex justify-end">
           <IdeasButton />
@@ -550,6 +585,11 @@ function NoTicket() {
       {t("Nothing on the board yet — a ticket moved to the ready column is a session that starts.")}
     </EmptyState>
   )
+}
+
+/** The empty line under a project: the board may be full, it is this project that has nothing. */
+function NoProjectTicket() {
+  return <EmptyState robot="sleep">{t("No ticket points at this project yet.")}</EmptyState>
 }
 
 /** A column's name as a heading: the board's own word, with a capital, under its colour.
@@ -894,9 +934,77 @@ export async function createTicket(fresh: TicketWrite): Promise<TicketItem> {
   return item(card)
 }
 
+/* -- the tickets of one project ------------------------------------------- */
+
+/* The same list, under a project's page. It is this resource declared again
+ * (see `declare` below) with what only a project's tickets change: the project
+ * is the page's, so it is neither a column nor a choice, and the table says
+ * what a ticket is and when it moved rather than who runs it. */
+
+/** The id, as a card writes it. */
+const IdCell: InputControllerComponentInterface = ({ formInput }) => (
+  <span className="text-muted-foreground font-mono text-xs">#{String(formInput.value ?? "")}</span>
+)
+
+const shared = rowForm.inputs ?? {}
+
+const projectRowForm: FormInterface = {
+  inputs: {
+    short: { label: "Id", readonly: true, controller: IdCell },
+    title: shared.title,
+    status: shared.status,
+    priority: shared.priority,
+    type: { label: "Type", readonly: true },
+    spent: shared.spent,
+    changed: { label: "Last modified", readonly: true },
+  },
+}
+
+/** What the filters of a project's tickets ask: a word of the title, a column, a priority, a type. */
+const projectFilterForm: FormInterface = {
+  inputs: {
+    search: { label: "Search", placeholder: "Title or id" },
+    column: {
+      label: "Status",
+      controller: SelectInputController,
+      getValueOptions: async () => [
+        { value: "", label: "any status" },
+        ...(currentBoard()?.columns.map((column) => ({
+          value: column.key,
+          label: capital(columnTitle(column.key, column.name)),
+        })) ?? []),
+      ],
+    },
+    priority: choiceFilter("priority", "Priority", "any priority"),
+    type: choiceFilter("type", "Type", "any type"),
+  },
+}
+
+function choiceFilter(key: "priority" | "type", label: string, any: string) {
+  return {
+    label,
+    controller: SelectInputController,
+    hidden: () => !currentBoard()?.choices?.[key]?.length,
+    getValueOptions: async () => [{ value: "", label: any }, ...(currentBoard()?.choices?.[key] ?? [])],
+  }
+}
+
+/** Whether a ticket is one the filters ask for. A key the filter does not carry asks for nothing. */
+function matches(ticket: Ticket, filter: Record<string, unknown> = {}): boolean {
+  const said = (key: string) => String(filter[key] ?? "").trim()
+  if (said("project") && ticket.project !== said("project")) return false
+  if (said("column") && ticket.column !== said("column")) return false
+  // The board spells a choice as it likes: "High" in Notion, "high" in a filter.
+  const same = (key: "priority" | "type") =>
+    !said(key) || (ticket[key] ?? "").toLowerCase() === said(key).toLowerCase()
+  if (!same("priority") || !same("type")) return false
+  const word = said("search").toLowerCase()
+  return !word || titleOf(ticket).toLowerCase().includes(word) || ticket.short.toLowerCase().includes(word)
+}
+
 /* -- the declaration ------------------------------------------------------ */
 
-export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(TICKETS, {
+const options: ResourceOptionInterface<TicketItem, TicketItem, TicketWrite> = {
   name: "Dashboard",
   scope: SCOPE,
   path: "/api/board",
@@ -909,10 +1017,13 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
 
   // The rows are the stream's; asking Notion again here would be asking it
   // for what every open tab already holds.
-  getCollection: async () => {
+  getCollection: async (filter) => {
     const board = await boardOnce()
     return {
-      data: createResourceCollection({ id: "/api/board", items: board.tickets.map(item) }),
+      data: createResourceCollection({
+        id: "/api/board",
+        items: board.tickets.filter((ticket) => matches(ticket, filter)).map(item),
+      }),
     } as never
   },
   // What the board already knows, at once: the title, the column, the
@@ -1020,6 +1131,30 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
       // short id, its whole title. `top` said again, as on the list: without
       // it the page no longer rereads the ticket the stream moves.
       components: { top: BoardTop, navigation: TicketHead },
+    },
+  },
+}
+
+export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(TICKETS, options)
+
+/* The same tickets under a project's page: this declaration, with the table
+ * of `projectRowForm`, the filters of `projectFilterForm`, and an empty line
+ * that speaks of the project rather than of the board. Not a copy of the
+ * options: a column, a card or a way of moving one is changed in one place. */
+export const PROJECT_TICKETS = "project-tickets"
+
+export const projectTickets = createViewResource<TicketItem, TicketItem, TicketWrite>(PROJECT_TICKETS, {
+  ...options,
+  // `createViewResource` merges the resource's `view` into each of its `views`
+  // as it builds them, in place: the list's form is said again, not inherited.
+  view: { ...options.view, form: projectRowForm },
+  views: {
+    ...options.views,
+    [ActionList.list]: {
+      ...options.views?.[ActionList.list],
+      form: projectRowForm,
+      formFilter: projectFilterForm,
+      components: { ...options.views?.[ActionList.list]?.components, noResult: NoProjectTicket },
     },
   },
 })
