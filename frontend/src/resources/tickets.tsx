@@ -26,7 +26,6 @@ import {
 import { ComboboxInputController } from "@/components/console/combobox"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
-  EDGE,
   columnTitle,
   SEED,
   TicketActions,
@@ -444,12 +443,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   const open = opensInTheWindow(ticket.id)
 
   return (
-    <div
-      className={cn(
-        "-m-4 flex min-w-0 flex-col gap-2 rounded-2xl border-l-3 p-3",
-        EDGE[ticket.column] ?? "border-l-border"
-      )}
-    >
+    <div className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3">
       <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
         <TicketRobot column={ticket.column} size={20} className="-my-1 shrink-0" />
         <Link to={href} onClick={open} className="shrink-0 font-medium tracking-wide hover:underline">

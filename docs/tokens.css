@@ -14,11 +14,16 @@
  * and the thing it shows most of the time is a log — so dark is where the
  * palette is decided and light is the translation of it. The ladder is four
  * steps deep: the page, the card on it, the popover above that, and the fill
- * behind a control. The accent is a lime, not a blue: the one colour on the
- * page that means "this is the button", and nothing else is allowed to use it.
+ * behind a control. The accent is the blue of the robot — the mascot's body,
+ * `#78a0ff` to `#5079e6` in the logo — and it is the one colour on the page
+ * that means "this is the button": nothing else is allowed to use it, which is
+ * why the tags' "in progress" and the chart's first series are a cyan, not a
+ * second blue to mistake for it.
  *
- * Light cannot take the same lime — `text-primary` on white is unreadable, and
- * both view libraries use it — so it takes the deep end of the same hue.
+ * Light cannot take the robot's own blue — white on `#5079e6` is 3.9:1 and
+ * `text-primary` on white is the same, and both view libraries use it — so it
+ * takes the deeper end of the same hue, 5.5:1 under white text. Dark takes the
+ * robot's blue as it is, with a navy text on it (7.8:1).
  *
  * `--tr-*` are the console's own colours: the ones a column heading, a status
  * tag or a session step is drawn in. They are not shadcn's to name, and they
@@ -37,8 +42,8 @@
   --card-foreground: #14161a;
   --popover: #ffffff;
   --popover-foreground: #14161a;
-  --primary: #46600f;
-  --primary-foreground: #f4ffe0;
+  --primary: #3a62d1;
+  --primary-foreground: #ffffff;
   --secondary: #f1f2ee;
   --secondary-foreground: #14161a;
   --muted: #f1f2ee;
@@ -51,20 +56,20 @@
   --destructive-foreground: #ffffff;
   --border: #e4e5e0;
   --input: #e4e5e0;
-  --ring: #46600f;
+  --ring: #3a62d1;
   --field: #f4f5f1;
 
   --sidebar: #f5f5f2;
   --sidebar-foreground: #14161a;
-  --sidebar-primary: #46600f;
-  --sidebar-primary-foreground: #f4ffe0;
+  --sidebar-primary: #3a62d1;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e9eae4;
   --sidebar-accent-foreground: #14161a;
   --sidebar-border: #e4e5e0;
-  --sidebar-ring: #46600f;
+  --sidebar-ring: #3a62d1;
 
-  --tr-blue: #2563eb;
-  --tr-green: #4d7a10;
+  --tr-blue: #0e7490;
+  --tr-green: #15803d;
   --tr-amber: #b45309;
   --tr-red: #c8332a;
   --tr-violet: #7c3aed;
@@ -73,7 +78,7 @@
   /* The two series a chart draws, and only charts: slots 1 and 2 of a
      palette checked for colour blindness in both themes, rather than the
      tags' blue and amber, which were picked to be told from text. */
-  --series-1: #2a78d6;
+  --series-1: #0e8fa8;
   --series-2: #eb6834;
 }
 
@@ -84,8 +89,8 @@
   --card-foreground: #f1f2f4;
   --popover: #1b1e26;
   --popover-foreground: #f1f2f4;
-  --primary: #d5f95a;
-  --primary-foreground: #14180b;
+  --primary: #82a8ff;
+  --primary-foreground: #0b1430;
   --secondary: #1b1e26;
   --secondary-foreground: #f1f2f4;
   --muted: #1b1e26;
@@ -96,28 +101,28 @@
   --destructive-foreground: #12141a;
   --border: #262a34;
   --input: #262a34;
-  --ring: #d5f95a;
+  --ring: #82a8ff;
   --field: #1a1d24;
 
   /* A shade below the page, not above it: the sidebar is the frame, and a
      frame that glows brighter than what it holds is a frame you keep reading. */
   --sidebar: #0b0c0f;
   --sidebar-foreground: #f1f2f4;
-  --sidebar-primary: #d5f95a;
-  --sidebar-primary-foreground: #14180b;
+  --sidebar-primary: #82a8ff;
+  --sidebar-primary-foreground: #0b1430;
   --sidebar-accent: #1e222b;
   --sidebar-accent-foreground: #f1f2f4;
   --sidebar-border: #1e222b;
-  --sidebar-ring: #d5f95a;
+  --sidebar-ring: #82a8ff;
 
-  --tr-blue: #4d91ff;
-  --tr-green: #b8f24a;
+  --tr-blue: #22d3ee;
+  --tr-green: #4ade80;
   --tr-amber: #e5a94e;
   --tr-red: #f2685f;
   --tr-violet: #9b7bff;
   --tr-pink: #f26bae;
 
-  --series-1: #3987e5;
+  --series-1: #2cb5d4;
   --series-2: #d95926;
 }
 

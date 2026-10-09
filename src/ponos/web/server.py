@@ -1020,14 +1020,14 @@ class Handler(BaseHTTPRequestHandler):
 # -- the pages a browser sees before it is in ---------------------------
 
 # Accent and ladder are the console's own (see `frontend/src/index.css`): the
-# lime on near-black it is drawn in, and its light translation for a browser
+# robot blue on near-black it is drawn in, and its light translation for a browser
 # that asked for one. The door and the room behind it are the same colour.
 _STYLE = """<style>
  :root{--bg:#0e0f13;--card:#16181e;--field:#1a1d24;--line:#262a34;--fg:#f1f2f4;--muted:#8d95a5;
-       --accent:#d5f95a;--on-accent:#14180b;--bad:#f2685f;--good:#b8f24a;color-scheme:dark}
+       --accent:#82a8ff;--on-accent:#0b1430;--bad:#f2685f;--good:#4ade80;color-scheme:dark}
  @media (prefers-color-scheme: light){
   :root{--bg:#fbfbf9;--card:#fff;--field:#f4f5f1;--line:#e4e5e0;--fg:#14161a;--muted:#5f6573;
-        --accent:#46600f;--on-accent:#f4ffe0;--bad:#c8332a;--good:#4d7a10;color-scheme:light}
+        --accent:#3a62d1;--on-accent:#fff;--bad:#c8332a;--good:#15803d;color-scheme:light}
  }
  body{background:var(--bg);color:var(--fg);font:15px/1.6 "DM Sans",ui-sans-serif,system-ui,sans-serif;
       display:grid;place-items:center;min-height:100vh;margin:0}
