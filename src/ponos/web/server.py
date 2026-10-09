@@ -30,6 +30,7 @@ is why:
 
 from __future__ import annotations
 
+import base64
 import errno
 import gzip
 import hashlib
@@ -52,9 +53,9 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 
 from .. import __version__
 from .. import config as config_module
-from .. import journal, legacy, openrouter, store, voice
+from .. import db, journal, legacy, openrouter, store, voice
 from ..config import Config, state_dir
-from . import attachments, setup
+from . import attachments, mcp, oauth, setup
 from .api import Api
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -417,6 +418,13 @@ class Handler(BaseHTTPRequestHandler):
 
         if not self._host_is_ours():
             return self._fail(421, "this console is not served under that name")
+        # The MCP server's doors, which carry keys of their own — see `oauth`.
+        if route.startswith("/.well-known/"):
+            return self._discovery(route)
+        if route == "/mcp":
+            return self._send(405, b"", "text/plain", {"Allow": "POST"})
+        if route == "/oauth/authorize":
+            return self._authorize({key: values[0] for key, values in query.items()})
         if not self._authorised(query):
             # An unclaimed console is drawn by the bundle, which is no secret:
             # it is the same files for everybody, and what it asks first is the
@@ -562,6 +570,16 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_is_ours():
             self.close_connection = True
             return self._fail(421, "this console is not served under that name")
+        # The MCP server and its authorisation server: a client of theirs is no
+        # browser on the console's page, and carries none of its credentials.
+        if route == "/mcp":
+            return self._mcp()
+        if route == "/oauth/register":
+            return self._register()
+        if route == "/oauth/token":
+            return self._token()
+        if route == "/oauth/authorize":
+            return self._consent()
         # Two writes cannot be authorised beforehand, because they are what
         # produces the authorisation: signing in, and — on a console nobody has
         # claimed — the first connection that gives it a password to sign in
@@ -828,6 +846,218 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:  # noqa: BLE001
             return self._fail(500, str(error).splitlines()[0])
 
+    # -- the MCP server --------------------------------------------------------
+
+    def _base(self) -> str:
+        """The address this console is reached at, as the client reached it.
+
+        Read from the request rather than configured: behind Traefik it is the
+        domain and HTTPS the proxy says it served, on this machine it is the
+        loopback address — and the metadata a client reads has to name the one
+        it used.
+        """
+        scheme = "https" if self._secure() else "http"
+        forwarded = (self.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
+        host = forwarded or (self.headers.get("Host") or "").strip()
+        if not host:
+            address = self.server.server_address
+            host = f"{address[0]}:{address[1]}"
+        return f"{scheme}://{host}"
+
+    def _raw(self) -> bytes | None:
+        """The body as it came — None when it is larger than any of ours."""
+        length = self._length()
+        if length > MAX_BODY:
+            self._drain(length)
+            self.close_connection = True
+            return None
+        return self.rfile.read(length) if length > 0 else b""
+
+    def _form(self) -> dict[str, str] | None:
+        """A form, as OAuth posts one — or JSON, which some clients send instead."""
+        raw = self._raw()
+        if raw is None:
+            return None
+        text = raw.decode("utf-8", errors="replace")
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip() == "application/json":
+            try:
+                said = json.loads(text or "{}")
+            except ValueError:
+                return {}
+            return {str(key): str(value) for key, value in said.items()} if isinstance(said, dict) else {}
+        return {key: value for key, value in parse_qsl(text, keep_blank_values=True)}
+
+    def _discovery(self, route: str) -> None:
+        """Where a client learns how to get a key: RFC 9728, then RFC 8414."""
+        base = self._base()
+        if route.startswith("/.well-known/oauth-protected-resource"):
+            return self._json(
+                {
+                    "resource": f"{base}/mcp",
+                    "resource_name": "Ponos",
+                    "authorization_servers": [base],
+                    "scopes_supported": list(oauth.SCOPES),
+                    "bearer_methods_supported": ["header"],
+                }
+            )
+        if route.startswith(("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration")):
+            return self._json(
+                {
+                    "issuer": base,
+                    "authorization_endpoint": f"{base}/oauth/authorize",
+                    "token_endpoint": f"{base}/oauth/token",
+                    "registration_endpoint": f"{base}/oauth/register",
+                    "scopes_supported": list(oauth.SCOPES),
+                    "response_types_supported": ["code"],
+                    "response_modes_supported": ["query"],
+                    "grant_types_supported": ["authorization_code", "refresh_token"],
+                    "code_challenge_methods_supported": ["S256"],
+                    "token_endpoint_auth_methods_supported": list(oauth.AUTH_METHODS),
+                    "authorization_response_iss_parameter_supported": True,
+                }
+            )
+        return self._fail(404, f"no such route: {route}")
+
+    def _mcp(self) -> None:
+        """One JSON-RPC message for the MCP server, with a key of its own.
+
+        Never the console's token nor its cookie: those open everything, and
+        a connector is given read, or read and write, and nothing else. A
+        browser page of another origin is refused, as the specification asks,
+        since it is how a page would reach a server on this machine.
+        """
+        raw = self._raw()
+        if raw is None:
+            return self._fail(413, "a message is smaller than that")
+        if self.headers.get("Origin") is not None and not self._same_origin():
+            return self._fail(403, "this request did not come from an MCP client")
+        header = self.headers.get("Authorization") or ""
+        presented = header[7:].strip() if header.lower().startswith("bearer ") else ""
+        try:
+            grant = oauth.check(presented)
+        except db.ERRORS as error:
+            return self._fail(500, f"the keys cannot be read: {error}")
+        if grant is None:
+            metadata = f"{self._base()}/.well-known/oauth-protected-resource/mcp"
+            said = f'Bearer resource_metadata="{metadata}"'
+            if presented:
+                said += ', error="invalid_token"'
+            return self._send(
+                401,
+                json.dumps({"error": "a token for this server is needed"}).encode(),
+                "application/json",
+                {"WWW-Authenticate": said},
+            )
+        try:
+            message = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "not JSON"}}, 400)
+        answer = mcp.handle(self.api, grant, message)
+        if answer is None:
+            return self._send(202, b"", "application/json")
+        return self._json(answer) if isinstance(answer, dict) else self._send(
+            200, json.dumps(answer, ensure_ascii=False).encode(), "application/json"
+        )
+
+    def _register(self) -> None:
+        raw = self._raw()
+        if raw is None:
+            return self._fail(413, "a registration is smaller than that")
+        try:
+            metadata = json.loads(raw.decode("utf-8") or "{}")
+            return self._json(oauth.register(metadata), 201)
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "invalid_client_metadata", "error_description": "not JSON"}, 400)
+        except oauth.OAuthError as error:
+            return self._json(error.body(), error.status)
+
+    def _token(self) -> None:
+        form = self._form()
+        if form is None:
+            return self._fail(413, "a token request is smaller than that")
+        basic = None
+        header = self.headers.get("Authorization") or ""
+        if header.lower().startswith("basic "):
+            try:
+                pair = base64.b64decode(header[6:].strip()).decode("utf-8")
+                identifier, _, secret = pair.partition(":")
+                basic = (unquote(identifier), unquote(secret))
+            except (ValueError, UnicodeDecodeError):
+                return self._json({"error": "invalid_client"}, 401)
+        try:
+            return self._json(oauth.exchange(form, basic))
+        except oauth.OAuthError as error:
+            return self._json(error.body(), error.status)
+
+    def _authorize(self, params: dict[str, str], said: str = "", status: int = 200) -> None:
+        """The consent page: which client, asking for what — and, signed out, who you are."""
+        language = self._language()
+        if claimable(self.api.config, self.entry):
+            return self._send(
+                403, consent_refused(language, "This console has not been set up yet.").encode(),
+                "text/html; charset=utf-8",
+            )
+        try:
+            request = oauth.asked(params)
+        except oauth.OAuthError as error:
+            if error.redirect:
+                location = oauth.back(
+                    error.redirect, error=error.error, error_description=error.description,
+                    state=error.state, iss=self._base(),
+                )
+                return self._send(302, b"", "text/plain", {"Location": location})
+            return self._send(
+                400, consent_refused(language, error.description).encode(), "text/html; charset=utf-8"
+            )
+        needs = "" if self._authorised({}) else ("password" if self.entry else "token")
+        page = consent_page(language, request, params, needs, said)
+        self._send(status, page.encode(), "text/html; charset=utf-8")
+
+    def _consent(self) -> None:
+        """The consent page, answered: a code back to the client, or a refusal.
+
+        Posted by the page above and by nothing else — its `Origin` is checked,
+        and the console's cookie is `SameSite=Strict`, so a page elsewhere
+        posting this form for you arrives signed out, and has to know the
+        password.
+        """
+        form = self._form()
+        if form is None:
+            return self._fail(413, "a consent is smaller than that")
+        if not self._same_origin():
+            return self._fail(403, "this request did not come from the console")
+        if claimable(self.api.config, self.entry):
+            return self._fail(403, "this console has not been set up yet")
+        try:
+            request = oauth.asked(form)
+        except oauth.OAuthError:
+            return self._authorize(form)
+        base = self._base()
+        if form.get("decision") != "allow":
+            location = oauth.back(
+                request.redirect_uri, error="access_denied", state=request.state, iss=base
+            )
+            return self._send(302, b"", "text/plain", {"Location": location})
+        if not self._authorised({}) and not self._proven(form):
+            time.sleep(1)  # as signing in does: a password is guessable, a wall to grind against
+            wrong = "wrong email or password" if self.entry else "wrong token"
+            return self._authorize(form, _words(self._language())(wrong), 401)
+        scopes = (oauth.READ, oauth.WRITE) if form.get("write") and oauth.WRITE in request.scopes else (oauth.READ,)
+        code = oauth.code(request, scopes)
+        location = oauth.back(request.redirect_uri, code=code, state=request.state, iss=base)
+        self._send(302, b"", "text/plain", {"Location": location})
+
+    def _proven(self, form: dict[str, str]) -> bool:
+        """The credentials typed on the consent page: the sign-in's, or the token."""
+        entry = self.entry
+        if entry is not None:
+            email = form.get("email", "").strip().lower()
+            known_email = hmac.compare_digest(email.encode(), entry.email.lower().encode())
+            known_password = hmac.compare_digest(form.get("password", "").encode(), entry.password.encode())
+            return known_email and known_password
+        offered = form.get("token", "").strip()
+        return bool(offered) and hmac.compare_digest(offered.encode(), self.server.secret.encode())  # type: ignore[attr-defined]
+
     # -- the three kinds of response ------------------------------------------
 
     def _static(self, name: str, setup: str = "") -> None:
@@ -1061,6 +1291,19 @@ _FRENCH = {
         "Cette console demande son jeton. <code>ponos serve --print-token</code> "
         "l'affiche, et il est écrit dans {where}.",
     "<code>web.token</code> of <code>{path}</code>": "le <code>web.token</code> de <code>{path}</code>",
+    "connect": "connecter",
+    "<strong>{client}</strong> asks to reach this Ponos.": "<strong>{client}</strong> demande l'accès à ce Ponos.",
+    "Read the tasks, the projects, the ideas and what the runner is doing":
+        "Lire les tâches, les projets, les idées et ce que fait le runner",
+    "Write: create tasks, answer the blocked ones, sort the ideas":
+        "Écrire : créer des tâches, répondre aux tâches bloquées, trier les idées",
+    "No tool runs a command, starts a session on the spot, changes the settings or deletes anything.":
+        "Aucun outil ne lance de commande, ne démarre de session sur-le-champ, ne modifie les "
+        "réglages ni ne supprime quoi que ce soit.",
+    "Allow": "Autoriser",
+    "Refuse": "Refuser",
+    "wrong token": "jeton incorrect",
+    "This console has not been set up yet.": "Cette console n'est pas encore configurée.",
 }
 
 
@@ -1179,6 +1422,79 @@ async function enter(form){{
 }}
 </script>
 """,
+        language=language,
+    )
+
+
+def consent_page(language: str, request, params: dict[str, str], needs: str, said: str = "") -> str:
+    """Which client asks for what, and the door to sign in by when the browser is out.
+
+    The request travels in hidden fields rather than in a server-side session:
+    it is checked again in full when the form comes back, so what a browser
+    changes in it is only ever another request, checked like the first.
+    `needs` is `password`, `token`, or empty for a browser already in.
+    """
+    say = _words(language)
+    hidden = "".join(
+        f'<input type="hidden" name="{html.escape(name)}" value="{html.escape(params.get(name, ""))}">'
+        for name in (
+            "response_type", "client_id", "redirect_uri", "code_challenge",
+            "code_challenge_method", "scope", "state", "resource",
+        )
+        if params.get(name)
+    )
+    write = (
+        f'<label class="scope"><input type="checkbox" name="write" value="1" checked> '
+        f'{say("Write: create tasks, answer the blocked ones, sort the ideas")}</label>'
+        if oauth.WRITE in request.scopes
+        else ""
+    )
+    if needs == "password":
+        door = (
+            f'<label for="email">{say("Email")}</label>'
+            '<input id="email" name="email" type="email" autocomplete="username" spellcheck="false" required>'
+            f'<label for="password">{say("Password")}</label>'
+            '<input id="password" name="password" type="password" autocomplete="current-password" required>'
+        )
+    elif needs == "token":
+        door = (
+            f'<label for="token">{say("Token")}</label>'
+            '<input id="token" name="token" autocomplete="off" spellcheck="false" required>'
+        )
+    else:
+        door = ""
+    client = html.escape(request.client.name)
+    return _page(
+        say("connect"),
+        f"""<form method="post" action="/oauth/authorize">
+  <h1>Ponos</h1>
+  <p>{say("<strong>{client}</strong> asks to reach this Ponos.").format(client=client)}</p>
+  {hidden}
+  <label class="scope"><input type="checkbox" checked disabled> {say("Read the tasks, the projects, the ideas and what the runner is doing")}</label>
+  {write}
+  <p>{say("No tool runs a command, starts a session on the spot, changes the settings or deletes anything.")}</p>
+  {door}
+  <p class="said" role="alert">{html.escape(said)}</p>
+  <button type="submit" name="decision" value="allow">{say("Allow")}</button>
+  <button type="submit" name="decision" value="deny" class="quiet" formnovalidate>{say("Refuse")}</button>
+</form>
+""",
+        # Every page here is served `no-referrer`, and a form posted under that
+        # policy says `Origin: null` — which `_consent` would refuse as a page
+        # from elsewhere. This one says where it is from, to itself alone.
+        style='<meta name="referrer" content="same-origin">\n'
+        "<style>.scope{display:flex;gap:.5rem;align-items:baseline;font-weight:400}"
+        ".scope input{width:auto}.quiet{background:transparent;color:var(--muted);margin-top:.4rem}</style>\n",
+        language=language,
+    )
+
+
+def consent_refused(language: str, why: str) -> str:
+    """A request the consent page cannot even show: said, and sent nowhere."""
+    say = _words(language)
+    return _page(
+        say("connect"),
+        f"<form><h1>Ponos</h1><p class=\"said\">{html.escape(say(why))}</p></form>\n",
         language=language,
     )
 

@@ -255,6 +255,21 @@ def spent_today() -> float:
     return float(total or 0.0)
 
 
+def spent_by_project(since: datetime) -> list[tuple[str, int, float]]:
+    """What the sessions ended since `since` cost, project by project, the dearest first.
+
+    `(project, sessions, cost)`; a session of no project is filed under "".
+    """
+    stamp = since.astimezone(timezone.utc).isoformat(timespec="seconds")
+    with db.transaction(immediate=False) as connection:
+        rows = connection.execute(
+            "SELECT project, COUNT(*), COALESCE(SUM(cost_usd), 0) FROM history"
+            " WHERE at >= ? GROUP BY project ORDER BY 3 DESC, 1",
+            (stamp,),
+        ).fetchall()
+    return [(str(project or ""), int(count), float(total or 0.0)) for project, count, total in rows]
+
+
 def history(limit: int = 20) -> list[dict]:
     """The last `limit` entries, oldest first."""
     with db.transaction(immediate=False) as connection:

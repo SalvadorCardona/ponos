@@ -83,6 +83,7 @@ REFUSED = {
     ),
     "clean": "deletes worktrees a session may be standing in — do it from a terminal",
     "init": "builds a whole Notion workspace — do it from a terminal, or the first connection",
+    "mcp": "draws and takes back the MCP server's keys — do it from a terminal",
 }
 
 # A command is not a session: nothing in the CLI legitimately takes minutes.

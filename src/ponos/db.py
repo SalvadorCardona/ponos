@@ -67,6 +67,13 @@ see ideas.py. A batch is a row of its own because a batch is what a session
 costs: ten ideas come out of one call, and the price is the batch's before it
 is anybody's share. An idea outlives the decision taken on it — kept or thrown
 away, it stays, since it is what the next batch is told never to propose again.
+
+Migration 13 is the MCP server's — see web/oauth.py and web/mcp.py: the clients
+that registered, the codes and tokens they were given, and every write one of
+them asked for. A token is kept as its SHA-256 and never as itself, so a copy of
+this file opens nothing; a code, an access token, a refresh token and a token
+drawn for Claude Code are one table told apart by `kind`, because they are
+checked, expired and revoked the same way.
 """
 
 from __future__ import annotations
@@ -488,6 +495,50 @@ def _ideas(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX ideas_by_decision ON ideas (decided_at)")
 
 
+def _mcp(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE mcp_clients (
+            id             TEXT PRIMARY KEY,
+            name           TEXT NOT NULL DEFAULT '',
+            redirect_uris  TEXT NOT NULL DEFAULT '[]',
+            secret         TEXT NOT NULL DEFAULT '',
+            created_at     TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE mcp_tokens (
+            id          INTEGER PRIMARY KEY,
+            hash        TEXT NOT NULL UNIQUE,
+            kind        TEXT NOT NULL,
+            client      TEXT NOT NULL REFERENCES mcp_clients (id) ON DELETE CASCADE,
+            scope       TEXT NOT NULL DEFAULT '',
+            detail      TEXT NOT NULL DEFAULT '{}',
+            created_at  TEXT NOT NULL,
+            expires_at  TEXT,
+            revoked_at  TEXT
+        )
+        """
+    )
+    connection.execute("CREATE INDEX mcp_tokens_by_client ON mcp_tokens (client, kind)")
+    connection.execute(
+        """
+        CREATE TABLE mcp_calls (
+            id         INTEGER PRIMARY KEY,
+            at         TEXT NOT NULL,
+            client     TEXT NOT NULL DEFAULT '',
+            name       TEXT NOT NULL DEFAULT '',
+            tool       TEXT NOT NULL,
+            arguments  TEXT NOT NULL DEFAULT '{}',
+            outcome    TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    connection.execute("CREATE INDEX mcp_calls_by_time ON mcp_calls (at)")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -508,6 +559,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _runs_say_their_model,
     _runs_say_the_model_they_ran,
     _ideas,
+    _mcp,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps
