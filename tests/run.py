@@ -3975,7 +3975,8 @@ def a_ticket_waiting_for_credit_goes_before_one_that_never_started():
         assert not runner.prepare(queued[1]).resume, "a fresh ticket opens a fresh session"
         # Claiming it unticks it: the wait is over the moment something starts,
         # and a tick left behind would resume a session that is running.
-        assert runner.client.written[0][1]["Waiting for credit"] is False
+        claim = next(values for _, values in runner.client.written if "Waiting for credit" in values)
+        assert claim["Waiting for credit"] is False
 
 
 @case
@@ -5997,9 +5998,60 @@ def a_ticket_with_no_model_is_given_one_and_told_why_in_a_comment():
         "🧠 Modèle choisi automatiquement — haiku\n"
         "Ticket Code, petite modification ciblée (retirer)."
     ], runner.client.said
-    assert all("Model" not in values for values in runner.client.written), (
-        "the column is left for somebody to choose in"
-    )
+    assert [values["Model"] for values in runner.client.written if "Model" in values] == [
+        "haiku"
+    ], "the pick is written on the ticket, with the value the comment announces"
+
+
+@contextlib.contextmanager
+def _failed_pick(model: str):
+    """The journal remembering a run the runner chose `model` for, and lost."""
+    original = journal.chosen
+    journal.chosen = lambda ticket: {"model": model, "status": "failed", "escalated": False}
+    try:
+        yield
+    finally:
+        journal.chosen = original
+
+
+@case
+def a_model_written_by_the_runner_is_not_taken_for_one_somebody_chose():
+    """The column holds the runner's pick on the next attempt: it must still
+    be chosen for, or a run that failed could never climb. Another model there
+    is somebody's, and is left alone."""
+    column = lambda name: {"Model": {"type": "select", "select": {"name": name}}}
+    runner, ticket = _modelled("Retirer un paragraphe", "Le texte.", **column("haiku"))
+    with _state_home(), _failed_pick("haiku"):
+        job = runner.prepare(ticket)
+    assert job.chosen and job.model == "sonnet", (job.model, job.chosen)
+    assert [values["Model"] for values in runner.client.written if "Model" in values] == [
+        "sonnet"
+    ]
+
+    runner, ticket = _modelled("Retirer un paragraphe", "Le texte.", **column("opus"))
+    with _state_home(), _failed_pick("haiku"):
+        job = runner.prepare(ticket)
+    assert (job.model, job.chosen) == ("opus", False)
+    assert not any("Model" in values for values in runner.client.written)
+
+
+@case
+def a_model_the_board_refuses_is_a_line_in_the_log_and_the_run_goes_on():
+    runner, ticket = _modelled("Retirer un paragraphe", "Le texte.")
+    lines: list[str] = []
+    runner.say = lines.append
+    update = runner.client.update
+
+    def refuse(database, page, values):
+        if "Model" in values:
+            raise store.StoreError("Model is expected to be rich_text")
+        update(database, page, values)
+
+    runner.client.update = refuse
+    with _state_home():
+        job = runner.prepare(ticket)
+    assert (job.model, job.chosen) == ("haiku", True)
+    assert any("model could not be written" in line for line in lines), lines
 
 
 @case
