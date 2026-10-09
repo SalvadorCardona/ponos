@@ -155,7 +155,7 @@ test.describe("at the width of a phone", () => {
     await expect(top(page)).toBeVisible({ timeout: 20_000 })
     // Once the dialog has finished opening (it zooms in).
     await expect.poll(async () => (await dialog(page).boundingBox())?.width).toBeGreaterThanOrEqual(359)
-    expect((await dialog(page).boundingBox())!.height).toBeGreaterThanOrEqual(739)
+    await expect.poll(async () => (await dialog(page).boundingBox())?.height).toBeGreaterThanOrEqual(739)
     const card = (await top(page).boundingBox())!
     expect(card.x).toBeGreaterThanOrEqual(0)
     expect(card.x + card.width).toBeLessThanOrEqual(360)

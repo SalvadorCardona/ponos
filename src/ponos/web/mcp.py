@@ -22,6 +22,12 @@ response as JSON: no stream, no session, nothing kept between two requests,
 since every tool reads the board fresh. `initialize`, `tools/list`,
 `tools/call`, `ping`, and the notifications, which are acknowledged.
 
+**Pasted, and it works.** Adding the connector is its address and nothing
+else, as for Leadz: what Claude shows of it — a name, a sentence, the robot —
+is in `initialize`, every tool has a title a person reads in the list, and
+`whoami` is the first call to try, the one that says the connection holds:
+whose console, which client, read or read and write.
+
 The descriptions are French, and long where it helps: they are what Claude
 reads to choose a tool, and a vague one is a tool called at the wrong moment.
 """
@@ -62,6 +68,16 @@ LISTED_MOST = 200
 
 # What a journal line keeps of the arguments it was called with.
 ARGUMENT_LIMIT = 500
+
+# What Claude shows of the connector, beside its name. The icon is the site's,
+# not the console's: a console's files are behind its sign-in, and Claude
+# fetches the icon without any key.
+WEBSITE = "https://the-ponos.app"
+DESCRIPTION = (
+    "Ponos (the-ponos.app) : les tâches, projets et idées de votre console, ce que fait le "
+    "runner et ce qu'il a dépensé ; créer une tâche, répondre à une tâche bloquée, trier les idées."
+)
+ICONS = [{"src": f"{WEBSITE}/mascot/favicon.svg", "mimeType": "image/svg+xml", "sizes": ["any"]}]
 
 INSTRUCTIONS = """\
 Ponos exécute des tâches avec Claude Code : une tâche passée en « ready » est \
@@ -110,7 +126,19 @@ PROJECT_FILTER = {
 
 TOOLS: list[dict] = [
     {
+        "name": "whoami",
+        "title": "Mon compte",
+        "scope": READ,
+        "description": "Le compte Ponos au nom duquel vous agissez : l'adresse de la console, "
+        "l'email de la personne qui s'y connecte, le client connecté (claude.ai, Claude Code…) et "
+        "son accès (lecture seule, ou lecture et écriture), où vit le tableau (Notion ou fichiers "
+        "Markdown), le nombre de projets et de tâches qui vous attendent. À appeler en premier pour "
+        "vérifier que le connecteur marche, ou quand on demande « qui suis-je ? ».",
+        "inputSchema": _schema(),
+    },
+    {
         "name": "list_projects",
+        "title": "Projets",
         "scope": READ,
         "description": "Liste les projets de Ponos : nom, identifiant, icône (emoji ou adresse "
         "d'image), dépôt git (« propriétaire/nom ») et genre (« code » quand le projet a un dépôt, "
@@ -120,6 +148,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "list_tasks",
+        "title": "Tâches",
         "scope": READ,
         "description": "Liste les tâches de Ponos, les plus récemment modifiées d'abord, avec "
         "pour chacune son identifiant, son titre, son projet, son statut, son type, sa priorité, "
@@ -153,6 +182,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "get_task",
+        "title": "Détail d'une tâche",
         "scope": READ,
         "description": "Renvoie le détail d'une tâche : sa description (le brief et le compte "
         "rendu des sessions), les derniers échanges de sa discussion (ce que Ponos a dit, ce que "
@@ -163,6 +193,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "runner_status",
+        "title": "Runner et dépenses",
         "scope": READ,
         "description": "Renvoie l'état du runner : la minuterie (active ou non, et sa cadence), "
         "une passe en cours ou non, les sessions en cours et leur tâche, les tâches au statut "
@@ -183,6 +214,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "list_ideas",
+        "title": "Idées",
         "scope": READ,
         "description": "Liste les idées que Ponos a proposées (ou qu'on lui a données) pour un "
         "projet, ou pour l'espace de travail entier quand aucun projet n'est donné. Chaque idée a "
@@ -202,6 +234,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "create_task",
+        "title": "Créer une tâche",
         "scope": WRITE,
         "description": "Crée une tâche dans Ponos, par le même circuit qu'une tâche créée depuis "
         "la console ou le tableau : mêmes règles, même runner. En statut draft (par défaut), elle "
@@ -241,6 +274,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "answer_question",
+        "title": "Répondre à une tâche bloquée",
         "scope": WRITE,
         "description": "Répond à une tâche bloquée (« vous attend ») : la réponse est déposée "
         "dans sa discussion, sous la question, comme une réponse donnée depuis la console ou le "
@@ -262,6 +296,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "create_idea",
+        "title": "Proposer une idée",
         "scope": WRITE,
         "description": "Ajoute une idée aux idées proposées, pour un projet ou pour l'espace de "
         "travail entier : elle n'est pas encore une tâche, elle attend d'être gardée ou jetée "
@@ -286,6 +321,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "set_idea_state",
+        "title": "Garder ou jeter une idée",
         "scope": WRITE,
         "description": "Décide d'une idée : keep (la garder — elle devient une tâche en "
         "brouillon, ou un nouveau projet et sa première tâche), discard (la jeter — elle reste "
@@ -312,6 +348,7 @@ def listed(grant: Grant) -> list[dict]:
     return [
         {
             "name": tool["name"],
+            "title": tool["title"],
             "description": tool["description"],
             "inputSchema": tool["inputSchema"],
             "annotations": _ANNOTATIONS[tool["scope"]],
@@ -332,10 +369,13 @@ def _result(identifier: Any, result: dict) -> dict:
     return {"jsonrpc": "2.0", "id": identifier, "result": result}
 
 
-def handle(api: "Api", grant: Grant, message: Any) -> Any:
-    """One JSON-RPC message, or a batch of them: the answer, or None for none."""
+def handle(api: "Api", grant: Grant, message: Any, address: str = "") -> Any:
+    """One JSON-RPC message, or a batch of them: the answer, or None for none.
+
+    `address` is the console's, as the client reached it — what `whoami` says.
+    """
     if isinstance(message, list):
-        answers = [answer for answer in (handle(api, grant, item) for item in message) if answer]
+        answers = [answer for answer in (handle(api, grant, item, address) for item in message) if answer]
         return answers or None
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         return _error(None, -32600, "not a JSON-RPC 2.0 message")
@@ -356,7 +396,14 @@ def handle(api: "Api", grant: Grant, message: Any) -> Any:
             {
                 "protocolVersion": asked if asked in VERSIONS else VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "ponos", "title": "Ponos", "version": __version__},
+                "serverInfo": {
+                    "name": "ponos",
+                    "title": "Ponos",
+                    "version": __version__,
+                    "description": DESCRIPTION,
+                    "icons": ICONS,
+                    "websiteUrl": WEBSITE,
+                },
                 "instructions": INSTRUCTIONS,
             },
         )
@@ -372,11 +419,11 @@ def handle(api: "Api", grant: Grant, message: Any) -> Any:
         tool = next((tool for tool in TOOLS if tool["name"] == name), None)
         if tool is None:
             return _error(identifier, -32602, f"unknown tool: {name}")
-        return _result(identifier, call(api, grant, tool, arguments))
+        return _result(identifier, call(api, grant, tool, arguments, address))
     return _error(identifier, -32601, f"method not found: {method}")
 
 
-def call(api: "Api", grant: Grant, tool: dict, arguments: dict) -> dict:
+def call(api: "Api", grant: Grant, tool: dict, arguments: dict, address: str = "") -> dict:
     """One tool, answered as MCP wants it: text for the model, and the same as data.
 
     A tool that refuses says why in its result, flagged as an error, rather
@@ -391,7 +438,12 @@ def call(api: "Api", grant: Grant, tool: dict, arguments: dict) -> dict:
             "Il faut reconnecter le connecteur en cochant l'écriture."
         )
     try:
-        payload = HANDLERS[name](api, **_arguments(tool, arguments))
+        if name == "whoami":
+            # The one tool about the connection rather than the board: it is
+            # told who holds the key, which no other tool needs to know.
+            payload = whoami(api, grant, address, **_arguments(tool, arguments))
+        else:
+            payload = HANDLERS[name](api, **_arguments(tool, arguments))
     except ToolError as error:
         if writes:
             record(grant, name, arguments, f"refused: {error}")
@@ -557,6 +609,28 @@ def _card(api: "Api", reference: str) -> dict:
     if len(found) > 1:
         raise ToolError(f"« {reference} » désigne plusieurs tâches : donner l'identifiant long.")
     return found[0]
+
+
+def whoami(api: "Api", grant: Grant, address: str = "") -> dict:
+    configuration = api.config
+    try:
+        projects: int | None = len(api.projects())
+        waiting: int | None = sum(1 for card in api.board()["tickets"] if card["column"] == "blocked")
+    except store.StoreError:
+        projects = waiting = None  # the board is down; who you are is not
+    return {
+        "console": address,
+        "email": configuration.web.email.strip(),
+        "client": grant.name,
+        "access": "lecture et écriture" if grant.allows(WRITE) else "lecture seule",
+        "scope": "Toutes les tâches, tous les projets et toutes les idées de cette console"
+        + ("" if grant.allows(WRITE) else " — en lecture seulement")
+        + ".",
+        "board": configuration.storage.mode,
+        "projects": projects,
+        "waiting_for_you": waiting,
+        "version": __version__,
+    }
 
 
 def list_projects(api: "Api") -> dict:
@@ -758,6 +832,7 @@ def _short(text: str, limit: int) -> str:
 
 
 HANDLERS: dict[str, Callable[..., dict]] = {
+    "whoami": whoami,
     "list_projects": list_projects,
     "list_tasks": list_tasks,
     "get_task": get_task,

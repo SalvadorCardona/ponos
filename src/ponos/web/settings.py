@@ -672,6 +672,9 @@ SECTIONS: tuple[Section, ...] = (
                   "`~/.local/state/ponos/web/token`. Needed to listen beyond this "
                   "machine.",
                   after="the console has to be restarted, and this page reopened with the new token"),
+            Field("web", "url", "text", "Public address",
+                  "Where the console is reached from elsewhere, `https://…` behind a proxy "
+                  "or a tunnel. The Claude connector is this address followed by `/mcp`."),
             Field("web", "email", "text", "Sign-in email",
                   "With a password, the console asks for the two instead of the token. "
                   "`PONOS_WEB_EMAIL` wins over it.",

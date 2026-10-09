@@ -1139,6 +1139,9 @@ export const FRENCH: Record<string, string> = {
     "Vide : un jeton est tiré une fois et gardé dans `~/.local/state/ponos/web/token`. Nécessaire pour écouter au-delà de cette machine.",
   "the console has to be restarted, and this page reopened with the new token":
     "la console doit être redémarrée, et cette page rouverte avec le nouveau jeton",
+  "Public address": "Adresse publique",
+  "Where the console is reached from elsewhere, `https://…` behind a proxy or a tunnel. The Claude connector is this address followed by `/mcp`.":
+    "L'adresse où la console est jointe depuis ailleurs, `https://…` derrière un proxy ou un tunnel. Le connecteur Claude est cette adresse suivie de `/mcp`.",
   "Sign-in email": "Adresse e-mail de connexion",
   "With a password, the console asks for the two instead of the token. `PONOS_WEB_EMAIL` wins over it.":
     "Avec un mot de passe, la console demande les deux au lieu du jeton. `PONOS_WEB_EMAIL` l'emporte.",

@@ -18,6 +18,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Ponos in Claude by its address alone, as Leadz.** Paste `https://<your console>/mcp` in
+  claude.ai or Claude Desktop, click *Connect*, *Allow*: nothing to copy. In Claude Code,
+  `claude mcp add --transport http ponos http://127.0.0.1:8787/mcp`, then *Authenticate* —
+  `ponos mcp token` is only for a client that cannot sign in. A new tool, `whoami`, says whose
+  console it is, which client and with which access; every tool now has a title Claude shows,
+  and the connector its name, its sentence and the robot. Behind a proxy or a tunnel that does
+  not say it serves HTTPS, *Web console › Public address* (`web.url`) keeps the addresses
+  claude.ai reads in `https://`; `ponos mcp` prints the address to paste, `ponos doctor`
+  checks it. A first `GET` without a key now gets the `401` that offers *Connect*, and a
+  client that says where it runs (`Origin`) is no longer refused for it. Connectors added
+  before keep working. See README, *Connect Ponos to Claude*.
+
 - **A project's brief is edited where it is read.** The *Brief* tab of a project has a
   *Modifier* button that opens the same Notion-like editor as the context and the tickets,
   with *Enregistrer* and *Annuler*; Ctrl+S saves, Escape leaves when nothing changed, and
@@ -37,6 +49,7 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   and the branches are never touched, its throwaway worktrees are cleaned, its ideas are
   deleted and its spending stays in the statistics. Refused while a session runs on one of
   its tickets. No bulk deletion: react-resource-view has no row selection to build it on.
+
 - **Ponos from claude.ai, from Claude Code, from a phone: an MCP server.** The console
   answers MCP at `/mcp`: list the projects and the tasks (those waiting for you among them),
   open one with its discussion and its question, see what the runner is doing and what it

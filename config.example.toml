@@ -787,6 +787,13 @@ channel = ""
 host = "127.0.0.1"
 port = 8787
 
+# The address the console is reached at from elsewhere, when it is: behind
+# Traefik on Dokploy, a reverse proxy or a tunnel. The MCP connector's OAuth
+# addresses are built on it — claude.ai adds `<url>/mcp` and refuses anything
+# but https. Empty, they are read from each request, which is right on this
+# machine and behind a proxy that sets X-Forwarded-Proto.
+# url = "https://ponos.example.com"
+
 # The token is PONOS_WEB_TOKEN, in secrets.env or the environment. None = one is
 # drawn on first start and kept in ~/.local/state/ponos/web/token, so the
 # bookmark keeps working. Setting it is also what unlocks a non-loopback host.

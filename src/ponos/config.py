@@ -449,6 +449,12 @@ class Web:
     host: str = "127.0.0.1"
     port: int = 8787
     token: str = ""
+    # The address the console is reached at from elsewhere — `https://ponos.
+    # example.com` behind Traefik or a tunnel. What the MCP connector's OAuth
+    # addresses are built on, as Leadz builds them on its own: a proxy that
+    # does not say it served HTTPS would otherwise have them all in `http://`,
+    # and claude.ai refuses those. Empty: read from each request.
+    url: str = ""
     # Who opens the console, and what they type. Both set, the page asks for
     # them instead of for the token — which is the difference between a console
     # you open from a bookmark and one you open by pasting a secret. The token
@@ -1393,6 +1399,7 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         host=str(web_raw.get("host", web_defaults.host)).strip() or web_defaults.host,
         port=int(web_raw.get("port", web_defaults.port)),
         token=secret(stored, "web", "token"),
+        url=str(web_raw.get("url", web_defaults.url)).strip().rstrip("/"),
         # The environment first, so a unit file or a container can hold the
         # credentials rather than the file. Stripped like every other secret
         # here: a password read out of a file would otherwise carry the
