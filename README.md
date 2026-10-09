@@ -2330,7 +2330,7 @@ creates the project, its description as the brief, and a first draft ticket to f
 Throwing one away only marks it so. The last choice can be taken back — a kept idea's ticket
 stays on the board as a draft, and is what it becomes again if it is kept a second time.
 
-In the console the dashboard's *Find me ideas* and a project's *Find me ideas for this project*
+In the console the dashboard's *Ponos, find me ideas* and a project's *Find me ideas for this project*
 open the same pile of cards, one idea each: swipe right (or drag, press ♥, or →) to keep, left
 (✕, ←) to throw away, *Undo* for the last card. Ponos waits while a batch is written, and at the
 end of the pile *Ten more* asks for another. The *Kept / Thrown* tab is the history, where a

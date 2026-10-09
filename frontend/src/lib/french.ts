@@ -1374,6 +1374,7 @@ export const FRENCH: Record<string, string> = {
   "Go through the first connection again": "Refaire la première connexion",
   "Change": "Modifier",
   "Find me ideas": "Trouve-moi des idées",
+  "Ponos, find me ideas": "Ponos, trouve-moi des idées",
   "Find me ideas for this project": "Trouve-moi des idées pour ce projet",
   "Ideas": "Idées",
   "Ideas for {{name}}": "Idées pour {{name}}",

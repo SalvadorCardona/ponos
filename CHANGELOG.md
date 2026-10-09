@@ -18,6 +18,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A call to action with Ponos on it.** The dashboard's ideas button is now *Ponos, find me
+  ideas*, in the primary colour, with the Greek mascot on its left: its flame flickers and it
+  blinks at rest, it thinks (flame beacon, sparkles) when the button is hovered or focused, and
+  keeps still under `prefers-reduced-motion`. While the ideas are being found, the same mascot
+  searches in the dialog.
+
 - **Ideas, one card at a time.** *Find me ideas* on the dashboard, and *Find me ideas for this
   project* on a project's page, open a pile of cards — title, short description, a *Ticket* or
   *New project* badge. Swipe right to keep (the draft or the project is written to the board and

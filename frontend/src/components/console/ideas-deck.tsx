@@ -58,17 +58,32 @@ export function IdeasButton({
 }) {
   const t = useT()
   const [open, setOpen] = React.useState(false)
+  // Ponos "thinks" while the button is hovered or focused. Under
+  // prefers-reduced-motion it keeps its resting pose: the mascot freezes its
+  // own animations, but a pose that changes is still a movement.
+  const [eager, setEager] = React.useState(false)
+  const wake = (on: boolean) =>
+    setEager(on && !window.matchMedia("(prefers-reduced-motion: reduce)").matches)
   return (
     <>
       <Button
-        variant="outline"
         size="sm"
-        className={className}
+        className={cn("group/ideas h-auto gap-2 py-1 pr-3 pl-1.5", className)}
         data-slot={project ? "project-ideas-button" : "ideas-button"}
         onClick={() => setOpen(true)}
+        onPointerEnter={() => wake(true)}
+        onPointerLeave={() => wake(false)}
+        onFocus={() => wake(true)}
+        onBlur={() => wake(false)}
       >
-        <Sparkles />
-        {project ? t("Find me ideas for this project") : t("Find me ideas")}
+        <span className="relative -my-1 inline-flex shrink-0">
+          <Robot state={eager ? "thinking" : "idle"} size={36} />
+          <Sparkles
+            aria-hidden="true"
+            className="absolute -top-0.5 -right-1 size-3 opacity-0 group-hover/ideas:opacity-100 group-focus-visible/ideas:opacity-100 motion-safe:group-hover/ideas:animate-pulse motion-safe:group-focus-visible/ideas:animate-pulse"
+          />
+        </span>
+        {project ? t("Find me ideas for this project") : t("Ponos, find me ideas")}
       </Button>
       {open ? <IdeasDialog project={project} name={name} onClose={() => setOpen(false)} /> : null}
     </>
@@ -322,8 +337,10 @@ function Waiting() {
   return (
     <div
       data-slot="ideas-waiting"
+      role="status"
       className="flex flex-1 flex-col items-center justify-center gap-3 py-8"
     >
+      {/* The flame pulses and the eyes scan: the mascot's own "thinking". */}
       <Robot state="thinking" size={96} />
       <p className="text-muted-foreground text-sm">{t("Ponos is looking for ideas…")}</p>
     </div>

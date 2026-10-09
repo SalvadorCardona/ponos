@@ -48,7 +48,7 @@ test.describe("at 1440px", () => {
 
   test("the dashboard's button asks for the workspace's ideas, and → keeps one as a draft", async ({ page }) => {
     await open(page)
-    await page.getByRole("button", { name: "Find me ideas", exact: true }).click()
+    await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(dialog(page).getByText("Ponos is looking for ideas…")).toBeVisible()
     await expect(top(page)).toBeVisible({ timeout: 20_000 })
     await expect(cards(page)).toHaveCount(3)
@@ -66,7 +66,7 @@ test.describe("at 1440px", () => {
 
   test("← throws one away, Undo brings it back, and the ✕ and ♥ buttons do the same", async ({ page }) => {
     await open(page)
-    await page.getByRole("button", { name: "Find me ideas", exact: true }).click()
+    await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(top(page)).toBeVisible()
     const title = (await top(page).locator("h3").textContent())!
 
@@ -82,7 +82,7 @@ test.describe("at 1440px", () => {
 
   test("dragging a card leans it and stamps it, and a short drag brings it back", async ({ page }) => {
     await open(page)
-    await page.getByRole("button", { name: "Find me ideas", exact: true }).click()
+    await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(top(page)).toBeVisible()
     const title = (await top(page).locator("h3").textContent())!
 
@@ -101,7 +101,7 @@ test.describe("at 1440px", () => {
 
   test("the history holds what was decided, and a thrown idea can still be kept", async ({ page }) => {
     await open(page)
-    await page.getByRole("button", { name: "Find me ideas", exact: true }).click()
+    await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(top(page)).toBeVisible()
     await dialog(page).getByRole("tab", { name: "Kept / Thrown" }).click()
     const history = dialog(page).locator('[data-slot="ideas-history"] li')
@@ -115,7 +115,7 @@ test.describe("at 1440px", () => {
 
   test("the end of the pile says so, and ‘Ten more’ asks for another batch", async ({ page }) => {
     await open(page)
-    await page.getByRole("button", { name: "Find me ideas", exact: true }).click()
+    await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(top(page)).toBeVisible()
     // Left alone, the page's focus is on the pile: the arrows work as they are.
     for (let left = await cards(page).count(); left > 0; left = await cards(page).count()) {
@@ -151,7 +151,7 @@ test.describe("at the width of a phone", () => {
 
   test("the pile fills the screen, and a drag with a thumb keeps a card", async ({ page }) => {
     await open(page)
-    await page.getByRole("button", { name: "Find me ideas", exact: true }).click()
+    await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(top(page)).toBeVisible({ timeout: 20_000 })
     // Once the dialog has finished opening (it zooms in).
     await expect.poll(async () => (await dialog(page).boundingBox())?.width).toBeGreaterThanOrEqual(359)
