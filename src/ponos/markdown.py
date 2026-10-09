@@ -206,6 +206,46 @@ def plain(block: dict) -> str:
     return _rich(block, kind)
 
 
+# What `plain` and `to_blocks` carry both ways without changing it: the block is
+# the same block once it has been through the text and back.
+ROUND_TRIP = {
+    "paragraph", "heading_1", "heading_2", "heading_3", "bulleted_list_item",
+    "numbered_list_item", "to_do", "quote", "code", "divider",
+}
+# Blocks that only hold the ones that count: a table row or a column is lost
+# with its table or its column list, which is said once.
+HOLDERS = {"table_row", "column"}
+
+
+def lost(block: dict) -> list[str]:
+    """What writing this block back as Markdown would drop, by name.
+
+    The other half of `plain`'s docstring: that one says the conversion is
+    lossy, this one says *where*, so that a page is never rewritten from its
+    text without having been told what that costs. A block that survives the
+    trip answers nothing. The names are the console's to say in words: a block
+    type as Notion spells it (`toggle`, `child_database`…), or one of the four
+    things a line of rich text carries that `plain` reads past — `mention`,
+    `equation`, `link` and `formatting`.
+    """
+    kind = block.get("type", "")
+    if kind in HOLDERS:
+        return []
+    if kind not in ROUND_TRIP:
+        return [kind or "unknown"]
+    found: list[str] = []
+    for part in block.get(kind, {}).get("rich_text", []):
+        if part.get("type") in ("mention", "equation"):
+            found.append(part["type"])
+        elif part.get("href"):
+            found.append("link")
+        notes = part.get("annotations") or {}
+        coloured = notes.get("color") not in (None, "default")
+        if coloured or any(value for name, value in notes.items() if name != "color"):
+            found.append("formatting")
+    return found
+
+
 def attached(block: dict) -> str:
     """An image, a file or a PDF on the page, as one line naming it.
 

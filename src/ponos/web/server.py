@@ -481,6 +481,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.all_projects())
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.project(match.group(1)))
+            if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/brief", route):
+                return self._json(self.api.project_brief(match.group(1)))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/image/(\w+)", route):
                 data, kind = self.api.picture(match.group(1), match.group(2))
                 return self._send(

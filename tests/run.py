@@ -12407,6 +12407,110 @@ def the_console_opens_a_project_and_writes_it_back():
 
 
 @case
+def a_brief_is_saved_only_from_the_version_it_was_opened_at():
+    """Edited in the console, the brief is never written over a newer one.
+
+    The editor opens at a `version` and saves against it: a brief somebody
+    wrote to meanwhile — in Notion, from another tab — is a conflict to read
+    again, not a text to overwrite. And what is saved is what the runner reads
+    at the next ticket, with nothing kept from the one it replaced.
+    """
+    with _board() as board:
+        page = board.create_row("projects", "ponos", {"github": "user/repo"})
+        board.replace_markdown(page, "# Voix\n\n- Écris en français.")
+        api = _markdown_api(board)
+
+        opened = api.project_brief(page)
+        assert opened["content"] == "# Voix\n\n- Écris en français."
+        assert opened["losses"] == {}, "a board of files loses nothing to Markdown"
+        assert opened["version"] == api.project(page)["version"]
+
+        # The text goes there and back unchanged, whatever the editor spells it.
+        written = api.save_project(page, {"content": "# Voix\n\n* Écris en français.\n", "base": opened["version"]})
+        assert board.blocks_text(page) == "# Voix\n\n* Écris en français."
+        assert written["version"] != opened["version"]
+        assert projects.Resolver(Path("/nowhere"), {}).brief(board, page) == "# Voix\n\n* Écris en français."
+
+        # Somebody else wrote while the editor was open: refused, and kept.
+        board.replace_markdown(page, "Écrit ailleurs.")
+        try:
+            api.save_project(page, {"content": "Mon texte.", "base": opened["version"]})
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("a brief that changed since it was opened was overwritten")
+        assert board.blocks_text(page) == "Écrit ailleurs."
+
+        # Read again, it saves.
+        again = api.project_brief(page)
+        api.save_project(page, {"content": "Mon texte.", "base": again["version"]})
+        assert board.blocks_text(page) == "Mon texte."
+
+
+@case
+def a_brief_that_markdown_cannot_hold_is_not_rewritten_unannounced():
+    """Notion holds more than a line of text does; the console says what that costs.
+
+    `markdown.lost` names, block by block, what `plain` would flatten and
+    `to_blocks` would not give back — and a save that knows about it refuses
+    until the caller says it has been told.
+    """
+    from ponos import markdown
+
+    def text(content, **notes):
+        part = {"type": "text", "plain_text": content, "href": notes.pop("href", None), "annotations": notes}
+        return {"rich_text": [part]}
+
+    assert markdown.lost({"type": "paragraph", "paragraph": text("Rien à perdre.")}) == []
+    assert markdown.lost({"type": "heading_2", "heading_2": text("Titre", color="default", bold=False)}) == []
+    assert markdown.lost({"type": "paragraph", "paragraph": text("gras", bold=True)}) == ["formatting"]
+    assert markdown.lost({"type": "paragraph", "paragraph": text("lien", href="https://x.y")}) == ["link"]
+    assert markdown.lost({"type": "paragraph", "paragraph": {"rich_text": [{"type": "mention", "plain_text": "@Salva"}]}}) == ["mention"]
+    assert markdown.lost({"type": "toggle", "toggle": text("Plié")}) == ["toggle"]
+    assert markdown.lost({"type": "child_database", "child_database": {"title": "Notes"}}) == ["child_database"]
+    # A row is lost with its table, which is said once.
+    assert markdown.lost({"type": "table_row"}) == []
+
+    blocks = {
+        "page": [
+            {"id": "a", "type": "paragraph", "paragraph": text("Net.")},
+            {"id": "b", "type": "toggle", "toggle": text("Plié"), "has_children": True},
+            {"id": "c", "type": "child_database", "child_database": {"title": "Notes"}},
+        ],
+        "b": [
+            {"id": "d", "type": "paragraph", "paragraph": text("gras", bold=True)},
+            {"id": "e", "type": "callout", "callout": text("Attention"), "has_children": True},
+        ],
+        "e": [{"id": "f", "type": "toggle", "toggle": text("Encore"), "has_children": True}],
+        "f": [{"id": "g", "type": "bookmark", "bookmark": {"url": "https://x.y"}, "has_children": True}],
+        "g": [{"id": "h", "type": "image", "image": {}}],
+    }
+    client = notion.Client("ntn_x")
+    client._request = lambda method, path, body=None: {  # type: ignore[method-assign]
+        "results": blocks.get(path.split("/")[2], []), "has_more": False
+    }
+    found = client.losses("page")
+    assert found == {"toggle": 2, "child_database": 1, "formatting": 1, "callout": 1, "bookmark": 1, "nested": 1}, found
+
+    with _board() as board:
+        page = board.create_row("projects", "ponos", {})
+        board.replace_markdown(page, "Texte.")
+        api = _markdown_api(board)
+        # The board of files has nothing to lose; make it say otherwise.
+        board.losses = lambda *_: {"toggle": 1}  # type: ignore[method-assign]
+        base = api.project_brief(page)["version"]
+        try:
+            api.save_project(page, {"content": "Autre.", "base": base})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a page was rewritten without being told what it would lose")
+        assert board.blocks_text(page) == "Texte."
+        api.save_project(page, {"content": "Autre.", "base": base, "accept_losses": True})
+        assert board.blocks_text(page) == "Autre."
+
+
+@case
 def the_console_reads_and_rewrites_the_standing_context():
     """Rewrites, never appends: the context is a value, not a history.
 

@@ -12,7 +12,7 @@ import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
 import { IdeasButton } from "./ideas-deck"
-import { Markdown } from "./markdown"
+import { ProjectBrief } from "./project-brief"
 import { ProjectCover } from "./project-picture"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
@@ -87,20 +87,7 @@ export function ProjectPage() {
 
           <ProjectTabs project={project}>
             {page ? (
-              <div>
-                <Eyebrow>{t("the brief")}</Eyebrow>
-                <div className="mt-2">
-                  {project.content ? (
-                    <Markdown text={project.content} />
-                  ) : (
-                    <p className="text-muted-foreground text-sm">
-                      {t(
-                        "Nothing is written on this page, so its tickets are told about the workspace and nothing about the project."
-                      )}
-                    </p>
-                  )}
-                </div>
-              </div>
+              <ProjectBrief project={project} />
             ) : (
               <p className="text-muted-foreground max-w-prose text-sm leading-relaxed">
                 {t(

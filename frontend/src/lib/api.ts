@@ -12,6 +12,7 @@ import type {
   Message,
   Pair,
   Pictures,
+  ProjectBrief,
   ProjectDetail,
   Projects,
   Run,
@@ -163,6 +164,7 @@ export const api = {
         (project === undefined ? "" : `&project=${encodeURIComponent(project)}`)
     ),
   project: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
+  projectBrief: (id: string) => request<ProjectBrief>(`/api/projects/${id}/brief`),
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),
   talk: (id: string) => request<Talk>(`/api/tickets/${id}/talk`),
   logs: (ticket = "") =>

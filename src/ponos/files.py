@@ -629,6 +629,10 @@ class Board:
         _write(path, render(front, f"{body}\n\n{markdown.strip()}".strip()))
         return _blocks(markdown)
 
+    def losses(self, block_id: str, depth: int = 0) -> dict[str, int]:
+        """Nothing: a page here is its Markdown, and writing it back is writing it."""
+        return {}
+
     def replace_markdown(self, page_id: str, markdown: str) -> int:
         """Make a page's body say this and nothing else. See the Notion client."""
         if _bare(page_id) == CONTEXT_PAGE:

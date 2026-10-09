@@ -212,6 +212,42 @@ test.describe("the page of a project", () => {
     await expect(page).toHaveURL(/tab=tickets/)
   })
 
+  test("the brief is edited in place, saved with Ctrl+S, and guarded while unsaved", async ({ page }) => {
+    await open(page, "/?view=console/projects/read/0000000000000000000000000000cafe&tab=brief")
+    await onThePageOf(page, "Website")
+    const edit = page.getByRole("tabpanel", { name: "Brief" }).getByRole("button", { name: "Edit" })
+    await edit.click()
+    const editor = page.locator('[data-slot="project-brief-editor"]')
+    await expect(editor).toBeVisible()
+    const save = editor.getByRole("button", { name: "Save", exact: true })
+    await expect(save).toBeDisabled()
+
+    // Nothing changed: Escape leaves.
+    await page.keyboard.press("Escape")
+    await expect(editor).toBeHidden()
+    await edit.click()
+
+    await editor.locator(".ProseMirror").click()
+    await page.keyboard.press("Control+End")
+    await page.keyboard.type(" Always in French.")
+    await expect(editor.getByText("Unsaved changes")).toBeVisible()
+
+    // Leaving the tab with something typed asks first, and staying keeps it.
+    await tab(page, "Tickets").click()
+    await expect(page.getByRole("alertdialog")).toBeVisible()
+    await page.getByRole("button", { name: "Keep editing" }).click()
+    await expect(editor).toBeVisible()
+
+    await page.keyboard.press("Control+s")
+    await expect(page.getByText("The brief is saved")).toBeVisible()
+    await expect(editor).toBeHidden()
+    await expect(page.getByText("Always in French.")).toBeVisible()
+
+    // And it was written to the board, not just drawn.
+    await page.reload()
+    await expect(page.getByText("Always in French.")).toBeVisible()
+  })
+
   test("a ticket made from the tickets tab is in its list, for this project", async ({ page }) => {
     await open(page)
     await card(page, "Website").click()

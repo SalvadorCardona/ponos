@@ -360,6 +360,9 @@ class Mirror:
             pass
         return count
 
+    def losses(self, block_id: str, depth: int = 0) -> dict[str, int]:
+        return self.primary.losses(block_id, depth)
+
     def replace_markdown(self, page_id: str, markdown: str) -> int:
         count = self.primary.replace_markdown(page_id, markdown)
         try:
