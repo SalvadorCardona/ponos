@@ -504,6 +504,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/ideas":
                 # No `project` is the workspace's ideas, the dashboard's.
                 return self._json(self.api.ideas.proposed((query.get("project") or [""])[0]))
+            if route == "/api/ideas/all":
+                return self._json(self.api.ideas.every((query.get("project") or [""])[0]))
             if route == "/api/history":
                 return self._json(self.api.history())
             if route == "/api/disk":
@@ -698,10 +700,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.save_schedule(match.group(1), payload))
             if route == "/api/ideas/generate":
                 return self._json(self.api.ideas.generate(str(payload.get("project") or "")))
-            if match := re.fullmatch(r"/api/ideas/(\d+)/keep", route):
-                return self._json(self.api.ideas.keep(int(match.group(1))))
-            if match := re.fullmatch(r"/api/ideas/(\d+)/discard", route):
-                return self._json(self.api.ideas.discard(int(match.group(1))))
+            if route == "/api/ideas":
+                return self._json(self.api.ideas.create(payload))
+            if match := re.fullmatch(r"/api/ideas/(\d+)", route):
+                return self._json(self.api.ideas.edit(int(match.group(1)), payload))
+            if match := re.fullmatch(r"/api/ideas/(\d+)/(keep|discard|ticket|reopen)", route):
+                return self._json(getattr(self.api.ideas, match.group(2))(int(match.group(1))))
             if route == "/api/ideas/undo":
                 # A `project` (empty for the workspace's) takes back that scope's
                 # last decision; none at all, the last decision of any.

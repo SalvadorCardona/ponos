@@ -6,8 +6,9 @@ import { expect, test, type Page } from "@playwright/test"
  * is checked is what a person does with them: asking from the dashboard and from
  * a project's page, throwing a card with a mouse drag, a button and an arrow,
  * keeping one and finding the draft on the board, taking a decision back,
- * changing one's mind from the history, and — at the width of a phone — a pile
- * that fills the screen and still answers a drag.
+ * changing one's mind from the list of every idea, a project's Ideas tab with its
+ * filters, an idea written by hand and signed, and — at the width of a phone — a
+ * pile that fills the screen and still answers a drag.
  *
  * One server and one file, one test after another: the ideas are the console's,
  * and the pile a test leaves is the pile the next one opens.
@@ -99,18 +100,21 @@ test.describe("at 1440px", () => {
     await expect(top(page).locator("h3")).not.toHaveText(title)
   })
 
-  test("the history holds what was decided, and a thrown idea can still be kept", async ({ page }) => {
+  test("every idea is in the second tab, thrown ones included, and a thrown idea can still become a ticket", async ({ page }) => {
     await open(page)
     await page.getByRole("button", { name: "Ponos, find me ideas", exact: true }).click()
     await expect(top(page)).toBeVisible()
-    await dialog(page).getByRole("tab", { name: "Kept / Thrown" }).click()
-    const history = dialog(page).locator('[data-slot="ideas-history"] li')
-    await expect(history.first()).toBeVisible()
-    await expect(dialog(page).locator('li[data-status="kept"]', { hasText: "Build the calendar module" })).toBeVisible()
+    await dialog(page).getByRole("tab", { name: "All ideas" }).click()
+    const items = dialog(page).locator('[data-slot="ideas-item"]')
+    await expect(items.first()).toBeVisible()
+    await expect(dialog(page).locator('li[data-status="ticket"]', { hasText: "Build the calendar module" })).toBeVisible()
     const thrown = dialog(page).locator('li[data-status="discarded"]').first()
     const title = (await thrown.locator("p").first().textContent())!
-    await thrown.getByRole("button", { name: "Keep it after all" }).click()
-    await expect(dialog(page).locator('li[data-status="kept"]', { hasText: title })).toBeVisible()
+    await thrown.getByRole("button", { name: "Turn into a ticket" }).click()
+    await expect(dialog(page).locator('li[data-status="ticket"]', { hasText: title })).toBeVisible()
+    await expect
+      .poll(async () => (await board(page)).find((ticket) => ticket.title.endsWith(title))?.column)
+      .toBe("draft")
   })
 
   test("the end of the pile says so, and ‘Ten more’ asks for another batch", async ({ page }) => {
@@ -143,6 +147,55 @@ test.describe("at 1440px", () => {
     await expect
       .poll(async () => (await board(page)).filter((ticket) => ticket.title.startsWith("Build the") && ticket.column === "draft").length)
       .toBeGreaterThan(1)
+  })
+
+  test("a project's Ideas tab lists them all with their counts, and one is written by hand, kept, thrown and made new", async ({ page }) => {
+    await open(page, `${PROJECT}&tab=ideas`)
+    const tab = page.locator('[data-slot="ideas-list"]')
+    await expect(page.getByRole("tab", { name: "Ideas" })).toHaveAttribute("aria-selected", "true")
+    const filter = (status: string) => tab.locator(`[data-slot="ideas-filter"][data-status="${status}"]`)
+    await expect(filter("ticket").locator('[data-slot="ideas-count"]')).toHaveText("1")
+    await expect(tab.locator('[data-slot="ideas-item"][data-author="ponos"]').first()).toContainText("Ponos")
+
+    await tab.getByRole("button", { name: "New idea", exact: true }).click()
+    const form = tab.locator('[data-slot="ideas-form"]')
+    await expect(form.getByRole("combobox", { name: "Project" })).toContainText("Website")
+    await form.getByLabel("Title").fill("A page for the opening hours")
+    await form.getByLabel("Description").fill("People keep asking.")
+    await form.getByRole("button", { name: "Create" }).click()
+    const mine = tab.locator('[data-slot="ideas-item"]', { hasText: "A page for the opening hours" })
+    await expect(mine).toHaveAttribute("data-author", "human")
+    await expect(mine.locator('[data-slot="ideas-author"]')).toContainText("Ada Lovelace")
+    await expect(mine).toHaveAttribute("data-status", "proposed")
+
+    await mine.getByRole("button", { name: "Keep" }).click()
+    await expect(mine).toHaveAttribute("data-status", "kept")
+    await mine.getByRole("button", { name: "Throw away" }).click()
+    await expect(mine).toHaveAttribute("data-status", "discarded")
+    await filter("discarded").click()
+    await expect(tab.locator('[data-slot="ideas-item"]', { hasText: "A page for the opening hours" })).toBeVisible()
+    await expect(tab.locator('[data-slot="ideas-item"]:not([data-status="discarded"])')).toHaveCount(0)
+
+    await tab.getByRole("combobox", { name: "Written by" }).click()
+    await page.getByRole("option", { name: "Written by us" }).click()
+    await expect(tab.locator('[data-slot="ideas-item"]')).toHaveCount(1)
+    await expect(filter("all").locator('[data-slot="ideas-count"]')).toHaveText("1")
+
+    await mine.getByRole("button", { name: "Back to new" }).click()
+    await filter("proposed").click()
+    await mine.getByRole("button", { name: "Edit" }).click()
+    await tab.locator('[data-slot="ideas-form"]').getByLabel("Title").fill("A page for the opening hours, in two languages")
+    await tab.locator('[data-slot="ideas-form"]').getByRole("button", { name: "Save" }).click()
+    const edited = tab.locator('[data-slot="ideas-item"]', { hasText: "in two languages" })
+    await expect(edited.locator('[data-slot="ideas-edited"]')).toContainText("Edited by Ada Lovelace")
+    await edited.getByRole("button", { name: "Turn into a ticket" }).click()
+    await expect(page.getByText("Ticket created: A page for the opening hours, in two languages")).toBeVisible()
+    await expect
+      .poll(async () => (await board(page)).find((ticket) => ticket.title.endsWith("in two languages"))?.column)
+      .toBe("draft")
+
+    await page.reload()
+    await expect(page.locator('[data-slot="ideas-item"]', { hasText: "in two languages" })).toHaveAttribute("data-status", "ticket")
   })
 })
 

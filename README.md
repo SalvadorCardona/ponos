@@ -2350,21 +2350,38 @@ tickets and, for the workspace, the list of projects. Every idea already propose
 scope is in the prompt too, and a title too close to one of them — or to a ticket — is dropped
 on the way in: an idea thrown away is never proposed again.
 
-Keeping an idea writes it onto the board as a draft with no model, under *What*, *Where*,
-*Done when* and *Out of scope*, attached to its project; keeping the idea of a new project
-creates the project, its description as the brief, and a first draft ticket to frame it.
-Throwing one away only marks it so. The last choice can be taken back — a kept idea's ticket
-stays on the board as a draft, and is what it becomes again if it is kept a second time.
+An idea is *new*, *kept*, *thrown away* or *turned into a ticket*. Turning one into a ticket
+writes it onto the board as a draft with no model, under *What*, *Where*, *Done when* and *Out
+of scope*, attached to its project; for the idea of a new project it creates the project, its
+description as the brief, and a first draft ticket to frame it. Keeping one only marks it worth
+doing, and throwing one away only marks it so: nothing is ever deleted. The last choice can be
+taken back — an idea's ticket stays on the board as a draft, and is what it becomes again if it
+is turned into a ticket a second time.
+
+Each idea says who wrote it: Ponos, with its mascot, or a person — ideas can be written by hand
+— by the name and picture of the GitHub account `gh` is signed in as (git's `user.name` when
+there is no `gh`). An idea reworded by hand also says who last changed it, and when.
 
 In the console the dashboard's *Ponos, find me ideas* and a project's *Find me ideas for this project*
 open the same pile of cards, one idea each: swipe right (or drag, press ♥, or →) to keep, left
 (✕, ←) to throw away, *Undo* for the last card. Ponos waits while a batch is written, and at the
-end of the pile *Ten more* asks for another. The *Kept / Thrown* tab is the history, where a
-thrown idea can still be kept. On a phone the pile fills the screen.
+end of the pile *Ten more* asks for another. Swiping right turns the idea into a ticket at once.
+The *All ideas* tab lists every idea of the scope, thrown ones included. On a phone the pile
+fills the screen.
 
-Ideas live in the local database, `ponos.db`, with what each batch cost. The console asks
-for them through `GET /api/ideas[?project=…]` (the pile, and the last fifty decisions), `POST /api/ideas/generate`,
-`POST /api/ideas/<id>/keep`, `POST /api/ideas/<id>/discard` and `POST /api/ideas/undo`.
+A project's page has an *Ideas* tab, beside *Tickets* and *Brief* (`&tab=ideas`): every idea of
+the project with a count per status, filters by status and by author (Ponos or us), and on each
+card *Keep*, *Throw away*, *Back to new*, *Turn into a ticket* and *Edit*. *New idea* opens a
+short form — title, description, project (the page's own, already picked) — and the idea is
+stored as written by hand; *Find me ideas for this project* is there too. The deck's *All ideas*
+tab is the same list, the workspace's when opened from the dashboard.
+
+Ideas live in the local database, `ponos.db`, with what each batch cost, who wrote them, and
+when their status last changed — they survive restarts and updates. The console asks for them
+through `GET /api/ideas[?project=…]` (the pile, and the last fifty decisions), `GET
+/api/ideas/all[?project=…]` (every idea, and the count per status), `POST /api/ideas` (one written
+by hand), `POST /api/ideas/<id>` (reworded), `POST /api/ideas/generate`, `POST
+/api/ideas/<id>/keep`, `…/discard`, `…/ticket`, `…/reopen` and `POST /api/ideas/undo`.
 
 ### The console's own code
 
@@ -2694,7 +2711,7 @@ back is a task, a project, an idea, an amount — never a page or a property.
 | `create_task` | Créer une tâche | write | a task, *draft* or *ready*, with its description, project, type and priority — through the console's *New ticket*, so the same rules as any other |
 | `answer_question` | Répondre à une tâche bloquée | write | an answer under a blocked task's question, as the console's discussion writes it; `ready: true` also moves it back to *ready* |
 | `create_idea` | Proposer une idée | write | an idea among the proposed ones, to be kept or thrown away |
-| `set_idea_state` | Garder ou jeter une idée | write | `keep` (a draft, as the pile does), `discard`, or `new` to propose it again |
+| `set_idea_state` | Garder ou jeter une idée | write | `keep` (for later, nothing on the board), `ticket` (a draft, as swiping right in the pile does), `discard`, or `new` to propose it again |
 
 **Nothing else.** No tool starts a run, runs a command, changes the settings or deletes
 anything: a task created *ready* is run by the timer at its next pass, like any ready ticket.

@@ -22,6 +22,7 @@ import { Eyebrow, Fact, Facts } from "./frame"
 import { IdeasButton } from "./ideas-deck"
 import { ProjectBrief } from "./project-brief"
 import { ProjectMenu } from "./project-delete"
+import { IdeaList } from "./ideas-list"
 import { ProjectCover } from "./project-picture"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
@@ -114,15 +115,18 @@ export function ProjectPage() {
   )
 }
 
-/* The two tabs of a project: its tickets, and its brief.
+/* The tabs of a project: its tickets, its ideas, and its brief.
  *
  * The tickets come first, because a project is opened more often to see what is
- * being done on it than to reread what every ticket is told. The one picked is
- * written in the address (`&tab=brief`), so a reload or a pasted link comes back
- * to it; the tickets are the tab of an address that says nothing, and of one
- * that says something else. The facts and the statistics stay above the tabs.
+ * being done on it than to reread what every ticket is told; the ideas next, as
+ * what could be done on it — every one of them, thrown away included. A project
+ * the configuration alone names has no page for an idea to point at, and no
+ * ideas tab. The one picked is written in the address (`&tab=brief`), so a
+ * reload or a pasted link comes back to it; the tickets are the tab of an
+ * address that says nothing, and of one that says something else. The facts and
+ * the statistics stay above the tabs.
  */
-const TABS = ["tickets", "brief"] as const
+const TABS = ["tickets", "ideas", "brief"] as const
 type Tab = (typeof TABS)[number]
 
 function ProjectTabs({ project, children }: { project: ProjectItem; children: React.ReactNode }) {
@@ -132,7 +136,9 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
   const { params } = useRoute()
   const mine = params.resourceAction === ActionList.read && String(params.id ?? "") === project.id
   const named = new URLSearchParams(searchStr).get("tab")
-  const tab: Tab = mine && TABS.includes(named as Tab) ? (named as Tab) : "tickets"
+  const ideas = isAPage(project.id)
+  const tab: Tab =
+    mine && TABS.includes(named as Tab) && (named !== "ideas" || ideas) ? (named as Tab) : "tickets"
   const pick = (value: string) => {
     if (!mine) return
     const rest = searchStr
@@ -147,6 +153,11 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
         <TabsTrigger value="tickets" data-slot="project-tickets-tab">
           {t("Tickets")}
         </TabsTrigger>
+        {ideas ? (
+          <TabsTrigger value="ideas" data-slot="project-ideas-tab">
+            {t("Ideas")}
+          </TabsTrigger>
+        ) : null}
         <TabsTrigger value="brief" data-slot="project-brief-tab">
           {t("Brief")}
         </TabsTrigger>
@@ -154,6 +165,11 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
       <TabsContent value="tickets">
         <ProjectTickets project={project} />
       </TabsContent>
+      {ideas ? (
+        <TabsContent value="ideas">
+          <IdeaList project={project.id.replace(/-/g, "")} name={project.name} find />
+        </TabsContent>
+      ) : null}
       <TabsContent value="brief">{children}</TabsContent>
     </Tabs>
   )

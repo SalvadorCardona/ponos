@@ -74,6 +74,15 @@ them asked for. A token is kept as its SHA-256 and never as itself, so a copy of
 this file opens nothing; a code, an access token, a refresh token and a token
 drawn for Claude Code are one table told apart by `kind`, because they are
 checked, expired and revoked the same way.
+
+Migration 14 tells who wrote an idea and what happened to it since. An idea is
+Ponos's or a person's (`origin`, and the person's name and picture, copied as
+they were then, since nothing here can look a person up later); a person may
+reword one, and the last of them is kept with the moment. Being kept and
+becoming a ticket part ways: `kept` is a decision, `ticket` is a page on the
+board — every idea kept before this migration had become one, so it is moved
+there. `changed_at` is when the status last changed, whichever way: unlike
+`decided_at`, it is not cleared when an idea is proposed again.
 """
 
 from __future__ import annotations
@@ -539,6 +548,21 @@ def _mcp(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX mcp_calls_by_time ON mcp_calls (at)")
 
 
+def _ideas_say_who_wrote_them(connection: sqlite3.Connection) -> None:
+    for column in (
+        "origin TEXT NOT NULL DEFAULT 'ponos'",
+        "author TEXT NOT NULL DEFAULT ''",
+        "author_avatar TEXT NOT NULL DEFAULT ''",
+        "edited_by TEXT NOT NULL DEFAULT ''",
+        "edited_by_avatar TEXT NOT NULL DEFAULT ''",
+        "edited_at TEXT",
+        "changed_at TEXT",
+    ):
+        connection.execute(f"ALTER TABLE ideas ADD COLUMN {column}")
+    connection.execute("UPDATE ideas SET status = 'ticket' WHERE status = 'kept'")
+    connection.execute("UPDATE ideas SET changed_at = COALESCE(decided_at, created_at)")
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -560,6 +584,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _runs_say_the_model_they_ran,
     _ideas,
     _mcp,
+    _ideas_say_who_wrote_them,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

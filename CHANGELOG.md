@@ -72,6 +72,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   the bar over the page, with the same line under it so the two continue each other; the name
   takes a brand weight, and the mark is a link back to the dashboard, lit on hover and focus.
 
+- **Every idea, on a project's page.** A project has an *Ideas* tab: all its ideas — thrown away
+  and turned into tickets included — with a count per status, filters by status and by author,
+  and on each one *Keep*, *Throw away*, *Back to new*, *Turn into a ticket* and *Edit*. *New idea*
+  writes one by hand (title, description, project already picked), and it is never proposed
+  again by Ponos. Every idea says who wrote it — Ponos with its mascot, or you by your GitHub name
+  and picture — and who last reworded it. The deck's *Kept / Thrown* tab becomes *All ideas*, the
+  same list. Keeping an idea and turning it into a ticket are now two things; swiping right in
+  the deck still does both, and so does the MCP server's `set_idea_state`, which gains `ticket`
+  beside `keep`. Ideas kept before are shown as turned into tickets, as they were.
+
 - **A call to action with Ponos on it.** The dashboard's ideas button is now *Ponos, find me
   ideas*, in the primary colour, with the Greek mascot on its left: its flame flickers and it
   blinks at rest, it thinks (flame beacon, sparkles) when the button is hovered or focused, and

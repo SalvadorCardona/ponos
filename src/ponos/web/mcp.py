@@ -220,7 +220,8 @@ TOOLS: list[dict] = [
         "projet, ou pour l'espace de travail entier quand aucun projet n'est donné. Chaque idée a "
         "un identifiant numérique, un titre, une description, un genre (« ticket » : une tâche à "
         "faire ; « project » : un nouveau projet) et un état : proposed (en attente d'une "
-        "décision), kept (gardée : elle est devenue une tâche en brouillon), discarded (jetée).",
+        "décision), kept (gardée pour plus tard), ticket (devenue une tâche en brouillon), "
+        "discarded (jetée).",
         "inputSchema": _schema(
             {
                 "project": PROJECT_FILTER,
@@ -323,14 +324,15 @@ TOOLS: list[dict] = [
         "name": "set_idea_state",
         "title": "Garder ou jeter une idée",
         "scope": WRITE,
-        "description": "Décide d'une idée : keep (la garder — elle devient une tâche en "
-        "brouillon, ou un nouveau projet et sa première tâche), discard (la jeter — elle reste "
-        "connue et ne sera plus proposée), new (la remettre parmi les idées proposées ; ce qu'une "
-        "idée gardée était devenue reste sur le tableau). Rien n'est supprimé.",
+        "description": "Décide d'une idée : keep (la garder pour plus tard, sans rien créer), "
+        "ticket (la transformer en tâche en brouillon, ou en nouveau projet et sa première "
+        "tâche), discard (la jeter — elle reste connue et ne sera plus proposée), new (la "
+        "remettre parmi les idées proposées ; ce qu'une idée devenue tâche a créé reste sur le "
+        "tableau). Rien n'est supprimé.",
         "inputSchema": _schema(
             {
                 "idea": {"type": "integer", "description": "L'identifiant de l'idée (list_ideas)."},
-                "state": {"type": "string", "enum": ["keep", "discard", "new"]},
+                "state": {"type": "string", "enum": ["keep", "ticket", "discard", "new"]},
             },
             ("idea", "state"),
         ),
@@ -822,6 +824,8 @@ def create_idea(api: "Api", title: str, description: str = "", project: str = ""
 def set_idea_state(api: "Api", idea: int, state: str) -> dict:
     if state == "keep":
         return _idea(api.ideas.keep(idea))
+    if state == "ticket":
+        return _idea(api.ideas.ticket(idea))
     if state == "discard":
         return _idea(api.ideas.discard(idea))
     return _idea(api.ideas.reopen(idea))

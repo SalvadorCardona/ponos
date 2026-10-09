@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { projectHref } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
+import { Byline, IdeaList } from "./ideas-list"
 import { Robot } from "./robot"
 
 /* Ideas, one card at a time.
@@ -38,6 +39,11 @@ import { Robot } from "./robot"
  * Who opens it says the scope: the dashboard's button asks for the workspace's
  * ideas, a project's page for that project's. Opening it is asking for ideas, so
  * a pile with nothing in it is filled before anything else is shown.
+ *
+ * Keeping a card here turns it into a ticket at once — the deck is for deciding
+ * quickly. Keeping one for later without a ticket, throwing it away, making it
+ * new again, or writing one by hand is the list's, the deck's second tab (see
+ * `ideas-list.tsx`), which holds every idea of the scope, thrown ones included.
  */
 
 type Phase = "loading" | "finding" | "ready" | "failed"
@@ -48,12 +54,15 @@ const FLIGHT = 220
 export function IdeasButton({
   project = "",
   name = "",
+  onClose,
   className,
 }: {
   /** The project's page; none for the workspace. */
   project?: string
   /** And its name, for the cards. */
   name?: string
+  /** Once the deck is closed: what it decided may change a list drawn behind it. */
+  onClose?: () => void
   className?: string
 }) {
   const t = useT()
@@ -85,7 +94,16 @@ export function IdeasButton({
         </span>
         {project ? t("Find me ideas for this project") : t("Ponos, find me ideas")}
       </Button>
-      {open ? <IdeasDialog project={project} name={name} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <IdeasDialog
+          project={project}
+          name={name}
+          onClose={() => {
+            setOpen(false)
+            onClose?.()
+          }}
+        />
+      ) : null}
     </>
   )
 }
@@ -104,7 +122,6 @@ function IdeasDialog({
   const [phase, setPhase] = React.useState<Phase>("loading")
   const [problem, setProblem] = React.useState("")
   const [pile, setPile] = React.useState<Idea[]>([])
-  const [decided, setDecided] = React.useState<Idea[]>([])
   const [canUndo, setCanUndo] = React.useState(false)
   const [tab, setTab] = React.useState("ideas")
   // The card in flight, and where to.
@@ -142,10 +159,9 @@ function IdeasDialog({
     try {
       const read = await api.ideas(project)
       if (!alive.current) return
-      setDecided(read.decided)
       setCanUndo(read.undo !== null)
     } catch {
-      // The history is a nicety: the pile does not wait on it.
+      // Whether Undo is offered is a nicety: the pile does not wait on it.
     }
   }, [project])
 
@@ -155,7 +171,6 @@ function IdeasDialog({
         const read = await api.ideas(project)
         if (!alive.current) return
         setPile(read.ideas)
-        setDecided(read.decided)
         setCanUndo(read.undo !== null)
         if (read.ideas.length) setPhase("ready")
         else void find()
@@ -192,7 +207,7 @@ function IdeasDialog({
     if (side === "keep") {
       tell(
         async () => {
-          const kept = await api.keepIdea(card.id)
+          const kept = await api.ticketIdea(card.id)
           const target = card.kind === "project" ? kept.created : kept.ticket
           toast.success(
             card.kind === "project"
@@ -244,17 +259,6 @@ function IdeasDialog({
     )
   }
 
-  /** Changing one's mind in the history: a thrown idea can still be kept. */
-  const keepAfterAll = (idea: Idea) =>
-    tell(
-      async () => {
-        await api.keepIdea(idea.id)
-        toast.success(t("Kept: {{title}}", { title: idea.title }))
-        await refreshHistory()
-      },
-      () => undefined
-    )
-
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (tab !== "ideas" || phase !== "ready") return
     // A tab trigger has its own use for the arrows.
@@ -269,7 +273,7 @@ function IdeasDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         data-slot="ideas-dialog"
-        className="flex flex-col gap-3 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:max-w-md"
+        className="flex flex-col gap-3 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:max-h-[90dvh] sm:max-w-md"
         closeLabel={t("Close")}
         onKeyDown={onKeyDown}
         onOpenAutoFocus={(event) => {
@@ -290,7 +294,7 @@ function IdeasDialog({
               {t("Swipe")}
             </TabsTrigger>
             <TabsTrigger value="history" data-slot="ideas-history-tab">
-              {t("Kept / Thrown")}
+              {t("All ideas")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="ideas" className="flex min-h-0 flex-1 flex-col outline-none">
@@ -322,7 +326,7 @@ function IdeasDialog({
             </div>
           </TabsContent>
           <TabsContent value="history" className="min-h-0 flex-1 overflow-y-auto">
-            <History decided={decided} onKeep={keepAfterAll} />
+            <IdeaList project={project} name={name} />
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -507,6 +511,9 @@ function Card({
       <p className="text-muted-foreground line-clamp-6 text-sm leading-relaxed">
         {idea.description}
       </p>
+      <div className="mt-auto">
+        <Byline author={idea.author} when={idea.created_at} />
+      </div>
       {top ? (
         <>
           <Stamp side="keep" shown={mark.side === "keep" ? mark.strength : 0} />
@@ -587,39 +594,5 @@ function Controls({
         <Heart className="size-6" />
       </Button>
     </div>
-  )
-}
-
-/* -- the history -------------------------------------------------------------- */
-
-function History({ decided, onKeep }: { decided: Idea[]; onKeep: (idea: Idea) => void }) {
-  const t = useT()
-  if (!decided.length)
-    return <p className="text-muted-foreground py-8 text-center text-sm">{t("Nothing decided yet.")}</p>
-  return (
-    <ul className="flex flex-col gap-2" data-slot="ideas-history">
-      {decided.map((idea) => (
-        <li
-          key={idea.id}
-          data-idea={idea.id}
-          data-status={idea.status}
-          className="flex items-start gap-3 rounded-lg border p-3"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm leading-snug font-medium">{idea.title}</p>
-            <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">{idea.description}</p>
-          </div>
-          {idea.status === "kept" ? (
-            <Badge variant="secondary" className="text-green-600 dark:text-green-400">
-              {t("Kept")}
-            </Badge>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => onKeep(idea)}>
-              {t("Keep it after all")}
-            </Button>
-          )}
-        </li>
-      ))}
-    </ul>
   )
 }
