@@ -783,6 +783,8 @@ channel = ""
 # any other host unless a token (below) is set on purpose. To reach the console
 # from your phone or another machine, tunnel rather than widen:
 #   ssh -L 8787:127.0.0.1:8787 <this machine>
+# or, on a tailnet, `tailscale serve --bg 8787` with `url` below set to
+# https://<machine>.<tailnet>.ts.net — never `tailscale funnel`, which is public.
 [web]
 host = "127.0.0.1"
 port = 8787
@@ -791,7 +793,9 @@ port = 8787
 # Traefik on Dokploy, a reverse proxy or a tunnel. The MCP connector's OAuth
 # addresses are built on it — claude.ai adds `<url>/mcp` and refuses anything
 # but https. Empty, they are read from each request, which is right on this
-# machine and behind a proxy that sets X-Forwarded-Proto.
+# machine and behind a proxy that sets X-Forwarded-Proto. Its host name is also
+# the one name, besides this machine's, a loopback console answers to — what a
+# relay such as `tailscale serve` passes on.
 # url = "https://ponos.example.com"
 
 # The token is PONOS_WEB_TOKEN, in secrets.env or the environment. None = one is

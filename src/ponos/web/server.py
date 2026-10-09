@@ -332,6 +332,10 @@ class Handler(BaseHTTPRequestHandler):
             return True
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
         expected = {"127.0.0.1", "::1", "localhost", str(self.server.server_address[0]), configured}
+        # `tailscale serve` or an ssh-free tunnel relays to loopback and keeps the
+        # name it was reached under: the one `web.url` says, and that one only.
+        if self.api.config.web.url:
+            expected.add(urlparse(self.api.config.web.url).hostname or "")
         try:
             expected.add(socket.gethostname())
         except OSError:

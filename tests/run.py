@@ -15271,6 +15271,49 @@ def the_mcp_metadata_names_the_public_address_behind_a_proxy_that_says_nothing()
 
 
 @case
+def a_loopback_console_answers_the_name_web_url_gives_it_and_no_other():
+    """`tailscale serve` relays to 127.0.0.1 and keeps the tailnet name as Host.
+
+    That name is the one `web.url` says, exactly: not any `*.ts.net`, which
+    another page could point at this machine as well as it could any domain.
+    """
+    import urllib.error
+    import urllib.request
+
+    from ponos.web import server as web_server
+
+    with _state_home(), _board() as board:
+        api = _ideas_api(board)
+        api._config.web.token = "tok"
+        console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+        threading.Thread(target=console.serve_forever, daemon=True).start()
+        port = console.server_address[1]
+
+        def status(host: str) -> int:
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}/.well-known/oauth-protected-resource/mcp", headers={"Host": host}
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    return response.status
+            except urllib.error.HTTPError as error:
+                return error.code
+
+        try:
+            assert status("laptop.tail1234.ts.net") == 421, "no web.url: only this machine's names"
+            assert status(f"127.0.0.1:{port}") == 200
+            api._config.web.url = "https://laptop.tail1234.ts.net"
+            assert status("laptop.tail1234.ts.net") == 200
+            assert status("laptop.tail1234.ts.net:443") == 200
+            assert status("other.tail1234.ts.net") == 421, "another machine of the same tailnet"
+            assert status("evil.example") == 421
+            assert status(f"127.0.0.1:{port}") == 200
+        finally:
+            console.shutdown()
+            console.server_close()
+
+
+@case
 def a_local_mcp_token_is_drawn_once_and_kept_as_a_digest():
     from ponos.web import oauth as web_oauth
 
