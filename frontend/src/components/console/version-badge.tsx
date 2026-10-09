@@ -27,14 +27,16 @@ import { useT } from "@/lib/i18n"
 import type { RunnerState, Upgrade } from "@/lib/types"
 import { badgeMode, STEPS, stepState } from "@/lib/upgrade"
 import { cn } from "@/lib/utils"
+import { when } from "./ticket-bits"
 
 /* The number this console is running, and — the one day it matters — the
  * update waiting behind it.
  *
- * Up to date, it is the version and nothing else, as it always was. With a
- * newer one waiting it becomes the button that installs it: a click opens what
- * is installed, what would be, where the release notes are, and asks before
- * doing anything. The server does the rest (`web/upgrade.py`) — waiting for a
+ * The version is the release number followed by the commit it runs, and its
+ * tooltip says which commit: the hash, its date, its subject. With a newer one
+ * waiting a button joins it, with how many commits behind, and the subjects of
+ * those commits in its tooltip: a click opens what is installed, what would be,
+ * where the release notes are, and asks before doing anything. The server does the rest (`web/upgrade.py`) — waiting for a
  * ticket in flight, installing, restarting — and says each step down the
  * stream, which is how every open tab follows the same update.
  */
@@ -59,19 +61,23 @@ export function VersionBadge({ offerOnly = false }: { offerOnly?: boolean }) {
   return (
     <>
       {/* On a phone the number is said in the bar's one status pill (see
-          `shell`): here, only the day it is a button. */}
-      {mode === "version" ? (
-        offerOnly ? null : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-muted-foreground flex items-center gap-1 px-2 font-mono text-[0.7rem]">
-                v{runner.version}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{t("the version this console runs")}</TooltipContent>
-          </Tooltip>
-        )
-      ) : (
+          `shell`): here, only the button, the day there is one. */}
+      {offerOnly ? null : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              tabIndex={0}
+              className="text-muted-foreground flex items-center gap-1 rounded-md px-2 font-mono text-[0.7rem] outline-hidden focus-visible:ring-ring/30 focus-visible:ring-2"
+            >
+              v{runner.version}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm text-left">
+            <Commit runner={runner} />
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {mode === "version" ? null : (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -79,7 +85,7 @@ export function VersionBadge({ offerOnly = false }: { offerOnly?: boolean }) {
               onClick={() => setOpen(true)}
               aria-label={label}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[0.7rem] outline-hidden transition-colors",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-[0.7rem] font-medium outline-hidden transition-colors",
                 "hover:bg-accent focus-visible:ring-ring/30 focus-visible:ring-2",
                 mode === "failed" ? "text-tr-red" : "text-tr-amber"
               )}
@@ -91,15 +97,23 @@ export function VersionBadge({ offerOnly = false }: { offerOnly?: boolean }) {
               ) : (
                 <ArrowUp className="size-3 shrink-0" />
               )}
-              {/* A phone's bar has no room for the number beside the pill
-                  that already says it: the arrow alone, its words read out. */}
-              {offerOnly ? null : <span>v{runner.version}</span>}
               {mode === "offer" ? (
-                <span className="hidden font-sans font-medium md:inline">· {t("Update")}</span>
+                <span className="hidden md:inline">{t("Update")}</span>
+              ) : null}
+              {/* How many commits behind: the one figure worth the room. */}
+              {mode === "offer" && upgrade?.behind ? (
+                <span className="bg-tr-amber/15 rounded-full px-1.5 font-mono tabular-nums">
+                  {upgrade.behind}
+                </span>
               ) : null}
             </button>
           </TooltipTrigger>
-          <TooltipContent>{label}</TooltipContent>
+          <TooltipContent className="max-w-sm text-left">
+            <span>{label}</span>
+            {mode === "offer" && upgrade?.commits?.length ? (
+              <Coming upgrade={upgrade} />
+            ) : null}
+          </TooltipContent>
         </Tooltip>
       )}
       {/* Mounted whatever the badge is: the dialog that watched the restart
@@ -108,6 +122,38 @@ export function VersionBadge({ offerOnly = false }: { offerOnly?: boolean }) {
         <UpgradeDialog open={open} onOpenChange={setOpen} runner={runner} upgrade={upgrade} />
       ) : null}
     </>
+  )
+}
+
+/** Which code answers: the commit the version names, when it was made, and what it said. */
+function Commit({ runner }: { runner: RunnerState }) {
+  const t = useT()
+  const commit = runner.commit
+  if (!commit?.commit) return <span>{t("the version this console runs")}</span>
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="font-mono text-[0.65rem] break-all">{commit.commit}</span>
+      <span className="opacity-70">{when(commit.date)}</span>
+      <span className="font-medium">{commit.subject}</span>
+    </span>
+  )
+}
+
+/** What an update brings: the subjects of the commits it is behind, newest first. */
+function Coming({ upgrade }: { upgrade: Upgrade }) {
+  const t = useT()
+  const more = upgrade.behind - upgrade.commits.length
+  return (
+    <ul className="mt-1.5 flex list-disc flex-col gap-0.5 pl-4">
+      {upgrade.commits.map((subject, index) => (
+        <li key={index} className="line-clamp-2">
+          {subject}
+        </li>
+      ))}
+      {more > 0 ? (
+        <li className="list-none opacity-70">{t("and {{count}} more", { count: String(more) })}</li>
+      ) : null}
+    </ul>
   )
 }
 

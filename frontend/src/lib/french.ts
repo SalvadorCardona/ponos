@@ -159,6 +159,7 @@ export const FRENCH: Record<string, string> = {
   // it — and the dialog that asks first, then follows the update to the end.
   "v{{version}} → {{target}}, click to update": "v{{version}} → {{target}}, cliquez pour mettre à jour",
   Update: "Mettre à jour",
+  "and {{count}} more": "et {{count}} de plus",
   "updating…": "mise à jour…",
   "update failed": "mise à jour échouée",
   "Home": "Accueil",

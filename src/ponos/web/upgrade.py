@@ -23,6 +23,12 @@ restart; started by hand, the process replaces itself with the same command
 line. What was going on is written down first, so the process that comes back
 knows it came back from an update.
 
+The console also asks on its own, when it starts and every quarter of an hour
+(`watch`): a run asks once an hour at most, and only when the timer is on —
+the button would otherwise appear an hour after the commit it offers, or never.
+It is one `git fetch` per quarter, from one process, whatever the number of
+pages open; a page that loads reads what the last look found.
+
 In a container there is nothing of the kind to do: the header says that a new
 version is a new image, and gives the command that pulls it — see `update.py`.
 """
@@ -52,6 +58,9 @@ UNDER_WAY = ("waiting", "downloading", "installing", "restarting")
 # How often a queued update asks for the lock again. A pass lasts minutes; a
 # few seconds late is nothing, and a second is a busy loop on a laptop.
 POLL_SECONDS = 5.0
+
+# How often the console asks the remote itself — see `watch`.
+CHECK_SECONDS = 15 * 60
 
 # What somebody types when the console cannot do it — the CLI does the same thing.
 COMMAND = "ponos update"
@@ -139,9 +148,6 @@ class Upgrade:
         answers there, so a console opened from elsewhere is shown the command
         rather than a button that would be refused.
         """
-        status = update_module.waiting(self.app)
-        if self._page is None:
-            self._page = update_module.repository_page(self.app)
         why = ""
         if in_container():
             why = update_module.CONTAINER
@@ -151,17 +157,29 @@ class Upgrade:
             # A version is written beside the one in use, not over it.
             why = f"{self.app.parent} is not writable by the console"
         return {
-            "available": status.stale,
-            "current": status.current[:8],
-            "latest": status.latest[:8],
-            "tag": status.tag,
-            "notes": update_module.notes(status, self._page) or (
-                f"{self._page}/blob/main/CHANGELOG.md" if self._page else ""
-            ),
+            **self.known(),
             "automatic": not why,
             "manual": why,
             "command": update_module.PULL if in_container() else COMMAND,
             **self.progress(),
+        }
+
+    def known(self) -> dict:
+        """What the last check found — the same for every page, near or far."""
+        status = update_module.waiting(self.app)
+        if self._page is None:
+            self._page = update_module.repository_page(self.app)
+        return {
+            "available": status.stale,
+            "current": status.current[:8],
+            "latest": status.latest[:8],
+            "tag": status.tag,
+            # How far behind, and what is coming: the button's number and its tooltip.
+            "behind": status.behind if status.stale else 0,
+            "commits": status.commits if status.stale else [],
+            "notes": update_module.notes(status, self._page) or (
+                f"{self._page}/blob/main/CHANGELOG.md" if self._page else ""
+            ),
         }
 
     def progress(self) -> dict:
@@ -173,6 +191,37 @@ class Upgrade:
             "log": list(self.lines[-40:]),
             "log_path": str(log_path()),
         }
+
+    # -- asking on its own ----------------------------------------------------
+
+    def watch(self, every: float = CHECK_SECONDS) -> None:
+        """Ask the remote now, then every `every` seconds, for as long as the console runs."""
+        def loop() -> None:
+            while True:
+                try:
+                    self.look()
+                except Exception:  # noqa: BLE001 — a thread that dies stops looking for good
+                    pass
+                time.sleep(every)
+
+        threading.Thread(target=loop, name="upgrade-check", daemon=True).start()
+
+    def look(self) -> None:
+        """One check, said to every page when it changes what the header offers.
+
+        Not while an update is under way — it asks the remote itself, under the
+        lock — and not with `runner.auto_update` off: whoever turned it off
+        updates with `ponos update`, and asked for no fetch behind their back.
+        The run's clock is left alone (`update.remember`).
+        """
+        settings = self.settings()
+        if not settings.auto_update or self.phase in UNDER_WAY:
+            return
+        before = self.known()
+        update_module.check(self.app, settings.update_channel, clock=False)
+        after = self.known()
+        if after != before:
+            self.publish("upgrade", **after, **self.progress())
 
     # -- what a click does ----------------------------------------------------
 

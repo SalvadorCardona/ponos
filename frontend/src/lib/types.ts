@@ -260,7 +260,10 @@ export interface RunnerState {
   model: string
   permission_mode: string
   claude: boolean
+  /** The release number and the commit it runs, `0.1.0+1a2b3c4` — or the number alone. */
   version: string
+  /** The commit `version` names, for its tooltip — empty outside a git checkout. */
+  commit?: RunningCommit
   update: string
   /** The update the version offers, and how far one is — see `web/upgrade.py`. */
   upgrade?: Upgrade
@@ -269,6 +272,13 @@ export interface RunnerState {
   chat: ChatState
   commands: string[]
   busy: boolean
+}
+
+/** The commit the console runs: its full hash, its date, its subject. */
+export interface RunningCommit {
+  commit: string
+  date: string
+  subject: string
 }
 
 /** An update's progress, as the stream carries it. */
@@ -291,6 +301,9 @@ export interface Upgrade extends UpgradeProgress {
   latest: string
   /** The release the newest one is, on the release channel. */
   tag: string
+  /** How many commits behind the newest one, and their subjects, newest first. */
+  behind: number
+  commits: string[]
   /** The release notes, or the commits in between. */
   notes: string
   /** Whether the console can install it itself; `manual` says why not. */

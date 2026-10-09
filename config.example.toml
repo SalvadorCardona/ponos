@@ -532,6 +532,8 @@ schedule = true
 # Only works on an installation made by install.sh from the repository: one made
 # from a local copy (TR_SRC=.) has no remote to compare itself against, and says
 # so once instead of updating.
+# The console asks too, when it starts and every 15 minutes, to show its Update
+# button: that is a check, not an install, and false turns it off as well.
 auto_update = true
 
 # What "the newest" means.

@@ -1578,6 +1578,7 @@ def serve(
 
     thread = threading.Thread(target=server.serve_forever, name="tr-console", daemon=True)
     thread.start()
+    api.upgrade.watch()
     try:
         while thread.is_alive():
             thread.join(1)

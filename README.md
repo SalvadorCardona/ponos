@@ -318,12 +318,19 @@ ponos update --check   # what is available, changing nothing
 ponos update           # apply it now
 ```
 
-**From the console**, the version at the top right says it too: the day a check has found
-a newer one, it turns amber with an arrow and becomes a button. Hovered, it names the
+**From the console**, the version at the top right is the release number followed by the
+commit it runs — `0.1.0+1a2b3c4`, read from git when the header is drawn, so it changes with
+every commit without anybody bumping it; outside a git checkout (a copy, the Docker image)
+it is the number alone. Hovered, it gives the full hash, the date and the subject of that
+commit. The console also asks the remote itself, when it starts and every 15 minutes (one
+`git fetch`, whatever the number of pages open, and none with `runner.auto_update = false`)
+— without counting as the hourly check a run makes, so the runs keep updating on their own.
+The day a check has found a newer version, an amber *Update* button appears beside the
+number, with how many commits behind it is; hovered, it lists their subjects and names the
 installed version and the one waiting; clicked, it shows both, links the release notes (or
 the commits in between, on `main`), and asks before doing anything. *Update now* then does
 what `ponos update` does, with every step drawn as it happens — downloading,
-installing, restarting — and the page reconnects by itself onto the new version:
+installing, restarting — and the page reloads by itself from the new version:
 
 - **nothing running is cut short.** The update takes the run lock, which every ticket's
   session runs under: with a ticket in flight the button reads *Update after the ticket*,
