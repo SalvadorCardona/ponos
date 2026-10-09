@@ -79,6 +79,26 @@ test.describe("at 1440px", () => {
       await expect(card(page, name).getByText(/\d+ tickets?/)).toBeVisible()
   })
 
+  test("“+ Ticket” on a card opens a new ticket for that project, and not the project", async ({ page }) => {
+    await open(page)
+    const sent: Record<string, unknown>[] = []
+    await page.route("**/api/tickets", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      sent.push(route.request().postDataJSON())
+      await route.fulfill({ json: { id: "0000000000000000000000000000f0aa", title: "From a card" } })
+    })
+    // One with no repository too: its tickets come back as a document.
+    await card(page, "Journal").locator("xpath=..").locator("[data-project-new-ticket]").click()
+    expect(new URL(page.url()).searchParams.get("view")).toBe("console/projects/list")
+    const dialog = page.getByRole("dialog")
+    await expect(dialog.getByRole("combobox", { name: "Project" })).toContainText("Journal")
+    await dialog.getByLabel("Title").fill("From a card")
+    await dialog.getByRole("button", { name: "Create" }).click()
+    await expect.poll(() => sent.length).toBe(1)
+    expect(sent[0]).toMatchObject({ title: "From a card", type: "" })
+    expect(sent[0].project).toBeTruthy()
+  })
+
   test("a project without a repository says it in one line, behind its own icon", async ({ page }) => {
     await open(page)
     const journal = card(page, "Journal")
@@ -101,8 +121,8 @@ test.describe("at 1440px", () => {
     const row = page.locator("[data-project-row]", { hasText: "Website" })
     await expect(row).toHaveAttribute("href", /projects\/read/)
     const box = (await row.boundingBox())!
-    // Short of the “…” menu, which is the one place on the row that is not the link.
-    await page.mouse.click(box.x + box.width - 60, box.y + box.height / 2)
+    // Short of “+ Ticket” and the “…” menu, which are the two places on the row that are not the link.
+    await page.mouse.click(box.x + box.width - 130, box.y + box.height / 2)
     await onThePageOf(page, "Website")
   })
 

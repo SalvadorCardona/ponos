@@ -26,6 +26,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   *Ponos, find me ideas* is there too, for the project picked in the filter, and its swipe cards
   now show the project's icon and name.
 
+- **A "+ Ticket" button on every project, on its card and on its row.** It opens the dashboard's
+  *New ticket* dialog with the project already chosen — a project with no repository
+  included, whose ticket comes back as a document — without opening the project's page. The
+  type is left to the runner, which deduces it from the project. A project only the
+  configuration names has no page for a ticket to point at, and has no button.
 - **The global context sits at the top of the Projects page.** *Context* is gone from the
   menu: the text every ticket is told first, for all the projects, is the first block of
   *Projects* — folded to a few lines in Markdown, *See all* to read it, *Edit* to write it in
