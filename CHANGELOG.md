@@ -29,6 +29,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   journalled with its client, and `ponos mcp list` / `revoke` show and take back the keys.
   See README, *Driving it from Claude: the MCP server*.
 
+- **The sidebar's head, redone.** The mark and the name now sit on one axis in a head as tall as
+  the bar over the page, with the same line under it so the two continue each other; the name
+  takes a brand weight, and the mark is a link back to the dashboard, lit on hover and focus.
+
 - **A call to action with Ponos on it.** The dashboard's ideas button is now *Ponos, find me
   ideas*, in the primary colour, with the Greek mascot on its left: its flame flickers and it
   blinks at rest, it thinks (flame beacon, sparkles) when the button is hovered or focused, and

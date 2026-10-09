@@ -28,16 +28,24 @@ import { VersionBadge } from "./version-badge"
 /** The mark and the name, in the sidebar's corner — and in the bar, on a phone. */
 export function Mark() {
   const mood = useRunnerMood()
+  const t = useT()
   return (
-    <div className="flex h-8 items-center gap-2">
+    <Link
+      to="/"
+      aria-label={t("Home")}
+      className={cn(
+        "-mx-2 flex h-10 items-center gap-2.5 rounded-xl px-2 outline-hidden transition-colors",
+        "hover:bg-accent focus-visible:ring-ring/30 focus-visible:ring-2"
+      )}
+    >
       {/* Ponos, the console's mark and the runner's face, wears the runner's
           mood — the only face that does, now the bar's end no longer carries
           one. Hovered, it says whose face it is. */}
       <span className="flex shrink-0" title="Ponos">
-        <Robot state={mood.state} size={24} />
+        <Robot state={mood.state} size={28} />
       </span>
-      <span className="truncate text-sm font-semibold">Ponos</span>
-    </div>
+      <span className="truncate text-base leading-none font-semibold tracking-tight">Ponos</span>
+    </Link>
   )
 }
 

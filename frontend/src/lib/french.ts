@@ -160,6 +160,7 @@ export const FRENCH: Record<string, string> = {
   Update: "Mettre à jour",
   "updating…": "mise à jour…",
   "update failed": "mise à jour échouée",
+  "Home": "Accueil",
   "Update Ponos": "Mettre à jour Ponos",
   "Updating Ponos": "Ponos se met à jour",
   "The update failed": "La mise à jour a échoué",
