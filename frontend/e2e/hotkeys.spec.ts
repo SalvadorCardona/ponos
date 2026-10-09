@@ -33,10 +33,10 @@ test("the palette takes you to a page, with the keyboard alone", async ({ page }
   await open(page)
   await page.keyboard.press("Control+k")
   await page.keyboard.type("context")
-  await expect(palette(page).getByRole("option").first()).toHaveText(/Context/)
+  await expect(palette(page).getByRole("option").first()).toHaveText(/Global context/)
   await page.keyboard.press("Enter")
   await expect(palette(page)).toBeHidden()
-  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toContain("context")
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toContain("projects")
 })
 
 test("the palette finds a ticket on the board", async ({ page }) => {

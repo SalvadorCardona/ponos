@@ -13,6 +13,7 @@ import {
   type ListComponentPropsInterface,
 } from "react-resource-view"
 
+import { ContextBlock } from "@/components/console/context-block"
 import { EmptyState } from "@/components/console/empty-state"
 import { Eyebrow } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
@@ -594,8 +595,18 @@ function CopyPath({ path }: { path: string }) {
 
 /* -- what sits around the list -------------------------------------------- */
 
-/** How many of them are worked on in git, said where the list opens. */
+/** The standing context, over the projects it covers; then how many of them are worked on in git. */
 function ProjectsTop() {
+  return (
+    <>
+      <ContextBlock />
+      <ProjectsCount />
+    </>
+  )
+}
+
+/** How many of them are worked on in git, said where the list opens. */
+function ProjectsCount() {
   const read = useProjects()
   useLayoutInTheAddress(PROJECTS)
   if (!read) return null

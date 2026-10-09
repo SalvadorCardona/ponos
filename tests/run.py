@@ -11605,7 +11605,7 @@ def the_console_is_drawn_in_react_resource_view_s_admin_layout():
     """
     scope = (FRONTEND / "src/resources/scope.tsx").read_text(encoding="utf-8")
     assert "createAdminLayout" in scope, "the console draws its own frame again"
-    for resource in ("tickets", "projects", "schedules", "context", "settings"):
+    for resource in ("tickets", "projects", "schedules", "settings"):
         assert f"entry({resource.upper()}" in scope, f"the menu has no entry for {resource}"
     app = (FRONTEND / "src/App.tsx").read_text(encoding="utf-8")
     assert "ScopeProvider" in app, "the pages are no longer drawn in the scope's layout"
