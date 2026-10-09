@@ -152,3 +152,19 @@ export function useLayoutInTheAddress(resourceId: string): void {
     })
   }, [listing, resourceId, viewVariant, first, resource, carried, setViewResource])
 }
+
+/**
+ * Remember the layout of a list drawn inside another page, and nothing else.
+ *
+ * The list under a project's tickets is the board's list, so the layout picked
+ * there is the one the board opens on, and the other way round. It leaves the
+ * address alone: the address is the project's, and a `variant=` written there
+ * would be read by the package as the project's own.
+ */
+export function useRememberedLayout(resourceId: string): void {
+  const { view, viewVariant } = useCurrentViewResourceContext()
+  const first = view?.viewVariants?.[0]?.id
+  React.useEffect(() => {
+    if (viewVariant) layouts.set(resourceId, viewVariant === first ? "" : viewVariant)
+  }, [resourceId, viewVariant, first])
+}

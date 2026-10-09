@@ -1633,4 +1633,10 @@ export const FRENCH: Record<string, string> = {
   "The idea, in one line.": "L'idée, en une ligne.",
   Description: "Description",
   "Why it is worth doing.": "Pourquoi elle vaut la peine.",
+  Id: "Id",
+  "Last modified": "Dernière modification",
+  "Title or id": "Titre ou id",
+  "any status": "tous les statuts",
+  "any priority": "toutes les priorités",
+  "any type": "tous les types",
 }

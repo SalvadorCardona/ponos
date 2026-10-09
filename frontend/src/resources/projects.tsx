@@ -754,6 +754,9 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
     [ActionList.read]: {
       name: "Project",
       viewComponent: ProjectPage,
+      // The dashboard's width and margins: the page is a header, figures and a
+      // board, not a form to keep in a column.
+      fullWidth: true,
       // The layout's header, with what only a project has in it: the page has
       // no header of its own.
       components: { title: ProjectTitle, actions: ProjectActions },

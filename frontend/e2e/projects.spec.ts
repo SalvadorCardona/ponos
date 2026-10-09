@@ -254,12 +254,57 @@ test.describe("the page of a project", () => {
     await card(page, "Website").click()
     await onThePageOf(page, "Website")
     await page.getByRole("button", { name: "New ticket" }).click()
-    const form = page.locator('[data-slot="project-ticket-form"]')
-    await form.getByLabel("Title").fill("Fix the footer of the site")
-    await form.getByRole("button", { name: "Create" }).click()
-    await expect(form).toBeHidden()
-    const list = page.locator('[data-slot="project-ticket-list"]')
-    await expect(list.getByText("Fix the footer of the site")).toBeVisible()
+    const dialog = page.getByRole("dialog")
+    await expect(dialog).toBeVisible()
+    // The project is the page's: the form comes with it settled.
+    await expect(dialog.getByRole("group").filter({ hasText: "Project" }).getByRole("combobox")).toContainText("Website")
+    await dialog.getByLabel("Title").fill("Fix the footer of the site")
+    await dialog.getByRole("button", { name: "Create" }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByText("Fix the footer of the site").filter({ visible: true }).first()).toBeVisible()
+  })
+
+  test("the tickets are the dashboard's list, in a board and in a table, kept to the project", async ({ page }) => {
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    // The board is shared with the other tests: this one brings its own ticket.
+    await page.getByRole("button", { name: "New ticket" }).click()
+    const dialog = page.getByRole("dialog")
+    await dialog.getByLabel("Title").fill("Rows of the table")
+    await dialog.getByRole("button", { name: "Create" }).click()
+    await expect(dialog).toBeHidden()
+    const layouts = page.getByRole("tablist").filter({ hasText: "table" })
+    await expect(layouts).toBeVisible()
+
+    await layouts.getByRole("tab", { name: "table" }).click()
+    const heads = page.getByRole("columnheader")
+    for (const name of ["Id", "Ticket", "Status", "Priority", "Type", "Cost", "Last modified"])
+      await expect(heads.filter({ hasText: name }).first()).toBeVisible()
+    // The address stays the project's: the layout is remembered, not navigated to.
+    await expect(page).toHaveURL(/projects\/read/)
+
+    // Nothing of another project, and the layout is the dashboard's next time.
+    await expect(page.locator('[data-slot="table-row"]', { hasText: "Elsewhere" })).toHaveCount(0)
+    await page.getByRole("link", { name: /^Dashboard/ }).click()
+    await expect(page).toHaveURL(/variant=table/)
+  })
+
+  test("the page takes the width the dashboard does, tickets and brief alike", async ({ page }) => {
+    const content = page.locator('[data-slot="admin-content"]')
+    const widthOf = async () => Math.round((await content.boundingBox())!.width)
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    await expect(content).toHaveAttribute("data-full-width", "true")
+    const project = await widthOf()
+    await tab(page, "Brief").click()
+    await expect(page.getByText("The brief of Website.")).toBeVisible()
+    expect(await widthOf()).toBe(project)
+
+    await page.goto("/?view=console/tickets/list")
+    await expect(content).toHaveAttribute("data-full-width", "true")
+    expect(await widthOf()).toBe(project)
   })
 
   test("a project with no clone says so, rather than saying where a clone would be", async ({ page }) => {
