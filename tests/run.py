@@ -13072,11 +13072,11 @@ def ideas_for_a_project_are_found_in_one_call_and_never_proposed_twice():
 
 
 @case
-def a_kept_idea_is_a_draft_ticket_and_a_kept_project_is_a_project():
-    """Kept: a draft in the tickets database, What / Where / Done when / Out of
+def an_idea_turned_into_a_ticket_is_a_draft_and_a_project_idea_a_project():
+    """Turned into a ticket: a draft in the tickets database, What / Where / Done when / Out of
     scope, attached to its project, no model. A new project's idea creates the
     project, its description as the brief, and a first ticket to frame it.
-    Taking it back proposes it again — and keeping it again writes nothing twice."""
+    Taking it back proposes it again — and turning it again writes nothing twice."""
     with _state_home(), _board() as board:
         project = board.create_row("projects", "Usine", {})
         api = _ideas_api(board)
@@ -13097,8 +13097,8 @@ def a_kept_idea_is_a_draft_ticket_and_a_kept_project_is_a_project():
         assert '"project" for a new project' in asked[1]["prompt"]
 
         settings = api.config.notion
-        kept = api.ideas.keep(mine["id"])
-        assert kept["status"] == "kept" and kept["ticket"]
+        kept = api.ideas.ticket(mine["id"])
+        assert kept["status"] == "ticket" and kept["ticket"]
         ticket = board.page(kept["ticket"])
         assert ticket.title == "Un mode sombre"
         assert store.read(ticket, settings.prop("project")) == [project]
@@ -13110,7 +13110,7 @@ def a_kept_idea_is_a_draft_ticket_and_a_kept_project_is_a_project():
         assert "- [ ] Le thème bascule" in text
 
         club = next(idea for idea in general if idea["kind"] == "project")
-        made = api.ideas.keep(club["id"])
+        made = api.ideas.ticket(club["id"])
         assert made["created"], "the project itself"
         assert board.page(made["created"]).title == "Un site pour le club"
         assert "Les inscriptions." in board.blocks_text(made["created"])
@@ -13127,11 +13127,11 @@ def a_kept_idea_is_a_draft_ticket_and_a_kept_project_is_a_project():
         assert undone["was"] == "discarded" and undone["idea"]["status"] == "proposed"
         assert len(board.query("tickets")) == tickets_before, "throwing away wrote nothing"
         back = api.ideas.undo("")
-        assert back["idea"]["id"] == club["id"] and back["was"] == "kept"
+        assert back["idea"]["id"] == club["id"] and back["was"] == "ticket"
         assert club["id"] in [idea["id"] for idea in api.ideas.proposed("")["ideas"]]
-        again = api.ideas.keep(club["id"])
+        again = api.ideas.ticket(club["id"])
         assert (again["ticket"], again["created"]) == (made["ticket"], made["created"])
-        assert len(board.query("tickets")) == tickets_before, "kept again, written once"
+        assert len(board.query("tickets")) == tickets_before, "turned again, written once"
         assert api.ideas.undo(project)["idea"]["id"] == mine["id"], "a scope's own last choice"
         try:
             api.ideas.undo(project)
@@ -13139,6 +13139,115 @@ def a_kept_idea_is_a_draft_ticket_and_a_kept_project_is_a_project():
             pass
         else:
             raise AssertionError("nothing left to take back in this project")
+
+
+@case
+def an_idea_is_kept_thrown_reopened_and_nothing_is_ever_deleted():
+    """Keeping writes nothing on the board; throwing away keeps the idea; every
+    status is counted, and a ticket must be made new again before it is thrown."""
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        api = _ideas_api(board)
+        fake_run, _ = _proposing([[_idea("Un mode sombre"), _idea("Un export CSV"), _idea("Un tutoriel")]])
+        original, session.run = session.run, fake_run
+        try:
+            dark, export, tutorial = api.ideas.generate(project)["ideas"]
+        finally:
+            session.run = original
+        tickets_before = len(board.query("tickets"))
+        kept = api.ideas.keep(dark["id"])
+        assert kept["status"] == "kept" and not kept["ticket"]
+        assert len(board.query("tickets")) == tickets_before, "kept is not yet a ticket"
+        thrown = api.ideas.discard(export["id"])
+        assert thrown["status"] == "discarded" and thrown["decided_at"]
+        made = api.ideas.ticket(tutorial["id"])
+        try:
+            api.ideas.discard(tutorial["id"])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a ticket is made new again before it is thrown away")
+
+        every = api.ideas.every(project)
+        assert every["counts"] == {"proposed": 0, "kept": 1, "discarded": 1, "ticket": 1}
+        assert {idea["id"] for idea in every["ideas"]} == {dark["id"], export["id"], tutorial["id"]}
+
+        back = api.ideas.reopen(tutorial["id"])
+        assert back["status"] == "proposed" and back["ticket"] == made["ticket"]
+        assert back["changed_at"] >= made["changed_at"] and back["decided_at"] is None
+        assert api.ideas.discard(tutorial["id"])["status"] == "discarded"
+        assert api.ideas.every(project)["counts"]["discarded"] == 2
+        assert [idea.title for idea in ideas.listed(project, ("discarded",))] == ["Un export CSV", "Un tutoriel"]
+
+
+@case
+def an_idea_written_by_hand_is_signed_and_never_proposed_again():
+    """Origin manual, its author's name and picture; reworded, the editor and the
+    moment; Ponos's own say Ponos. And the next batch is told about it."""
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        api = _ideas_api(board)
+        api.ideas._person = ("Salva", "https://example.com/salva.png")
+        written = api.ideas.create(
+            {"project": project, "title": "  Une carte  des usines ", "description": "Pour voir.\n\nOù."}
+        )
+        assert written["origin"] == "manual" and written["status"] == "proposed"
+        assert written["title"] == "Une carte des usines"
+        assert written["description"] == "Pour voir.\n\nOù.", "a hand-written paragraph keeps its lines"
+        assert written["author"] == {"kind": "human", "name": "Salva", "avatar": "https://example.com/salva.png"}
+        assert written["edited"] is None and written["kind"] == "ticket"
+        assert written["project"] == project.replace("-", "")
+        for wrong in ({"project": project, "title": "  "}, {"project": "f" * 32, "title": "Rien"}):
+            try:
+                api.ideas.create(wrong)
+            except (ValueError, LookupError):
+                pass
+            else:
+                raise AssertionError(f"refused: {wrong}")
+        workspace = api.ideas.create({"title": "Un site", "kind": "project"})
+        assert workspace["scope"] == "global" and workspace["kind"] == "project"
+
+        fake_run, asked = _proposing([[_idea("Une carte des usines !"), _idea("Un mode sombre")]])
+        original, session.run = session.run, fake_run
+        try:
+            found = api.ideas.generate(project)
+        finally:
+            session.run = original
+        assert "Une carte des usines" in asked[0]["prompt"], "a hand-written idea is named to the model"
+        assert found["dropped"] == ["Une carte des usines !"]
+        ponos = found["ideas"][0]
+        assert ponos["origin"] == "ponos" and ponos["author"]["kind"] == "ponos"
+
+        api.ideas._person = ("Quelqu'un", "")
+        edited = api.ideas.edit(ponos["id"], {"title": "Un mode sombre, partout", "description": "Oui."})
+        assert edited["title"] == "Un mode sombre, partout" and edited["author"]["kind"] == "ponos"
+        assert edited["edited"]["name"] == "Quelqu'un" and edited["edited"]["at"]
+
+        db.close()
+        assert ideas.get(written["id"]).author == "Salva", "it survives a restart"
+        assert len(api.ideas.every(project)["ideas"]) == 2
+
+
+@case
+def the_ideas_kept_before_their_author_was_known_became_tickets():
+    """Migration 13 on a file of migration 12: a kept idea had become a ticket,
+    and every idea is Ponos's, dated by its last decision."""
+    with _state_home():
+        location = db.path()
+        raw = db.open_at(location, db.MIGRATIONS[:12])
+        raw.execute(
+            "INSERT INTO ideas (scope, project, kind, title, status, ticket, created_at, decided_at)"
+            " VALUES ('project', 'p', 'ticket', 'Gardée', 'kept', 't1', '2026-10-01', '2026-10-02'),"
+            " ('project', 'p', 'ticket', 'Jetée', 'discarded', '', '2026-10-01', '2026-10-03'),"
+            " ('project', 'p', 'ticket', 'Neuve', 'proposed', '', '2026-10-01', NULL)"
+        )
+        raw.close()
+        db.close()
+        found = {idea.title: idea for idea in ideas.every("p")}
+        assert found["Gardée"].status == "ticket" and found["Gardée"].ticket == "t1"
+        assert found["Jetée"].status == "discarded" and found["Jetée"].changed_at == "2026-10-03"
+        assert found["Neuve"].changed_at == "2026-10-01"
+        assert all(idea.origin == "ponos" for idea in found.values())
 
 
 @case
@@ -14854,8 +14963,10 @@ def an_mcp_client_sorts_ideas_without_deleting_any():
         back = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="new")["structuredContent"]
         assert back["status"] == "proposed"
         kept = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="keep")["structuredContent"]
-        assert kept["status"] == "kept" and kept["task"]
-        ticket = board.page(kept["task"])
+        assert kept["status"] == "kept" and not kept["task"], "keeping writes nothing on the board"
+        made = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="ticket")["structuredContent"]
+        assert made["status"] == "ticket" and made["task"]
+        ticket = board.page(made["task"])
         assert ticket.title == "Un mode sombre" and store.read(ticket, "Project") == [project]
 
 

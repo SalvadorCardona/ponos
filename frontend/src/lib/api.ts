@@ -6,6 +6,7 @@ import type {
   Folder,
   Found,
   Idea,
+  IdeaList,
   Ideas,
   LogEntry,
   ChatState,
@@ -240,8 +241,20 @@ export const api = {
     request<Ideas>(`/api/ideas${project ? `?project=${encodeURIComponent(project)}` : ""}`),
   /** An empty `project` is the workspace's ideas. */
   findIdeas: (project = "") => request<Found>("/api/ideas/generate", { project }),
+  /** Every idea of one scope, thrown away and turned into tickets included. */
+  allIdeas: (project = "") =>
+    request<IdeaList>(`/api/ideas/all${project ? `?project=${encodeURIComponent(project)}` : ""}`),
+  /** An idea written by hand; an empty `project` is the workspace's. */
+  writeIdea: (values: { title: string; description: string; project: string; kind?: Idea["kind"] }) =>
+    request<Idea>("/api/ideas", values),
+  editIdea: (id: number, values: { title: string; description: string }) =>
+    request<Idea>(`/api/ideas/${id}`, values),
+  /** Kept for later: nothing is written on the board. */
   keepIdea: (id: number) => request<Idea>(`/api/ideas/${id}/keep`, {}),
   discardIdea: (id: number) => request<Idea>(`/api/ideas/${id}/discard`, {}),
+  /** A draft ticket — or, for the idea of a project, the project and its first ticket. */
+  ticketIdea: (id: number) => request<Idea>(`/api/ideas/${id}/ticket`, {}),
+  reopenIdea: (id: number) => request<Idea>(`/api/ideas/${id}/reopen`, {}),
   /** Takes back the last decision of one scope. */
   undoIdea: (project = "") => request<{ idea: Idea; was: string }>("/api/ideas/undo", { project }),
   refresh: () => request<unknown>("/api/refresh", {}),

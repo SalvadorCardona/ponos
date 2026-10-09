@@ -27,6 +27,17 @@ is not where a discarded thought belongs. Keeping one is the moment it crosses
 over — and the ticket it became is remembered on it, so that taking the decision
 back and keeping it again finds that ticket rather than writing a second one.
 
+**Kept is not yet a ticket.** An idea is new, kept, thrown away, or turned
+into a ticket: keeping one says it is worth doing, turning it into a ticket
+puts it on the board — the deck's swipe to the right does both at once, the
+list on a project's page one at a time. None of them deletes anything: an idea
+thrown away is still there, to be taken back, and to keep the next batch from
+proposing it again.
+
+**Ponos's or ours.** Ideas are also written by hand, and reworded: each one
+says who wrote it — Ponos, or the person, by the name and the picture they
+had then — and who last changed it, and when.
+
 Nothing here touches the network: building the prompt, reading the answer and
 remembering the decisions are testable alone. Running the session and writing
 the board is `web/ideas.py`'s.
@@ -45,7 +56,8 @@ from . import db
 
 SCOPES = ("global", "project")
 KINDS = ("ticket", "project")
-STATUSES = ("proposed", "kept", "discarded")
+STATUSES = ("proposed", "kept", "discarded", "ticket")
+ORIGINS = ("ponos", "manual")
 
 # One batch. Enough to swipe through in a minute, few enough that the model
 # still has something to say by the tenth.
@@ -59,6 +71,8 @@ TIMEOUT_MINUTES = 3
 TITLE_LIMIT = 90
 DESCRIPTION_LINES = 3
 DESCRIPTION_LIMIT = 320
+# One written by hand is not a card the model filled: room for a paragraph.
+WRITTEN_LIMIT = 4000
 
 # How alike two titles may be before the second is the first said again —
 # measured twice, accents and case aside. Character by character, high, since
@@ -121,9 +135,11 @@ class Idea:
     """One idea, as the local database keeps it.
 
     `project` is the page of the project it was proposed for — "" for the
-    workspace. `ticket` is the draft it became once kept, and `created` the
-    project it created when it was the idea of one: both stay after the
-    decision is taken back, so that keeping it again does not write them twice.
+    workspace. `ticket` is the draft it became, and `created` the project it
+    created when it was the idea of one: both stay after the decision is taken
+    back, so that turning it into a ticket again does not write them twice.
+    `author` is the name of who wrote it by hand, "" for Ponos; `edited_by`
+    the last person who changed it.
     """
 
     id: int
@@ -140,6 +156,13 @@ class Idea:
     cost_usd: float | None = None
     created_at: str = ""
     decided_at: str | None = None
+    origin: str = "ponos"
+    author: str = ""
+    author_avatar: str = ""
+    edited_by: str = ""
+    edited_by_avatar: str = ""
+    edited_at: str | None = None
+    changed_at: str | None = None
 
     def shown(self) -> dict:
         """The idea as the console reads it."""
@@ -160,6 +183,18 @@ class Idea:
             "cost_usd": self.cost_usd,
             "created_at": self.created_at,
             "decided_at": self.decided_at,
+            "changed_at": self.changed_at or self.created_at,
+            "origin": self.origin,
+            "author": (
+                {"kind": "ponos", "name": "Ponos", "avatar": ""}
+                if self.origin == "ponos"
+                else {"kind": "human", "name": self.author, "avatar": self.author_avatar}
+            ),
+            "edited": (
+                {"name": self.edited_by, "avatar": self.edited_by_avatar, "at": self.edited_at}
+                if self.edited_at
+                else None
+            ),
         }
 
 
@@ -393,7 +428,8 @@ def _now() -> str:
 
 _COLUMNS = (
     "id, batch, scope, project, kind, title, description, detail, status, ticket, created,"
-    " cost_usd, created_at, decided_at"
+    " cost_usd, created_at, decided_at, origin, author, author_avatar, edited_by,"
+    " edited_by_avatar, edited_at, changed_at"
 )
 
 
@@ -417,6 +453,13 @@ def _idea(row: tuple) -> Idea:
         cost_usd=row[11],
         created_at=row[12],
         decided_at=row[13],
+        origin=row[14],
+        author=row[15],
+        author_avatar=row[16],
+        edited_by=row[17],
+        edited_by_avatar=row[18],
+        edited_at=row[19],
+        changed_at=row[20],
     )
 
 
@@ -445,7 +488,7 @@ def record(
         for idea in ideas:
             connection.execute(
                 "INSERT INTO ideas (batch, scope, project, kind, title, description, detail,"
-                " cost_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " cost_usd, created_at, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     batch,
                     scope,
@@ -456,6 +499,7 @@ def record(
                     json.dumps(idea.get("detail") or {}, ensure_ascii=False),
                     share,
                     now,
+                    now,
                 ),
             )
         rows = connection.execute(
@@ -464,28 +508,57 @@ def record(
     return int(batch), [_idea(row) for row in rows]
 
 
-def add(project: str, kind: str, title: str, description: str = "") -> Idea:
-    """One idea written by somebody rather than proposed by a session.
+def written(
+    project: str,
+    title: str,
+    description: str = "",
+    *,
+    kind: str = "ticket",
+    author: str = "",
+    avatar: str = "",
+) -> Idea:
+    """Store an idea somebody wrote by hand — no batch, nothing paid for it.
 
-    No batch: a batch is what a session cost, and nothing was paid for this
-    one. It is proposed like the others, and decided on the same way.
+    A project's ideas are tickets, as Ponos's are; the workspace may also hold
+    the idea of a project.
     """
     project = bare(project)
     scope = scope_of(project)
-    if kind not in KINDS:
-        raise ValueError(f"an idea is a {' or a '.join(KINDS)} — not {kind}")
-    if kind == "project" and scope == "project":
-        raise ValueError("an idea for a project is a ticket, never a project of its own")
-    title = " ".join(title.split())[:TITLE_LIMIT]
+    title = _line(title)[:TITLE_LIMIT].strip()
     if not title:
         raise ValueError("an idea needs a title")
+    if scope != "global" or kind not in KINDS:
+        kind = "ticket"
+    now = _now()
     with db.transaction() as connection:
         identifier = connection.execute(
-            "INSERT INTO ideas (scope, project, kind, title, description, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (scope, project, kind, title, _description(description), _now()),
+            "INSERT INTO ideas (scope, project, kind, title, description, origin, author,"
+            " author_avatar, created_at, changed_at) VALUES (?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?)",
+            (scope, project, kind, title, _written(description), author, avatar, now, now),
         ).lastrowid
     return get(int(identifier))
+
+
+def edit(
+    identifier: int, title: str, description: str, *, editor: str = "", avatar: str = ""
+) -> Idea:
+    """Reword an idea, and say who did and when. Its author stays its author."""
+    title = _line(title)[:TITLE_LIMIT].strip()
+    if not title:
+        raise ValueError("an idea needs a title")
+    get(identifier)
+    with db.transaction() as connection:
+        connection.execute(
+            "UPDATE ideas SET title = ?, description = ?, edited_by = ?, edited_by_avatar = ?,"
+            " edited_at = ? WHERE id = ?",
+            (title, _written(description), editor, avatar, _now(), identifier),
+        )
+    return get(identifier)
+
+
+def _written(text: str) -> str:
+    lines = [line.rstrip() for line in str(text or "").strip().splitlines()]
+    return "\n".join(lines)[:WRITTEN_LIMIT].strip()
 
 
 def listed(project: str, statuses: tuple[str, ...] = ("proposed",)) -> list[Idea]:
@@ -503,13 +576,20 @@ def forget(project: str) -> int:
     """Drop every idea proposed for a project, and the batches that found them.
 
     For a project that was deleted: nobody will ever read them again, and the
-    batches' cost is the project's alone. The tickets that kept ideas became are
+    batches' cost is the project's alone. The tickets ideas became are
     the board's, and stay there.
     """
     with db.transaction() as connection:
         gone = connection.execute("DELETE FROM ideas WHERE project = ?", (bare(project),)).rowcount
         connection.execute("DELETE FROM idea_batches WHERE project = ?", (bare(project),))
     return gone
+
+
+def every(project: str) -> list[Idea]:
+    """Every idea of one scope, whatever became of it, the newest first."""
+    ideas = listed(project, STATUSES)
+    ideas.reverse()
+    return ideas
 
 
 def known(project: str) -> list[str]:
@@ -533,13 +613,14 @@ def decide(identifier: int, status: str, *, ticket: str = "", created: str = "")
         raise ValueError(f"an idea is {', '.join(STATUSES)} — not {status}")
     with db.transaction() as connection:
         connection.execute(
-            "UPDATE ideas SET status = ?, decided_at = ?,"
+            "UPDATE ideas SET status = ?, decided_at = ?, changed_at = ?,"
             " ticket = CASE WHEN ? != '' THEN ? ELSE ticket END,"
             " created = CASE WHEN ? != '' THEN ? ELSE created END"
             " WHERE id = ?",
             (
                 status,
                 None if status == "proposed" else _now(),
+                _now(),
                 ticket,
                 ticket,
                 created,

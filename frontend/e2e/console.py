@@ -29,7 +29,9 @@ And a `claude` of its own, first in the PATH, for the conversation with the
 workspace: it reads a file, runs a command that fails, and answers — or, told
 to take its time, starts a command that would run for ten minutes, for Stop to
 end. It files its session where Claude Code would, under a HOME of its own, so
-a stopped conversation is one that can be resumed.
+a stopped conversation is one that can be resumed. And a `gh` that answers who
+it is signed in as — no picture, so nothing is fetched — for the name an idea
+written by hand is signed with.
 """
 
 from __future__ import annotations
@@ -186,6 +188,17 @@ say({{"type": "result", "result": answer, "session_id": session, "total_cost_usd
 """
 
 
+# Who `gh api user` says it is; anything else it is asked fails, as a gh signed out would.
+GH = """#!{python}
+import json, sys
+
+if sys.argv[1:3] == ["api", "user"]:
+    print(json.dumps({{"login": "ada", "name": "Ada Lovelace", "avatar_url": ""}}))
+    sys.exit(0)
+sys.exit(1)
+"""
+
+
 def journal_of(ticket: str) -> None:
     """Two runs of the blocked ticket in the local journal, the second long.
 
@@ -255,6 +268,8 @@ def main() -> None:
     bin.mkdir()
     (bin / "claude").write_text(CLAUDE.format(python=sys.executable), encoding="utf-8")
     (bin / "claude").chmod(0o755)
+    (bin / "gh").write_text(GH.format(python=sys.executable), encoding="utf-8")
+    (bin / "gh").chmod(0o755)
     (here / "home").mkdir()
     os.environ.update(
         PATH=f"{bin}{os.pathsep}{os.environ.get('PATH', '')}",

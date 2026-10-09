@@ -7,15 +7,23 @@ beyond the lock that keeps two batches for the same scope from being asked
 for at once: the second click of an impatient person would otherwise pay for
 ten ideas the first one was already writing.
 
-A kept idea goes through `Api.create_ticket`, the console's own "New ticket",
+An idea turned into a ticket goes through `Api.create_ticket`, the console's own "New ticket",
 as a draft with no model: the same road as a ticket typed by hand, so that it
 reads the same on the board and the runner treats it the same way — classified
 and given a model when somebody moves it to ready, not before.
+
+An idea written or reworded by hand is signed by whoever `gh` is signed in as
+— the name and the picture of the GitHub account pull requests are opened
+from, which is the closest thing to a person a console behind one password
+knows — or by git's `user.name` where there is no `gh`. Asked once per
+process: it does not change while the console runs.
 """
 
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
 import threading
 import uuid
 from pathlib import Path
@@ -33,6 +41,9 @@ READMES = ("README.md", "README", "readme.md", "README.rst", "README.txt")
 # How many decisions the history tab shows: enough to find the one you doubt.
 HISTORY = 50
 
+# `gh` asks GitHub, which is a request away: past this, the idea is signed as "you".
+WHO_TIMEOUT = 5
+
 # Language names as the prompt says them — see `voice.understood`.
 LANGUAGES = {"en": "English", "fr": "French"}
 
@@ -42,6 +53,7 @@ class Ideas:
         self._api = api
         self._lock = threading.Lock()
         self._busy: set[str] = set()
+        self._person: tuple[str, str] | None = None
 
     # -- reading --------------------------------------------------------------
 
@@ -60,10 +72,25 @@ class Ideas:
             "undo": last.shown() if last else None,
         }
 
+    def every(self, project: str = "") -> dict:
+        """Every idea of one scope, thrown away and turned into tickets included,
+        and how many there are in each status — the list on a project's page."""
+        project = ideas.bare(project)
+        found = ideas.every(project)
+        counts = {status: 0 for status in ideas.STATUSES}
+        for idea in found:
+            counts[idea.status] = counts.get(idea.status, 0) + 1
+        return {
+            "scope": ideas.scope_of(project),
+            "project": project,
+            "ideas": [idea.shown() for idea in found],
+            "counts": counts,
+        }
+
     @staticmethod
     def _decided(project: str) -> list[ideas.Idea]:
-        """The last ideas kept or thrown away, the most recent first: the history tab's."""
-        decided = ideas.listed(project, ("kept", "discarded"))
+        """The last ideas decided on, the most recent first: the history tab's."""
+        decided = ideas.listed(project, ("kept", "discarded", "ticket"))
         decided.sort(key=lambda idea: (idea.decided_at or "", idea.id), reverse=True)
         return decided[:HISTORY]
 
@@ -193,14 +220,14 @@ class Ideas:
 
     # -- deciding -------------------------------------------------------------
 
-    def keep(self, identifier: int) -> dict:
-        """Keep an idea: a draft ticket, or a new project and its first ticket.
+    def ticket(self, identifier: int) -> dict:
+        """Turn an idea into a draft ticket, or a new project and its first ticket.
 
-        An idea kept before — and taken back since — already has its pages:
-        they are what it becomes again, rather than a second copy of them.
+        An idea turned into one before — and taken back since — already has its
+        pages: they are what it becomes again, rather than a second copy of them.
         """
         idea = ideas.get(identifier)
-        if idea.status == "kept":
+        if idea.status == "ticket":
             return idea.shown()
         api = self._api
         say = api.runner.voice.say
@@ -226,42 +253,93 @@ class Ideas:
             ticket = api.create_ticket(
                 idea.title, ideas.body(idea, say), project=idea.project, ready=False
             )["id"]
-        kept = ideas.decide(identifier, "kept", ticket=ideas.bare(ticket), created=created)
-        api.hub.publish("ideas", project=idea.project, kept=identifier)
-        return kept.shown()
+        made = ideas.decide(identifier, "ticket", ticket=ideas.bare(ticket), created=created)
+        api.hub.publish("ideas", project=idea.project, ticket=identifier)
+        return made.shown()
+
+    def keep(self, identifier: int) -> dict:
+        """Keep an idea for later: a decision, and nothing on the board yet."""
+        return self._mark(identifier, "kept")
 
     def discard(self, identifier: int) -> dict:
         """Throw an idea away. Nothing else: it stays known, never to be proposed again."""
-        idea = ideas.get(identifier)
-        if idea.status == "kept":
-            raise ValueError("this idea was kept — take that back before throwing it away")
-        thrown = ideas.decide(identifier, "discarded")
-        self._api.hub.publish("ideas", project=idea.project, discarded=identifier)
-        return thrown.shown()
-
-    def write(self, project: str, kind: str, title: str, description: str = "") -> dict:
-        """An idea somebody had, put among the proposed ones to be decided on."""
-        idea = ideas.add(project, kind, title, description)
-        self._api.hub.publish("ideas", project=idea.project, added=idea.id)
-        return idea.shown()
+        return self._mark(identifier, "discarded")
 
     def reopen(self, identifier: int) -> dict:
-        """Propose one idea again, whichever it is — `undo` is the last decision only.
+        """Make an idea new again, whatever was decided about it.
 
-        What a kept idea became stays on the board, as with `undo`.
+        One that became a ticket leaves its ticket on the board, as `undo` does.
         """
         idea = ideas.get(identifier)
-        if idea.status == "proposed":
-            return idea.shown()
         back = ideas.decide(identifier, "proposed")
-        self._api.hub.publish("ideas", project=idea.project, undone=identifier)
+        self._api.hub.publish("ideas", project=idea.project, reopened=identifier)
         return back.shown()
+
+    def _mark(self, identifier: int, status: str) -> dict:
+        idea = ideas.get(identifier)
+        if idea.status == "ticket":
+            raise ValueError("this idea is a ticket now — make it new again first")
+        marked = ideas.decide(identifier, status)
+        self._api.hub.publish("ideas", project=idea.project, **{status: identifier})
+        return marked.shown()
+
+    # -- writing by hand -------------------------------------------------------
+
+    def create(self, payload: dict) -> dict:
+        """An idea somebody wrote: its title, its description, the project it is for."""
+        project = ideas.bare(str(payload.get("project") or ""))
+        if project and not any(
+            ideas.bare(row["id"]) == project for row in self._api.all_projects()["projects"]
+        ):
+            raise LookupError(f"no project with id {project}")
+        name, avatar = self.person()
+        idea = ideas.written(
+            project,
+            str(payload.get("title") or ""),
+            str(payload.get("description") or ""),
+            kind=str(payload.get("kind") or "ticket"),
+            author=name,
+            avatar=avatar,
+        )
+        self._api.hub.publish("ideas", project=project, written=idea.id)
+        return idea.shown()
+
+    def edit(self, identifier: int, payload: dict) -> dict:
+        """Reword an idea, signed by whoever did."""
+        name, avatar = self.person()
+        idea = ideas.edit(
+            identifier,
+            str(payload.get("title") or ""),
+            str(payload.get("description") or ""),
+            editor=name,
+            avatar=avatar,
+        )
+        self._api.hub.publish("ideas", project=idea.project, edited=identifier)
+        return idea.shown()
+
+    def person(self) -> tuple[str, str]:
+        """The name and the picture an idea written here is signed with."""
+        with self._lock:
+            if self._person is None:
+                self._person = who()
+            return self._person
+
+    def write(self, project: str, kind: str, title: str, description: str = "") -> dict:
+        """An idea an MCP client had, signed like one written in the console."""
+        if kind not in ideas.KINDS:
+            raise ValueError(f"an idea is a {' or a '.join(ideas.KINDS)} — not {kind}")
+        if kind == "project" and ideas.scope_of(ideas.bare(project)) == "project":
+            raise ValueError("an idea for a project is a ticket, never a project of its own")
+        name, avatar = self.person()
+        idea = ideas.written(project, title, description, kind=kind, author=name, avatar=avatar)
+        self._api.hub.publish("ideas", project=idea.project, written=idea.id)
+        return idea.shown()
 
     def undo(self, project: str | None = None) -> dict:
         """Take the last decision back — in one scope, or the last of all when None.
 
-        The idea is proposed again. What a kept one became stays on the board
-        as a draft, and is said so: the board has no wastebasket the runner may
+        The idea is proposed again. What one turned into a ticket became stays
+        on the board as a draft, and is said so: the board has no wastebasket the runner may
         reach into, and a ticket is not deleted on the strength of a swipe. It
         is what the idea becomes again if it is kept a second time.
         """
@@ -282,3 +360,27 @@ def _readme(location: Path | None) -> str:
         except OSError:
             continue
     return ""
+
+
+def who() -> tuple[str, str]:
+    """(name, picture) of the GitHub account `gh` speaks for, or git's `user.name`.
+
+    ("", "") when neither says anything: the console then signs as "you".
+    """
+    try:
+        answered = subprocess.run(
+            ["gh", "api", "user"], capture_output=True, text=True, timeout=WHO_TIMEOUT
+        )
+        account = json.loads(answered.stdout) if answered.returncode == 0 else {}
+    except (OSError, subprocess.SubprocessError, ValueError):
+        account = {}
+    if isinstance(account, dict) and account.get("login"):
+        name = str(account.get("name") or account["login"]).strip()
+        return name, str(account.get("avatar_url") or "")
+    try:
+        answered = subprocess.run(
+            ["git", "config", "user.name"], capture_output=True, text=True, timeout=WHO_TIMEOUT
+        )
+        return answered.stdout.strip(), ""
+    except (OSError, subprocess.SubprocessError):
+        return "", ""

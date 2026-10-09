@@ -584,9 +584,17 @@ export interface Statistics {
 
 /* -- ideas ---------------------------------------------------------------- */
 
-export type IdeaStatus = "proposed" | "kept" | "discarded"
+export type IdeaStatus = "proposed" | "kept" | "discarded" | "ticket"
 
-/** One idea Ponos proposed, as `/api/ideas` says it. */
+/** Who wrote an idea, or last changed it: Ponos, or a person by the name and picture they had then. */
+export interface IdeaAuthor {
+  kind: "ponos" | "human"
+  /** Empty when the console could not tell who it was talking to. */
+  name: string
+  avatar: string
+}
+
+/** One idea, Ponos's or written by hand, as `/api/ideas` says it. */
 export interface Idea {
   id: number
   scope: "global" | "project"
@@ -604,6 +612,21 @@ export interface Idea {
   /** The project it created when it was the idea of one. */
   created: string
   decided_at: string | null
+  created_at: string
+  /** When its status last changed, whichever way. */
+  changed_at: string
+  origin: "ponos" | "manual"
+  author: IdeaAuthor
+  /** The last person who reworded it; null when nobody has. */
+  edited: { name: string; avatar: string; at: string } | null
+}
+
+/** Every idea of one scope, and how many are in each status. */
+export interface IdeaList {
+  scope: "global" | "project"
+  project: string
+  ideas: Idea[]
+  counts: Record<IdeaStatus, number>
 }
 
 /** The ideas of one scope: the pile, the last decisions, and whether one can be taken back. */
