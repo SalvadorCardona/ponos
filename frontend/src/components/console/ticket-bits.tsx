@@ -127,6 +127,41 @@ export function lasted(minutes: number): string {
  * anything — a link that does nothing reads as a broken console. */
 export const reachable = (address: string): boolean => /^https?:\/\//.test(address)
 
+/* Why a ready card is still in its column. A ready column that stays full
+ * with nothing to say why reads as a broken runner — so every ready card says
+ * what it is waiting for, in the server's words (`held` in `web/board.py`). */
+export function TicketHeld({ ticket }: { ticket: Ticket }) {
+  const t = useT()
+  const held = ticket.column === "ready" ? ticket.held : undefined
+  if (!held) return null
+  const said: Record<string, string> = {
+    date: t("waiting: scheduled for {{at}}", { at: when(held.detail) }),
+    credits: t("waiting: out of credit until {{at}}", { at: held.detail }),
+    reserve: t("waiting: credit reserve reached until {{at}}", { at: held.detail }),
+    budget: t("waiting: today's spending limit reached until {{at}}", { at: held.detail }),
+    running: t("waiting: a session is still on it — run again once it ends"),
+    places: t("waiting: all {{count}} places taken — starts at the next free one", {
+      count: held.detail,
+    }),
+    limit: t("waiting: --limit reached for this pass"),
+    pass: t("waiting: the next reading of the board by the pass under way"),
+    next: t("waiting: the next run of the timer"),
+    timer: t("waiting: the timer is off — nothing takes it"),
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5" data-slot="ticket-held">
+      <Chip
+        className={cn(
+          "whitespace-normal",
+          ["timer", "credits", "budget"].includes(held.reason) && "border-tr-amber text-tr-amber"
+        )}
+      >
+        {said[held.reason] ?? t("waiting")}
+      </Chip>
+    </div>
+  )
+}
+
 /** A tag: one word about a ticket, drawn small enough that five of them still read as one row. */
 export function Chip({
   children,

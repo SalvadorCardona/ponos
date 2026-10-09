@@ -153,6 +153,35 @@ def claims() -> dict[str, str]:
     return {str(ticket): str(status) for ticket, status in rows}
 
 
+def hold(reasons: dict[str, tuple[str, str]]) -> None:
+    """Write down why each of these ready tickets was left in its column.
+
+    The whole set, replacing the last one: it is what the pass's latest reading
+    of the board decided, and a ticket it has since taken has no reason left.
+    An empty set is the pass ending. Never a reason to fail one — the console
+    then says what it can tell without it.
+    """
+    try:
+        with db.transaction() as connection:
+            connection.execute("DELETE FROM held")
+            connection.executemany(
+                "INSERT INTO held (ticket, reason, detail) VALUES (?, ?, ?)",
+                [(ticket, reason, detail) for ticket, (reason, detail) in reasons.items()],
+            )
+    except db.ERRORS:
+        pass
+
+
+def held() -> dict[str, tuple[str, str]]:
+    """What `hold` last wrote: the ticket, and why it waits — see `Board.explain`."""
+    try:
+        with db.transaction(immediate=False) as connection:
+            rows = connection.execute("SELECT ticket, reason, detail FROM held").fetchall()
+    except db.ERRORS:
+        return {}
+    return {str(ticket): (str(reason), str(detail)) for ticket, reason, detail in rows}
+
+
 def rebases(ticket_id: str) -> int:
     """How many times a validated ticket's branch has been replayed to be merged.
 

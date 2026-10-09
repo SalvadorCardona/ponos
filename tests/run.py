@@ -4242,6 +4242,7 @@ def _board_runner(
     runner.quiet = True
     runner.dry_run = False
     runner._claimed = set()
+    runner._holding, runner._explained = {}, None
     runner._comments = {}
     runner._usage_warned = False
     runner._spellings = conversation.names()
@@ -5339,6 +5340,181 @@ def a_pass_stops_filling_places_once_the_credits_run_out():
 
     assert started == ["p-1"], "the ticket in flight finished, and nothing else began"
     assert len(results) == 1
+
+
+def _moved(page: notion.Page, status: str) -> None:
+    """The page's status, changed the way a person or a run changes it."""
+    page.properties["Status"] = {"type": "status", "status": {"name": status}}
+
+
+@contextmanager
+def _settling(seconds: float):
+    """`board.SETTLE`, made a test's length."""
+    from ponos import board as board_module
+
+    before, board_module.SETTLE = board_module.SETTLE, seconds
+    try:
+        yield
+    finally:
+        board_module.SETTLE = before
+
+
+@case
+def a_new_ticket_is_taken_and_left_alone_once_its_run_has_moved_it():
+    """The plain case, kept honest now that a finished ticket is no longer
+    held out for the whole pass: once its status has moved, a reading of the
+    board does not bring it back."""
+    runs: list[str] = []
+    with _state_home(), _settling(0.1):
+        page = _ready("p-new")
+        runner = _long_runner([page, _ready("p-long")])
+        runner.config.runner.max_concurrent = 2
+
+        def execute(job):
+            name = job.ticket.page.id
+            runs.append(name)
+            if name == "p-new":
+                _moved(page, "In review")
+            else:
+                time.sleep(2.5)  # two looks at the board while it runs
+            return {"id": name, "status": "done"}
+
+        runner.execute = execute
+        runner._work(runner.queue()[0], None, refill=True)
+
+    assert sorted(runs) == ["p-long", "p-new"], runs
+
+
+@case
+def a_ticket_played_by_this_pass_then_made_ready_again_is_played_again():
+    """The fault of the 9th of October, on the real board: two Lead Finder
+    tickets run at 22:53 by a pass that was still going at 23:50, blocked on
+    their merge, moved back to ready by hand — and skipped by every reading of
+    the column, because the pass held out every ticket it had *ever* started,
+    while each new ticket went straight through."""
+    runs: list[str] = []
+    again = threading.Event()
+    with _state_home(), _settling(0.1):
+        page = _ready("p-again")
+        runner = _long_runner([page, _ready("p-long")])
+        runner.config.runner.max_concurrent = 2
+
+        def execute(job):
+            name = job.ticket.page.id
+            runs.append(name)
+            if name == "p-again":
+                if runs.count("p-again") == 1:
+                    _moved(page, "Blocked")
+                else:
+                    _moved(page, "In review")
+                    again.set()
+            else:
+                time.sleep(0.5)
+                _moved(page, "Ready")  # somebody asks for it again
+                again.wait(10)
+            return {"id": name, "status": "done"}
+
+        runner.execute = execute
+        results = runner._work(runner.queue()[0], None, refill=True)
+
+    assert again.is_set(), "taken again by the pass that had already run it"
+    assert runs.count("p-again") == 2, runs
+    assert [result["id"] for result in results].count("p-again") == 2
+
+
+@case
+def a_ticket_still_in_a_session_of_this_pass_is_not_run_beside_it():
+    """A live claim. Moved back to ready while its session runs — or served as
+    ready by a Notion that has not caught up — the ticket waits for that
+    session, says why on its card, and is played again once it is over."""
+    runs: list[str] = []
+    flying = peak = 0
+    noted: list[dict] = []
+    guard = threading.Lock()
+    with _state_home(), _settling(0.1):
+        page = _ready("p-one")
+        runner = _long_runner([page])
+        runner.config.runner.max_concurrent = 2
+
+        def execute(job):
+            nonlocal flying, peak
+            with guard:
+                runs.append(job.ticket.page.id)
+                flying += 1
+                peak = max(peak, flying)
+            if len(runs) == 1:
+                time.sleep(2.5)  # two looks at a column that still says ready
+                noted.append(state.held())
+            else:
+                _moved(page, "In review")
+            with guard:
+                flying -= 1
+            return {"id": job.ticket.page.id, "status": "done"}
+
+        runner.execute = execute
+        runner._work(runner.queue()[0], None, refill=True)
+        left = state.held()
+        assert runs == ["p-one"], "not beside itself, and not straight after either"
+        # The next pass — the timer's — finds it still ready, and plays it.
+        runner._work(runner.queue()[0], None, refill=True)
+
+    assert peak == 1, "never two sessions on one ticket"
+    assert runs == ["p-one", "p-one"], "and played again once the first was over"
+    assert noted == [{"pone": ("running", "")}], noted
+    assert left == {}, "the record goes with the pass"
+
+
+@case
+def a_ready_ticket_with_every_place_taken_says_so_once():
+    said: list[str] = []
+    with _state_home():
+        runner = _board_runner([_ready("p-1"), _ready("p-2")], {})
+        runner.say = said.append
+        queued = runner.queue()[0][1:]
+        runner.explain(queued, 1)
+        runner.explain(queued, 1)
+        assert state.held() == {"p2": ("places", "1")}
+        runner.explain([], 1, done=True)
+        assert state.held() == {}
+    assert said == ["  … p-2 — waiting: all 1 place(s) taken — it starts at the next free one"]
+
+
+@case
+def an_orphan_claim_is_let_go_of_by_the_sweep():
+    """A note of a claim whose ticket is no longer in progress — moved by hand,
+    or its run gone without a word — is dropped; one still in progress is not."""
+    live = _in_progress("p-live", None)
+    live.raw["last_edited_time"] = datetime.now(timezone.utc).isoformat()
+    runner = _board_runner([live], {})
+    with _state_home():
+        state.claim("plive", "Validated")
+        state.claim("pgone", "Validated")
+        assert runner.sweep() == 0, "too recent to be called abandoned"
+        assert state.claims() == {"plive": "Validated"}
+
+
+@case
+def a_ready_card_always_says_what_it_is_waiting_for():
+    from ponos.web import board as web_board
+
+    now = datetime(2026, 10, 9, 23, 50, tzinfo=timezone.utc)
+    card = {"id": "p1", "column": "ready", "scheduled": ""}
+
+    def held(ticket=card, noted=None, passing=True, timer=True, waits=None):
+        found = web_board.held(
+            ticket, noted or {}, passing=passing, timer=timer, waits=waits, now=now
+        )
+        return found.get("reason"), found.get("detail")
+
+    assert web_board.held({**card, "column": "review"}, {}, passing=True, timer=True) == {}
+    later = {**card, "scheduled": "2026-10-10T09:00+02:00"}
+    assert held(later, waits={"credits": "04:00"}) == ("date", "2026-10-10T09:00+02:00")
+    assert held(waits={"credits": "04:00", "reserve": ""}) == ("credits", "04:00")
+    assert held(noted={"p1": ("running", "")}) == ("running", "")
+    assert held(noted={"p1": ("places", "2")}) == ("places", "2")
+    assert held() == ("pass", "")
+    assert held(noted={"p1": ("running", "")}, passing=False) == ("next", ""), "a dead pass's note"
+    assert held(passing=False, timer=False) == ("timer", "")
 
 
 # -- a validated ticket never waits for a session ----------------------------

@@ -31,6 +31,7 @@ import {
   SEED,
   TicketActions,
   TicketFoot,
+  TicketHeld,
   TicketSync,
   TicketTags,
   ago,
@@ -482,6 +483,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
 
       <TicketTags ticket={ticket} />
       <TicketSync ticket={ticket} />
+      <TicketHeld ticket={ticket} />
 
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />

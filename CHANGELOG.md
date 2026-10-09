@@ -204,6 +204,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A ticket moved back to ready is played again, even by the pass that already ran it.**
+  A pass refills itself and can last for hours, and it held out every ticket it had ever
+  started: a ticket played, blocked and moved back to ready waited until the pass ended,
+  with nothing to say why, while every new ticket went straight through. It is now held
+  out only while a session of the pass is still on it, then replayed on its branch and
+  pull request. Every ready card in the console says what it is waiting for, and a local
+  claim whose ticket is no longer in progress is dropped at the top of the next pass.
+
 - The model the runner chooses for a ticket with none is now written in its
   Model column, not only announced in the comment, so boards, filters and
   statistics show it. A model somebody wrote is never overwritten, and a board

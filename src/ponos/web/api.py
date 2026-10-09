@@ -219,6 +219,7 @@ class Api:
             for page in pages
         ]
         self._synced = board_module.describe(self.reader, tickets)
+        self._hold(tickets)
 
         # Whether this board has a validated column at all. The console offers
         # the gesture only where the runner would honour it: a button that
@@ -286,6 +287,37 @@ class Api:
                 {"value": key, "label": self.runner.kind_name(key)} for key in kinds_module.KINDS
             ]
         return choices
+
+    def _hold(self, tickets: list[dict]) -> None:
+        """Put on every ready card why it is still there — see `board.held`.
+
+        The timer is asked of systemd only when a card needs it: three
+        `systemctl` calls at every reading of the board would be most of it.
+        """
+        ready = [ticket for ticket in tickets if ticket.get("column") == "ready"]
+        if not ready:
+            return
+        configuration = self.config
+        waits = {
+            "credits": credits.held() if configuration.runner.wait_for_credits else 0.0,
+            "reserve": credits.held(what="reserve")
+            if configuration.runner.wait_for_credits
+            else 0.0,
+            "budget": credits.held(what="budget") if configuration.budget.daily_usd > 0 else 0.0,
+        }
+        clocks = {what: credits.when(until) if until else "" for what, until in waits.items()}
+        passing = bool(state.running())
+        timer = (
+            passing
+            or config_module.in_container()
+            or any(clocks.values())
+            or systemd.read().label == "enabled"
+        )
+        noted = state.held() if passing else {}
+        for ticket in ready:
+            ticket["held"] = board_module.held(
+                ticket, noted, passing=passing, timer=timer, waits=clocks
+            )
 
     def _ticket(self, page: store.Page, names: dict[str, str], projects: dict, host: str) -> dict:
         """One page of the tickets database, as a card reads it."""

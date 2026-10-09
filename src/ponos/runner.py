@@ -162,9 +162,8 @@ class Runner(
         Here a completion is a place, and a place is filled from the board as it
         is **now**: `queue()` is asked again, which is what keeps the priority
         order honest — an urgent ticket written during the pass goes before a
-        normal one that was ready when it started. Tickets already begun are
-        held out by hand, because Notion may still be serving the status this
-        very pass wrote.
+        normal one that was ready when it started. A ticket a session of this
+        pass is on is held out by hand, and only for that long (see `InHand`).
 
         A completion is not the *only* place, and that was the second half of
         the same fault: a place standing empty while one session runs is a place
@@ -194,9 +193,9 @@ class Runner(
             width = max(1, min(width, ceiling))
         remaining = ceiling  # None: as many tickets as the board offers
         results: list[dict] = []
-        started: set[str] = set()
+        hand = board.InHand()  # the tickets a session of this pass is on — see board.py
         # The validated tickets this pass has taken off their column, kept apart
-        # from `started`: a ticket run by this very pass and validated while it
+        # from `hand`: a ticket run by this very pass and validated while it
         # was still running is delivered by it too, not held over to the next.
         carried: set[str] = set()
         queued = list(ready)
@@ -231,18 +230,21 @@ class Runner(
                     and (remaining is None or remaining > 0)
                 ):
                     ticket = queued.pop(0)
-                    if ticket.id in started:
+                    if ticket.id in hand:
                         continue
-                    started.add(ticket.id)
+                    hand.take(ticket.id)
                     if remaining is not None:
                         remaining -= 1
                     # Claimed here, in the one thread that does it, so that two
                     # tickets never race over the same repository index.
                     job = self.prepare(ticket)
-                    if job:
-                        # Guarded: a ticket that raises lands in failed with
-                        # what it raised, and the rest of the pass carries on.
-                        flight.add(pool.submit(self._guarded, ticket, self.execute, job))
+                    if not job:
+                        hand.leave(ticket.id)
+                        continue
+                    # Guarded: a ticket that raises fails alone, and the pass carries on.
+                    future = pool.submit(self._guarded, ticket, self.execute, job)
+                    flight.add(hand.carry(future, ticket.id))
+                self.explain(queued, width, limited=remaining == 0, done=not flight)
                 if not flight:
                     return results
                 # An empty place is a reason to come back before a session ends,
@@ -260,6 +262,7 @@ class Runner(
                     return_when=FIRST_COMPLETED,
                 )
                 results += state.record_all(future.result() for future in done)
+                hand.land(done)
                 spent = 0.0 if stalled else self.waiting_for_credits()
                 if spent:
                     # A session died on the quota while this pass was running.
@@ -293,4 +296,4 @@ class Runner(
                         "carried out at the next free place."
                     )
                 if (done or empty) and (remaining is None or remaining > 0):
-                    queued = self._again(started)
+                    queued = self._again(hand)
