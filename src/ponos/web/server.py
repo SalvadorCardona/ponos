@@ -673,6 +673,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.chat.stop())
             if route == "/api/chat/reset":
                 return self._json(self.api.chat.reset())
+            if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/delete", route):
+                return self._json(self.api.removal.delete(match.group(1), payload))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.save_project(match.group(1), payload))
             if route == "/api/settings":

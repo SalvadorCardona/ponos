@@ -249,7 +249,9 @@ class Board:
         results = [
             self._signed(page)
             for page in self.pages.values()
-            if page["parent"].get("database_id") == database_id and self._matches(page, filter_)
+            if page["parent"].get("database_id") == database_id
+            and not page.get("archived")
+            and self._matches(page, filter_)
         ]
         return {"results": results, "has_more": False, "next_cursor": None}
 
@@ -281,6 +283,9 @@ class Board:
         database = page["parent"].get("database_id", "")
         if database in self.databases:
             schema = self.databases[database]["properties"]
+        if "archived" in body:
+            # The trash: the page leaves every query and is still read by its ID.
+            page["archived"] = bool(body["archived"])
         for slot in ("cover", "icon"):
             if slot not in body:
                 continue
@@ -1562,6 +1567,37 @@ def a_ticket_the_runner_hesitates_over_is_blocked_and_nothing_runs():
             "only the ticket with no type is classified"
         )
         assert len(prompts) == 2, "the blocked ticket ran nothing but its classification"
+
+
+@case
+def a_deleted_project_and_its_tickets_cost_no_session():
+    """In the Notion trash, a project is out of every query — and a ticket still
+    pointing at it is put back, not worked on with whatever the page held.
+
+    The trash keeps a page readable by its ID, which is the thing to guard: the
+    ready ticket below still names it, and without the check the runner would
+    find the repository through the trashed page and spend a session on it.
+    """
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        other = machine.project("Autre", machine.repository("autre"))
+        ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        kept = machine.ticket("Un autre travail", "Ailleurs.", other)
+
+        notion.Client("ntn_functional_tests").trash(project)
+        assert machine.board.pages[project]["archived"] is True
+
+        results = machine.run()
+
+        assert [(result["id"], result["status"]) for result in results] == [
+            (kept, "done")
+        ], results
+        assert machine.status(ticket) == "Blocked", machine.status(ticket)
+        assert "deleted" in machine.board.said(ticket)[-1], machine.board.said(ticket)
+        assert all("Corriger l'entête" not in one["prompt"] for one in machine.sessions())
+        assert not machine.worktrees(repository), "a deleted project got a worktree"
+        assert repository.is_dir(), "the clone on the machine is never ours to remove"
 
 
 @case

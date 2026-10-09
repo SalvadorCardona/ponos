@@ -499,6 +499,19 @@ def listed(project: str, statuses: tuple[str, ...] = ("proposed",)) -> list[Idea
     return [_idea(row) for row in rows]
 
 
+def forget(project: str) -> int:
+    """Drop every idea proposed for a project, and the batches that found them.
+
+    For a project that was deleted: nobody will ever read them again, and the
+    batches' cost is the project's alone. The tickets that kept ideas became are
+    the board's, and stay there.
+    """
+    with db.transaction() as connection:
+        gone = connection.execute("DELETE FROM ideas WHERE project = ?", (bare(project),)).rowcount
+        connection.execute("DELETE FROM idea_batches WHERE project = ?", (bare(project),))
+    return gone
+
+
 def known(project: str) -> list[str]:
     """Every title ever proposed for this scope, whatever was decided about it."""
     return [idea.title for idea in listed(project, STATUSES)]

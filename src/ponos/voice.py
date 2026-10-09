@@ -281,6 +281,12 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "I could not find its project on this machine",
         "fr": "je n'ai pas trouvé son projet sur cette machine",
     },
+    "project-deleted": {
+        "en": "Blocked: its project, “{project}”, was deleted from the console, so nothing "
+        "will run on this ticket. Move it back to ready once it points at another project.",
+        "fr": "Bloqué : son projet, « {project} », a été supprimé depuis la console, donc rien "
+        "ne sera exécuté sur ce ticket. Remets-le en prêt une fois relié à un autre projet.",
+    },
     "unreadable": {
         "en": "I could not read what the ticket says",
         "fr": "je n'ai pas réussi à lire ce que dit le ticket",

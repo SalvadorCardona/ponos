@@ -13,6 +13,7 @@ import type {
   Pair,
   Pictures,
   ProjectBrief,
+  ProjectDeleted,
   ProjectDetail,
   Projects,
   Run,
@@ -220,6 +221,8 @@ export const api = {
   saveContext: (text: string) => request<{ text: string }>("/api/context", { text }),
   saveProject: (id: string, values: Record<string, unknown>) =>
     request<ProjectDetail>(`/api/projects/${id}`, values),
+  deleteProject: (id: string, values: { confirm: string; trash_tickets: boolean }) =>
+    request<ProjectDeleted>(`/api/projects/${id}/delete`, values),
   setPicture: (
     id: string,
     slot: "cover" | "icon",

@@ -20,7 +20,8 @@ commit that exists nowhere, so that a click on "Update now" could only ever fail
 The blocked ticket has two runs in the local journal, for the session tab that
 reads them.
 
-Given `unclaimed`, the same console with no token and no sign-in: what a
+Given `doomed`, the same console with two more projects, for the tests that
+delete them. Given `unclaimed`, the same console with no token and no sign-in: what a
 fresh installation serves, its first connection.
 
 And a `claude` of its own, first in the PATH, for the conversation with the
@@ -58,9 +59,13 @@ PAUSED = "00000000000000000000000000005ed1"
 DUE = "00000000000000000000000000005ed2"
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 WRITING = ("0000000000000000000000000000f00d", "Journal", "📝")
+# Two projects only the deleting tests touch — one from the list, one from its
+# page — each with a ticket ready and one done, which a deletion must tell apart.
+# Written only for the console given `doomed`: the other tests count projects.
+DOOMED = {"0000000000000000000000000000d001": "Old shop", "0000000000000000000000000000d002": "Old blog"}
 
 
-def board(root: Path) -> None:
+def board(root: Path, doomed: bool = False) -> None:
     tickets = root / "tickets"
     tickets.mkdir(parents=True)
     brief = "\n\n".join(
@@ -96,6 +101,18 @@ def board(root: Path) -> None:
         (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
             files.render(page, f"The brief of {name}."), encoding="utf-8"
         )
+    for number, (id, name) in enumerate(DOOMED.items() if doomed else ()):
+        page = {"id": id, "title": name, "Repository": f"example/{name.lower().replace(' ', '-')}"}
+        (projects / f"{name.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
+            files.render(page, f"The brief of {name}."), encoding="utf-8"
+        )
+        for status in ("Ready", "Done"):
+            ticket = f"{number * 2 + (status == 'Done') + 1:030d}0{number + 1}"
+            title = f"{name} work, {status.lower()}"
+            page = {"id": ticket, "title": title, "Status": status, "Project": [id]}
+            (tickets / f"{title.lower().replace(' ', '-').replace(',', '')}-{ticket[-8:]}.md").write_text(
+                files.render(page, "A short brief."), encoding="utf-8"
+            )
     id, name, icon = WRITING
     page = {"id": id, "title": name, "icon": icon}
     (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
@@ -208,9 +225,10 @@ def _tool(name: str, payload: dict) -> dict:
 def main() -> None:
     port = sys.argv[1] if len(sys.argv) > 1 else "8790"
     # `unclaimed`: no token and no sign-in, for the first connection's steps.
-    unclaimed = len(sys.argv) > 2 and sys.argv[2] == "unclaimed"
+    mode = sys.argv[2] if len(sys.argv) > 2 else ""
+    unclaimed = mode == "unclaimed"
     here = Path(tempfile.mkdtemp(prefix="ponos-e2e-"))
-    board(here / "board")
+    board(here / "board", doomed=mode == "doomed")
     config = here / "config.toml"
     config.write_text(
         f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n', encoding="utf-8"

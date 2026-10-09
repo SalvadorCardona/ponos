@@ -101,7 +101,8 @@ test.describe("at 1440px", () => {
     const row = page.locator("[data-project-row]", { hasText: "Website" })
     await expect(row).toHaveAttribute("href", /projects\/read/)
     const box = (await row.boundingBox())!
-    await page.mouse.click(box.x + box.width - 12, box.y + box.height / 2)
+    // Short of the “…” menu, which is the one place on the row that is not the link.
+    await page.mouse.click(box.x + box.width - 60, box.y + box.height / 2)
     await onThePageOf(page, "Website")
   })
 

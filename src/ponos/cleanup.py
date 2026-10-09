@@ -173,6 +173,34 @@ class Cleanup(Base):
             )
         return tidied
 
+    def drop_for(self, shorts: set[str]) -> tuple[list[Path], list[Path]]:
+        """Remove what these tickets left under the state directory: (removed, kept).
+
+        For a project that was deleted, whose tickets will never be worked on
+        again. Only the throwaway directories — the repository the worktrees were
+        made from is not in the state directory and is never touched, nor are the
+        branches. A worktree with changes nobody committed is kept, as `tidy`
+        keeps it: the caller has checked that no session is running, but a
+        blocked ticket's worktree is where its unfinished work waits.
+        """
+        removed: list[Path] = []
+        kept: list[Path] = []
+        for place in ("worktrees", "scratch"):
+            root = state_dir() / place
+            if not root.is_dir():
+                continue
+            for directory in sorted(root.iterdir()):
+                if not directory.is_dir() or _owner(directory) not in shorts:
+                    continue
+                if place == "worktrees":
+                    if not self._drop_worktree(directory):
+                        kept.append(directory)
+                        continue
+                else:
+                    shutil.rmtree(directory, ignore_errors=True)
+                removed.append(directory)
+        return removed, kept
+
     def _drop_worktree(self, directory: Path) -> bool:
         """Remove a done ticket's worktree, unless it holds uncommitted work."""
         repo = git.repository_of(directory)

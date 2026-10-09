@@ -35,7 +35,7 @@ from ..runner import Runner
 from ..schedules import scheduled_for
 from ..ticket import short_id
 from . import board as board_module
-from . import console, live, statistics
+from . import console, live, removal, statistics
 from . import ideas as ideas_module
 from . import upgrade as upgrade_module
 from . import settings as settings_module
@@ -81,6 +81,7 @@ class Api:
         self.commands = console.Commands(self.hub.publish, _subcommands())
         self.chat = console.Chat(config, self.hub.publish, self.brief)
         self.ideas = ideas_module.Ideas(self)
+        self.removal = removal.Removal(self)
         self.watch = live.Watch(
             self.hub, self.board, interval=config.web.poll_seconds, status=self.synchronised
         )

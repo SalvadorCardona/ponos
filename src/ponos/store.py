@@ -261,6 +261,16 @@ class Store(Protocol):
 
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None: ...
 
+    def trash(self, page_id: str) -> str:
+        """Put a page in the board's trash — never delete it — and say where to take it back.
+
+        Notion keeps a trashed page for thirty days and a Markdown board keeps
+        the file in its `trash/` directory: either way somebody can undo it. What
+        comes back is the address that does so (the page's own, in Notion), or
+        nothing where the board has none.
+        """
+        ...
+
     def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
         """Set a page's cover or icon, and hand back the page as it now is.
 

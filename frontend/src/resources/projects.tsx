@@ -18,6 +18,7 @@ import { Eyebrow } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
+import { ProjectMenu } from "@/components/console/project-delete"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
 import { Chip, LABEL, SEED, ago } from "@/components/console/ticket-bits"
 import { Badge } from "@/components/ui/badge"
@@ -401,50 +402,62 @@ function LastActivity({ project }: { project: ProjectItem }) {
 const REACHABLE =
   "outline-none transition-colors focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border-ring"
 
-function ProjectCard({ project }: { project: ProjectItem }) {
+/** The “…” of a card or a row, beside its link and not inside it: a menu in an `<a>` is a link click.
+ * Only for a project that is a page — a line of `config.toml` is not deleted from here. */
+function RowMenu({ project, onDeleted, className }: { project: ProjectItem; onDeleted: () => void; className?: string }) {
+  const tickets = useTicketCount(project.name)
+  if (!isAPage(project.id)) return null
+  return <ProjectMenu project={project} tickets={tickets} onDeleted={onDeleted} className={className} />
+}
+
+function ProjectCard({ project, onDeleted }: { project: ProjectItem; onDeleted: () => void }) {
   return (
-    <Link
-      to={projectHref(project.id)}
-      data-project-card
-      className={cn(
-        "group bg-card flex h-full min-w-0 flex-col gap-3 rounded-2xl border p-4",
-        "hover:border-primary/50 hover:bg-accent/40",
-        REACHABLE
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <ProjectThumb project={project} className="size-10" />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-          <span className="w-full truncate text-[0.95rem] leading-snug font-semibold" title={project.name}>
-            {project.name}
-          </span>
-          <span className="flex flex-wrap items-center gap-1.5">
-            <KindBadge project={project} />
-            {project.source === "config" ? (
-              <Chip className="rounded-full px-1.5 py-0 text-[0.65rem]">{t("from the configuration")}</Chip>
-            ) : null}
-          </span>
+    <div className="relative h-full">
+      <Link
+        to={projectHref(project.id)}
+        data-project-card
+        className={cn(
+          "group bg-card flex h-full min-w-0 flex-col gap-3 rounded-2xl border p-4",
+          "hover:border-primary/50 hover:bg-accent/40",
+          REACHABLE
+        )}
+      >
+        <div className={cn("flex min-w-0 items-center gap-3", isAPage(project.id) && "pr-7")}>
+          <ProjectThumb project={project} className="size-10" />
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+            <span className="w-full truncate text-[0.95rem] leading-snug font-semibold" title={project.name}>
+              {project.name}
+            </span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              <KindBadge project={project} />
+              {project.source === "config" ? (
+                <Chip className="rounded-full px-1.5 py-0 text-[0.65rem]">{t("from the configuration")}</Chip>
+              ) : null}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <Whereabouts project={project} />
+        <Whereabouts project={project} />
 
-      <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t pt-3">
-        <TicketTally project={project} />
-        <LastActivity project={project} />
-      </div>
-    </Link>
+        <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t pt-3">
+          <TicketTally project={project} />
+          <LastActivity project={project} />
+        </div>
+      </Link>
+      <RowMenu project={project} onDeleted={onDeleted} className="absolute top-2.5 right-2.5" />
+    </div>
   )
 }
 
 /** The card layout: every card of a row as tall as the tallest, and nothing under them. */
 function ProjectCards({ rows = [] }: ListComponentPropsInterface) {
+  const { fetchData } = useCurrentViewResourceContext()
   return (
     <div className="w-full">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((row) => {
           const project = row.data as ProjectItem | undefined
-          return project ? <ProjectCard key={project.id} project={project} /> : null
+          return project ? <ProjectCard key={project.id} project={project} onDeleted={() => void fetchData?.()} /> : null
         })}
       </div>
       <div className="mt-5">
@@ -462,6 +475,7 @@ const COLUMNS =
  * is a link too, for the same reasons as a card — which a `<table>` cannot
  * have, so the rows are a list laid out as one. */
 function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
+  const { fetchData } = useCurrentViewResourceContext()
   return (
     <div className="w-full">
       <div className="overflow-hidden rounded-md border">
@@ -478,11 +492,11 @@ function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
             if (!project) return null
             const repository = repositoryName(project.repository ?? "")
             return (
-              <li key={project.id} className="border-b last:border-b-0">
+              <li key={project.id} className="relative border-b last:border-b-0">
                 <Link
                   to={projectHref(project.id)}
                   data-project-row
-                  className={cn(COLUMNS, "hover:bg-accent/40 py-2.5 text-sm", REACHABLE)}
+                  className={cn(COLUMNS, "hover:bg-accent/40 py-2.5 pr-12 text-sm", REACHABLE)}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
                     <ProjectThumb project={project} className="size-8 rounded-md" />
@@ -504,6 +518,11 @@ function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
                     <TicketTally project={project} withStatuses={false} />
                   </span>
                 </Link>
+                <RowMenu
+                  project={project}
+                  onDeleted={() => void fetchData?.()}
+                  className="absolute top-1/2 right-2 -translate-y-1/2"
+                />
               </li>
             )
           })}
@@ -682,7 +701,9 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
     throw new Error("a project page is made on the board, not from the console")
   },
   removeItem: async () => {
-    throw new Error("a project is not deleted from the console; its tickets point at it")
+    // Deleting asks for more than an id — the project's name, and what becomes
+    // of its tickets — so it has a dialog of its own: see `project-delete.tsx`.
+    throw new Error("a project is deleted through its confirmation dialog")
   },
 
   view: {

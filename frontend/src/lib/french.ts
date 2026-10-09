@@ -33,6 +33,7 @@ export const FRENCH: Record<string, string> = {
   Edit: "Modifier",
   delete: "retirer",
   Cancel: "Annuler",
+  Delete: "Supprimer",
   "Search...": "Rechercher…",
   "Select...": "Choisir…",
   "Nothing found.": "Rien trouvé.",
@@ -1436,4 +1437,37 @@ export const FRENCH: Record<string, string> = {
   "Open the project": "Ouvrir le projet",
   "Open the ticket": "Ouvrir le ticket",
   "The decision could not be saved": "La décision n'a pas pu être enregistrée",
+  "Project “{{name}}” deleted": "Projet « {{name}} » supprimé",
+  "Its page is in the Notion trash for 30 days.":
+    "Sa page est dans la corbeille de Notion pendant 30 jours.",
+  "Its page was put aside in the board's trash folder.":
+    "Sa page a été mise de côté dans le dossier trash du board.",
+  "Undo in Notion": "Annuler dans Notion",
+  "Delete “{{name}}”?": "Supprimer « {{name}} » ?",
+  "Ponos will stop following this project.": "Ponos va cesser de suivre ce projet.",
+  "Ponos will stop following this project. No ticket points at it.":
+    "Ponos va cesser de suivre ce projet. Aucun ticket n'y est lié.",
+  "Ponos will stop following this project. {{count}} ticket points at it.":
+    "Ponos va cesser de suivre ce projet. {{count}} ticket y est lié.",
+  "Ponos will stop following this project. {{count}} tickets point at it.":
+    "Ponos va cesser de suivre ce projet. {{count}} tickets y sont liés.",
+  "It disappears from the console and is no longer synchronised: the runner takes none of its tickets, and no more tokens are spent on it.":
+    "Il disparaît de la console et n'est plus synchronisé : le runner ne prend aucun de ses tickets et plus aucun token n'est dépensé pour lui.",
+  "Its page goes to the Notion trash, where it can be restored for 30 days.":
+    "Sa page part à la corbeille de Notion, où elle reste récupérable 30 jours.",
+  "Its tickets go to the Notion trash too.": "Ses tickets partent aussi à la corbeille de Notion.",
+  "Its tickets stay on the board; those that are ready or in progress are blocked, with a comment saying why.":
+    "Ses tickets restent sur le board ; ceux qui sont prêts ou en cours passent en bloqué, avec un commentaire qui explique pourquoi.",
+  "The GitHub repository and the folder on this machine are never deleted. Its throwaway worktrees are cleaned up.":
+    "Le dépôt GitHub et le dossier sur cette machine ne sont jamais supprimés. Ses worktrees jetables sont nettoyées.",
+  "Its ideas are deleted; what it cost stays in the statistics.":
+    "Ses idées sont supprimées ; ce qu'il a coûté reste dans les statistiques.",
+  "Also move its {{count}} ticket to the Notion trash":
+    "Mettre aussi son ticket à la corbeille de Notion",
+  "Also move its {{count}} tickets to the Notion trash":
+    "Mettre aussi ses {{count}} tickets à la corbeille de Notion",
+  "Type the project's name to confirm:": "Saisissez le nom du projet pour confirmer :",
+  "Deleting…": "Suppression…",
+  "Delete the project": "Supprimer le projet",
+  "More actions on “{{name}}”": "Autres actions sur « {{name}} »",
 }

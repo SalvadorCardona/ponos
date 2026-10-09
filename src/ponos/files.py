@@ -591,6 +591,24 @@ class Board:
         _write(path, render(front, body))
         return self._page_of(collection, path)
 
+    def trash(self, page_id: str) -> str:
+        """Move a page's file, and its pictures, under `trash/<collection>/`.
+
+        Moved, not removed: every reader here globs the collection directory, so
+        a file one level down is out of the board and still on the disk. Taking
+        it back is moving it up again. There is no address to give for that.
+        """
+        collection, path = self._find(page_id)
+        target = self._root / "trash" / collection
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            for piece in [path, *path.parent.glob(f"{glob.escape(path.stem)}.*")]:
+                if piece.is_file():
+                    piece.replace(target / piece.name)
+        except OSError as error:
+            raise StoreError(f"{path}: {error}") from error
+        return ""
+
     def rename(self, collection: str, page_id: str, fresh: str) -> None:
         """Give a page another identifier, file and all.
 

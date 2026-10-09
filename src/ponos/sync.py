@@ -392,6 +392,20 @@ class Mirror:
             pass
         return page
 
+    def trash(self, page_id: str) -> str:
+        """Trashed in Notion, and its file put aside with it.
+
+        Both, because a page gone from one side only is what the reconciliation
+        journals as a deletion and leaves alone — the file would stay on the
+        board of whoever reads the directory.
+        """
+        url = self.primary.trash(page_id)
+        try:
+            self.mirror.trash(page_id)
+        except StoreError:
+            pass
+        return url
+
     def append_blocks(self, block_id: str, blocks: list[dict]) -> list[str]:
         # Only Notion's IDs come back, and only Notion has anything to hand
         # back: a block is not addressable in a file. See `files.append_blocks`.
