@@ -75,6 +75,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   console runs on — one line each, ok, missing or error, each leading to the step that
   changes it. The Settings page keeps the summary at its top.
 
+### Changed
+
+- **The console and the site are blue, the robot's blue.** The lime accent is gone: buttons,
+  the active sidebar item, focus rings and the sign-in page take the mascot's blue (a deeper
+  shade of it in the light theme, so white text stays above 4.5:1). *In progress* and the
+  *Created* curve move to a cyan so an action is never mistaken for a status, and the green
+  of *ready* is a true green. Cards on the board no longer carry a coloured edge on the left;
+  the column and the badge say where a ticket stands.
+
 ### Fixed
 
 - **The cost of a blocked or failed session is now written in Cost.** Only finished tickets

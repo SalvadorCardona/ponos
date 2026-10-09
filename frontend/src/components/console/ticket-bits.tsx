@@ -56,17 +56,7 @@ export function columnTitle(key: string, name?: string): string {
   return name || t(LABEL[key] ?? "") || key
 }
 
-/** The colour of a column, on the left edge of a card. */
-export const EDGE: Record<string, string> = {
-  ready: "border-l-tr-green",
-  running: "border-l-tr-blue",
-  review: "border-l-tr-violet",
-  validated: "border-l-tr-pink",
-  blocked: "border-l-tr-amber",
-  failed: "border-l-tr-red",
-}
-
-/** The same colour, as text. */
+/** The colour of a column, as text. */
 export const TONE: Record<string, string> = {
   ready: "text-tr-green",
   running: "text-tr-blue",

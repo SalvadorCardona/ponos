@@ -8716,7 +8716,7 @@ def the_pages_before_the_console_speak_the_browsers_language():
         assert web_server.GUARD_HEADER in french or build is web_server.gate_page
         for field in re.findall(r'<(?:input|textarea)[^>]*\bid="([^"]+)"', french):
             assert f'<label for="{field}"' in french, f"{field} has no label"
-        assert "#3b82f6" not in french, "the door is drawn in the console's lime, not a blue"
+        assert "#3b82f6" not in french, "the door is drawn in the console's own blue, not a stock one"
     assert '<html lang="en">' in web_server.SIGN_IN
 
 
