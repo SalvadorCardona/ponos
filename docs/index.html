@@ -536,8 +536,8 @@
   .docs a:hover { background: var(--accent); }
   .docs a span { color: var(--muted-foreground); font: .75rem var(--mono); }
 
-  /* -- 7. faq: shadcn's accordion, on <details> so it opens without a script -- */
-  .faq { padding: 0 1.5rem; gap: 0; }
+  /* -- 6b. faq, inside install: shadcn's accordion, on <details> so it opens without a script -- */
+  .faq { margin-top: 1rem; padding: 0 1.5rem; gap: 0; }
   .faq > * { padding-inline: 0; }
   .faq details + details { border-top: 1px solid var(--border); }
   .faq summary {
@@ -994,6 +994,42 @@
       </div>
     </div>
 
+    <div id="faq">
+      <h3 style="margin:3rem 0 0;font-size:1.25rem">Questions, answered</h3>
+      <div class="card faq">
+        <details id="remote-access" open>
+          <summary>
+            <h3>How do I reach Ponos from my phone, away from my desk?</h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="faq-body">
+            <p>With <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>: a private network between your own devices, free for personal use. No port opened on the Internet.</p>
+            <ol>
+              <li>
+                <b>Tailscale on the machine that runs Ponos.</b> Create an account, then on Linux:
+                <pre data-copy><span class="p">$ </span>curl -fsSL https://tailscale.com/install.sh | sh
+<span class="p">$ </span>sudo tailscale up</pre>
+              </li>
+              <li><b>Tailscale on your phone.</b> The app, signed in to the same account.</li>
+              <li>
+                <b>Serve the console on your tailnet.</b> It listens on <code>127.0.0.1:8787</code> only — on purpose, since it starts sessions that run code — so the machine’s <code>100.x</code> address will not reach it. Tailscale relays to it instead, over HTTPS:
+                <pre data-copy><span class="p">$ </span>sudo tailscale serve --bg 8787</pre>
+                It prints the address, <code>https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net</code>. The first time, it may ask you to enable HTTPS for your tailnet.
+              </li>
+              <li>
+                <b>Give Ponos that name.</b> In the configuration (<code>ponos config</code>), or <em>Settings › Public address</em> in the console:
+                <pre data-copy><span class="c"># [web]</span>
+url = "https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net"</pre>
+                The console answers that name, and that one only; without it, a <code>421</code>. No restart needed.
+              </li>
+              <li><b>Open the address on your phone</b>, and sign in as on the machine — your email and password, or the token (<code>ponos serve --print-token</code>).</li>
+            </ol>
+            <p class="faq-note"><b>Never <code>tailscale funnel</code>.</b> Funnel puts the console on the public Internet, and behind it sits a runner that runs code on your machine. Stay on your tailnet.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+
     <h3 style="margin:3rem 0 0;font-size:1.25rem">Everything else is in the documentation</h3>
     <nav class="docs" aria-label="The documentation">
       <a href="https://github.com/SalvadorCardona/ponos#installation">Installation, in full <span>§</span></a>
@@ -1018,47 +1054,6 @@
       <a href="https://github.com/SalvadorCardona/ponos#architecture">Architecture <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#ponos-the-mascot">Ponos, the mascot <span>§</span></a>
     </nav>
-  </div>
-</section>
-
-<section id="faq">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="label">FAQ</span>
-      <h2>Questions, answered.</h2>
-    </div>
-    <div class="card faq">
-      <details id="remote-access" open>
-        <summary>
-          <h3>How do I reach Ponos from my phone, away from my desk?</h3>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </summary>
-        <div class="faq-body">
-          <p>With <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>: a private network between your own devices, free for personal use. No port opened on the Internet.</p>
-          <ol>
-            <li>
-              <b>Tailscale on the machine that runs Ponos.</b> Create an account, then on Linux:
-              <pre data-copy><span class="p">$ </span>curl -fsSL https://tailscale.com/install.sh | sh
-<span class="p">$ </span>sudo tailscale up</pre>
-            </li>
-            <li><b>Tailscale on your phone.</b> The app, signed in to the same account.</li>
-            <li>
-              <b>Serve the console on your tailnet.</b> It listens on <code>127.0.0.1:8787</code> only — on purpose, since it starts sessions that run code — so the machine’s <code>100.x</code> address will not reach it. Tailscale relays to it instead, over HTTPS:
-              <pre data-copy><span class="p">$ </span>sudo tailscale serve --bg 8787</pre>
-              It prints the address, <code>https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net</code>. The first time, it may ask you to enable HTTPS for your tailnet.
-            </li>
-            <li>
-              <b>Give Ponos that name.</b> In the configuration (<code>ponos config</code>), or <em>Settings › Public address</em> in the console:
-              <pre data-copy><span class="c"># [web]</span>
-url = "https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net"</pre>
-              The console answers that name, and that one only; without it, a <code>421</code>. No restart needed.
-            </li>
-            <li><b>Open the address on your phone</b>, and sign in as on the machine — your email and password, or the token (<code>ponos serve --print-token</code>).</li>
-          </ol>
-          <p class="faq-note"><b>Never <code>tailscale funnel</code>.</b> Funnel puts the console on the public Internet, and behind it sits a runner that runs code on your machine. Stay on your tailnet.</p>
-        </div>
-      </details>
-    </div>
   </div>
 </section>
 
