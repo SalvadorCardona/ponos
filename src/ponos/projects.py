@@ -193,6 +193,11 @@ class Resolver:
         """
         page = backend.page(page_id)
         name = page.title or page_id
+        if page.raw.get("archived") or page.raw.get("in_trash"):
+            # A deleted project is still reachable by its ID — that is what the
+            # trash is for — so a ticket that still points at it would otherwise
+            # be worked on, and a deleted project would go on spending tokens.
+            raise LookupError(f"the project “{name}” was deleted (it is in the Notion trash)")
         github = str(_property(page, "Repository", "github", "repo") or "")
 
         # Every way that was tried and did not lead anywhere, in order. Read

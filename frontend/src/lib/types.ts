@@ -146,6 +146,17 @@ export interface ProjectBrief {
   losses: Record<string, number>
 }
 
+/** What deleting a project did, as the server counts it. */
+export interface ProjectDeleted {
+  id: string
+  name: string
+  /** Where the page can be restored from; empty on a board of files. */
+  url: string
+  tickets: number
+  blocked: number
+  trashed: number
+}
+
 export interface Projects {
   projects: Project[]
   workspace_root: string

@@ -466,6 +466,15 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       if (event.role === "you") setTalkWaiting(false)
     },
 
+    projects: () => {
+      // A project was deleted — here, or from another tab, or by the assistant.
+      // The names the ticket form offers are read again; the list reads itself.
+      void api
+        .projects()
+        .then((payload) => setProjects(payload.projects))
+        .catch(() => {})
+    },
+
     settings: () => {
       // Another tab saved, or `ponos config` did. The settings pane
       // reloads itself when it is not in the middle of an edit; the header is

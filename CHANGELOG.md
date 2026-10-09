@@ -28,6 +28,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   (toggles, tables, mentions, embedded databases, bold and links…), it lists them and asks
   before saving.
 
+- **Delete a project from the console**, from the list (the “…” menu of a card or a row) and
+  from its page. A dialog names the project, counts its tickets, says what happens and asks
+  for its name. The page goes to the Notion trash (restorable for 30 days, the toast links
+  to it), the project disappears from the console at once and the runner takes none of its
+  tickets any more, so no tokens are spent on it. Its ready and in-progress tickets are
+  blocked with a comment (or trashed too, if you tick it); the repository, the local folder
+  and the branches are never touched, its throwaway worktrees are cleaned, its ideas are
+  deleted and its spending stays in the statistics. Refused while a session runs on one of
+  its tickets. No bulk deletion: react-resource-view has no row selection to build it on.
 - **Ponos from claude.ai, from Claude Code, from a phone: an MCP server.** The console
   answers MCP at `/mcp`: list the projects and the tasks (those waiting for you among them),
   open one with its discussion and its question, see what the runner is doing and what it

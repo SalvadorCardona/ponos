@@ -121,6 +121,16 @@ class Reader:
             self._pages[_key(page.id)] = page
             self._held[_key(page.id)] = self._clock() + HOLD
 
+    def forget(self, page_id: str) -> None:
+        """A page trashed from here: no longer held, and not brought back by a window.
+
+        An incremental read cannot see a page leave, so only dropping it here
+        makes it disappear before the next full read.
+        """
+        with self._lock:
+            self._pages.pop(_key(page_id), None)
+            self._held.pop(_key(page_id), None)
+
     def read(self, client, database: str, status: str) -> list[store.Page]:
         """Every ticket, as current as Notion will say. Raises `StoreError`."""
         started = self._clock()

@@ -540,6 +540,15 @@ class Client:
             body["parent"] = {"page_id": page_id}
         self._request("POST", "/comments", body)
 
+    def trash(self, page_id: str) -> str:
+        """Archive the page, which this API version calls what Notion's trash is.
+
+        `archived` is the 2022-06-28 spelling of `in_trash`: the page leaves its
+        database and every query, and stays restorable from the trash for thirty
+        days. Its address keeps working, and is the way back.
+        """
+        return _to_page(self._request("PATCH", f"/pages/{page_id}", {"archived": True})).url
+
     def set_picture(self, page_id: str, slot: str, picture: Picture) -> Page:
         """Set the page's cover or icon. See `store.Store.set_picture`.
 

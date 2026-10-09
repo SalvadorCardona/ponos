@@ -51,6 +51,8 @@ from ponos.__main__ import _names, banner, subcommands, welcome  # noqa: E402
 from ponos.__main__ import main as cli_main  # noqa: E402
 from ponos.__main__ import build_parser  # noqa: E402
 from ponos.web import api as web_api  # noqa: E402
+from ponos.web import board as web_board  # noqa: E402
+from ponos.web import removal as web_removal  # noqa: E402
 from ponos.web import attachments as web_attachments  # noqa: E402
 from ponos.web import console as web_console  # noqa: E402
 from ponos.web import settings as web_settings  # noqa: E402
@@ -12404,6 +12406,140 @@ def the_console_opens_a_project_and_writes_it_back():
             pass
         else:
             raise AssertionError("an unknown project must not read as a blank one")
+
+
+def _deletable(board: files.Board):
+    """A markdown Api with a project of three tickets, and one elsewhere."""
+    settings = board.settings()
+    code = board.create_row("projects", "ponos", {"Repository": "user/repo"})
+    elsewhere = board.create_row("projects", "Site vitrine", {})
+    tickets = {}
+    for title, status, project in (
+        ("Prêt", settings.state("ready"), code),
+        ("En cours", settings.state("running"), code),
+        ("Fini", settings.state("done"), code),
+        ("Ailleurs", settings.state("ready"), elsewhere),
+    ):
+        ticket = board.create_row("tickets", title, {settings.prop("status"): status})
+        board.update("tickets", ticket, {settings.prop("project"): [project]})
+        tickets[title] = ticket
+    api = _markdown_api(board)
+    api._config.notion = settings
+    api._runner.config = api._config
+    api._reader = web_board.Reader(journal=lambda report: None)
+    api.removal = web_removal.Removal(api)
+    api.watch = type("Watch", (), {"nudge": lambda self: None})()
+    return api, code, tickets
+
+
+@case
+def deleting_a_project_needs_its_name_and_changes_nothing_without_it():
+    with _board() as board, _state_home():
+        api, code, tickets = _deletable(board)
+        for confirm in ("", "Ponos", "ponosx"):
+            try:
+                api.removal.delete(code, {"confirm": confirm})
+            except ValueError as error:
+                assert "ponos" in str(error)
+            else:
+                raise AssertionError(f"“{confirm}” must not delete a project")
+        assert board.page(code).title == "ponos", "refused, so still on the board"
+        status = board.settings().prop("status")
+        assert store.read(board.page(tickets["Prêt"]), status) == board.settings().state("ready")
+        try:
+            api.removal.delete("f" * 32, {"confirm": "ponos"})
+        except LookupError:
+            pass
+        else:
+            raise AssertionError("an unknown project must be a 404")
+
+
+@case
+def a_deleted_project_leaves_the_console_and_its_tickets_are_stopped_not_lost():
+    """Gone from the list at once; tickets the runner could take are blocked and
+    say why; the others, and the other project's, are left alone; nothing is
+    removed for good — and what was spent on it stays in the history."""
+    with _board() as board, _state_home():
+        api, code, tickets = _deletable(board)
+        settings = board.settings()
+        status = settings.prop("status")
+        ideas.record(code, "haiku", 0.5, [{"kind": "ticket", "title": "Une idée"}])
+        state.record({"id": tickets["Fini"], "status": "done", "project": "ponos", "cost_usd": 2.0})
+
+        done = api.removal.delete(code, {"confirm": "ponos"})
+
+        assert (done["tickets"], done["blocked"], done["trashed"]) == (3, 2, 0)
+        assert [one["name"] for one in api.all_projects()["projects"]] == ["Site vitrine"]
+        for title, expected in (
+            ("Prêt", settings.state("blocked")),
+            ("En cours", settings.state("blocked")),
+            ("Fini", settings.state("done")),
+            ("Ailleurs", settings.state("ready")),
+        ):
+            assert store.read(board.page(tickets[title]), status) == expected, title
+        assert "supprimé" in board.comments(tickets["Prêt"])[-1].text or "deleted" in board.comments(
+            tickets["Prêt"]
+        )[-1].text
+        assert not board.comments(tickets["Ailleurs"])
+        # The page is put aside, not deleted: it is still on the disk.
+        assert list((board.root / "trash" / "projects").glob("ponos-*.md"))
+        assert done["ideas"] == 1 and not ideas.listed(code)
+        assert sum(float(one.get("cost_usd") or 0) for one in state.history(100)) == 2.0
+
+        # The ticket is still reachable, and the runner refuses its project.
+        try:
+            projects.Resolver(Path(tempfile.mkdtemp()), {}).resolve(board, code)
+        except (LookupError, store.StoreError):
+            pass
+        else:
+            raise AssertionError("a deleted project must not resolve")
+
+
+@case
+def deleting_a_project_may_trash_its_tickets_too():
+    with _board() as board, _state_home():
+        api, code, tickets = _deletable(board)
+        done = api.removal.delete(code, {"confirm": "ponos", "trash_tickets": True})
+        assert (done["trashed"], done["blocked"]) == (3, 0)
+        titles = {page.title for page in board.query("tickets")}
+        assert titles == {"Ailleurs"}
+        assert len(list((board.root / "trash" / "tickets").glob("*.md"))) == 3
+        assert api.reader.get(tickets["Prêt"]) is None, "dropped from what the console holds"
+
+
+@case
+def a_project_with_a_session_running_is_not_deleted():
+    with _board() as board, _state_home():
+        api, code, tickets = _deletable(board)
+        running = web_live.active
+        web_live.active = lambda *a, **k: [{"source": ticket_module.short_id(tickets["En cours"]), "log": "x"}]
+        try:
+            api.removal.delete(code, {"confirm": "ponos"})
+        except RuntimeError as error:
+            assert "En cours" in str(error)
+        else:
+            raise AssertionError("a running session must stop the deletion")
+        finally:
+            web_live.active = running
+        assert board.page(code).title == "ponos"
+        status = board.settings().prop("status")
+        assert store.read(board.page(tickets["Prêt"]), status) == board.settings().state("ready")
+
+
+@case
+def a_project_in_the_notion_trash_does_not_resolve():
+    """The trash keeps a page readable by its ID; that is what must not be worked on."""
+
+    class Backend:
+        def page(self, page_id):
+            return store.Page(id=page_id, url="", title="Site", raw={"archived": True})
+
+    try:
+        projects.Resolver(Path(tempfile.mkdtemp()), {}).resolve(Backend(), "p" * 32)
+    except LookupError as error:
+        assert "deleted" in str(error) and "Site" in str(error)
+    else:
+        raise AssertionError("an archived project must not resolve")
 
 
 @case

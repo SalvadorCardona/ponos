@@ -1,18 +1,27 @@
 import * as React from "react"
 import { useLocation, useRouter } from "@tanstack/react-router"
 import { ActionList } from "react-data-form"
-import { Link, ResourceViewButton, useCurrentViewResourceContext } from "react-resource-view"
+import { Link, ResourceViewButton, useCurrentViewResourceContext, useNavigate } from "react-resource-view"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { counted, useT } from "@/lib/i18n"
 import { useRoute } from "@/lib/router"
-import { Repository, Where, isAPage, useTicketCount, whyNotRead, type ProjectItem } from "@/resources/projects"
+import {
+  Repository,
+  Where,
+  isAPage,
+  projectsHref,
+  useTicketCount,
+  whyNotRead,
+  type ProjectItem,
+} from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
 
 import { Eyebrow, Fact, Facts } from "./frame"
 import { IdeasButton } from "./ideas-deck"
 import { ProjectBrief } from "./project-brief"
+import { ProjectMenu } from "./project-delete"
 import { ProjectCover } from "./project-picture"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
@@ -185,6 +194,7 @@ export function ProjectActions() {
   const project = context.data as ProjectItem | undefined
   useT()
   const count = useTicketCount(project?.name ?? "")
+  const navigate = useNavigate()
   if (!project) return null
   /** Where the project is really written, when that is somewhere a browser can go. */
   const away = reachable(project.url) ? project.url : ""
@@ -198,12 +208,19 @@ export function ProjectActions() {
         <Chip>{counted(count, "{{count}} ticket", "{{count}} tickets")}</Chip>
       ) : null}
       {isAPage(project.id) ? (
-        <ResourceViewButton
-          action={ActionList.update}
-          resource={context.resource}
-          id={project.id}
-          data={project}
-        />
+        <>
+          <ResourceViewButton
+            action={ActionList.update}
+            resource={context.resource}
+            id={project.id}
+            data={project}
+          />
+          <ProjectMenu
+            project={project}
+            tickets={count}
+            onDeleted={() => void navigate({ to: projectsHref() })}
+          />
+        </>
       ) : null}
     </>
   )

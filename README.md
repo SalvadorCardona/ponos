@@ -2218,6 +2218,23 @@ whichever you named it — rather than to a second one beside it. A project only
 names has no page to write to, so it says so and points at the settings, where that line
 lives.
 
+**A project can be deleted** — from its card or row (the “…” menu) and from its page, next to
+*Edit*. A dialog names it, counts the tickets that point at it and asks for its name before
+the button turns on; the server asks for the name as well. A project that is only hidden would
+still be synchronised, and the runner would still take its ready tickets, so deleting is done
+where the runner looks: the project's page goes to the **Notion trash** (30 days to restore it
+— the toast links to it; on a board of files the page is moved under `trash/projects/`), and the
+project leaves the console at once, without waiting for a synchronisation. Its tickets stay on
+the board by default, but the ready and in-progress ones are put in *Blocked* with a comment
+saying why; a checkbox in the dialog trashes them too. The GitHub repository, the folder on
+this machine and the branches are never touched, only the throwaway worktrees under the state
+directory are cleaned (one with uncommitted changes is kept). The project's ideas are deleted;
+**what it spent stays in the history**, since the global statistics are a sum over it. A
+`[projects]` line of the configuration naming it is removed too, or it would come straight
+back as a project “from the configuration”. A project with a session running on one of its
+tickets cannot be deleted: stop the session or wait for it to end. A ticket that still points
+at a trashed project is blocked by the runner, never worked on.
+
 **Schedules** is [what comes back on its own](#what-comes-back-on-its-own), read the way
 `ponos schedules` reads it: what repeats, at what rhythm, when the next ticket is
 due and when the last one was made. Like the board and the projects, it is drawn in the
