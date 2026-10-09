@@ -124,6 +124,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Docker Hub limite les tirages anonymes par IP, et celles des runners
+      # sont partagées : un 429 sur node ou python fait échouer le job sans
+      # que le code y soit pour rien. Le miroir de Google sert les mêmes images.
+      - name: Les images de base, par le miroir de Docker Hub
+        run: |
+          sudo mkdir -p /etc/docker
+          [ -s /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json >/dev/null
+          sudo jq '. + {"registry-mirrors": ["https://mirror.gcr.io"]}' /etc/docker/daemon.json | sudo tee /etc/docker/daemon.json.new >/dev/null
+          sudo mv /etc/docker/daemon.json.new /etc/docker/daemon.json
+          sudo systemctl restart docker
+
       - name: L'image
         run: docker build -t ponos:ci .
 
