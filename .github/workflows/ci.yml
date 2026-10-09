@@ -116,7 +116,7 @@ jobs:
 
       - name: La console dans un navigateur
         if: steps.changes.outputs.frontend == 'true'
-        run: npm run test:e2e
+        run: npm run test:e2e:ci
         working-directory: frontend
 
   image:

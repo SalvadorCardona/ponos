@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "lint": "tsc -b --noEmit",
     "test:e2e": "playwright test",
+    "test:e2e:ci": "playwright test --workers=2",
     "test": "node --test src/lib/*.test.ts"
   },
   "dependencies": {

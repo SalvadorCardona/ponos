@@ -47,6 +47,22 @@ test("a Ready ticket is set aside in one click, and made ready again once confir
   await expect(aside).toHaveAttribute("title", "The runner no longer touches it, until it is made ready again.")
   await aside.click()
   await expect(page.getByText("“A ticket to set aside” moved to Blocked")).toBeVisible()
+  // The card sends the status it showed with the move back: until the board
+  // has Notion's word for the first one it still says Ready, and the second
+  // move reads as a ticket changed in Notion meanwhile. Let the first land and
+  // read the board again.
+  await expect
+    .poll(async () => {
+      const tickets = (await (await page.request.get("/api/board")).json()).tickets as {
+        id: string
+        status: string
+        sync?: string
+      }[]
+      const ticket = tickets.find((item) => item.id === "0000000000000000000000000000a51d")
+      return `${ticket?.status} ${ticket?.sync ?? ""}`.trim()
+    })
+    .toBe("Blocked")
+  await page.reload()
   await page.getByRole("button", { name: "make ready" }).click()
   await dialog(page).getByRole("button", { name: "Make it ready" }).click()
   await expect(page.getByText("“A ticket to set aside” moved to Ready")).toBeVisible()

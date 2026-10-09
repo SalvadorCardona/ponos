@@ -14,7 +14,9 @@ import { defineConfig } from "@playwright/test"
  * the drawer, and the chat test then reads "stopped by you" where its answer
  * should be. The chat gets a server of its own, its tests one after another;
  * the rest share the other one and run in parallel. The ideas share the chat's: what
- * they keep is written onto its board, and the others count the tickets of theirs. And the first connection
+ * they keep is written onto its board, and the others count the tickets of theirs.
+ * The page of the ideas has one too: it turns an idea into a ticket of Website, which
+ * the statistics of Website then count, and it counts the ideas the chat's batch adds. And the first connection
  * gets a console nobody has claimed, which its test claims — once. And the tests that
 delete projects get one of their own, with two projects to spare: the others count them.
  *
@@ -41,11 +43,13 @@ if (!process.env.PONOS_E2E_CHAT_PORT) {
   process.env.PONOS_E2E_CHAT_PORT = String(given ? given + 1 : await free())
   process.env.PONOS_E2E_SETUP_PORT = String(given ? given + 2 : await free())
   process.env.PONOS_E2E_DELETE_PORT = String(given ? given + 3 : await free())
+  process.env.PONOS_E2E_IDEAS_PORT = String(given ? given + 4 : await free())
 }
 const PORT = Number(process.env.PONOS_E2E_PORT)
 const CHAT_PORT = Number(process.env.PONOS_E2E_CHAT_PORT)
 const SETUP_PORT = Number(process.env.PONOS_E2E_SETUP_PORT)
 const DELETE_PORT = Number(process.env.PONOS_E2E_DELETE_PORT)
+const IDEAS_PORT = Number(process.env.PONOS_E2E_IDEAS_PORT)
 
 const serve = (port: number, mode = "") => ({
   command: `python3 e2e/console.py ${port} ${mode}`.trim(),
@@ -71,7 +75,7 @@ export default defineConfig({
   projects: [
     {
       name: "console",
-      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "setup.spec.ts", "project-delete.spec.ts"],
+      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "ideas-page.spec.ts", "setup.spec.ts", "project-delete.spec.ts"],
       use: { baseURL: `http://127.0.0.1:${PORT}` },
     },
     {
@@ -85,10 +89,15 @@ export default defineConfig({
       use: { baseURL: `http://127.0.0.1:${DELETE_PORT}` },
     },
     {
+      name: "ideas-page",
+      testMatch: "ideas-page.spec.ts",
+      use: { baseURL: `http://127.0.0.1:${IDEAS_PORT}` },
+    },
+    {
       name: "setup",
       testMatch: "setup.spec.ts",
       use: { baseURL: `http://127.0.0.1:${SETUP_PORT}` },
     },
   ],
-  webServer: [serve(PORT), serve(CHAT_PORT), serve(SETUP_PORT, "unclaimed"), serve(DELETE_PORT, "doomed")],
+  webServer: [serve(PORT), serve(CHAT_PORT), serve(SETUP_PORT, "unclaimed"), serve(DELETE_PORT, "doomed"), serve(IDEAS_PORT)],
 })

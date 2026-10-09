@@ -42,6 +42,7 @@ npm install
 npm run build   # tsc -b && vite build — écrit dans ../src/ponos/web/static
 npm run lint    # tsc -b --noEmit
 npm run test:e2e  # Playwright dans le Chrome installé, sur un vrai `serve` et un board jetable
+npm run test:e2e:ci  # le même, avec les deux workers de la CI : c’est lui qui montre une dépendance à l’ordre
 npm test        # node --test src/lib/*.test.ts — la logique de la barre de message, sans navigateur
 npm run dev     # serveur de dev avec hot reload, proxy /api vers un console déjà lancé
 ```
