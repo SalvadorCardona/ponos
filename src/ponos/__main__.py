@@ -1701,6 +1701,56 @@ def command_serve(args: argparse.Namespace) -> int:
     return web.serve(configuration, host=args.host or "", port=args.port or 0)
 
 
+def command_mcp(args: argparse.Namespace) -> int:
+    """The MCP server's keys: draw one for Claude Code, list them, take one back.
+
+    Here and not in the console: a key is a way in, and the command bar of the
+    console is a way in already — drawing a second from it would be a door
+    opening another.
+    """
+    from .web import mcp, oauth
+
+    try:
+        if args.action == "token":
+            identifier, token = oauth.local(args.name or "Claude Code", write=not args.read_only)
+            scope = oauth.READ if args.read_only else f"{oauth.READ} {oauth.WRITE}"
+            ok(f"token for {args.name or 'Claude Code'} ({scope}) — client {identifier}")
+            print(f"\n  {token}\n")
+            print("Shown once, and kept only as a digest. Add it to Claude Code with:")
+            print(
+                "  claude mcp add --transport http ponos http://127.0.0.1:8787/mcp "
+                f'--header "Authorization: Bearer {token}"'
+            )
+            print(f"{DIM}Take it back with: ponos mcp revoke {identifier}{RESET}")
+            return 0
+        if args.action == "revoke":
+            taken = oauth.revoke(args.client)
+            ok(f"{args.client}: {taken} key(s) taken back")
+            return 0
+        clients = oauth.clients()
+        title("Clients")
+        if not clients:
+            print("  none yet — connect claude.ai, or: ponos mcp token")
+        for client in clients:
+            scope = client["scope"] or f"{DIM}no live key{RESET}"
+            print(f"  {client['id']:<26} {client['name']:<24} {scope}  {DIM}{client['created_at']}{RESET}")
+        title("Last writes")
+        calls = mcp.calls(args.number)
+        if not calls:
+            print("  none yet")
+        for call in calls:
+            colour = GREEN if call["outcome"] == "ok" else YELLOW
+            print(f"  {call['at']}  {call['tool']:<16} {colour}{call['outcome']}{RESET}  {DIM}{call['name']} ({call['client']}){RESET}")
+            print(f"      {DIM}{call['arguments']}{RESET}")
+    except LookupError as error:
+        bad(str(error))
+        return 1
+    except db.ERRORS as error:
+        bad(f"the local database: {error}")
+        return 1
+    return 0
+
+
 def command_timer(args: argparse.Namespace) -> int:
     """Both units at once: the timer that runs tickets, and the console.
 
@@ -1905,6 +1955,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--print-token", action="store_true", help="print the console's token and exit"
     )
     serving.set_defaults(function=command_serve)
+
+    serving_mcp = subparsers.add_parser("mcp", help="the MCP server's keys: draw, list, revoke")
+    actions = serving_mcp.add_subparsers(dest="action")
+    drawing = actions.add_parser("token", help="draw a token for Claude Code")
+    drawing.add_argument("--name", help="who it is for, as the journal will say it")
+    drawing.add_argument("--read-only", action="store_true", help="read, never write")
+    revoking = actions.add_parser("revoke", help="take back every key of one client")
+    revoking.add_argument("client", help="the client's id, as `ponos mcp list` shows it")
+    listing_keys = actions.add_parser("list", help="the clients, and the last writes they asked for")
+    listing_keys.add_argument("-n", "--number", type=int, default=20)
+    serving_mcp.set_defaults(function=command_mcp, action="list", number=20)
 
     notifying = subparsers.add_parser(
         "notify", help="send yourself a test message, or pair a Telegram chat"

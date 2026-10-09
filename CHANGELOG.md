@@ -18,6 +18,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Ponos from claude.ai, from Claude Code, from a phone: an MCP server.** The console
+  answers MCP at `/mcp`: list the projects and the tasks (those waiting for you among them),
+  open one with its discussion and its question, see what the runner is doing and what it
+  spent, project by project — and, with the `write` scope, create a task (draft or ready, by
+  the same road as *New ticket*), answer a blocked one and sort the ideas. Nothing starts a
+  run, runs a command, changes a setting or deletes anything. claude.ai connects through
+  OAuth (registration, consent with the console's password, PKCE), Claude Code with a token
+  from `ponos mcp token`; a read-only client sees no tool that writes; every write is
+  journalled with its client, and `ponos mcp list` / `revoke` show and take back the keys.
+  See README, *Driving it from Claude: the MCP server*.
+
 - **A call to action with Ponos on it.** The dashboard's ideas button is now *Ponos, find me
   ideas*, in the primary colour, with the Greek mascot on its left: its flame flickers and it
   blinks at rest, it thinks (flame beacon, sparkles) when the button is hovered or focused, and

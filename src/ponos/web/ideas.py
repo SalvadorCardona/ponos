@@ -239,6 +239,24 @@ class Ideas:
         self._api.hub.publish("ideas", project=idea.project, discarded=identifier)
         return thrown.shown()
 
+    def write(self, project: str, kind: str, title: str, description: str = "") -> dict:
+        """An idea somebody had, put among the proposed ones to be decided on."""
+        idea = ideas.add(project, kind, title, description)
+        self._api.hub.publish("ideas", project=idea.project, added=idea.id)
+        return idea.shown()
+
+    def reopen(self, identifier: int) -> dict:
+        """Propose one idea again, whichever it is — `undo` is the last decision only.
+
+        What a kept idea became stays on the board, as with `undo`.
+        """
+        idea = ideas.get(identifier)
+        if idea.status == "proposed":
+            return idea.shown()
+        back = ideas.decide(identifier, "proposed")
+        self._api.hub.publish("ideas", project=idea.project, undone=identifier)
+        return back.shown()
+
     def undo(self, project: str | None = None) -> dict:
         """Take the last decision back — in one scope, or the last of all when None.
 

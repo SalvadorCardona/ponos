@@ -14299,6 +14299,328 @@ def ponos_logs_lists_a_tickets_runs_from_the_journal():
             db.close()
 
 
+# -- the MCP server ----------------------------------------------------------
+
+
+def _mcp_call(api, grant, name: str, **arguments) -> dict:
+    from ponos.web import mcp as web_mcp
+
+    answer = web_mcp.handle(
+        api, grant,
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}},
+    )
+    return answer["result"]
+
+
+@case
+def an_mcp_client_lists_what_waits_creates_a_task_and_answers_a_question():
+    """The three gestures the connector exists for, on a board made of files.
+
+    Nothing in what comes back names a page, a database or a property: a task,
+    a project, a status. A task created goes through `create_ticket`, an answer
+    is the comment the console's discussion writes, under the question — and
+    every write is in the journal, with its client.
+    """
+    from ponos.web import mcp as web_mcp
+    from ponos.web import oauth as web_oauth
+
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {"Repository": "user/usine"})
+        settings = C.Notion()
+        blocked = board.create_row("tickets", "Choisir l'hébergeur", {"Status": settings.state("blocked")})
+        board.update("tickets", blocked, {"Project": [project]})
+        board.comment(blocked, f"{voice.MARKS['blocked']} Bloqué.\nQuestion : Dokploy ou Vercel ?")
+        board.create_row("tickets", "Autre chose", {"Status": settings.state("ready")})
+        api = _ideas_api(board)
+        grant = web_oauth.Grant(client="c-1", name="claude.ai", scopes=frozenset({"read", "write"}))
+
+        projects = _mcp_call(api, grant, "list_projects")["structuredContent"]["projects"]
+        assert [(item["name"], item["repository"]) for item in projects] == [("Usine", "user/usine")]
+
+        waiting = _mcp_call(api, grant, "list_tasks", waiting_for_you=True)["structuredContent"]
+        assert [task["title"] for task in waiting["tasks"]] == ["Choisir l'hébergeur"]
+        task = waiting["tasks"][0]
+        assert task["project"] == "Usine" and task["status"] == "blocked" and task["waiting_for_you"]
+        assert "url" not in task, "a task is not a Notion page"
+
+        detail = _mcp_call(api, grant, "get_task", task=task["short"])["structuredContent"]
+        assert "Dokploy ou Vercel" in detail["question"]
+        assert detail["conversation"][-1]["from"] == "ponos"
+
+        created = _mcp_call(
+            api, grant, "create_task", title="Brancher le domaine", description="Sur Dokploy.",
+            project="usine", type="code", priority="High",
+        )
+        assert not created["isError"], created
+        made = board.page(created["structuredContent"]["id"])
+        assert made.title == "Brancher le domaine"
+        assert store.read(made, "Project") == [project]
+        assert not store.read(made, "Status"), "a draft unless ready is asked for"
+        assert "Sur Dokploy." in board.blocks_text(made.id)
+
+        unknown = _mcp_call(api, grant, "create_task", title="X", project="Nulle part")
+        assert unknown["isError"] and "Usine" in unknown["content"][0]["text"]
+
+        refused = _mcp_call(api, grant, "answer_question", task=created["structuredContent"]["id"], answer="oui")
+        assert refused["isError"], "only a blocked task is answered"
+
+        answered = _mcp_call(api, grant, "answer_question", task=task["id"], answer="Dokploy", ready=True)
+        assert not answered["isError"], answered
+        said = board.comments(blocked)[-1].text
+        assert said.endswith("Dokploy") and said != "Dokploy", "relayed, as the console's answer is"
+        assert api.outbox.marks()[task["id"]].column == "ready"
+
+        journal_lines = web_mcp.calls()
+        assert [line["tool"] for line in journal_lines] == [
+            "answer_question", "answer_question", "create_task", "create_task",
+        ]
+        assert journal_lines[0]["outcome"] == "ok" and journal_lines[0]["name"] == "claude.ai"
+        assert journal_lines[1]["outcome"].startswith("refused")
+        assert all(line["client"] == "c-1" and line["at"] for line in journal_lines)
+
+
+@case
+def an_mcp_client_sorts_ideas_without_deleting_any():
+    from ponos.web import oauth as web_oauth
+
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        api = _ideas_api(board)
+        grant = web_oauth.Grant(client="c-1", name="Claude Code", scopes=frozenset({"read", "write"}))
+        idea = _mcp_call(api, grant, "create_idea", title="Un mode sombre", project="Usine")["structuredContent"]
+        assert idea["status"] == "proposed" and idea["kind"] == "ticket"
+        assert _mcp_call(api, grant, "create_idea", title="Un club", project="Usine", kind="project")["isError"]
+        listed = _mcp_call(api, grant, "list_ideas", project="Usine")["structuredContent"]["ideas"]
+        assert [item["title"] for item in listed] == ["Un mode sombre"]
+        assert _mcp_call(api, grant, "list_ideas")["structuredContent"]["ideas"] == [], "the workspace's are apart"
+
+        thrown = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="discard")["structuredContent"]
+        assert thrown["status"] == "discarded"
+        back = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="new")["structuredContent"]
+        assert back["status"] == "proposed"
+        kept = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="keep")["structuredContent"]
+        assert kept["status"] == "kept" and kept["task"]
+        ticket = board.page(kept["task"])
+        assert ticket.title == "Un mode sombre" and store.read(ticket, "Project") == [project]
+
+
+@case
+def a_read_only_mcp_client_sees_and_can_call_no_tool_that_writes():
+    from ponos.web import mcp as web_mcp
+    from ponos.web import oauth as web_oauth
+
+    with _state_home(), _board() as board:
+        api = _ideas_api(board)
+        reader = web_oauth.Grant(client="c-2", name="lecteur", scopes=frozenset({"read"}))
+        listed = web_mcp.handle(api, reader, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        names = {tool["name"] for tool in listed["result"]["tools"]}
+        assert names == {"list_projects", "list_tasks", "get_task", "runner_status", "list_ideas"}
+        assert all(tool["annotations"]["readOnlyHint"] for tool in listed["result"]["tools"])
+        refused = _mcp_call(api, reader, "create_task", title="Rien")
+        assert refused["isError"] and "lecture" in refused["content"][0]["text"]
+        assert api.board()["tickets"] == [], "nothing was written"
+        assert web_mcp.calls()[0]["outcome"].startswith("refused"), "a refused write is journalled too"
+        state.record({"id": "x", "status": "done", "project": "Usine", "cost_usd": 1.25})
+        state.record({"id": "y", "status": "done", "cost_usd": 0.5})
+        status = _mcp_call(api, reader, "runner_status", days=7)["structuredContent"]
+        assert status["spend"]["period_usd"] == 1.75 and status["spend"]["today_usd"] == 1.75
+        assert [item["project"] for item in status["spend"]["by_project"]] == ["Usine", "(sans projet)"]
+        assert status["run_in_progress"] is False and status["sessions"] == []
+
+
+@case
+def no_mcp_tool_starts_a_run_runs_a_command_or_deletes_anything():
+    """The whole list, written down: a tool added is a decision, not a drift."""
+    from ponos.web import mcp as web_mcp
+
+    names = [tool["name"] for tool in web_mcp.TOOLS]
+    assert set(names) == set(web_mcp.HANDLERS)
+    assert names == [
+        "list_projects", "list_tasks", "get_task", "runner_status", "list_ideas",
+        "create_task", "answer_question", "create_idea", "set_idea_state",
+    ]
+    writes = [tool["name"] for tool in web_mcp.TOOLS if tool["scope"] == "write"]
+    assert writes == ["create_task", "answer_question", "create_idea", "set_idea_state"]
+    status = next(tool for tool in web_mcp.TOOLS if tool["name"] == "create_task")
+    assert status["inputSchema"]["properties"]["status"]["enum"] == ["draft", "ready"]
+    for tool in web_mcp.TOOLS:
+        assert len(tool["description"]) > 80, f"{tool['name']}: a description Claude can choose by"
+
+
+@case
+def the_mcp_server_is_reached_through_oauth_with_pkce_and_its_own_keys():
+    """Discovery, registration, consent, code, token, tools — over HTTP.
+
+    The console's own token is not a key to `/mcp`; consent asks for it when
+    the browser is signed out; write is granted only when ticked; a code is
+    good once, and only with its verifier.
+    """
+    import base64
+    import hashlib
+    import urllib.error
+    import urllib.request
+    from urllib.parse import parse_qs, urlencode, urlparse
+
+    from ponos.web import oauth as web_oauth
+    from ponos.web import server as web_server
+
+    class Stay(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    opener = urllib.request.build_opener(Stay)
+
+    with _state_home(), _board() as board:
+        board.create_row("tickets", "Un ticket", {"Status": C.Notion().state("blocked")})
+        api = _ideas_api(board)
+        api._config.web.token = "tok"
+        console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+        threading.Thread(target=console.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{console.server_address[1]}"
+
+        def ask(path, data=None, headers=None, method=None):
+            request = urllib.request.Request(base + path, data=data, headers=headers or {}, method=method)
+            try:
+                with opener.open(request, timeout=5) as response:
+                    return response.status, dict(response.headers), response.read()
+            except urllib.error.HTTPError as error:
+                return error.code, dict(error.headers), error.read()
+
+        def rpc(token, method, params=None):
+            body = json.dumps({"jsonrpc": "2.0", "id": 7, "method": method, "params": params or {}}).encode()
+            return ask("/mcp", body, {"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+
+        try:
+            code, headers, _ = rpc("tok", "tools/list")
+            assert code == 401, "the console's token opens the console, not the MCP server"
+            assert "resource_metadata=" in headers["WWW-Authenticate"]
+            resource = json.loads(ask("/.well-known/oauth-protected-resource/mcp")[2])
+            assert resource["resource"] == f"{base}/mcp" and resource["scopes_supported"] == ["read", "write"]
+            server = json.loads(ask("/.well-known/oauth-authorization-server")[2])
+            assert server["code_challenge_methods_supported"] == ["S256"]
+
+            code, _, body = ask("/oauth/register", json.dumps({"redirect_uris": ["http://evil.example/cb"]}).encode(),
+                                {"Content-Type": "application/json"})
+            assert code == 400, "a code is never sent in clear across a network"
+            code, _, body = ask(
+                "/oauth/register",
+                json.dumps({"client_name": "claude.ai", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"]}).encode(),
+                {"Content-Type": "application/json"},
+            )
+            assert code == 201, body
+            client_id = json.loads(body)["client_id"]
+
+            verifier = "v" * 50
+            challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+            params = {
+                "response_type": "code", "client_id": client_id,
+                "redirect_uri": "https://claude.ai/api/mcp/auth_callback",
+                "code_challenge": challenge, "code_challenge_method": "S256",
+                "scope": "read write", "state": "s-1",
+            }
+            code, _, page = ask("/oauth/authorize?" + urlencode(params))
+            assert code == 200 and b"claude.ai" in page and b'name="token"' in page, "signed out: the token is asked"
+            assert b'name="write"' in page
+
+            code, _, _ = ask("/oauth/authorize", urlencode({**params, "decision": "allow", "token": "nope"}).encode(),
+                             {"Content-Type": "application/x-www-form-urlencoded"})
+            assert code == 401
+            code, _, _ = ask("/oauth/authorize", urlencode({**params, "decision": "allow", "token": "tok"}).encode(),
+                             {"Content-Type": "application/x-www-form-urlencoded", "Origin": "http://evil.example"})
+            assert code == 403, "a consent posted from another page"
+
+            # Write left unticked: read only.
+            code, headers, _ = ask("/oauth/authorize", urlencode({**params, "decision": "allow", "token": "tok"}).encode(),
+                                   {"Content-Type": "application/x-www-form-urlencoded", "Origin": base})
+            assert code == 302, code
+            back = urlparse(headers["Location"])
+            assert back.netloc == "claude.ai"
+            given = parse_qs(back.query)
+            assert given["state"] == ["s-1"] and given["iss"] == [base]
+
+            def exchange(**form):
+                return ask("/oauth/token", urlencode(form).encode(), {"Content-Type": "application/x-www-form-urlencoded"})
+
+            code, _, body = exchange(grant_type="authorization_code", code=given["code"][0], client_id=client_id,
+                                     redirect_uri=params["redirect_uri"], code_verifier="w" * 50)
+            assert code == 400 and json.loads(body)["error"] == "invalid_grant", "the wrong verifier"
+            code, _, body = exchange(grant_type="authorization_code", code=given["code"][0], client_id=client_id,
+                                     redirect_uri=params["redirect_uri"], code_verifier=verifier)
+            assert code == 400, "a code refused once is spent"
+
+            code, headers, _ = ask("/oauth/authorize", urlencode({**params, "decision": "allow", "token": "tok"}).encode(),
+                                   {"Content-Type": "application/x-www-form-urlencoded", "Origin": base})
+            fresh = parse_qs(urlparse(headers["Location"]).query)["code"][0]
+            code, _, body = exchange(grant_type="authorization_code", code=fresh, client_id=client_id,
+                                     redirect_uri=params["redirect_uri"], code_verifier=verifier)
+            assert code == 200, body
+            tokens = json.loads(body)
+            assert tokens["scope"] == "read" and tokens["token_type"] == "Bearer"
+
+            code, _, body = rpc(tokens["access_token"], "initialize", {"protocolVersion": "2025-06-18"})
+            assert code == 200 and json.loads(body)["result"]["protocolVersion"] == "2025-06-18"
+            code, _, _ = ask("/mcp", json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}).encode(),
+                             {"Authorization": f"Bearer {tokens['access_token']}"})
+            assert code == 202
+            listed = json.loads(rpc(tokens["access_token"], "tools/list")[2])["result"]["tools"]
+            assert "create_task" not in {tool["name"] for tool in listed}
+            answer = json.loads(rpc(tokens["access_token"], "tools/call", {"name": "list_tasks", "arguments": {"waiting_for_you": True}})[2])
+            assert [task["title"] for task in answer["result"]["structuredContent"]["tasks"]] == ["Un ticket"]
+            answer = json.loads(rpc(tokens["access_token"], "tools/call", {"name": "create_task", "arguments": {"title": "Non"}})[2])
+            assert answer["result"]["isError"], "read only cannot create"
+
+            # A refresh turns over; the old one is spent.
+            code, _, body = exchange(grant_type="refresh_token", refresh_token=tokens["refresh_token"], client_id=client_id)
+            assert code == 200 and json.loads(body)["scope"] == "read"
+            code, _, _ = exchange(grant_type="refresh_token", refresh_token=tokens["refresh_token"], client_id=client_id)
+            assert code == 400
+
+            # Write, ticked this time; then taken back.
+            code, headers, _ = ask(
+                "/oauth/authorize",
+                urlencode({**params, "decision": "allow", "token": "tok", "write": "1"}).encode(),
+                {"Content-Type": "application/x-www-form-urlencoded", "Origin": base},
+            )
+            writer = parse_qs(urlparse(headers["Location"]).query)["code"][0]
+            code, _, body = exchange(grant_type="authorization_code", code=writer, client_id=client_id,
+                                     redirect_uri=params["redirect_uri"], code_verifier=verifier)
+            assert json.loads(body)["scope"] == "read write"
+            written = json.loads(body)["access_token"]
+            listed = json.loads(rpc(written, "tools/list")[2])["result"]["tools"]
+            assert "create_task" in {tool["name"] for tool in listed}
+            assert web_oauth.revoke(client_id) >= 2
+            assert rpc(written, "tools/list")[0] == 401, "revoked"
+
+            # Refused: no redirect to an address the client did not register.
+            code, headers, _ = ask("/oauth/authorize?" + urlencode({**params, "redirect_uri": "https://evil.example/cb"}))
+            assert code == 400 and "Location" not in headers
+            code, headers, _ = ask("/oauth/authorize?" + urlencode({**params, "code_challenge_method": "plain"}))
+            assert code == 302 and "error=invalid_request" in headers["Location"]
+        finally:
+            console.shutdown()
+            console.server_close()
+
+
+@case
+def a_local_mcp_token_is_drawn_once_and_kept_as_a_digest():
+    from ponos.web import oauth as web_oauth
+
+    with _state_home():
+        identifier, token = web_oauth.local("Claude Code", write=False)
+        grant = web_oauth.check(token)
+        assert grant is not None and grant.scope == "read" and grant.name == "Claude Code"
+        with db.transaction(immediate=False) as connection:
+            stored = [row[0] for row in connection.execute("SELECT hash FROM mcp_tokens")]
+        assert token not in stored and web_oauth.digest(token) in stored
+        assert [client["scope"] for client in web_oauth.clients()] == ["read"]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert cli_main(["mcp", "revoke", identifier]) == 0
+        assert web_oauth.check(token) is None
+        assert web_oauth.check("") is None
+
+
+
 def main() -> int:
     # Claude Code's own store, pointed at an empty directory for the whole
     # suite. Everything here is pure, and "how much of this machine's

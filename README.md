@@ -2623,6 +2623,66 @@ stops being what *you* carry.
 
 ---
 
+## Driving it from Claude: the MCP server
+
+The console is also an [MCP](https://modelcontextprotocol.io) server, at `/mcp` on the same
+port. From claude.ai — on the web or on a phone — or from Claude Code, a conversation can see
+what Ponos is doing, open a task, create one in the right project and answer the question a
+blocked one asks, without the Notion connector and whatever the board is kept in: what the
+tools hand back is a task, a project, an idea, an amount — never a page or a property.
+
+| Tool | Scope | What it does |
+| --- | --- | --- |
+| `list_projects` | read | the projects: name, icon, repository |
+| `list_tasks` | read | the tasks, filtered by project, by status, or `waiting_for_you` (the blocked ones) |
+| `get_task` | read | one task: its brief, the last turns of its discussion and the question it waits on, the pull request, the cost, the session, the last runs |
+| `runner_status` | read | the timer, the sessions in flight, the tasks running, what was spent today, over the period and project by project |
+| `list_ideas` | read | the ideas of a project, or of the workspace, by state |
+| `create_task` | write | a task, *draft* or *ready*, with its description, project, type and priority — through the console's *New ticket*, so the same rules as any other |
+| `answer_question` | write | an answer under a blocked task's question, as the console's discussion writes it; `ready: true` also moves it back to *ready* |
+| `create_idea` | write | an idea among the proposed ones, to be kept or thrown away |
+| `set_idea_state` | write | `keep` (a draft, as the pile does), `discard`, or `new` to propose it again |
+
+**Nothing else.** No tool starts a run, runs a command, changes the settings or deletes
+anything: a task created *ready* is run by the timer at its next pass, like any ready ticket.
+The descriptions the tools carry are in French, and say when to use each one.
+
+**Two scopes, two keys.** `read` is every reading tool; `write` adds the four that write. A
+client given `read` alone is not even shown the others, and a write it asks for anyway is
+refused. The console's own token and its cookie are **not** keys to `/mcp`: they open
+everything behind that port, and a connector is given less. Every write asked for — refused
+ones included — is written to the local database with the tool, the time and the client:
+`ponos mcp list` shows the clients and the last writes.
+
+### Adding the connector on claude.ai
+
+claude.ai reaches the console from the Internet, so the console has to be served over HTTPS
+under a domain — behind Traefik on Dokploy (see [Deploying on Dokploy](#deploying-on-dokploy))
+or any reverse proxy that sets `X-Forwarded-Proto`. Then, in claude.ai, *Settings →
+Connectors → Add custom connector*, with the address `https://<your console>/mcp`.
+
+claude.ai finds the rest on its own — it is OAuth 2.1, the way the Leadz connector works:
+`/.well-known/oauth-protected-resource` says where to authorise, the client registers itself
+(`/oauth/register`), and sends you to `/oauth/authorize`. That page names the client and asks
+for the console's password (or its token) unless the browser is already signed in to the
+console; *read* is always granted, *write* is ticked — untick it for a connector that should
+only look. The code goes back with PKCE (`S256` only); the access token lasts an hour, the
+refresh token ninety days and turns over at each use.
+
+### Adding it to Claude Code
+
+Claude Code can go through the same OAuth flow, or carry a token drawn on this machine:
+
+```sh
+ponos mcp token --name "Claude Code"            # read and write; --read-only for read
+claude mcp add --transport http ponos http://127.0.0.1:8787/mcp \
+  --header "Authorization: Bearer <the token it printed>"
+```
+
+The token is shown once and kept only as its SHA-256; it does not expire. `ponos mcp list`
+shows every client — the claude.ai one and the local ones — and `ponos mcp revoke <client>`
+takes back all of one client's keys at once.
+
 ## Usage
 
 ```sh
@@ -2649,6 +2709,9 @@ ponos disable      # stop the timer and the console
 ponos serve        # the web console, in this terminal (it already runs on its own)
 ponos notify       # send yourself a test message on Telegram or Slack
 ponos notify --pair          # find your Telegram chat id and save it
+ponos mcp token    # a key to the MCP server, for Claude Code (--read-only, --name)
+ponos mcp list     # the MCP clients, and the last writes they asked for
+ponos mcp revoke <client>    # take back every key of one client
 ```
 
 The first attempt is best made by hand, on a ticket you choose:

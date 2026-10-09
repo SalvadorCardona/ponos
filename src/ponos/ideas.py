@@ -464,6 +464,30 @@ def record(
     return int(batch), [_idea(row) for row in rows]
 
 
+def add(project: str, kind: str, title: str, description: str = "") -> Idea:
+    """One idea written by somebody rather than proposed by a session.
+
+    No batch: a batch is what a session cost, and nothing was paid for this
+    one. It is proposed like the others, and decided on the same way.
+    """
+    project = bare(project)
+    scope = scope_of(project)
+    if kind not in KINDS:
+        raise ValueError(f"an idea is a {' or a '.join(KINDS)} — not {kind}")
+    if kind == "project" and scope == "project":
+        raise ValueError("an idea for a project is a ticket, never a project of its own")
+    title = " ".join(title.split())[:TITLE_LIMIT]
+    if not title:
+        raise ValueError("an idea needs a title")
+    with db.transaction() as connection:
+        identifier = connection.execute(
+            "INSERT INTO ideas (scope, project, kind, title, description, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (scope, project, kind, title, _description(description), _now()),
+        ).lastrowid
+    return get(int(identifier))
+
+
 def listed(project: str, statuses: tuple[str, ...] = ("proposed",)) -> list[Idea]:
     """The ideas of one scope in these statuses, oldest first — the order they came in."""
     marks = ", ".join("?" for _ in statuses)
