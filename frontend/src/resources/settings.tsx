@@ -192,7 +192,7 @@ function SectionPage({ sectionKey }: { sectionKey: string }) {
           every section are redrawn from what it now says. */}
       {/* The switch is drawn in the section's save bar, which sticks to the
           bottom of the screen: anywhere after the form it sat under the bar. */}
-      <FoldContext.Provider value={{ advanced, unfolded, fold }}>
+      <FoldContext.Provider value={{ advanced, unfolded, fold, note }}>
         <SectionForm key={revision} section={section} onSaved={setNote} />
       </FoldContext.Provider>
     </div>
@@ -394,6 +394,15 @@ function SettingsHead() {
     }
     window.addEventListener("ponos:settings", listener)
     return () => window.removeEventListener("ponos:settings", listener)
+  }, [])
+
+  React.useEffect(() => {
+    // Leaving the page with something typed and not saved: the browser asks.
+    const warn = (event: BeforeUnloadEvent) => {
+      if (somethingIsEdited()) event.preventDefault()
+    }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
   }, [])
 
   if (!drawn)
