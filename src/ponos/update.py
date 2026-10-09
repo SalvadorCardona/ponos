@@ -59,7 +59,7 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -97,6 +97,10 @@ class Status:
     reason: str = ""
     # The release `latest` is, on the release channel — what a person reads.
     tag: str = ""
+    # How many commits `latest` has that `current` has not, and their subjects,
+    # newest first — what the header lists under the button.
+    behind: int = 0
+    commits: list[str] = field(default_factory=list)
 
     @property
     def stale(self) -> bool:
@@ -113,19 +117,26 @@ def _stamp() -> Path:
     return state_dir() / "update.json"
 
 
-def remember(status: Status) -> None:
+def remember(status: Status, *, clock: bool = True) -> None:
     """Record that a check happened, and what it found.
 
     The timestamp is what rate-limits the whole thing: it is written whether the
     check succeeded or not, so an unreachable remote is asked once an hour like
     everything else, not once per run.
+
+    `clock=False` is the console's own look (`web.upgrade.Upgrade.look`): what
+    it found is kept, but not the time — every quarter of an hour, it would
+    otherwise keep a run from ever finding its own check due, and from ever
+    installing anything.
     """
     payload = {
-        "checked_at": time.time(),
+        "checked_at": time.time() if clock else last_check(),
         "current": status.current,
         "latest": status.latest,
         "reason": status.reason,
         "tag": status.tag,
+        "behind": status.behind,
+        "commits": status.commits,
     }
     try:
         disk.write_atomic(_stamp(), json.dumps(payload))
@@ -150,6 +161,8 @@ def remembered() -> Status:
         latest=str(payload.get("latest") or ""),
         reason=str(payload.get("reason") or ""),
         tag=str(payload.get("tag") or ""),
+        behind=int(payload.get("behind") or 0),
+        commits=[str(line) for line in payload.get("commits") or []],
     )
 
 
@@ -183,7 +196,7 @@ def _look(app: Path, channel: str = "release") -> Status:
         latest = git.git(["rev-parse", "FETCH_HEAD"], app).out
         if not current or not latest:
             return Status(reason=f"nothing to compare in {app}")
-        return Status(current=current, latest=latest)
+        return _between(app, Status(current=current, latest=latest))
     return _release(app)
 
 
@@ -206,7 +219,28 @@ def _release(app: Path) -> Status:
         # Already past it: a clone of `main` newer than the last release. Going
         # back to the tag would be a downgrade nobody asked for.
         return Status(current=current, latest=current, tag=tag)
-    return Status(current=current, latest=latest, tag=tag)
+    return _between(app, Status(current=current, latest=latest, tag=tag))
+
+
+# The subjects kept for the header: enough to read what is coming, not a log.
+LISTED = 30
+
+
+def _between(app: Path, status: Status) -> Status:
+    """`status`, with the commits its update would bring — read once, at the check.
+
+    Both commits are in the clone once it has fetched, so this is two local
+    commands; a count that cannot be read leaves the update offered without one.
+    """
+    if not status.stale:
+        return status
+    span = f"{status.current}..{status.latest}"
+    counted = git.git(["rev-list", "--count", span], app).out
+    status.behind = int(counted) if counted.isdigit() else 0
+    status.commits = git.git(
+        ["log", f"--max-count={LISTED}", "--format=%s", span], app
+    ).out.splitlines()
+    return status
 
 
 def newest_release(tags: list[str]) -> str:
@@ -219,12 +253,12 @@ def newest_release(tags: list[str]) -> str:
     return max(releases)[1] if releases else ""
 
 
-def check(app: Path | None = None, channel: str = "release") -> Status:
+def check(app: Path | None = None, channel: str = "release", *, clock: bool = True) -> Status:
     """What is installed, against what the remote has on that channel.
 
     Never raises: a remote that hangs until the timeout, or a directory that has
     become unreadable, are answers like any other. Checking a version is not
-    worth failing a run over.
+    worth failing a run over. `clock`: see `remember`.
     """
     if in_container():
         return Status(reason=CONTAINER)
@@ -232,8 +266,35 @@ def check(app: Path | None = None, channel: str = "release") -> Status:
         status = _look(app or app_dir(), channel)
     except (OSError, subprocess.SubprocessError) as error:
         status = Status(reason=f"version not checked: {error}")
-    remember(status)
+    remember(status, clock=clock)
     return status
+
+
+def running() -> dict:
+    """The version this code is, as the header prints it: the number and the commit.
+
+    The number in `__init__` only moves at a release, and between two releases
+    every commit ran under it — so it is followed by the commit, `0.1.0+1a2b3c4`,
+    read from git rather than written anywhere: nothing to bump, and nothing
+    that can disagree with the code. Asked of the directory this file is in,
+    not of `app_dir()`, whose link may already name a newer version than the
+    one running. A directory that is not a repository — a copy, an image — says
+    the number alone.
+    """
+    from . import __version__
+
+    here = Path(__file__).resolve().parents[2]
+    said = ""
+    if (here / ".git").exists():
+        try:
+            said = git.git(["log", "-1", "--format=%h%x1f%H%x1f%cI%x1f%s"], here, timeout=10).out
+        except (OSError, subprocess.SubprocessError):
+            said = ""
+    parts = said.split("\x1f")
+    if len(parts) != 4 or not parts[0]:
+        return {"version": __version__, "commit": "", "date": "", "subject": ""}
+    short, commit, date, subject = parts
+    return {"version": f"{__version__}+{short}", "commit": commit, "date": date, "subject": subject}
 
 
 def between_runs(

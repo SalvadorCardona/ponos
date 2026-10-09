@@ -57,7 +57,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   blinks at rest, it thinks (flame beacon, sparkles) when the button is hovered or focused, and
   keeps still under `prefers-reduced-motion`. While the ideas are being found, the same mascot
   searches in the dialog.
-
+- **The console's version names its commit, and offers the update as soon as it is out.** The
+  version at the top right reads `0.1.0+1a2b3c4` — the release number and the commit running,
+  read from git, so it moves with every commit; hovered, it gives the full hash, the date and
+  the subject. The console asks the remote itself when it starts and every 15 minutes (not with
+  `runner.auto_update = false`), and the day there is something newer an *Update* button
+  appears beside the version, with how many commits behind and, hovered, their subjects. Once
+  the update has restarted the console, the page reloads itself onto the new version.
 - **Ideas, one card at a time.** *Find me ideas* on the dashboard, and *Find me ideas for this
   project* on a project's page, open a pile of cards — title, short description, a *Ticket* or
   *New project* badge. Swipe right to keep (the draft or the project is written to the board and

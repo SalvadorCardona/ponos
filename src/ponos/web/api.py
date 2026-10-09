@@ -861,6 +861,7 @@ class Api:
         )
         budget_limit = configuration.budget.daily_usd
         budget_spent = state.spent_today() if budget_limit > 0 else 0.0
+        version = update_module.running()
         return {
             # In a container the timer is the image's `ponos run --every`, which
             # starts with it and stops with it: on for as long as this answers.
@@ -889,7 +890,9 @@ class Api:
             "model": configuration.runner.model or "default",
             "permission_mode": configuration.runner.permission_mode,
             "claude": bool(session.available()),
-            "version": _version(),
+            "version": version["version"],
+            # What the version's tooltip says: the commit it was made of.
+            "commit": {key: version[key] for key in ("commit", "date", "subject")},
             "update": _update_available(),
             "upgrade": self.upgrade.offer(local),
             "spend": round(sum(float(entry.get("cost_usd") or 0) for entry in entries), 2),
@@ -1368,18 +1371,6 @@ def _instant(stamp: str) -> float | None:
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
     return moment.timestamp()
-
-
-def _version() -> str:
-    """The number this console is running — nothing else.
-
-    Kept bare so the header can print it where a version belongs, next to the
-    name, rather than as one more sentence in a row of pills. What is *newer*
-    than it is `_update_available`, which is a different question.
-    """
-    from .. import __version__
-
-    return __version__
 
 
 def _update_available() -> str:

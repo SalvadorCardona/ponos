@@ -16,7 +16,8 @@ open them: two with a repository, and one without, an emoji for its icon. Three 
 Validated, one Ready to be set aside and made ready again. Two schedules a pass
 last read weeks ago, one of them turned off. And a check that found a newer
 version than this checkout, for the version at the top right to offer it — a
-commit that exists nowhere, so that a click on "Update now" could only ever fail.
+commit that exists nowhere, so that a click on "Update now" could only ever fail;
+the console's own checks are off, so that it stays the one found.
 The blocked ticket has two runs in the local journal, for the session tab that
 reads them.
 
@@ -230,8 +231,12 @@ def main() -> None:
     here = Path(tempfile.mkdtemp(prefix="ponos-e2e-"))
     board(here / "board", doomed=mode == "doomed")
     config = here / "config.toml"
+    # No update checks of the console's own: they would ask the remote of this
+    # checkout and write over the stamp below.
     config.write_text(
-        f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n', encoding="utf-8"
+        f'[storage]\nmode = "markdown"\npath = "{here / "board"}"\n'
+        "\n[runner]\nauto_update = false\n",
+        encoding="utf-8",
     )
     if not unclaimed:
         # Beside the file, where a secret lives — config.toml holds none.
@@ -242,7 +247,10 @@ def main() -> None:
     ).stdout.strip()
     stamp = here / "state" / "ponos" / "update.json"
     stamp.parent.mkdir(parents=True)
-    stamp.write_text(json.dumps({"checked_at": 0, "current": head, "latest": NEWER, "tag": ""}))
+    stamp.write_text(json.dumps({
+        "checked_at": 0, "current": head, "latest": NEWER, "tag": "",
+        "behind": 2, "commits": ["A second change", "A first change"],
+    }))
     bin = here / "bin"
     bin.mkdir()
     (bin / "claude").write_text(CLAUDE.format(python=sys.executable), encoding="utf-8")

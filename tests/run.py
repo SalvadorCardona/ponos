@@ -3057,6 +3057,51 @@ def the_header_does_not_offer_a_version_already_installed():
     assert update.notes(update.Status(current="a" * 40, latest="a" * 40), page) == ""
 
 
+@case
+def a_waiting_update_says_how_many_commits_it_brings_and_which():
+    """The button carries a number and its tooltip the subjects: read at the
+    check, from the clone that has just fetched, and kept in the stamp."""
+    with _installable() as (commit, app, first):
+        commit("two")
+        commit("three")
+        status = update.check(app, "main")
+        assert status.behind == 2 and status.commits == ["three", "two"], status
+        assert update.waiting(app).behind == 2, "the count is not in the stamp"
+        assert update.waiting(app).commits == ["three", "two"]
+
+
+@case
+def the_console_looks_for_an_update_without_moving_the_run_s_clock():
+    """A run checks once its interval has passed since the last check. The
+    console looking every quarter of an hour must not count as one — or a run
+    would never find its own due again, and never install anything."""
+    from ponos.web import upgrade as web_upgrade
+
+    with _installable() as (commit, app, first):
+        update.remember(update.Status(current=first, latest=first))
+        checked = update.last_check()
+        second = commit("two")
+        said: list[dict] = []
+        upgrade = web_upgrade.Upgrade(
+            lambda kind, **payload: said.append(payload), lambda: C.Runner(update_channel="main"), app=app
+        )
+        upgrade.look()
+        assert update.last_check() == checked, "the console's look moved the run's clock"
+        assert said and said[-1]["available"] and said[-1]["latest"] == second[:8]
+        assert said[-1]["behind"] == 1 and said[-1]["commits"] == ["two"]
+        upgrade.look()
+        assert len(said) == 1, "nothing changed, and the pages were told again"
+
+        commit("three")
+        off = web_upgrade.Upgrade(
+            lambda kind, **payload: said.append(payload), lambda: C.Runner(auto_update=False, update_channel="main"), app=app
+        )
+        off.look()
+        assert len(said) == 1 and update.waiting(app).behind == 1, (
+            "runner.auto_update = false, and the console fetched anyway"
+        )
+
+
 class _FakeUpdate:
     """`update`, as `web.upgrade` uses it: what is waiting, and what installing did."""
 
@@ -11010,14 +11055,34 @@ def the_console_header_and_the_command_line_agree_on_the_version():
 
     The console reads it bare — an update waiting is a separate field, so the
     header can print a version where a version belongs rather than a sentence.
+    It follows the number with the commit it runs, read from git: between two
+    releases every commit ran under the same number, and only the commit says
+    which code answers.
     """
     with _state_home():
-        assert web_api._version() == __version__
+        running = update.running()
+        number, _, short = running["version"].partition("+")
+        assert number == __version__ and len(short) >= 7 and _head(ROOT).startswith(short), running
+        assert running["commit"] == _head(ROOT), "the tooltip names another commit"
+        assert running["date"] and running["subject"], "the tooltip has nothing to say"
         assert web_api._update_available() == "", "nothing checked yet is not an update"
         # Compared against what is on disk: the stamp has to be about this checkout.
         update.remember(update.Status(current=_head(ROOT), latest="b" * 40))
-        assert web_api._version() == __version__
         assert web_api._update_available() == "b" * 8
+
+
+@case
+def a_copy_that_is_not_a_repository_says_its_number_alone():
+    """No `.git` beside the sources — a copy, an image: the number, and no commit."""
+    with tempfile.TemporaryDirectory() as scratch:
+        copy = Path(scratch) / "app"
+        shutil.copytree(ROOT / "src", copy / "src", ignore=shutil.ignore_patterns("__pycache__"))
+        said = subprocess.run(
+            [sys.executable, "-c", "import json; from ponos import update; print(json.dumps(update.running()))"],
+            env={**os.environ, "PYTHONPATH": str(copy / "src")}, cwd=scratch,
+            capture_output=True, text=True, check=True,
+        ).stdout
+    assert json.loads(said) == {"version": __version__, "commit": "", "date": "", "subject": ""}, said
 
 
 ROOT = Path(__file__).resolve().parents[1]

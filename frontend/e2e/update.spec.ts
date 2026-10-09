@@ -17,6 +17,18 @@ test("a newer version turns the version into a button that asks before updating"
   const badge = page.getByRole("button", { name: /→ ffffffff, click to update/ })
   await expect(badge).toBeVisible()
   await expect(badge).toContainText("Update")
+  // How many commits behind, and — on hover — which.
+  await expect(badge).toContainText("2")
+  await badge.hover()
+  await expect(page.getByRole("tooltip", { name: /A second change/ })).toContainText("A first change")
+  await page.mouse.move(0, 0)
+
+  // The version beside it names the commit it runs.
+  const version = page.getByText(/^v\d+\.\d+\.\d+\+[0-9a-f]{7,}$/)
+  await expect(version).toBeVisible()
+  await version.hover()
+  await expect(page.getByRole("tooltip", { name: /^[0-9a-f]{40} / })).toBeVisible()
+  await page.mouse.move(0, 0)
 
   await badge.click()
   const dialog = page.getByRole("dialog")

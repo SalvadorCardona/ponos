@@ -23,6 +23,7 @@ import type {
   SyncEvent,
   TalkEvent,
   Ticket,
+  Upgrade,
   UpgradeProgress,
 } from "@/lib/types"
 import { justUpdated, type UpgradePhase } from "@/lib/upgrade"
@@ -50,6 +51,9 @@ import { useStream, type Connection } from "./use-stream"
 
 /** How many steps a session's panel keeps before it starts forgetting. */
 const KEPT = 200
+
+/** Where a page reloaded after an update leaves the version it came back on. */
+const UPDATED = "ponos:updated"
 
 export type Entry =
   | { id: number; kind: "turn"; role: Role; text: string; attachments?: Attached[] }
@@ -491,17 +495,21 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     // An update's progress, from the click to the console coming back. The
     // process that answers after the restart is a new one: its first word is
     // `done`, and the header is read again for the version it runs.
-    upgrade: (event: UpgradeProgress) => {
+    // The console's own check says so too, with what it found: the button
+    // appears in every open page without one of them being reloaded.
+    upgrade: (event: UpgradeProgress & Partial<Upgrade>) => {
       const before = upgradePhase.current
       upgradePhase.current = event.phase
       setRunner((current) =>
         current?.upgrade ? { ...current, upgrade: { ...current.upgrade, ...event } } : current
       )
       if (event.phase === "done" || event.phase === "idle") void reloadState()
-      if (justUpdated(before, event.phase))
-        toast.success(t("Ponos is up to date"), {
-          description: t("restarted on {{version}}", { version: event.target }),
-        })
+      // The page itself is the old version's: once the console is back, it is
+      // loaded again from the new one, and says so when it opens.
+      if (justUpdated(before, event.phase)) {
+        sessionStorage.setItem(UPDATED, event.target)
+        window.location.reload()
+      }
     },
 
     notice: (event: NoticeEvent) => {
@@ -611,6 +619,15 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     // connection *after* a slow board sat there saying "connecting…" for as long
     // as Notion took to answer.
     void reloadState()
+
+    // Reloaded by the update it watched (see `upgrade` below): said once, here.
+    const updated = sessionStorage.getItem(UPDATED)
+    if (updated !== null) {
+      sessionStorage.removeItem(UPDATED)
+      toast.success(t("Ponos is up to date"), {
+        description: t("restarted on {{version}}", { version: updated }),
+      })
+    }
 
     void api
       .chat()
