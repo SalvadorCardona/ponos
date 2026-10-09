@@ -422,6 +422,10 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/.well-known/"):
             return self._discovery(route)
         if route == "/mcp":
+            # No stream to open: but a key first, as for a POST — the 401 is
+            # what tells a client to connect, whatever it tried first.
+            if self._grant() is None:
+                return None
             return self._send(405, b"", "text/plain", {"Allow": "POST"})
         if route == "/oauth/authorize":
             return self._authorize({key: values[0] for key, values in query.items()})
@@ -855,14 +859,19 @@ class Handler(BaseHTTPRequestHandler):
     def _base(self) -> str:
         """The address this console is reached at, as the client reached it.
 
-        Read from the request rather than configured: behind Traefik it is the
-        domain and HTTPS the proxy says it served, on this machine it is the
-        loopback address — and the metadata a client reads has to name the one
-        it used.
+        Read from the request: behind Traefik it is the domain and HTTPS the
+        proxy says it served, on this machine it is the loopback address — and
+        the metadata a client reads has to name the one it used. `web.url`
+        when it is set and the request did not come by loopback: a proxy or a
+        tunnel that says nothing of HTTPS is the case it is for, and Claude
+        Code on this machine still reads the address it typed.
         """
         scheme = "https" if self._secure() else "http"
         forwarded = (self.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
         host = forwarded or (self.headers.get("Host") or "").strip()
+        configured = self.api.config.web.url
+        if configured and host.rsplit(":", 1)[0].strip("[]") not in LOOPBACK:
+            return configured
         if not host:
             address = self.server.server_address
             host = f"{address[0]}:{address[1]}"
@@ -922,41 +931,52 @@ class Handler(BaseHTTPRequestHandler):
             )
         return self._fail(404, f"no such route: {route}")
 
-    def _mcp(self) -> None:
-        """One JSON-RPC message for the MCP server, with a key of its own.
+    def _grant(self) -> oauth.Grant | None:
+        """The key the request carries — or None, with the 401 already sent.
 
-        Never the console's token nor its cookie: those open everything, and
-        a connector is given read, or read and write, and nothing else. A
-        browser page of another origin is refused, as the specification asks,
-        since it is how a page would reach a server on this machine.
+        The 401 names where the metadata is (RFC 9728): it is what makes Claude
+        offer "Connect", with no key as with one expired or taken back.
         """
-        raw = self._raw()
-        if raw is None:
-            return self._fail(413, "a message is smaller than that")
-        if self.headers.get("Origin") is not None and not self._same_origin():
-            return self._fail(403, "this request did not come from an MCP client")
         header = self.headers.get("Authorization") or ""
         presented = header[7:].strip() if header.lower().startswith("bearer ") else ""
         try:
             grant = oauth.check(presented)
         except db.ERRORS as error:
-            return self._fail(500, f"the keys cannot be read: {error}")
+            self._fail(500, f"the keys cannot be read: {error}")
+            return None
         if grant is None:
             metadata = f"{self._base()}/.well-known/oauth-protected-resource/mcp"
             said = f'Bearer resource_metadata="{metadata}"'
             if presented:
                 said += ', error="invalid_token"'
-            return self._send(
+            self._send(
                 401,
                 json.dumps({"error": "a token for this server is needed"}).encode(),
                 "application/json",
                 {"WWW-Authenticate": said},
             )
+        return grant
+
+    def _mcp(self) -> None:
+        """One JSON-RPC message for the MCP server, with a key of its own.
+
+        Never the console's token nor its cookie: those open everything, and
+        a connector is given read, or read and write, and nothing else.
+        `Origin` is not checked, as Leadz does not: what it guards against —
+        a page resolving its own name to this machine — is refused by the
+        `Host` check already, and a page anywhere holds no key to send.
+        """
+        raw = self._raw()
+        if raw is None:
+            return self._fail(413, "a message is smaller than that")
+        grant = self._grant()
+        if grant is None:
+            return None
         try:
             message = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             return self._json({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "not JSON"}}, 400)
-        answer = mcp.handle(self.api, grant, message)
+        answer = mcp.handle(self.api, grant, message, self._base())
         if answer is None:
             return self._send(202, b"", "application/json")
         return self._json(answer) if isinstance(answer, dict) else self._send(

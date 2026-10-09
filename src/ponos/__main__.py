@@ -966,6 +966,15 @@ def command_doctor(args: argparse.Namespace) -> int:
                 "round, is not a way in"
             )
         print(f"  {DIM}web.email and web.password — the two — to sign in instead{RESET}")
+    # The MCP connector is pasted by its address: the one claude.ai reaches
+    # has to be HTTPS, and Claude Code on this machine takes the loopback one.
+    public = configuration.web.url
+    if public.startswith("https://"):
+        ok(f"MCP connector — {public}/mcp, for claude.ai; {address}/mcp for Claude Code here")
+    elif public:
+        warn(f"web.url is {public}: claude.ai only adds a connector at an https:// address")
+    else:
+        print(f"  {DIM}MCP connector — {address}/mcp for Claude Code here; web.url for claude.ai{RESET}")
     # What a message typed there can carry, and the two things that need
     # something this machine may not have: a video needs ffmpeg to be looked at,
     # and dictation needs somebody to transcribe it.
@@ -1710,17 +1719,22 @@ def command_mcp(args: argparse.Namespace) -> int:
     """
     from .web import mcp, oauth
 
+    # The address to paste, on this machine: the console's port, wherever it was moved.
+    try:
+        web_settings = config_module.load().web
+        port, public = web_settings.port, web_settings.url
+    except config_module.ConfigError:
+        port, public = 8787, ""
+    address = f"http://127.0.0.1:{port}/mcp"
     try:
         if args.action == "token":
             identifier, token = oauth.local(args.name or "Claude Code", write=not args.read_only)
             scope = oauth.READ if args.read_only else f"{oauth.READ} {oauth.WRITE}"
             ok(f"token for {args.name or 'Claude Code'} ({scope}) — client {identifier}")
             print(f"\n  {token}\n")
-            print("Shown once, and kept only as a digest. Add it to Claude Code with:")
-            print(
-                "  claude mcp add --transport http ponos http://127.0.0.1:8787/mcp "
-                f'--header "Authorization: Bearer {token}"'
-            )
+            print("Shown once, and kept only as a digest — for a client that cannot sign in itself:")
+            print(f'  claude mcp add --transport http ponos {address} --header "Authorization: Bearer {token}"')
+            print(f"{DIM}Claude Code needs none: claude mcp add --transport http ponos {address}{RESET}")
             print(f"{DIM}Take it back with: ponos mcp revoke {identifier}{RESET}")
             return 0
         if args.action == "revoke":
@@ -1728,6 +1742,11 @@ def command_mcp(args: argparse.Namespace) -> int:
             ok(f"{args.client}: {taken} key(s) taken back")
             return 0
         clients = oauth.clients()
+        title("Connect")
+        if public:
+            print(f"  {public}/mcp  {DIM}— claude.ai, Claude Desktop: paste it as a custom connector{RESET}")
+        print(f"  {address}")
+        print(f"  {DIM}claude mcp add --transport http ponos {address}  — then /mcp, Authenticate{RESET}")
         title("Clients")
         if not clients:
             print("  none yet — connect claude.ai, or: ponos mcp token")

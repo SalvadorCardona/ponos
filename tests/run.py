@@ -14719,8 +14719,10 @@ def a_read_only_mcp_client_sees_and_can_call_no_tool_that_writes():
         reader = web_oauth.Grant(client="c-2", name="lecteur", scopes=frozenset({"read"}))
         listed = web_mcp.handle(api, reader, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = {tool["name"] for tool in listed["result"]["tools"]}
-        assert names == {"list_projects", "list_tasks", "get_task", "runner_status", "list_ideas"}
+        assert names == {"whoami", "list_projects", "list_tasks", "get_task", "runner_status", "list_ideas"}
         assert all(tool["annotations"]["readOnlyHint"] for tool in listed["result"]["tools"])
+        me = _mcp_call(api, reader, "whoami")["structuredContent"]
+        assert me["client"] == "lecteur" and me["access"] == "lecture seule", me
         refused = _mcp_call(api, reader, "create_task", title="Rien")
         assert refused["isError"] and "lecture" in refused["content"][0]["text"]
         assert api.board()["tickets"] == [], "nothing was written"
@@ -14741,7 +14743,7 @@ def no_mcp_tool_starts_a_run_runs_a_command_or_deletes_anything():
     names = [tool["name"] for tool in web_mcp.TOOLS]
     assert set(names) == set(web_mcp.HANDLERS)
     assert names == [
-        "list_projects", "list_tasks", "get_task", "runner_status", "list_ideas",
+        "whoami", "list_projects", "list_tasks", "get_task", "runner_status", "list_ideas",
         "create_task", "answer_question", "create_idea", "set_idea_state",
     ]
     writes = [tool["name"] for tool in web_mcp.TOOLS if tool["scope"] == "write"]
@@ -14750,6 +14752,45 @@ def no_mcp_tool_starts_a_run_runs_a_command_or_deletes_anything():
     assert status["inputSchema"]["properties"]["status"]["enum"] == ["draft", "ready"]
     for tool in web_mcp.TOOLS:
         assert len(tool["description"]) > 80, f"{tool['name']}: a description Claude can choose by"
+        assert tool["title"] and len(tool["title"]) < 40, f"{tool['name']}: a title a person reads in a list"
+    titles = [tool["title"] for tool in web_mcp.TOOLS]
+    assert len(set(titles)) == len(titles), "two tools Claude would show under one name"
+
+
+@case
+def the_mcp_connector_says_its_name_and_who_holds_the_key():
+    """What Claude shows once the address is pasted, and the first call to try.
+
+    The icon is served from the site, never from the console: Claude fetches
+    it without a key, and a console's files are behind its sign-in.
+    """
+    from ponos.web import mcp as web_mcp
+    from ponos.web import oauth as web_oauth
+
+    with _state_home(), _board() as board:
+        board.create_row("projects", "Usine", {"Repository": "user/usine"})
+        board.create_row("tickets", "Choisir l'hébergeur", {"Status": C.Notion().state("blocked")})
+        api = _ideas_api(board)
+        api._config.web.email = "moi@example.com"
+        writer = web_oauth.Grant(client="c-1", name="claude.ai", scopes=frozenset({"read", "write"}))
+        hello = web_mcp.handle(
+            api, writer, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}}
+        )["result"]["serverInfo"]
+        assert hello["name"] == "ponos" and hello["title"] == "Ponos" and hello["websiteUrl"] == "https://the-ponos.app"
+        assert hello["description"] and all(icon["src"].startswith("https://the-ponos.app/") for icon in hello["icons"])
+        answer = web_mcp.handle(
+            api, writer,
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "whoami", "arguments": {}}},
+            "https://ponos.example",
+        )["result"]
+        me = answer["structuredContent"]
+        assert not answer["isError"]
+        assert me["console"] == "https://ponos.example" and me["email"] == "moi@example.com"
+        assert me["client"] == "claude.ai" and me["access"] == "lecture et écriture"
+        assert me["projects"] == 1 and me["waiting_for_you"] == 1 and me["board"] == api.config.storage.mode
+        assert web_mcp.calls() == [], "reading who you are is no write"
+        refused = _mcp_call(api, writer, "whoami", qui="moi")
+        assert refused["isError"], "whoami takes no argument"
 
 
 @case
@@ -14799,6 +14840,11 @@ def the_mcp_server_is_reached_through_oauth_with_pkce_and_its_own_keys():
             code, headers, _ = rpc("tok", "tools/list")
             assert code == 401, "the console's token opens the console, not the MCP server"
             assert "resource_metadata=" in headers["WWW-Authenticate"]
+            # Any first contact gets the 401 that makes Claude offer "Connect", as Leadz answers it.
+            code, headers, _ = ask("/mcp")
+            assert code == 401 and headers["WWW-Authenticate"] == (
+                f'Bearer resource_metadata="{base}/.well-known/oauth-protected-resource/mcp"'
+            ), "a GET without a key: a 401, not a 405"
             resource = json.loads(ask("/.well-known/oauth-protected-resource/mcp")[2])
             assert resource["resource"] == f"{base}/mcp" and resource["scopes_supported"] == ["read", "write"]
             server = json.loads(ask("/.well-known/oauth-authorization-server")[2])
@@ -14869,6 +14915,17 @@ def the_mcp_server_is_reached_through_oauth_with_pkce_and_its_own_keys():
             assert code == 202
             listed = json.loads(rpc(tokens["access_token"], "tools/list")[2])["result"]["tools"]
             assert "create_task" not in {tool["name"] for tool in listed}
+            assert ask("/mcp", headers={"Authorization": f"Bearer {tokens['access_token']}"})[0] == 405, "no stream"
+            # A client that names where it runs is not refused for it: the key is the lock.
+            code, _, body = ask(
+                "/mcp",
+                json.dumps({"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "whoami"}}).encode(),
+                {"Authorization": f"Bearer {tokens['access_token']}", "Content-Type": "application/json",
+                 "Origin": "https://claude.ai"},
+            )
+            assert code == 200, code
+            me = json.loads(body)["result"]["structuredContent"]
+            assert me["console"] == base and me["client"] == "claude.ai" and me["access"] == "lecture seule"
             answer = json.loads(rpc(tokens["access_token"], "tools/call", {"name": "list_tasks", "arguments": {"waiting_for_you": True}})[2])
             assert [task["title"] for task in answer["result"]["structuredContent"]["tasks"]] == ["Un ticket"]
             answer = json.loads(rpc(tokens["access_token"], "tools/call", {"name": "create_task", "arguments": {"title": "Non"}})[2])
@@ -14901,6 +14958,45 @@ def the_mcp_server_is_reached_through_oauth_with_pkce_and_its_own_keys():
             assert code == 400 and "Location" not in headers
             code, headers, _ = ask("/oauth/authorize?" + urlencode({**params, "code_challenge_method": "plain"}))
             assert code == 302 and "error=invalid_request" in headers["Location"]
+        finally:
+            console.shutdown()
+            console.server_close()
+
+
+@case
+def the_mcp_metadata_names_the_public_address_behind_a_proxy_that_says_nothing():
+    """`web.url`, as Leadz's DEFAULT_URI: a tunnel adds no X-Forwarded-Proto.
+
+    Without it the addresses claude.ai reads would all be `http://`, and it
+    refuses them; with it, Claude Code on this machine still reads the
+    loopback address it typed.
+    """
+    import urllib.request
+
+    from ponos.web import server as web_server
+
+    with _state_home(), _board() as board:
+        api = _ideas_api(board)
+        api._config.web.token = "tok"
+        api._config.web.host = "0.0.0.0"  # a wider bind: the Host check is the token's then
+        api._config.web.url = "https://ponos.example"
+        console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+        threading.Thread(target=console.serve_forever, daemon=True).start()
+        port = console.server_address[1]
+
+        def metadata(host: str) -> dict:
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}/.well-known/oauth-protected-resource/mcp", headers={"Host": host}
+            )
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return json.loads(response.read())
+
+        try:
+            outside = metadata("abc.lhr.life")
+            assert outside["resource"] == "https://ponos.example/mcp", outside
+            assert outside["authorization_servers"] == ["https://ponos.example"]
+            here = metadata(f"127.0.0.1:{port}")
+            assert here["resource"] == f"http://127.0.0.1:{port}/mcp", here
         finally:
             console.shutdown()
             console.server_close()

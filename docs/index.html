@@ -900,6 +900,29 @@
       </div>
     </div>
     <p class="notion-foot">Notion and the folder of files can also be kept in step, both at once. <a href="https://github.com/SalvadorCardona/ponos#both-and-what-happens-when-they-disagree">Both, and when they disagree →</a></p>
+
+    <div class="sec-head" id="claude" style="margin:5rem 0 1.5rem;scroll-margin-top:76px">
+      <span class="label">Claude</span>
+      <h3 style="font-size:clamp(1.5rem,3vw,1.875rem);line-height:1.15;margin:.5rem 0 0">Connect Ponos to Claude.</h3>
+      <p>Your tasks, your projects, what is waiting for you — from a conversation, on the web or on your phone. Its address, nothing else.</p>
+    </div>
+    <div class="install-grid">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">claude.ai · Claude Desktop</h3></div>
+        <ol>
+          <li><em>Settings › Connectors › Add custom connector</em>, with your console’s address followed by <code>/mcp</code>.</li>
+          <li>Click <em>Connect</em>: a Ponos window opens. Sign in, then <em>Allow</em>. No token to copy.</li>
+          <li>Ask <em>“who am I on Ponos?”</em>, then <em>“what is waiting for me?”</em></li>
+        </ol>
+        <pre data-copy>https://your-console.example.com/mcp</pre>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Claude Code</h3></div>
+        <p>On the machine Ponos runs on, one line — then <code>/mcp</code>, <em>Authenticate</em>.</p>
+        <pre data-copy style="white-space:pre-wrap;overflow-wrap:anywhere;padding-right:4.5rem"><span class="p">$ </span>claude mcp add --transport http ponos http://127.0.0.1:8787/mcp</pre>
+        <p>Nothing runs, nothing is deleted from there: Claude reads, creates a task, answers a blocked one. <a href="https://github.com/SalvadorCardona/ponos#connect-ponos-to-claude">Every tool →</a></p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -942,6 +965,7 @@
       <a href="https://github.com/SalvadorCardona/ponos#being-told-and-answering-with-one-word">Telegram and Slack <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#what-comes-back-on-its-own">Tickets that come back <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#the-web-console">The web console <span>§</span></a>
+      <a href="https://github.com/SalvadorCardona/ponos#connect-ponos-to-claude">Connect Ponos to Claude <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#without-notion-the-board-as-markdown-files">The board as Markdown files <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#every-other-model">Every other model <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#several-github-accounts">Several GitHub accounts <span>§</span></a>
