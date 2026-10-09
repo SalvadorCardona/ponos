@@ -784,10 +784,12 @@ one word in one file, which is the whole point: `git`, `grep` and `$EDITOR` beco
 board's interface, and the directory can live in a repository of its own.
 
 The console works against it exactly as against Notion — the board, a ticket's page, its
-discussion, the live steps. And it gained three screens that make a Markdown-only
+discussion, the live steps. And it gained screens that make a Markdown-only
 installation self-sufficient: **Projects** (every project this installation knows of, the
 board's and the ones only `[projects]` names — each of them a form a click opens in a drawer over the list, and a page of its own),
-**Context** (the standing text every ticket is told first, editable rather than read-only)
+headed by the **global context** (the standing text every ticket is told first, for all the
+projects: folded to a few lines, opened by *See all*, editable in place rather than read-only;
+the old `Context` address leads there)
 and an editable **Schedules** — a row is turned off
 from the list itself, a pencil opens the six columns it is written in and the context its
 tickets are born with, and a new schedule is created unticked whatever the form said. Every
@@ -2018,7 +2020,7 @@ Open `http://127.0.0.1:8787` and you get one page, four things:
 **The menu** down the left is where the pages live: a name each, and a count beside it
 where something is waiting there — how many tickets are on the board. On a phone the menu runs
 along the bottom edge instead: the board, the projects and the schedules, and **More**, which
-opens the context and the settings from the bottom of the screen — the bar
+opens the settings from the bottom of the screen — the bar
 fits a 360px screen and never scrolls sideways. The bubble stands on that bar, and every page
 ends far enough above it that nothing is left under it. The frame is react-resource-view's admin layout (see
 [The console's own code](#the-consoles-own-code)), and the end of its bar holds the things
@@ -2455,10 +2457,8 @@ The resources are `frontend/src/resources/*.tsx`. The board, the ticket page and
 column layout, the table, the header the list opens on, the panel a new ticket is written
 in and the addresses from it, with the forms drawn by
 [react-data-form](https://github.com/SalvadorCardona/react-data-form). The projects, the
-schedules and the settings are declared the same way. *Live* and *Context* are resources
-for their address and their place in the menu only: a log that grows while you read it and
-the one text every ticket is told are not lists of records, so their list is a view of
-their own.
+schedules and the settings are declared the same way. The one text every ticket is told is
+not a resource at all: it is a block at the top of the projects' list, which it covers.
 
 The package knows neither this router nor this API. The router is
 [TanStack Router](https://tanstack.com/router), reached through the adapter the package

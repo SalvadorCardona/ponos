@@ -26,12 +26,12 @@ import { useConsole } from "@/hooks/use-console"
 import { hotkeyLabel, useHotkeys } from "@/hooks/use-hotkeys"
 import { titleOf, useBoard } from "@/lib/board-store"
 import { useT } from "@/lib/i18n"
-import { contextHref } from "@/resources/context"
 import { idOf, projectHref, projectsHref, projectsOnce, useProjects } from "@/resources/projects"
 import { schedulesHref } from "@/resources/schedules"
 import { settingsHref } from "@/resources/settings"
 import { boardHref, ticketHref, tickets } from "@/resources/tickets"
 
+import { CONTEXT_ANCHOR } from "./context-block"
 import { toggleTalk } from "./talk-drawer"
 
 /* Ctrl+K: everywhere the console can take you, typed rather than clicked.
@@ -55,7 +55,7 @@ const PAGES = [
   { name: "Dashboard", icon: LayoutGrid, href: boardHref },
   { name: "Projects", icon: FolderGit2, href: projectsHref },
   { name: "Schedules", icon: CalendarClock, href: schedulesHref },
-  { name: "Context", icon: BookOpen, href: contextHref },
+  { name: "Global context", icon: BookOpen, href: () => `${projectsHref()}#${CONTEXT_ANCHOR}` },
   { name: "Settings", icon: Settings2, href: () => settingsHref() },
 ]
 

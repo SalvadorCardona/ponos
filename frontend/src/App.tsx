@@ -12,6 +12,7 @@ import {
 } from "react-resource-view"
 
 import { CommandPalette } from "@/components/console/command-palette"
+import { CONTEXT_ANCHOR } from "@/components/console/context-block"
 import { TalkDrawer } from "@/components/console/talk-drawer"
 import { useTicketWindow } from "@/components/console/ticket-window"
 import { Toaster } from "@/components/ui/sonner"
@@ -23,6 +24,7 @@ import { useLanguage, useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 import { consoleRouter, useRoute } from "@/lib/router"
 import { consoleScope, scopes } from "@/resources/scope"
+import { projectsHref } from "@/resources/projects"
 import { SETTINGS, settingsHref } from "@/resources/settings"
 import { TICKETS, boardHref } from "@/resources/tickets"
 
@@ -30,7 +32,7 @@ import { TICKETS, boardHref } from "@/resources/tickets"
  *
  * react-resource-view's admin layout: a menu down the left built from the
  * scope, a bar over the page, a bottom navigation on a phone. Every page is a
- * resource of that scope — the board, a ticket, the context, the projects, the
+ * resource of that scope — the board, a ticket, the projects, the
  * schedules, the settings — so what the address names is handed to the
  * package, which draws the matching view inside the layout the scope declares.
  *
@@ -57,6 +59,10 @@ function Page({ params }: { params: ViewResourceContextParams }) {
   // `/?view=console/live/list` among them, now that sessions are read on their
   // tickets, and the statistics' `/?view=console/statistics/list`, now that
   // they are drawn at the top of the dashboard.
+  // The context was a page of its own, and is the first block of the projects
+  // now: a bookmarked `/?view=console/context/list` leads there.
+  if (!resource && resourceId === "context")
+    return <Navigate to={`${projectsHref()}#${CONTEXT_ANCHOR}`} replace />
   if (!resource) return <Navigate to={boardHref()} replace />
   // The settings are one file, so they have no list: the package still links
   // to one — the breadcrumb in the bar does — and a list asked for is the file.

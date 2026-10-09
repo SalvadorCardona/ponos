@@ -18,6 +18,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The global context sits at the top of the Projects page.** *Context* is gone from the
+  menu: the text every ticket is told first, for all the projects, is the first block of
+  *Projects* — folded to a few lines in Markdown, *See all* to read it, *Edit* to write it in
+  place with the same editor and the same save, and a warning before leaving with something
+  unsaved. Empty, it offers to be written. `/?view=console/context/list` and `/?page=context`
+  lead there, and a project's *Brief* tab links back to it (*Inherits the global context ↑*).
+  Nothing changes in the API or in `context.md`.
 - **Ponos in Claude by its address alone, as Leadz.** Paste `https://<your console>/mcp` in
   claude.ai or Claude Desktop, click *Connect*, *Allow*: nothing to copy. In Claude Code,
   `claude mcp add --transport http ponos http://127.0.0.1:8787/mcp`, then *Authenticate* —

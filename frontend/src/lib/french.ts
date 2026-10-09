@@ -683,9 +683,17 @@ export const FRENCH: Record<string, string> = {
 
   /* -- the standing context --------------------------------------------------- */
   Context: "Contexte",
-  "What every ticket is told first.": "Ce qu'on dit d'abord à chaque ticket.",
-  "Before the project's brief and before the ticket itself. It is what makes an answer sound like you rather than like nobody — and you pay for it on every single ticket.":
-    "Avant le brief du projet et avant le ticket lui-même. C'est ce qui fait qu'une réponse vous ressemble plutôt que de ne ressembler à personne — et vous le payez sur chaque ticket.",
+  "Global context": "Contexte global",
+  "Sent to Ponos in every ticket, for all the projects":
+    "Envoyé à Ponos dans chaque ticket, pour tous les projets",
+  "See all": "Voir tout",
+  Fold: "Replier",
+  "Write the context": "Écrire le contexte",
+  "Nothing is written yet, so the tickets are told nothing about who the work is for.":
+    "Rien n'est écrit pour l'instant : les tickets ne savent rien de pour qui le travail est fait.",
+  "The changes made to the global context are not saved.":
+    "Les modifications du contexte global ne sont pas enregistrées.",
+  "Inherits the global context ↑": "Hérite du contexte global ↑",
   "{{count}} characters in every prompt": "{{count}} caractères dans chaque prompt",
   Reread: "Relire",
   "Saving…": "Enregistrement…",

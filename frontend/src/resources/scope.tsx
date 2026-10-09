@@ -11,7 +11,6 @@ import { MenuEntry, Mark, TopBarEnd, onPhone, type ConsoleMenuItem } from "@/com
 import { t } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 
-import { CONTEXT, context, contextHref } from "./context"
 import { PROJECTS, projects, projectsHref } from "./projects"
 import { SCHEDULES, schedules, schedulesHref } from "./schedules"
 import { SETTINGS, settings, settingsHref } from "./settings"
@@ -86,14 +85,13 @@ const entries = () => [
   // No count, here as under Projects: the only way to know is to ask the
   // board, and this menu is redrawn every time the board moves.
   entry(SCHEDULES, schedules.icon, "Schedules", schedulesHref),
-  entry(CONTEXT, context.icon, "Context", contextHref),
   entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
 ]
 
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "Ponos",
-  resources: [tickets, projects, schedules, context, settings],
+  resources: [tickets, projects, schedules, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [
     ...entries().map(onTheBar),

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useBlocker } from "@tanstack/react-router"
 import { Pencil } from "lucide-react"
+import { Link } from "react-resource-view"
 import { toast } from "sonner"
 
 import {
@@ -18,8 +19,9 @@ import { Button } from "@/components/ui/button"
 import { ApiError, api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import type { ProjectBrief } from "@/lib/types"
-import type { ProjectItem } from "@/resources/projects"
+import { projectsHref, type ProjectItem } from "@/resources/projects"
 
+import { CONTEXT_ANCHOR } from "./context-block"
 import { Eyebrow } from "./frame"
 import { Markdown } from "./markdown"
 import { MarkdownEditor } from "./markdown-editor"
@@ -59,7 +61,15 @@ export function ProjectBrief({ project }: { project: ProjectItem }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <Eyebrow>{t("the brief")}</Eyebrow>
+        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <Eyebrow>{t("the brief")}</Eyebrow>
+          <Link
+            to={`${projectsHref()}#${CONTEXT_ANCHOR}`}
+            className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
+          >
+            {t("Inherits the global context ↑")}
+          </Link>
+        </span>
         {opened ? null : (
           <Button variant="outline" size="sm" onClick={() => void edit()} disabled={loading}>
             <Pencil />
