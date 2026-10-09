@@ -1172,6 +1172,10 @@ class Api:
         """Every setting the file holds, as the console draws it — secrets aside."""
         return settings_module.describe(self.config)
 
+    def folder(self, typed: str) -> dict:
+        """A folder of this machine, for a path field to pick a file or a folder from."""
+        return settings_module.folder(typed)
+
     def save_settings(self, payload: dict) -> dict:
         """Write what the console changed, and pick the new file up at once.
 

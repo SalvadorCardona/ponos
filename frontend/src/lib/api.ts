@@ -3,6 +3,7 @@ import type {
   Board,
   Cleaned,
   Disk,
+  Folder,
   Found,
   Idea,
   Ideas,
@@ -159,6 +160,7 @@ export const api = {
   schedule: (id: string) => request<ScheduleDetail>(`/api/schedules/${id}`),
   chat: () => request<{ messages: Message[] } & ChatState & { busy?: boolean }>("/api/chat"),
   settings: () => request<Settings>("/api/settings"),
+  folder: (path: string) => request<Folder>(`/api/settings/folder?path=${encodeURIComponent(path)}`),
   statistics: (from: string, to: string, project?: string) =>
     request<Statistics>(
       `/api/statistics?from=${from}&to=${to}` +

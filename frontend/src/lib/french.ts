@@ -754,6 +754,33 @@ export const FRENCH: Record<string, string> = {
   "Saved ✓": "Enregistré ✓",
   "Show the advanced settings ({{count}})": "Afficher les réglages avancés ({{count}})",
   "Hide the advanced settings": "Masquer les réglages avancés",
+  "Search the settings": "Rechercher un réglage",
+  "Settings found": "Réglages trouvés",
+  "No setting by that name.": "Aucun réglage de ce nom.",
+  "Show keys": "Afficher les clés",
+  "More about “{{label}}”": "En savoir plus sur « {{label}} »",
+  "Given by the environment variable `{{name}}`.": "Donné par la variable d'environnement `{{name}}`.",
+  show: "afficher",
+  hide: "masquer",
+  "keep it": "le garder",
+  "Shows what you type: the saved one never leaves this machine.":
+    "Affiche ce que vous tapez : celui enregistré ne quitte jamais cette machine.",
+  Browse: "Parcourir",
+  "Up one folder": "Dossier parent",
+  "An empty folder.": "Un dossier vide.",
+  "{{count}} more — type the rest of the path.": "{{count}} de plus — tapez la suite du chemin.",
+  "Choose this folder": "Choisir ce dossier",
+  "Reading the folder…": "Lecture du dossier…",
+  "Model per level, and where each type of ticket starts":
+    "Le modèle de chaque niveau, et où chaque type de ticket commence",
+  Level: "Niveau",
+  "Each column is a type of ticket: the dot is the level it starts at, before its size and wording move it. An empty model is the nearest level's.":
+    "Chaque colonne est un type de ticket : le point est le niveau où il commence, avant que sa taille et sa formulation le déplacent. Un modèle vide est celui du niveau le plus proche.",
+  State: "État",
+  "The runner as it stands on this machine.": "Le runner tel qu'il est sur cette machine.",
+  Version: "Version",
+  "Configuration file": "Fichier de configuration",
+  "Disk space": "Place sur le disque",
   "Its key in config.toml": "Sa clé dans config.toml",
   "Its variable, in secrets.env or the environment":
     "Sa variable, dans secrets.env ou l'environnement",
@@ -803,6 +830,113 @@ export const FRENCH: Record<string, string> = {
   // of help, what has to happen for a change to count, the words a choice is
   // shown in — and they arrive in the words that file is written in. Held to it
   // by the test suite. In the order the page draws them.
+
+  // The six pages, the folded block, and the units a number is counted in.
+  General: "Général",
+  "The runner itself: its languages, its updates, this console, and the room it takes.":
+    "Le runner lui-même : ses langues, ses mises à jour, cette console, et la place qu'il prend.",
+  "Ticket source": "Source des tickets",
+  "Where your tickets live, and how the runner finds its way in your Notion board.":
+    "Où vivent vos tickets, et comment le runner s'y retrouve dans votre tableau Notion.",
+  Execution: "Exécution",
+  "How tickets are picked up, what a session may do, and when your review is skipped.":
+    "Comment les tickets sont pris, ce qu'une session peut faire, et quand votre relecture est sautée.",
+  "Models and costs": "Modèles et coûts",
+  "Who answers the sessions, which model works each ticket, and how much may be spent.":
+    "Qui répond aux sessions, quel modèle traite chaque ticket, et combien peut être dépensé.",
+  "Code and repositories": "Code et dépôts",
+  Communication: "Communication",
+  "How the runner reaches you, what a ticket shows while it runs, and its answers in comments.":
+    "Comment le runner vous joint, ce qu'un ticket montre pendant qu'il tourne, et ses réponses en commentaire.",
+  "Advanced mapping": "Correspondance avancée",
+  "Only for a board whose names differ from the ones `ponos init` creates: its columns, its properties, its databases and its types.":
+    "Seulement pour un tableau dont les noms diffèrent de ceux que crée `ponos init` : ses colonnes, ses propriétés, ses bases et ses types.",
+  seconds: "secondes",
+  minutes: "minutes",
+  days: "jours",
+  MB: "Mo",
+  "%": "%",
+
+  // The cards, and the sentence each opens on.
+  Languages: "Langues",
+  "What the runner writes in, and what this console opens in.":
+    "La langue dans laquelle le runner écrit, et celle dans laquelle cette console s'ouvre.",
+  "Test mode": "Mode test",
+  "Try a configuration out without the runner touching anything.":
+    "Essayez une configuration sans que le runner ne touche à rien.",
+  "Web console access": "Accès à la console web",
+  "Logs and clean-up": "Journaux et ménage",
+  "How long what the sessions leave behind stays on this machine.":
+    "Combien de temps ce que laissent les sessions reste sur cette machine.",
+  "Where the board lives": "Où vit le tableau",
+  "The integration that reads and writes your board. `ponos init <page-url>` fills this in for you.":
+    "L'intégration qui lit et écrit votre tableau. `ponos init <page-url>` remplit ceci pour vous.",
+  "Names of the ticket types": "Noms des types de ticket",
+  "The four types, as your Type column spells them.": "Les quatre types, tels que votre colonne Type les écrit.",
+  Pace: "Rythme",
+  Permissions: "Permissions",
+  "Nobody is there to approve: what a session may do on its own.":
+    "Personne n'est là pour approuver : ce qu'une session peut faire d'elle-même.",
+  "Types and classification": "Types et classification",
+  "A ticket's type decides how it is worked. An empty type is guessed before the ticket runs; a type you chose is never changed.":
+    "Le type d'un ticket décide comment il est traité. Un type vide est deviné avant que le ticket tourne ; un type que vous avez choisi n'est jamais changé.",
+  "Skip your review for some types of ticket: once the session succeeds, the runner validates it itself and says so. A failed or blocked ticket never is.":
+    "Sautez votre relecture pour certains types de ticket : une fois la session réussie, le runner le valide lui-même et le dit. Un ticket en échec ou bloqué ne l'est jamais.",
+  "Provider and default model": "Provider et modèle par défaut",
+  "Automatic model choice": "Choix automatique du modèle",
+  "Each type of ticket starts at a level, its size and wording move it, and each level runs on its model. A Model on the ticket or its agent is always kept.":
+    "Chaque type de ticket part d'un niveau, sa taille et sa formulation le déplacent, et chaque niveau tourne sur son modèle. Un Modèle sur le ticket ou son agent est toujours gardé.",
+  Credits: "Crédits",
+  "How much of your subscription the runner may spend, and what it does at the limit.":
+    "Combien de votre abonnement le runner peut dépenser, et ce qu'il fait à la limite.",
+  "Specialised models": "Modèles spécialisés",
+  "The short jobs that are not a ticket's own work, each on a model of its own.":
+    "Les petites tâches qui ne sont pas le travail d'un ticket, chacune sur son propre modèle.",
+  Repositories: "Dépôts",
+  "Where your git repositories are found — and cloned, when one is missing.":
+    "Où vos dépôts git sont trouvés — et clonés, quand il en manque un.",
+  "Branches and pull requests": "Branches et pull requests",
+  "From the branch a ticket starts on to the merge of its pull request.":
+    "De la branche sur laquelle un ticket part jusqu'à la fusion de sa pull request.",
+  Conflicts: "Conflits",
+  "When a validated pull request no longer merges cleanly.":
+    "Quand une pull request validée ne fusionne plus proprement.",
+  Worktrees: "Worktrees",
+  "Each ticket works in a copy of its repository of its own, thrown away after.":
+    "Chaque ticket travaille dans sa propre copie de son dépôt, jetée ensuite.",
+  Telegram: "Telegram",
+  "A bot that writes to you, and reads what you answer.": "Un bot qui vous écrit, et lit ce que vous répondez.",
+  Slack: "Slack",
+  "A bot in a channel of yours, which writes there and reads the thread.":
+    "Un bot dans l'un de vos canaux, qui y écrit et lit le fil.",
+
+  // The labels a unit no longer follows in brackets.
+  "Look for an update every": "Chercher une mise à jour toutes les",
+  "Refresh the board every": "Rafraîchir le tableau toutes les",
+  "Time limit per discussion reply": "Durée maximale par réponse de la discussion",
+  "Largest attached file": "Plus gros fichier joint",
+  "Keep attached files": "Garder les fichiers joints",
+  "Keep session logs": "Garder les journaux des sessions",
+  "Check the board every": "Consulter le tableau toutes les",
+  "Time limit per ticket": "Durée maximale par ticket",
+  "Share kept for your own use": "Part gardée pour votre usage",
+  "Wait for CI before merging": "Attendre la CI avant de fusionner",
+  "Update progress every": "Mettre à jour l'avancement toutes les",
+  "Look for new comments every": "Chercher de nouveaux commentaires toutes les",
+  "Time limit per answer": "Durée maximale par réponse",
+
+  // What an empty box says when the runner has no default to show.
+  "e.g. you@example.com": "p. ex. vous@exemple.fr",
+  "https://www.notion.so/…": "https://www.notion.so/…",
+  "its URL or its identifier": "son URL ou son identifiant",
+  "e.g. `sonnet`": "p. ex. `sonnet`",
+  "Claude Code's own default": "le défaut de Claude Code",
+  "the ticket's own model": "le modèle du ticket",
+  "the repository's default branch": "la branche par défaut du dépôt",
+  "e.g. Website, Newsletter": "p. ex. Site, Newsletter",
+  "found by `ponos notify --pair`": "trouvé par `ponos notify --pair`",
+  "e.g. C0123456789": "p. ex. C0123456789",
+  "this machine": "cette machine",
 
   "Notion connection": "Connexion à Notion",
   "The Notion integration that reads and writes your board. `ponos init <page-url>` fills all of this in for you: come here only to fix it by hand.":

@@ -2789,7 +2789,7 @@ board says have been **done** for that long, plus the scratch directories of
 tickets no longer on the board. A ticket in progress, blocked, failed or in
 review keeps its directory however old it is; a done ticket's worktree with
 uncommitted changes is kept and named; branches are never touched. The
-settings page of the console shows the space the three directories take, with
+*General* page of the console's settings shows the space the three directories take, with
 a **Clean up** button that applies the same retention straight away, and
 `ponos doctor` says both.
 

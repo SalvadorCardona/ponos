@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test"
  * of the page saying what it is once.
  */
 
-const SECTION = "/?view=console/settings/read/config/notify"
+const SECTION = "/?view=console/settings/read/config/communication"
 
 async function open(page: Page, path: string) {
   await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
@@ -49,12 +49,55 @@ test("the page has one title, and no way back to a list", async ({ page }) => {
 })
 
 test("the settings say what the console runs on, line by line", async ({ page }) => {
-  await open(page, "/?view=console/settings/read/config/claude")
+  await open(page, "/?view=console/settings/read/config/general")
   await settingsPage(page)
   await page.getByRole("button", { name: "What this console runs on" }).click()
   const summary = page.getByTestId("summary-rows")
   await expect(summary.locator("[data-row]")).toHaveCount(7, { timeout: 30_000 })
   await expect(summary.locator('[data-row="board"]')).toHaveAttribute("data-state", "ok")
   await summary.locator('[data-row="channels"]').getByRole("link", { name: "Change" }).click()
-  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("console/settings/read/config/notify")
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("console/settings/read/config/communication")
+})
+
+test("six pages, and an old link to a section opens the page it is on", async ({ page }) => {
+  await open(page, "/?view=console/settings/read/config/notify")
+  await settingsPage(page)
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("console/settings/read/config/communication")
+  await expect(page.getByRole("tab")).toHaveCount(6)
+  await expect(page.locator('[data-card="notify"]')).toBeVisible()
+})
+
+test("a search opens the right page and unfolds what hid the field", async ({ page }) => {
+  await open(page, "/?view=console/settings/read/config/general")
+  await settingsPage(page)
+  await expect(page.locator('[data-fold="mapping"]')).toHaveCount(0)
+  await page.getByRole("searchbox", { name: "Search the settings" }).fill("notion.status.ready")
+  await page.getByRole("option").first().click()
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("console/settings/read/config/source")
+  await expect(page.locator('[data-field="notion-status-ready"]')).toBeVisible()
+})
+
+test("the keys are hidden until asked for", async ({ page }) => {
+  await open(page, "/?view=console/settings/read/config/execution")
+  await settingsPage(page)
+  const key = page.locator("code", { hasText: "runner.max_concurrent" })
+  await expect(key).toHaveCount(0)
+  await page.getByText("Show keys").click()
+  await expect(key).toBeVisible()
+  await page.getByText("Show keys").click()
+  await expect(key).toHaveCount(0)
+})
+
+test("the models are one table, and a change waits under a bar that sticks", async ({ page }) => {
+  await open(page, "/?view=console/settings/read/config/models")
+  await settingsPage(page)
+  const grid = page.getByTestId("model-grid")
+  await expect(grid.getByRole("radio")).toHaveCount(16)
+  const bar = page.getByTestId("settings-bar")
+  await expect(bar.getByRole("status")).toHaveText("No changes")
+  await grid.getByRole("radio", { name: "Code — Heavy work" }).check()
+  await expect(bar.getByRole("status")).toHaveText("Unsaved changes")
+  await expect(bar).toHaveCSS("position", "sticky")
+  await bar.getByRole("button", { name: "Cancel" }).click()
+  await expect(bar.getByRole("status")).toHaveText("No changes")
 })
