@@ -1028,6 +1028,14 @@ def command_doctor(args: argparse.Namespace) -> int:
             f"  {DIM}runner.clean_done_worktrees = false — worktrees stay until "
             f"ponos clean --force{RESET}"
         )
+    leftover = git.residues(config_module.state_dir() / "worktrees")
+    if leftover:
+        warn(
+            f"{len(leftover)} worktree directory(ies) are only residue (no .git — files "
+            f"a container created); ponos clean --force empties them"
+        )
+    else:
+        ok("0 residue(s) in the worktrees directory")
     last = cleanup.tidied_at()
     if last:
         print(f"  {DIM}last tidied {datetime.fromtimestamp(last):%Y-%m-%d %H:%M}{RESET}")
@@ -1584,8 +1592,18 @@ def _sweep(directories: list[Path]) -> None:
         # and goes as one.
         repo = git.repository_of(directory)
         if not (repo and repo.exists()):
-            shutil.rmtree(directory, ignore_errors=True)
+            if (directory / ".git").exists():
+                shutil.rmtree(directory, ignore_errors=True)
+                print(f"  removed {directory}")
+                continue
+            try:
+                aside = git.discard(directory)
+            except git.GitError as error:
+                warn(str(error))
+                continue
             print(f"  removed {directory}")
+            if aside:
+                print(f"    {DIM}not deletable by this user — moved to {aside}{RESET}")
             continue
         branch = git.git(["rev-parse", "--abbrev-ref", "HEAD"], directory).out
         # A detached HEAD names no branch — `HEAD` is what git answers then, and
@@ -1616,6 +1634,29 @@ def _sweep(directories: list[Path]) -> None:
             warn(f"branch {branch} kept — {dropped.err or dropped.out}")
 
 
+def _clear_residues(directories: list[Path]) -> list[Path]:
+    """Empty the worktree directories that are only residue; the others, untouched."""
+    kept: list[Path] = []
+    found = 0
+    for directory in directories:
+        if directory.parent.name != "worktrees" or not git.is_residue(directory):
+            kept.append(directory)
+            continue
+        try:
+            aside = git.discard(directory)
+        except git.GitError as error:
+            warn(str(error))
+            kept.append(directory)
+            continue
+        found += 1
+        print(f"  removed {directory}")
+        if aside:
+            print(f"    {DIM}not deletable by this user — moved to {aside}{RESET}")
+    if found:
+        print(f"  {found} residue(s) emptied")
+    return kept
+
+
 def command_clean(args: argparse.Namespace) -> int:
     """Remove what failures left behind: worktrees, branches and scratch dirs."""
     state_root = config_module.state_dir()
@@ -1625,6 +1666,14 @@ def command_clean(args: argparse.Namespace) -> int:
         if (state_root / parent).exists()
         for directory in sorted((state_root / parent).iterdir())
     ]
+    # Residue first, forced or not: a directory with no `.git` holds nothing
+    # git could lose, only what containers wrote there as root. Emptying it asks
+    # nothing of the user, so the list below is only what could be somebody's work.
+    try:
+        with state.lock():
+            directories = _clear_residues(directories)
+    except state.Busy:
+        pass  # the sweep below says so, when it is asked to remove anything
     if not directories:
         print("Nothing left behind.")
         return 0
