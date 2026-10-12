@@ -215,6 +215,13 @@ class Runner:
     interval_seconds: int = 1800
     max_concurrent: int = 2
     timeout_minutes: int = 30
+    # A session killed from outside (SIGKILL, SIGTERM) is carried on once, after
+    # this many seconds and only if the network answers. See resources.py.
+    relaunch_delay_seconds: int = 15
+    # No session is started while less memory than this is available, in MB;
+    # zero turns the guard off. Eight sessions with `tsc` and a test suite each
+    # is how the kernel ends up killing one of them.
+    min_free_memory_mb: int = 2048
     # What to do when the subscription's quota is spent: wait for the window to
     # roll over rather than fail every ticket it touches. Off is the old
     # behaviour — an exhausted quota is reported as the session failure it looks
@@ -1271,6 +1278,12 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         interval_seconds=max(1, int(runner_raw.get("interval_seconds", defaults.interval_seconds))),
         max_concurrent=max(1, int(runner_raw.get("max_concurrent", defaults.max_concurrent))),
         timeout_minutes=max(1, int(runner_raw.get("timeout_minutes", defaults.timeout_minutes))),
+        relaunch_delay_seconds=max(
+            0, int(runner_raw.get("relaunch_delay_seconds", defaults.relaunch_delay_seconds))
+        ),
+        min_free_memory_mb=max(
+            0, int(runner_raw.get("min_free_memory_mb", defaults.min_free_memory_mb))
+        ),
         wait_for_credits=bool(
             runner_raw.get("wait_for_credits", defaults.wait_for_credits)
         ),

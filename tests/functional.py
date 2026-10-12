@@ -49,6 +49,7 @@ from ponos import config as C  # noqa: E402
 from ponos import credits, db, images, journal, notion, project_settings, store  # noqa: E402
 from ponos.config import PRIORITIES  # noqa: E402
 from ponos.runner import Runner  # noqa: E402
+from ponos.ticket import short_id  # noqa: E402
 
 CASES = []
 ROOT = Path(__file__).resolve().parents[1]
@@ -516,7 +517,7 @@ args = sys.argv[1:]
 # The prompt is never an argument: `--print` reads it from stdin, where the
 # runner always sends it — see session.py.
 prompt = sys.stdin.read()
-session = args[args.index("--session-id") + 1] if "--session-id" in args else ""
+session = next((args[args.index(flag) + 1] for flag in ("--session-id", "--resume") if flag in args), "")
 model = args[args.index("--model") + 1] if "--model" in args else ""
 
 log = os.environ.get("FAKE_CLAUDE_LOG")
@@ -528,6 +529,18 @@ if log:
              if "--max-budget-usd" in args else ""}
         ) + "\\n")
 
+
+# A session killed from outside, as the OOM killer does it: `FAKE_CLAUDE_KILL`
+# is how many starts die of SIGKILL before one is let through, counted in the
+# file `FAKE_CLAUDE_COUNT` names.
+dying = int(os.environ.get("FAKE_CLAUDE_KILL", "0") or 0)
+counter = Path(os.environ.get("FAKE_CLAUDE_COUNT", "/nonexistent/count"))
+if dying and counter.parent.is_dir():
+    starts = int(counter.read_text() or 0) if counter.exists() else 0
+    counter.write_text(str(starts + 1))
+    if starts < dying:
+        import signal
+        os.kill(os.getpid(), signal.SIGKILL)
 
 # A session that lasts: it says it has started, then waits for the test to let
 # it go — the window in which something else happens to the machine under it.
@@ -884,6 +897,8 @@ SETTINGS = {
     "log_retention_days": 0,
     "timeout_minutes": 1,
     "max_concurrent": 2,
+    "relaunch_delay_seconds": 0,        # a killed session is resumed at once
+    "min_free_memory_mb": 0,            # whatever this machine has free today
 }
 
 
@@ -1075,6 +1090,7 @@ def bench(**overrides: object):
                 "FAKE_CLAUDE_COST": "",
                 "FAKE_CLAUDE_BLOCK": "",
                 "FAKE_CLAUDE_OVER_BUDGET": "",
+                "FAKE_CLAUDE_KILL": "",
                 "FAKE_GH_REFUSE": "",
                 **{name: str(path) for name, path in logs.items()},
             }
@@ -2131,6 +2147,107 @@ def a_pass_started_during_an_update_runs_on_one_version_and_never_on_both():
             after = started("run")
             said = after.communicate(timeout=120)[0]
             assert after.returncode == 0 and "Error" not in said, said
+
+
+def _worktree_of(machine: "Bench") -> Path:
+    """The one worktree a failed ticket left in the state directory."""
+    (path,) = (Path(os.environ["XDG_STATE_HOME"]) / "ponos" / "worktrees").glob("*")
+    return path
+
+
+@case
+def a_worktree_left_in_the_middle_of_a_rebase_is_saved_and_the_ticket_starts_again():
+    """A session killed while it resolved conflicts: 36 tickets could not get a worktree.
+
+    The worktree is in a rebase with an untracked file next to it, and
+    `add_worktree` used to refuse it for good ("still holds work"). It is saved
+    to a branch of its own, the rebase is given up, and the ticket carries on
+    from its own branch — told, in its prompt, where the backup is.
+    """
+    with bench(keep_worktree_on_failure=True) as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Reprendre un rebase", "Fais-le.", project)
+        with _environ({"FAKE_CLAUDE_FAIL": "la session a planté"}):
+            machine.run()
+        worktree = _worktree_of(machine)
+
+        # The branch moves one way, main another, and the replay stops on it.
+        (worktree / "README.md").write_text("# côté ticket\n", encoding="utf-8")
+        _git(["commit", "-am", "côté ticket"], worktree)
+        machine.land(repository, "README.md", "# côté main\n")
+        _git(["fetch", "origin"], worktree)
+        stopped = subprocess.run(["git", "rebase", "origin/main"], cwd=str(worktree),
+                                 capture_output=True, text=True)
+        assert stopped.returncode != 0, "the rebase was meant to stop on a conflict"
+        (worktree / "a-moitie-fait.txt").write_text("du travail non commité\n", encoding="utf-8")
+
+        machine.move(ticket, "Ready")
+        results = machine.run()
+
+        assert results[0]["status"] == "done", results
+        said = "\n".join(machine.board.said(ticket))
+        assert "could not make the worktree" not in said and "pas pu créer le worktree" not in said, said
+        backups = [name for name in subprocess.run(
+            ["git", "branch", "--format=%(refname:short)"], cwd=str(repository),
+            capture_output=True, text=True).stdout.split() if name.startswith("ponos/backup/")]
+        assert len(backups) == 1 and f"/{short_id(ticket)}-" in backups[0], backups
+        saved = subprocess.run(["git", "show", f"{backups[0]}:a-moitie-fait.txt"], cwd=str(repository),
+                               capture_output=True, text=True)
+        assert saved.stdout.strip() == "du travail non commité", saved
+        assert backups[0] in machine.sessions()[-1]["prompt"], "the session is not told of the backup"
+        assert backups[0] in said, said
+
+
+@case
+def a_session_killed_is_resumed_once_and_blocked_as_killed_if_it_dies_again():
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Une session tuée", "Fais-le.", project)
+        count = machine.root / "logs" / "count"
+
+        with _environ({"FAKE_CLAUDE_KILL": "1", "FAKE_CLAUDE_COUNT": str(count)}):
+            results = machine.run()
+        assert results[0]["status"] == "done", results
+        started = machine.sessions()
+        assert len(started) == 2, "one start, and one more"
+        assert started[0]["session"] == started[1]["session"], "the same conversation is carried on"
+
+        count.unlink()
+        again = machine.ticket("Une session tuée deux fois", "Fais-le.", project)
+        with _environ({"FAKE_CLAUDE_KILL": "9", "FAKE_CLAUDE_COUNT": str(count)}):
+            results = machine.run()
+        assert results[0]["status"] == "blocked", results
+        assert results[0]["code"] == "session.killed", results[0]
+        assert len(machine.sessions()) == 2, "once more, and no third time"
+        assert machine.status(again) == "Blocked", machine.status(again)
+        said = "\n".join(machine.board.said(again))
+        assert "SIGKILL" in said, said
+        assert not machine.worktrees(repository), "no worktree left behind"
+
+
+@case
+def a_board_that_cannot_be_reached_marks_no_ticket_failed_and_the_run_does_not_fail():
+    from ponos import __main__ as command
+    import argparse
+
+    with bench() as machine:
+        repository = machine.repository("site")
+        ticket = machine.ticket("Pendant la coupure", "Fais-le.", machine.project("Site", repository))
+        patched, notion.time.sleep = notion.time.sleep, lambda seconds: None
+        try:
+            with _environ({notion.API_ENV: "http://ponos-offline.invalid", "PONOS_CONFIG": str(machine.config)}):
+                code = command.command_run(argparse.Namespace(
+                    every=None, dry_run=False, limit=None, ticket=""))
+        finally:
+            notion.time.sleep = patched
+        assert code == 0, "the service must not fail while the network is away"
+        assert machine.status(ticket) == "Ready", machine.status(ticket)
+        assert not [page for page in machine.board.pages.values()
+                    if "Failed" in str(page["properties"].get("Status"))]
+        assert not machine.sessions(), "nothing runs without a board"
+        assert machine.run()[0]["status"] == "done", "and the next pass, with the network back, runs it"
 
 
 def main() -> int:

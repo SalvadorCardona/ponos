@@ -1034,6 +1034,14 @@ export const FRENCH: Record<string, string> = {
   "Time limit per ticket (minutes)": "Durée maximale par ticket (minutes)",
   "Past it, the session is stopped and the ticket fails, with the reason.":
     "Au-delà, la session est arrêtée et le ticket passe en échec, avec la raison.",
+  "Memory to keep free": "Mémoire à garder libre",
+  "Memory to keep free (MB)": "Mémoire à garder libre (Mo)",
+  "Wait before resuming a killed session": "Attente avant de reprendre une session tuée",
+  "No session is started while less memory than this is available; the ticket waits in Ready. 0 turns the guard off.":
+    "Aucune session ne démarre tant qu'il y a moins de mémoire disponible que cela ; le ticket attend en Prêt. 0 désactive la garde.",
+  "Wait before resuming a killed session (seconds)": "Attente avant de reprendre une session tuée (secondes)",
+  "A session killed from outside is resumed once after this delay, if the network answers.":
+    "Une session tuée de l'extérieur est reprise une fois après ce délai, si le réseau répond.",
   "Language of the reports": "Langue des comptes rendus",
   "What the runner writes on tickets and sends to your phone, and the language sessions are asked to answer in. Not set: reports in English, and each session answers in the ticket's language.":
     "Ce que le runner écrit sur les tickets et envoie sur votre téléphone, et la langue dans laquelle on demande aux sessions de répondre. Non choisie : comptes rendus en anglais, et chaque session répond dans la langue du ticket.",

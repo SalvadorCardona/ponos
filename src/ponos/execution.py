@@ -31,11 +31,12 @@ blocked with the question, and an exhausted quota goes to neither — see
 from __future__ import annotations
 
 import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import git, journal, progress, session, state, store
+from . import git, journal, progress, resources, session, state, store
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
@@ -102,6 +103,16 @@ class Execution(Base):
                 f"work, not starting it again.\n"
                 if job.resumed
                 else ""
+            )
+            + (
+                f"- A worktree of this ticket was left interrupted (a rebase, a merge or a "
+                f"detached HEAD with changes) by an earlier session. Everything it held, "
+                f"conflict markers included, is saved on the local branch `{job.backup}`: "
+                f"`git log -p {job.base}..{job.backup}` shows it, and `git diff HEAD "
+                f"{job.backup}` compares it with what you have. Take from it what is worth "
+                f"keeping.\n"
+                if job.backup
+                else ""
             ),
         )
         log = job.log or state.log_file(short_id(job.ticket.id))
@@ -133,6 +144,8 @@ class Execution(Base):
                 log = log.with_name(f"{log.stem}-again{log.suffix}")
                 run.again(job.session_id, log)
                 outcome = self._session(job, text, log, chosen, live, run)
+            if reason := self._died(outcome):
+                outcome = self._relaunch(job, text, log, chosen, live, run, outcome, reason)
         except BaseException:
             # A session that dies still leaves a ticket saying “⏳ Live” and a
             # column stuck on whatever it was doing. Closing here is what makes
@@ -165,6 +178,59 @@ class Execution(Base):
             live.close(closing, ok=ended_well)
         self._hold_credits(outcome)
         return outcome
+
+    def _died(self, outcome: session.Outcome) -> str:
+        """Why a session that did not end by itself was cut, or '' when it was not.
+
+        Two kinds of death that are not the ticket's doing: a signal nobody on
+        our side sent — and when the kernel says it ran out of memory, the line
+        it wrote — and a stream that stopped before its last event while the
+        network was down. Anything else is the session's own ending, and keeps
+        the road it always had.
+        """
+        said = self.voice
+        if session.signalled(outcome):
+            why = said.say("killed-signal", signal=resources.signal_name(outcome.code))
+            oom = resources.oom_killed()
+            return f"{why} ; {said.say('killed-oom', line=oom)}" if oom else why
+        cut = not (
+            outcome.ok or outcome.blocked or outcome.stopped or outcome.timed_out
+            or outcome.exhausted or outcome.resulted or session.lost(outcome)
+        )
+        return said.say("killed-network") if cut and not resources.reachable() else ""
+
+    def _relaunch(
+        self,
+        job: Job,
+        text: str,
+        log: Path,
+        model: str,
+        live: progress.Live | None,
+        run: journal.Run,
+        outcome: session.Outcome,
+        why: str,
+    ) -> session.Outcome:
+        """The one more try a killed session gets — after a pause, if anybody answers.
+
+        Once, and the outcome that comes back says so by itself: still dead,
+        `killed` holds the reason and the ticket is blocked on it. A session
+        killed twice is not bad luck, and a third start would only spend the
+        same minutes again. The conversation is carried on when Claude Code
+        filed it, and opened afresh under the same identifier when the kill came
+        before it wrote a line.
+        """
+        delay = self.config.runner.relaunch_delay_seconds
+        self.say(f"    ↻ session killed ({why}) — one more try in {delay}s if the network answers")
+        time.sleep(delay)
+        if not resources.reachable():
+            outcome.killed = f"{why} ; {self.voice.say('killed-network')}"
+            return outcome
+        job.resume = session.exists(job.session_id)
+        log = log.with_name(f"{log.stem}-again{log.suffix}")
+        run.again(job.session_id, log)
+        again = self._session(job, text, log, model, live, run)
+        again.killed = self._died(again)
+        return again
 
     def _session(
         self,
@@ -241,6 +307,19 @@ class Execution(Base):
             say=self.say,
         )
 
+    def _question(self, outcome: session.Outcome, detail: str) -> str | object:
+        """What a ticket that stopped asks: the session's own question, or ours."""
+        if outcome.killed:
+            return self.voice.say("session-killed-question")
+        return (outcome.question or detail) if outcome.blocked else ""
+
+    @staticmethod
+    def _coded(result: dict, outcome: session.Outcome) -> dict:
+        """The result of a ticket whose session was killed, with the code that says so."""
+        if outcome.killed:
+            result["code"] = "session.killed"
+        return result
+
     # -- a ticket on a repository ----------------------------------------------
 
     def _execute_code(self, job: Job) -> dict:
@@ -260,6 +339,13 @@ class Execution(Base):
             self.say("    · " + voice_module.Voice().branch_note(worktree).replace("`", ""))
             job.notes.append(self.voice.branch_note(worktree))
             job.resumed = worktree.reused
+        if worktree.backup:
+            # Said to the session as well as to the ticket: the half-done work
+            # it is about to meet is no longer in its worktree, and nothing but
+            # this sentence tells it where it went.
+            self.say(f"    · interrupted worktree saved to {worktree.backup}")
+            job.notes.append(self.voice.backup_note(worktree, job.base))
+            job.backup = worktree.backup
 
         try:
             outcome = self._run_session(
@@ -298,14 +384,17 @@ class Execution(Base):
                 kept = said.say("worktree-kept", path=job.workdir, branch=job.branch)
             else:
                 git.remove_worktree(project.path, job.workdir)
-            return self._fail(
-                ticket,
-                reason,
-                detail,
-                blocked=outcome.blocked,
-                question=(outcome.question or detail) if outcome.blocked else "",
-                note=self._filed(job, outcome, kept),
-                outcome=outcome,
+            return self._coded(
+                self._fail(
+                    ticket,
+                    reason,
+                    detail,
+                    blocked=outcome.blocked or bool(outcome.killed),
+                    question=self._question(outcome, detail),
+                    note=self._filed(job, outcome, kept),
+                    outcome=outcome,
+                ),
+                outcome,
             )
 
         commits = git.commits_ahead(job.workdir, job.base)
@@ -359,6 +448,11 @@ class Execution(Base):
                 accounts=self.config.github,
             )
             if not pushed.ok:
+                message = pushed.err or pushed.out
+                if resources.network_error(message) and not resources.reachable():
+                    # Not a refusal: GitHub was never asked. The branch and its
+                    # commits stay where they are for the attempt after.
+                    raise store.Unreachable(f"git push: {message}")
                 return self._fail(
                     ticket,
                     said.say("push-refused"),
@@ -517,14 +611,17 @@ class Execution(Base):
                 kept = said.say("workdir-kept", path=job.workdir)
             else:
                 shutil.rmtree(job.workdir, ignore_errors=True)
-            return self._fail(
-                ticket,
-                reason,
-                detail,
-                blocked=outcome.blocked or not content,
-                question=outcome.question or detail,
-                note=self._filed(job, outcome, kept),
-                outcome=outcome,
+            return self._coded(
+                self._fail(
+                    ticket,
+                    reason,
+                    detail,
+                    blocked=outcome.blocked or not content or bool(outcome.killed),
+                    question=self._question(outcome, detail) or outcome.question or detail,
+                    note=self._filed(job, outcome, kept),
+                    outcome=outcome,
+                ),
+                outcome,
             )
 
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")

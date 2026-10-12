@@ -5157,6 +5157,68 @@ def a_board_without_a_runner_column_still_gets_its_abandoned_tickets_back():
 
 
 @case
+def the_machines_free_memory_is_read_from_meminfo_and_a_guard_under_the_threshold_says_so():
+    from ponos import resources
+
+    with tempfile.TemporaryDirectory() as directory:
+        meminfo = Path(directory) / "meminfo"
+        meminfo.write_text("MemTotal: 16000000 kB\nMemFree: 100 kB\nMemAvailable: 1048576 kB\n")
+        assert resources.available_mb(str(meminfo)) == 1024
+        assert resources.available_mb(str(Path(directory) / "nothing")) is None
+        meminfo.write_text("MemTotal: 16000000 kB\n")
+        assert resources.available_mb(str(meminfo)) is None, "a machine that cannot say is not short"
+
+    original = resources.available_mb
+    try:
+        resources.available_mb = lambda path="": 1024
+        assert resources.short_of_memory(2048) == 1024
+        assert resources.short_of_memory(1024) is None and resources.short_of_memory(0) is None
+    finally:
+        resources.available_mb = original
+
+
+@case
+def a_death_by_signal_is_told_from_a_failure_and_named():
+    from ponos import resources
+
+    def ended(code: int, **fields) -> session.Outcome:
+        return session.Outcome(ok=False, blocked=False, session_id="s", summary="",
+                               log=Path("x"), code=code, **fields)
+
+    assert session.signalled(ended(-9)) and session.signalled(ended(137)) and session.signalled(ended(143))
+    assert not session.signalled(ended(1)), "an ordinary failure is the session's own"
+    assert not session.signalled(ended(-9, timed_out=True)), "the watchdog's kill is not a mystery"
+    assert not session.signalled(ended(-15, stopped=True)), "nor is the console's Stop"
+    assert resources.signal_name(-9).startswith("SIGKILL") and resources.signal_name(137).startswith("SIGKILL")
+    assert resources.signal_name(143).startswith("SIGTERM") and resources.signal_name(1) == ""
+    assert resources.network_error("fatal: unable to access 'x': Could not resolve host: github.com")
+    assert not resources.network_error("remote: Permission denied")
+
+
+@case
+def a_runner_short_of_memory_starts_nothing_and_says_so_once():
+    runner = _board_runner([], {})
+    runner.config.runner.min_free_memory_mb = 2048
+    runner._memory_warned = False
+    said: list[str] = []
+    runner.say = said.append
+    from ponos import resources
+
+    original = resources.available_mb
+    try:
+        resources.available_mb = lambda path="": 512
+        assert not runner.room_for_a_session() and not runner.room_for_a_session()
+        assert len(said) == 1 and "512" in said[0], said
+        resources.available_mb = lambda path="": 4096
+        assert runner.room_for_a_session()
+        runner.config.runner.min_free_memory_mb = 0
+        resources.available_mb = lambda path="": 1
+        assert runner.room_for_a_session(), "zero switches the guard off"
+    finally:
+        resources.available_mb = original
+
+
+@case
 def a_ticket_this_run_holds_is_never_put_back():
     runner = _board_runner([_in_progress("p-held", None), _in_progress("p-signed", "ponos@laptop")], {})
     runner.client.columns = {"Runner": "rich_text"}

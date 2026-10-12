@@ -63,6 +63,15 @@ class Outcome:
     # What a session that ended ok could not check, for whoever reviews it —
     # its CAVEAT lines. Written on the report, and read back by the console.
     caveats: list[str] = field(default_factory=list)
+    # How the process ended, as `subprocess` says it (negative: a signal), and
+    # whether it got as far as its own last event. A session with no result is
+    # one that was cut, not one that failed — what `killed` tells apart.
+    code: int = 0
+    resulted: bool = True
+    timed_out: bool = False
+    # Why it is believed to have been killed from outside, once the runner has
+    # looked and given it its one more try: empty for every other ending.
+    killed: str = ""
 
     @property
     def resume_command(self) -> str:
@@ -103,6 +112,18 @@ def lost(outcome: "Outcome") -> bool:
     costs a second full session and loses whatever the first one had to say.
     """
     return bool(_LOST.search(outcome.error or ""))
+
+
+def signalled(outcome: "Outcome") -> bool:
+    """Was the session ended by a signal nobody on our side sent?
+
+    SIGKILL is 137 once a shell has relayed it and -9 straight from the
+    process; SIGTERM is 143 and -15. Not the watchdog's, not the console's
+    Stop: those return before anybody asks.
+    """
+    if outcome.ok or outcome.blocked or outcome.stopped or outcome.timed_out:
+        return False
+    return outcome.code < 0 or outcome.code in (137, 143)
 
 
 def new_id() -> str:
@@ -270,6 +291,8 @@ def run(
             error="stopped",
             seconds=seconds,
             stopped=True,
+            code=process.returncode,
+            resulted=False,
         )
     if timed_out.is_set():
         return Outcome(
@@ -281,6 +304,9 @@ def run(
             answer="",
             error=f"session killed after {timeout_minutes} min",
             seconds=seconds,
+            code=process.returncode,
+            resulted=bool(final),
+            timed_out=True,
         )
 
     answer = str(final.get("result") or "\n".join(texts)).strip()
@@ -315,6 +341,8 @@ def run(
         caveats=caveats(answer) if not failed and not blocked else [],
         resets_at=resets_at,
         over_budget=over_budget,
+        code=process.returncode,
+        resulted=bool(final),
     )
 
 

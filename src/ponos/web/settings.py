@@ -580,6 +580,20 @@ SECTIONS: tuple[Section, ...] = (
                 minimum=1,
                 unit="minutes",
             ),
+            Field(
+                "runner", "min_free_memory_mb", "int", "Memory to keep free",
+                "No session is started while less memory than this is available; the ticket "
+                "waits in Ready. 0 turns the guard off.",
+                minimum=0,
+                unit="MB",
+            ),
+            Field(
+                "runner", "relaunch_delay_seconds", "int", "Wait before resuming a killed session",
+                "A session killed from outside is resumed once after this delay, if the network "
+                "answers.",
+                minimum=0,
+                unit="seconds",
+            ),
         ),
     ),
     Section(

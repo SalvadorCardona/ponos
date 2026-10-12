@@ -88,6 +88,16 @@ class StoreError(Exception):
     """
 
 
+class Unreachable(StoreError):
+    """The board could not be reached at all: no DNS answer, no connection.
+
+    Told apart from a refusal because the two ask for opposite things. A 4xx is
+    about the request and a ticket that meets it has a reason to be failed; a
+    network that is down is about the machine, and the ticket has done nothing
+    wrong — the pass stops quietly, and the next one picks up where it was.
+    """
+
+
 @dataclass
 class Comment:
     """One comment, and what it takes to answer it where it was written.

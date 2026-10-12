@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
-from . import db, journal, kinds, legacy, models, store, voice
+from . import db, journal, kinds, legacy, models, resources, store, voice
 from . import project_settings, provision
 from . import provider as provider_module
 from . import schedules as schedules_module
@@ -100,6 +100,12 @@ def command_run(args: argparse.Namespace) -> int:
             results = runner.tick(limit=args.limit, reference=args.ticket or "")
     except state.Busy as error:
         print(f"{DIM}{error}{RESET}")
+        return 0
+    except store.Unreachable as error:
+        # A network that is down is not a failed run: the timer would otherwise
+        # report the service as failing every few seconds until it came back,
+        # and the next pass is the one that finds it back.
+        print(f"{DIM}offline — nothing is run until the network is back ({error}){RESET}")
         return 0
     except store.StoreError as error:
         print(f"{RED}the board:{RESET} {error}", file=sys.stderr)
@@ -1047,6 +1053,20 @@ def command_doctor(args: argparse.Namespace) -> int:
     last = cleanup.tidied_at()
     if last:
         print(f"  {DIM}last tidied {datetime.fromtimestamp(last):%Y-%m-%d %H:%M}{RESET}")
+
+    title("Memory")
+    free, minimum = resources.available_mb(), configuration.runner.min_free_memory_mb
+    if free is None:
+        print(f"  {DIM}/proc/meminfo is unreadable here — the memory guard cannot tell{RESET}")
+    elif minimum <= 0:
+        print(f"  {DIM}runner.min_free_memory_mb = 0 — no memory guard; {free} MB available{RESET}")
+    elif free < minimum:
+        warn(
+            f"{free} MB available, under runner.min_free_memory_mb ({minimum} MB) — "
+            f"no session is started until it is back"
+        )
+    else:
+        ok(f"{free} MB available (a session starts above {minimum} MB)")
 
     title("Local database")
     problems += _doctor_database()

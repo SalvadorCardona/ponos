@@ -220,14 +220,14 @@ class Runner(
                 # accepted than beginning work nobody has read yet. `--limit`
                 # does not count them — it caps what is taken off the ready
                 # column, and this was taken off another one.
-                while publishing and not stalled and len(flight) < width:
+                while publishing and not stalled and len(flight) < width and self.room_for_a_session():
                     ticket, project = publishing.pop(0)
                     flight.add(pool.submit(self._guarded, ticket, self._carry_out, ticket, project))
                 while (
                     queued
                     and not stalled
                     and len(flight) < width
-                    and (remaining is None or remaining > 0)
+                    and (remaining is None or remaining > 0) and self.room_for_a_session()
                 ):
                     ticket = queued.pop(0)
                     if ticket.id in hand:
