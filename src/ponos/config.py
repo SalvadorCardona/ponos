@@ -214,6 +214,10 @@ class Runner:
     workspace_root: Path = Path.home() / "workspace"
     interval_seconds: int = 1800
     max_concurrent: int = 2
+    # How many of those places one project may hold: pull requests of one
+    # repository written side by side touch the same files, and each one that
+    # lands makes the others conflict. See runner.py.
+    max_concurrent_per_project: int = 2
     timeout_minutes: int = 30
     # A session killed from outside (SIGKILL, SIGTERM) is carried on once, after
     # this many seconds and only if the network answers. See resources.py.
@@ -1280,6 +1284,10 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         # only spin: one second is the floor that means anything here.
         interval_seconds=max(1, int(runner_raw.get("interval_seconds", defaults.interval_seconds))),
         max_concurrent=max(1, int(runner_raw.get("max_concurrent", defaults.max_concurrent))),
+        max_concurrent_per_project=max(
+            1,
+            int(runner_raw.get("max_concurrent_per_project", defaults.max_concurrent_per_project)),
+        ),
         timeout_minutes=max(1, int(runner_raw.get("timeout_minutes", defaults.timeout_minutes))),
         relaunch_delay_seconds=max(
             0, int(runner_raw.get("relaunch_delay_seconds", defaults.relaunch_delay_seconds))

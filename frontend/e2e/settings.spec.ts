@@ -80,7 +80,7 @@ test("a search opens the right page and unfolds what hid the field", async ({ pa
 test("the keys are hidden until asked for", async ({ page }) => {
   await open(page, "/?view=console/settings/read/config/execution")
   await settingsPage(page)
-  const key = page.locator("code", { hasText: "runner.max_concurrent" })
+  const key = page.locator("code").getByText("runner.max_concurrent", { exact: true })
   await expect(key).toHaveCount(0)
   await page.getByText("Show keys").click()
   await expect(key).toBeVisible()

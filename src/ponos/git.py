@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -316,7 +317,12 @@ def identity(worktree: Path | str) -> dict[str, str]:
     }
 
 
-def rebase(worktree: Path, onto: str) -> str:
+# What carries a stopped rebase as far as it can: given the worktree and the ref
+# it is replayed onto, it says why it failed, or nothing. See generated.py.
+Settle = Callable[[Path, str], str]
+
+
+def rebase(worktree: Path, onto: str, settle: Settle | None = None) -> str:
     """Replay the branch on top of `onto`. Says why it could not, or nothing.
 
     `--autostash` because a worktree kept from a failed session usually holds
@@ -329,10 +335,19 @@ def rebase(worktree: Path, onto: str) -> str:
     resolving somebody else's merge instead of doing the ticket. The branch goes
     back to what it was, the session runs on it, and the conflict is a line in
     the ticket's comment.
+
+    `settle` is offered the rebase where it stops on a conflict, before it is
+    given up on: what it settles by itself (see generated.py) is not a conflict
+    worth abandoning the replay for. If it carries the rebase to its end, that
+    is a replay like any other.
     """
     result = git(["rebase", "--autostash", onto], worktree, environment=identity(worktree))
     if result.ok:
         return ""
+    if settle and conflicted(worktree):
+        failure = settle(worktree, onto)
+        if not rebasing(worktree):
+            return failure
     # Read off the index rather than off what git printed: git speaks the
     # machine's language, and a `CONFLIT` is as much a conflict as a `CONFLICT`.
     unmerged = conflicted(worktree)
@@ -756,7 +771,12 @@ def pull_request_branches(url: str, accounts: Accounts | None = None) -> tuple[s
 
 
 def replay_pushed(
-    repo: Path, branch: str, onto: str, workdir: Path, accounts: Accounts | None = None
+    repo: Path,
+    branch: str,
+    onto: str,
+    workdir: Path,
+    accounts: Accounts | None = None,
+    settle: Settle | None = None,
 ) -> str:
     """Replay a branch that is already on GitHub onto its base, and push it again.
 
@@ -784,7 +804,7 @@ def replay_pushed(
     if not added.ok:
         return f"git worktree add: {added.err or added.out}"
     try:
-        if failure := rebase(workdir, f"origin/{onto}"):
+        if failure := rebase(workdir, f"origin/{onto}", settle):
             return failure
         return push_leased(workdir, branch, was, accounts)
     finally:
@@ -879,7 +899,9 @@ class Replay:
 DIFF_LIMIT = 40_000
 
 
-def begin_replay(repo: Path, branch: str, onto: str, workdir: Path) -> Replay:
+def begin_replay(
+    repo: Path, branch: str, onto: str, workdir: Path, settle: Settle | None = None
+) -> Replay:
     """Start replaying a pushed branch onto its base, and stop where git stops.
 
     `replay_pushed`, without the abort: the same detached worktree on the
@@ -887,6 +909,10 @@ def begin_replay(repo: Path, branch: str, onto: str, workdir: Path) -> Replay:
     that hits a conflict is left in progress, because resolving it is the whole
     point. What the resolution needs to know comes with it: which commits
     landed on the base since the branch left it, and what the branch changes.
+
+    What `settle` can settle is settled first, so that the files it listed are
+    off the list the session is given — and a replay it carries to its end has
+    no conflict left, and no session to pay for.
     """
     fetch(repo)
     replay = Replay(workdir=workdir)
@@ -909,6 +935,11 @@ def begin_replay(repo: Path, branch: str, onto: str, workdir: Path) -> Replay:
         replay.error = f"git worktree add: {added.err or added.out}"
         return replay
     result = git(["rebase", f"origin/{onto}"], workdir, environment=identity(workdir))
+    if not result.ok and settle and conflicted(workdir):
+        failure = settle(workdir, f"origin/{onto}")
+        if not rebasing(workdir):
+            replay.error = failure
+            return replay
     replay.conflicts = conflicted(workdir)
     if not result.ok and not replay.conflicts:
         git(["rebase", "--abort"], workdir)

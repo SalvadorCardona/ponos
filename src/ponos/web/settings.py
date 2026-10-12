@@ -576,6 +576,13 @@ SECTIONS: tuple[Section, ...] = (
                 minimum=1,
             ),
             Field(
+                "runner", "max_concurrent_per_project", "int", "Tickets in parallel per project",
+                "How many of those sessions may work on the same project at once. Pull requests "
+                "written side by side on one repository touch the same files and conflict when "
+                "the first one lands: 2 keeps that rare.",
+                minimum=1,
+            ),
+            Field(
                 "runner", "timeout_minutes", "int", "Time limit per ticket",
                 "Past it, the session is stopped and the ticket fails, with the reason.",
                 minimum=1,

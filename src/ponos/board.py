@@ -23,7 +23,7 @@ import time
 from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
 
-from . import conversation, git, state, store
+from . import conversation, git, kinds, state, store
 from . import voice as voice_module
 from .base import Base
 from .config import PRIORITIES
@@ -59,16 +59,24 @@ class InHand:
     def __init__(self, settle: float | None = None) -> None:
         self.settle = SETTLE if settle is None else settle
         self._working: set[str] = set()
+        self._projects: dict[str, str] = {}
         self._left: dict[str, float] = {}
         self._futures: dict[Future, str] = {}
 
-    def take(self, ticket_id: str) -> None:
+    def take(self, ticket_id: str, project: str = "") -> None:
+        """`project` is the repository it works in, if any: see `holding`."""
         self._working.add(ticket_id)
+        self._projects[ticket_id] = project
         self._left.pop(ticket_id, None)
+
+    def holding(self, project: str) -> int:
+        """How many sessions of this pass are working in that project's repository."""
+        return sum(1 for name in self._projects.values() if name == project)
 
     def leave(self, ticket_id: str) -> None:
         """The pass is done with it: whatever it wrote on the board stands."""
         self._working.discard(ticket_id)
+        self._projects.pop(ticket_id, None)
         self._left[ticket_id] = time.monotonic()
 
     def carry(self, future: Future, ticket_id: str) -> Future:
@@ -602,6 +610,45 @@ class Board(Base):
             self.say(f"  ↺ {len(fresh)} ticket(s) ready since — filling the free place(s).")
         return fresh
 
+    def in_repository(self, ticket: Ticket) -> str:
+        """The project whose repository this ticket's session works in, or "".
+
+        Where the pull requests it opens come from, which is what
+        `max_concurrent_per_project` counts: a text or an external action
+        touches no file of it, whatever project it is written for.
+        """
+        project = kinds.worked_in(self._project_of(ticket), self.kind(ticket))
+        return project.name if project.is_code else ""
+
+    def pick(self, queued: list[Ticket], hand: InHand) -> Ticket | None:
+        """Take the first queued ticket whose project has a place left, and put it in hand.
+
+        `max_concurrent_per_project` is why it is not always the first of the
+        queue: pull requests of one repository written side by side touch the
+        same files, so a project already at its number waits, and the ticket
+        behind it — another project's — goes first. The tickets passed over stay
+        queued, and say why on the board. A ticket a session of this pass is
+        already on is dropped from the queue, as it always was.
+        """
+        limit = max(1, self.config.runner.max_concurrent_per_project)
+        index = 0
+        while index < len(queued):
+            ticket = queued[index]
+            if ticket.id in hand:
+                queued.pop(index)
+                continue
+            name = self.in_repository(ticket)
+            if name and hand.holding(name) >= limit:
+                self._holding.setdefault(ticket.id, (ticket, "project"))
+                index += 1
+                continue
+            queued.pop(index)
+            if self._holding.get(ticket.id, (None, ""))[1] == "project":
+                del self._holding[ticket.id]
+            hand.take(ticket.id, name)
+            return ticket
+        return None
+
     def explain(
         self, queued: list[Ticket], width: int, *, limited: bool = False, done: bool = False
     ) -> None:
@@ -622,6 +669,7 @@ class Board(Base):
             self._holding = {}
         reasons = dict(self._holding)
         crowded = "limit" if limited else "places"
+        limit = max(1, self.config.runner.max_concurrent_per_project)
         for ticket in queued:
             reasons.setdefault(ticket.id, (ticket, crowded))
         if {key: why for key, (_, why) in reasons.items()} == self._explained and not done:
@@ -629,7 +677,7 @@ class Board(Base):
         if not self.dry_run:
             state.hold(
                 {
-                    key: (why, str(width) if why == "places" else "")
+                    key: (why, {"places": str(width), "project": str(limit)}.get(why, ""))
                     for key, (_, why) in reasons.items()
                 }
             )
@@ -640,6 +688,7 @@ class Board(Base):
                 "running": "a session of this pass is still on it — run again once it ends",
                 "places": f"all {width} place(s) taken — it starts at the next free one",
                 "limit": "--limit reached for this pass",
+                "project": f"its project already holds {limit} place(s) — it starts when one frees",
             }[why]
             self.say(f"  … {ticket.title} — waiting: {said}")
         self._explained = {key: why for key, (_, why) in reasons.items()}

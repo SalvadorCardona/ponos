@@ -4449,6 +4449,7 @@ def _board_runner(
     runner._ledger_lock = threading.Lock()
     runner._landed, runner._replayed_after = {}, {}
     runner._landed_lock = threading.Lock()
+    runner._queues = {}
     runner._ledger = conversation.Ledger(
         database=Path(tempfile.mkdtemp()) / "ponos.db"
     )
@@ -5501,6 +5502,85 @@ def a_place_freed_mid_pass_is_filled_without_waiting_for_the_long_session():
     assert len(started) == 3, "and the pass ended only once the column was empty"
     assert results[0]["id"] == "p-short", "recorded as it ended, not as it was queued"
     assert sorted(result["id"] for result in results) == ["p-long", "p-short", "p-third"]
+
+
+@case
+def a_project_never_holds_more_places_than_max_concurrent_per_project():
+    """Four tickets, three places: two of one project, then another's goes first.
+
+    The third ticket of project A waits for a place of its own project although
+    one is free, and the ticket behind it — project B's — is taken instead. It
+    starts once a ticket of A has ended, and all four run.
+    """
+    guard = threading.Lock()
+    inside: dict[str, int] = {}
+    peak: dict[str, int] = {}
+    order: list[str] = []
+    projects_of = {"p-a1": "A", "p-a2": "A", "p-a3": "A", "p-b1": "B"}
+
+    with _state_home():
+        runner = _board_runner([_ready(name) for name in projects_of], {})
+        runner.config.runner.max_concurrent = 3
+        runner.config.runner.max_concurrent_per_project = 2
+        runner.in_repository = lambda ticket: projects_of[ticket.page.id]
+
+        def prepare(ticket):
+            return ticket_module.Job(
+                ticket,
+                projects.Project(name="", path=None),
+                branch="",
+                base="",
+                workdir=Path(tempfile.mkdtemp()) / "doc",
+            )
+
+        def execute(job):
+            name = job.ticket.page.id
+            project = projects_of[name]
+            with guard:
+                order.append(name)
+                inside[project] = inside.get(project, 0) + 1
+                peak[project] = max(peak.get(project, 0), inside[project])
+            time.sleep(0.3)
+            with guard:
+                inside[project] -= 1
+            return {"ticket": name, "id": name, "status": "done"}
+
+        runner.prepare, runner.execute = prepare, execute
+        results = runner._work(runner.queue()[0], None, refill=True)
+
+    assert peak == {"A": 2, "B": 1}, peak
+    assert sorted(result["id"] for result in results) == sorted(projects_of), results
+    assert order.index("p-b1") < order.index("p-a3"), order
+
+
+@case
+def generated_files_are_declared_in_a_toml_file_and_read_as_globs():
+    """`**` crosses folders, `*` does not, and a file that says nothing usable says nothing."""
+    from ponos import generated
+
+    rules = generated.parse(
+        'generated = ["src/ponos/web/static/**", "*.lock", "docs/**/*.html"]\n'
+        'build = " cd frontend && npm run build "\n'
+    )
+    assert rules.build == "cd frontend && npm run build"
+    assert rules.covers("src/ponos/web/static/assets/console-1.js")
+    assert rules.covers("src/ponos/web/static/index.html")
+    assert rules.covers("uv.lock") and not rules.covers("sub/uv.lock")
+    assert rules.covers("docs/a/b/c.html") and rules.covers("docs/c.html")
+    assert not rules.covers("src/ponos/web/console.py")
+    for broken in ("", "generated = [", 'generated = "dist/**"\nbuild = 3\n'):
+        assert generated.parse(broken) == generated.Rules(), broken
+
+
+@case
+def max_concurrent_per_project_defaults_to_two_and_is_never_below_one():
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "config.toml"
+        assert C.Runner().max_concurrent_per_project == 2
+        path.write_text("[runner]\nmax_concurrent_per_project = 0\n", encoding="utf-8")
+        assert C.load(path).runner.max_concurrent_per_project == 1
+        path.write_text("[runner]\nmax_concurrent_per_project = 3\n", encoding="utf-8")
+        assert C.load(path).runner.max_concurrent_per_project == 3
 
 
 @case
@@ -11229,7 +11309,7 @@ def a_merge_refused_for_being_behind_is_replayed_and_asked_again():
             raise git_module.GitError("gh pr merge: Pull request is not mergeable")
         return "merged"
 
-    def replay(repo, branch, onto, workdir, accounts=None) -> str:
+    def replay(repo, branch, onto, workdir, accounts=None, settle=None) -> str:
         replayed.append((repo, branch, onto))
         return ""
 

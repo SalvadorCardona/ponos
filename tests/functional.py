@@ -690,7 +690,17 @@ if (here / ".git").exists():
         {"type": "tool_use", "name": "Bash", "input": {"command": "git commit -m 'Écrit par la fausse session'"}},
     ]}})
     (here / "FAKE.md").write_text("the session was here\\n", encoding="utf-8")
-    subprocess.run(["git", "add", "FAKE.md"], cwd=here, check=True, capture_output=True)
+    # More files in the same commit, for a test that needs a branch touching a
+    # bundle and a changelog: `FAKE_CLAUDE_ALSO` maps a sentence of the ticket
+    # to the files, path to text, that the session of that ticket writes.
+    also = {}
+    for needle, files in json.loads(os.environ.get("FAKE_CLAUDE_ALSO") or "{}").items():
+        if needle in prompt:
+            also.update(files)
+    for name, text in also.items():
+        (here / name).parent.mkdir(parents=True, exist_ok=True)
+        (here / name).write_text(text, encoding="utf-8")
+    subprocess.run(["git", "add", "FAKE.md", *also], cwd=here, check=True, capture_output=True)
     subprocess.run(["git", "-c", "user.name=Fake Claude", "-c", "user.email=fake@example.invalid",
                     "-c", "commit.gpgsign=false", "commit", "-m", "Écrit par la fausse session"],
                    cwd=here, check=True, capture_output=True)
@@ -2075,6 +2085,174 @@ def a_project_left_out_of_resolution_blocks_on_its_conflict_as_before():
         assert results and results[0]["status"] == "blocked", results
         assert not machine.sessions(), machine.sessions()
         assert not machine.merges()
+
+
+def _with_a_bundle(machine: "Bench", name: str) -> Path:
+    """A repository that declares a generated bundle, and keeps a changelog.
+
+    `dist/bundle.js` is what `build` writes from `parts/*.txt`, as a frontend
+    build writes its assets from its sources: it is never edited by hand, and
+    two branches that each add a part disagree about it on every merge.
+    """
+    repository = machine.repository(name)
+    seeded = {
+        ".ponos.toml": 'generated = ["dist/**"]\nbuild = "mkdir -p dist && cat parts/*.txt > dist/bundle.js"\n',
+        "CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n",
+        "parts/0.txt": "zéro\n",
+        "dist/bundle.js": "zéro\n",
+    }
+    _write(repository, seeded, "bundle et changelog")
+    return repository
+
+
+def _write(repository: Path, files: dict[str, str], message: str) -> None:
+    """Files committed on `main` and pushed: another ticket, merged."""
+    for name, text in files.items():
+        (repository / name).parent.mkdir(parents=True, exist_ok=True)
+        (repository / name).write_text(text, encoding="utf-8")
+    _git(["add", *files], repository)
+    _git(["commit", "-m", message], repository)
+    _git(["push", "origin", "main"], repository)
+
+
+def _adds(*parts: str) -> dict[str, str]:
+    """The environment that has the session of each "Ajoute la partie X." write its part."""
+    return {
+        "FAKE_CLAUDE_ALSO": json.dumps({f"la partie {part}.": _adding(part) for part in parts})
+    }
+
+
+def _adding(part: str) -> dict[str, str]:
+    """What a ticket that adds one part writes: the part, the bundle, a changelog line."""
+    return {
+        f"parts/{part}.txt": f"{part}\n",
+        "dist/bundle.js": f"zéro\n{part}\n",
+        "CHANGELOG.md": f"# Changelog\n\n## Unreleased\n\n- {part}\n",
+    }
+
+
+@case
+def branches_differing_only_in_generated_files_and_the_changelog_merge_without_a_session():
+    """The conflicts a busy repository makes every day, settled where git stops.
+
+    Two branches add a part each: they disagree about the bundle the build
+    writes and about the line of the changelog. Nothing in that is a decision —
+    the bundle is built again, the changelog keeps both lines — so no session
+    is started, and what lands on `main` is the build of both parts.
+    """
+    with bench() as machine:
+        repository = _with_a_bundle(machine, "site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Ajouter a", "Ajoute la partie a.", project)
+
+        with _environ(_adds("a")):
+            machine.run()
+        assert machine.status(ticket) == "In review", machine.status(ticket)
+
+        _write(repository, _adding("b"), "Un autre ticket — b")
+        machine.move(ticket, "Validated")
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        assert not machine.sessions(), "a session was started for a conflict nobody had to decide"
+        assert machine.content(repository, "main", "dist/bundle.js") == "zéro\na\nb\n"
+        changelog = machine.content(repository, "main", "CHANGELOG.md")
+        assert "- a" in changelog and "- b" in changelog, changelog
+        assert changelog.index("- b") < changelog.index("- a"), "the base's entries come first"
+        assert "<<<<<<<" not in changelog
+        assert not machine.worktrees(repository), machine.worktrees(repository)
+
+
+@case
+def three_validated_pull_requests_on_one_repository_merge_one_after_the_other():
+    """The base moves under every one of them, and none is blocked for it.
+
+    Each of the three adds a part, a line of the changelog and the bundle that
+    follows from them; each merge makes the others conflict on both. They are
+    merged in a line, each replayed on the base the one before left, with no
+    session and no ticket blocked on “keeps moving faster”.
+    """
+    with bench(max_concurrent=1) as machine:
+        repository = _with_a_bundle(machine, "site")
+        project = machine.project("Site", repository)
+        tickets = [
+            machine.ticket(f"Ajouter {part}", f"Ajoute la partie {part}.", project)
+            for part in "abc"
+        ]
+        with _environ(_adds("a", "b", "c")):
+            machine.run()
+        assert [machine.status(ticket) for ticket in tickets] == ["In review"] * 3
+        for ticket in tickets:
+            machine.move(ticket, "Validated")
+
+        results = machine.run()
+
+        assert [one["status"] for one in results] == ["done"] * 3, results
+        assert [machine.status(ticket) for ticket in tickets] == ["Done"] * 3
+        assert len(machine.merges()) == 3, machine.merges()
+        assert not machine.sessions(), machine.sessions()
+        assert machine.content(repository, "main", "dist/bundle.js") == "zéro\na\nb\nc\n"
+        changelog = machine.content(repository, "main", "CHANGELOG.md")
+        assert all(f"- {part}" in changelog for part in "abc"), changelog
+        for ticket in tickets:
+            assert "moves faster" not in " ".join(machine.board.said(ticket)), ticket
+
+
+@case
+def a_conflict_in_code_is_resolved_by_a_session_that_is_not_told_about_generated_files():
+    """Settled files are off the list, and the bundle is built again after the session.
+
+    The branch and the base both rewrite `FAKE.md` — a decision a session keeps
+    both sides of — and both add a part. The session is told about `FAKE.md`
+    only; once it is done the bundle is built from both parts.
+    """
+    with bench() as machine:
+        repository = _with_a_bundle(machine, "site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Ajouter a", "Ajoute la partie a.", project)
+
+        with _environ(_adds("a")):
+            machine.run()
+        _write(
+            repository,
+            {**_adding("b"), "FAKE.md": "ce que l'autre ticket a écrit\n"},
+            "Un autre ticket — b",
+        )
+        machine.move(ticket, "Validated")
+        results = machine.run()
+
+        assert results and results[0]["status"] == "done", results
+        resolving = [one for one in machine.sessions() if "resolving that conflict" in one["prompt"]]
+        assert len(resolving) == 1, machine.sessions()
+        assert "- `FAKE.md`" in resolving[0]["prompt"]
+        assert "- `dist/bundle.js`" not in resolving[0]["prompt"]
+        assert "- `CHANGELOG.md`" not in resolving[0]["prompt"]
+        assert machine.content(repository, "main", "dist/bundle.js") == "zéro\na\nb\n"
+
+
+@case
+def a_failing_build_stops_the_replay_and_nothing_is_pushed():
+    """Bundles that do not match their sources are worse than a blocked ticket."""
+    with bench() as machine:
+        repository = _with_a_bundle(machine, "site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("Ajouter a", "Ajoute la partie a.", project)
+
+        with _environ(_adds("a")):
+            first = machine.run()
+        branch = first[0]["branch"]
+        pushed = machine.content(repository, branch, "dist/bundle.js")
+        broken = {
+            ".ponos.toml": 'generated = ["dist/**"]\nbuild = "exit 3"\n',
+            **_adding("b"),
+        }
+        _write(repository, broken, "Un autre ticket — b, et un build cassé")
+        machine.move(ticket, "Validated")
+        results = machine.run()
+
+        assert results and results[0]["status"] == "blocked", results
+        assert not machine.merges()
+        assert machine.content(repository, branch, "dist/bundle.js") == pushed, "the branch moved"
 
 
 @case
