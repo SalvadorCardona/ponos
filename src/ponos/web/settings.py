@@ -632,7 +632,8 @@ SECTIONS: tuple[Section, ...] = (
                   "from what its project holds."),
             Field("runner", "classify_confidence", "choice", "Least confidence to act on a guess",
                   "Below it, the ticket is blocked and asks you for its type. A doubt "
-                  "involving Publication or External action always blocks.",
+                  "between Code and another type takes the other one; any other doubt "
+                  "involving Publication or External action blocks.",
                   choices=CONFIDENCES,
                   options=(("low", "Low"), ("medium", "Medium"), ("high", "High"))),
         ),

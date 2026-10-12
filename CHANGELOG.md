@@ -78,6 +78,23 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   `unknown`), and written into a new **`Blocage`** select of the Notion board — run
   `ponos init` to add it; `ponos doctor` says when it is missing.
 
+### Fixed
+
+- **A ticket whose work was not a commit is no longer blocked for want of one.** An audit, a
+  check, a deployment or a setting in production is classified as *Writing* or *External
+  action*, and a classification that hesitates between *Code* and another type takes the other
+  one instead of asking — and says so in its comment. A code ticket that committed nothing,
+  changed nothing, and reports work done outside the repository (Dokploy, DNS, Notion…) is
+  *Done* with its report in the page; one that changed code without committing it is still
+  blocked.
+- **A session that stops without its report is asked for it before the ticket is blocked.** No
+  `ANSWER.md`, or on a code ticket no commit and no `RESULT` line: the same conversation is
+  picked back up once, told to write the account of what it did and nothing more. A ticket is
+  never picked up this way twice.
+- **A question answered is no longer a reason to block again.** A session that answers what you
+  asked in a comment and has finished is told to end `RESULT: ok`; one that says `blocked`
+  without asking anything, its deliverable written, goes to review.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added

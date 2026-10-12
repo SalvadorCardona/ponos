@@ -1206,8 +1206,8 @@ export const FRENCH: Record<string, string> = {
   "A short session reads the ticket, writes the type in its column and the reason in a comment. Off: a ticket without a type is worked as before, from what its project holds.":
     "Une courte session lit le ticket, écrit le type dans sa colonne et la raison en commentaire. Désactivé : un ticket sans type est traité comme avant, d'après ce que contient son projet.",
   "Least confidence to act on a guess": "Confiance minimale pour suivre la déduction",
-  "Below it, the ticket is blocked and asks you for its type. A doubt involving Publication or External action always blocks.":
-    "En dessous, le ticket est bloqué et vous demande son type. Un doute qui touche Publication ou Action externe bloque toujours.",
+  "Below it, the ticket is blocked and asks you for its type. A doubt between Code and another type takes the other one; any other doubt involving Publication or External action blocks.":
+    "En dessous, le ticket est bloqué et vous demande son type. Un doute entre Code et un autre type prend l'autre ; tout autre doute qui touche Publication ou Action externe bloque.",
   Low: "Faible",
   Medium: "Moyenne",
   High: "Élevée",

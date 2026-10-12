@@ -33,6 +33,15 @@ a harmless type and one of the two that act on the world, blocks the ticket
 with the question — and the type is left empty, for you to choose, rather than
 written on the page as though somebody had chosen it. When the session itself
 has to choose, it is told to take the more careful of the two; see `PRUDENCE`.
+
+One doubt is the exception, and it is settled rather than asked: **between
+code and anything else, the ticket is not code.** An audit, a check, a
+deployment or a setting changed in production reads like code because it is
+about code, and run as code it comes back blocked for want of a commit nobody
+asked for — the most frequent way a finished ticket used to end up waiting for
+somebody. The other type has a deliverable that is the report itself, so it is
+taken, and the comment that says which type the ticket was run as says that it
+was a choice between two; see `settle`.
 """
 
 from __future__ import annotations
@@ -55,7 +64,7 @@ PRUDENCE = ("writing", "code", "external", "publication")
 RISKY = ("external", "publication")
 
 # Neither of these three is worked in a repository, whatever the project holds:
-# what they produce does not go into one.
+# what they produce does not go into one — nor does it ever ask for a commit.
 WITHOUT_REPOSITORY = ("writing", "external", "publication")
 
 # One JSON object. A session still thinking about it after two minutes is a
@@ -71,17 +80,25 @@ The four types are told apart by how the work is carried out, not by its \
 subject:
 
 - "code": the deliverable is a change in a code repository — a branch and a \
-pull request. Documentation that lives in the repository is code too.
+pull request. Documentation that lives in the repository is code too. Only a \
+ticket that asks for files of the repository to change is code.
 - "writing": there is no repository to change; the deliverable is a text \
-written back into the ticket — an answer, a draft, a piece of research.
+written back into the ticket — an answer, a draft, a piece of research. An \
+audit, a review, a check or a verification is writing, even of a codebase, \
+when what it asks for is a report and not a fix — "do not code" says so.
 - "external": the work is done outside, by acting on something: in a browser, \
-in a DNS zone, in the settings of a third-party service. No repository.
+in a DNS zone, in the settings of a third-party service, in a hosting \
+dashboard, in the board itself. No repository. Deploying or redeploying, \
+setting an environment variable or a setting in production, pointing a \
+domain, creating tickets out of an audit: external.
 - "publication": something goes out in public and cannot be taken back — a \
-post on a social network, a deployment, an email or a message sent.
+post on a social network, an email or a message sent to people.
 
 When two types fit, choose the more careful one: publication before external, \
-external before code, code before writing. A ticket that asks to draft a post \
-AND to publish it is a publication; one that only asks for the draft is writing.
+external before writing. A ticket that asks to draft a post AND to publish it \
+is a publication; one that only asks for the draft is writing. Between code and \
+another type, choose the other one: a ticket is code only when its deliverable \
+is a commit.
 
 {repository}
 
@@ -107,6 +124,8 @@ class Guess:
     reason: str = ""
     confidence: str = ""
     alternative: str = ""
+    # The type it was not run as, when `settle` chose between code and another.
+    settled: str = ""
 
 
 def prompt(
@@ -181,12 +200,31 @@ def doubt(guess: Guess, least: str = "medium") -> str:
     """
     if guess.kind not in KINDS:
         return "unknown"
+    if guess.settled:
+        return ""
     floor = least if least in CONFIDENCES else "medium"
     if CONFIDENCES.index(guess.confidence) < CONFIDENCES.index(floor):
         return "unsure"
     if guess.alternative and (guess.kind in RISKY or guess.alternative in RISKY):
         return "hesitant"
     return ""
+
+
+def settle(guess: Guess) -> Guess:
+    """The guess, with a doubt between code and another type settled for the other.
+
+    Not a question, and not the more careful type either: the type that does
+    not ask for a commit — see the module's docstring. Whatever the confidence,
+    since “not sure, perhaps code” is the same doubt said less firmly. A guess
+    that is not between code and one of the others comes back as it was.
+    """
+    between = {guess.kind, guess.alternative}
+    if "code" not in between:
+        return guess
+    other = next((kind for kind in (guess.kind, guess.alternative) if kind in WITHOUT_REPOSITORY), "")
+    if not other:
+        return guess
+    return replace(guess, kind=other, alternative="", settled="code")
 
 
 def prudent(*kinds: str) -> str:

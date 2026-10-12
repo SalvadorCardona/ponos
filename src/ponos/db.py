@@ -108,6 +108,11 @@ had that day; the migration reads the cause back from it (`blocks.classify`),
 and writes the code into the line's own JSON too, since that is what the
 statistics read. A sentence that matches nothing is `unknown` — counted, and
 said to be unclassified, rather than guessed.
+
+Migration 19 is the tickets whose session was picked up once more, only to
+write the report it stopped without — see `Execution._write_up`. Once a ticket,
+ever: a session that does not write it when asked is not asked again, on this
+run or on the next one, and the table is what remembers that across a restart.
 """
 
 from __future__ import annotations
@@ -664,6 +669,12 @@ def _stops_have_a_cause(connection: sqlite3.Connection) -> None:
         )
 
 
+def _write_ups(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        "CREATE TABLE write_ups (ticket TEXT PRIMARY KEY, at TEXT NOT NULL DEFAULT '')"
+    )
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -690,6 +701,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _project_settings,
     _red_bases,
     _stops_have_a_cause,
+    _write_ups,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps
