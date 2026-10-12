@@ -36,6 +36,11 @@ from . import voice
 
 MODES = ("yes-no", "choice", "free")
 
+# What kind of thing a ticket stopped on, as the session names it. Said on the
+# comment, in front of why it stops, and what the console offers to do about it
+# depends on it — see decisions.py. `other` is what nothing else fits.
+CATEGORIES = ("question", "access", "manual", "credits", "ci", "conflict", "split", "other")
+
 # Two roads is a choice, five is a menu: past four, the session is asking you to
 # do its thinking.
 FEWEST = 2
@@ -43,7 +48,12 @@ MOST = 4
 
 # The fields a blocked session writes before its RESULT line. Uppercase like the
 # RESULT line itself, because a model reads them as the same kind of thing.
-_FIELD = re.compile(r"^(DONE|WHY|QUESTION|MODE|OPTION)\s*:\s*(.*)$", re.IGNORECASE)
+_FIELD = re.compile(r"^(DONE|WHY|CATEGORY|QUESTION|MODE|OPTION)\s*:\s*(.*)$", re.IGNORECASE)
+
+# What a session that ends ok hands over for whoever reviews it: one line per
+# thing it could not check. Read like the fields above, from the end.
+_CAVEAT = re.compile(r"^CAVEAT\s*:\s*(.*)$", re.IGNORECASE)
+CAVEATS = 4
 
 # How the options sit on their line: “1. Tu fusionnes · 2. Tu m'autorises”.
 _OPTION = re.compile(r"(\d)\.\s+(.+?)(?=\s+·\s+\d\.\s|$)")
@@ -80,6 +90,9 @@ class Question:
     options: list[str] = field(default_factory=list)
     done: str = ""
     why: str = ""
+    # One of CATEGORIES, or "" when the session did not say — the console then
+    # reads it off the words, as it does on a report older than the field.
+    category: str = ""
 
     def __post_init__(self) -> None:
         # A choice of one is a yes-no that does not know it, and a choice
@@ -91,6 +104,7 @@ class Question:
             self.mode = "free"
         if self.mode != "choice":
             self.options = []
+        self.category = self.category if self.category in CATEGORIES else ""
 
 
 @dataclass
@@ -156,7 +170,30 @@ def parse(answer: str) -> Question | None:
         options=options,
         done="" if found.get("DONE", "").lower() in ("nothing", "rien", "-") else found.get("DONE", ""),
         why=found.get("WHY", ""),
+        category=found.get("CATEGORY", "").lower().strip(" .`"),
     )
+
+
+def caveats(answer: str) -> list[str]:
+    """What a session that ended ok says it could not check, oldest first.
+
+    Only the lines just above the RESULT line, like the fields of a question:
+    a session explaining itself may well quote one earlier on. At most four —
+    past that, it is a report, and the report is in the page.
+    """
+    lines = [line.strip().strip("*_`").lstrip("-#> ").strip("*_` ") for line in str(answer or "").splitlines()]
+    lines = [line for line in lines if line]
+    if lines and lines[-1].upper().startswith("RESULT"):
+        lines.pop()
+    said: list[str] = []
+    for line in reversed(lines):
+        matched = _CAVEAT.match(line)
+        if not matched:
+            break
+        value = " ".join(matched.group(1).strip("*_` ").split())
+        if value:
+            said.insert(0, value)
+    return said[-CAVEATS:]
 
 
 def found(report: str) -> Question | None:

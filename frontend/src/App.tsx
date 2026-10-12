@@ -14,6 +14,7 @@ import {
 import { CommandPalette } from "@/components/console/command-palette"
 import { CONTEXT_ANCHOR } from "@/components/console/context-block"
 import { TalkDrawer } from "@/components/console/talk-drawer"
+import { DecisionPanel } from "@/components/console/decision-panel"
 import { useTicketWindow } from "@/components/console/ticket-window"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -136,6 +137,8 @@ function Console() {
       <TalkDrawer />
       {/* Ctrl+K, from every page: inside the router, which its links go through. */}
       <CommandPalette />
+      {/* Unblock and Decide, held once for every card that opens them. */}
+      <DecisionPanel />
     </>
   )
 }

@@ -650,7 +650,7 @@ if (here / ".git").exists():
     subprocess.run(["git", "-c", "user.name=Fake Claude", "-c", "user.email=fake@example.invalid",
                     "-c", "commit.gpgsign=false", "commit", "-m", "Écrit par la fausse session"],
                    cwd=here, check=True, capture_output=True)
-    said = "RESULT: ok — un fichier écrit et commité"
+    said = "CAVEAT: pas essayé sur mobile\\nRESULT: ok — un fichier écrit et commité"
 else:
     (here / "ANSWER.md").write_text("La réponse.", encoding="utf-8")
     said = "RESULT: ok — la réponse est dans ANSWER.md"
@@ -1155,6 +1155,9 @@ def a_code_ticket_comes_back_as_a_pull_request():
         said = machine.board.said(ticket)
         assert said, "the ticket came back without a word"
         assert opened[0]["url"] in said[-1], said[-1]
+        # What the session could not check rides on the report, for the console's
+        # Decide panel to read back — see decisions.py.
+        assert said[-1].splitlines()[3].endswith(": pas essayé sur mobile"), said[-1]
         assert not machine.worktrees(repository), "a worktree was left behind on a run that worked"
 
         # Every step in the local journal — with the live block off, too: it
@@ -1167,7 +1170,7 @@ def a_code_ticket_comes_back_as_a_pull_request():
         assert [(step["kind"], step["label"]) for step in steps] == [
             ("said", "J'écris FAKE.md puis je le commite."),
             ("tool", "Bash"),
-            ("said", "RESULT: ok — un fichier écrit et commité"),
+            ("said", "CAVEAT: pas essayé sur mobile\nRESULT: ok — un fichier écrit et commité"),
         ], steps
         assert "git commit" in steps[1]["detail"], steps[1]
         db.close()

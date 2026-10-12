@@ -86,7 +86,9 @@ revient en pull request ou en document. Ce serveur lit l'état de Ponos et écri
 peu : créer une tâche, répondre à une tâche bloquée, trier les idées.
 
 - Une tâche « vous attend » (statut blocked) quand une session s'est arrêtée sur \
-une question : lisez-la avec get_task, puis répondez avec answer_question.
+une question : lisez-la avec get_task, puis répondez avec answer_question — ou \
+lisez avec list_solutions ce qui la débloquerait, et appliquez-en une avec \
+apply_solution, qui sert aussi à décider d'une tâche en review.
 - Créez une tâche en « draft » sauf si la personne demande explicitement qu'elle \
 parte tout de suite : une tâche « ready » sera lancée par le runner à sa \
 prochaine passe, et coûtera une session.
@@ -296,6 +298,49 @@ TOOLS: list[dict] = [
         ),
     },
     {
+        "name": "list_solutions",
+        "title": "Solutions d'une tâche en attente",
+        "scope": READ,
+        "description": "Pour une tâche bloquée (« vous attend ») ou en review : pourquoi elle "
+        "attend (catégorie — question, accès manquant, action manuelle, crédits, CI, conflit, "
+        "découpage —, raison en une phrase, ce qui est déjà fait), ou ce qu'elle a livré (résumé, "
+        "pull request, état des checks, points à vérifier), et la liste des solutions proposées, "
+        "chacune avec sa clé, son numéro, la colonne où elle envoie la tâche et ce qu'elle "
+        "demande (texte, note, modèle, titres). À lire avant apply_solution.",
+        "inputSchema": _schema({"task": TASK_REFERENCE}, ("task",)),
+    },
+    {
+        "name": "apply_solution",
+        "title": "Appliquer une solution",
+        "scope": WRITE,
+        "description": "Applique une des solutions que list_solutions propose pour une tâche "
+        "bloquée ou en review : la décision et la consigne sont écrites dans sa discussion, que la "
+        "prochaine session lira, puis la tâche change de colonne (ready pour la relancer, "
+        "validated pour la valider, done pour l'abandonner ou la rejeter). Une tâche remise en "
+        "ready sera lancée par le runner à sa prochaine passe, et coûtera une session.",
+        "inputSchema": _schema(
+            {
+                "task": TASK_REFERENCE,
+                "solution": {"type": "string", "description": "La clé de la solution (key)."},
+                "number": {
+                    "type": "integer",
+                    "description": "Son numéro (number), pour une option ou un point à vérifier.",
+                },
+                "text": {
+                    "type": "string",
+                    "description": "La consigne, la réponse ou la note, quand la solution en demande une.",
+                },
+                "model": {"type": "string", "description": "Le modèle, pour relancer avec un autre."},
+                "titles": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Les titres des sous-tickets, pour un découpage.",
+                },
+            },
+            ("task", "solution"),
+        ),
+    },
+    {
         "name": "create_idea",
         "title": "Proposer une idée",
         "scope": WRITE,
@@ -497,6 +542,10 @@ def _arguments(tool: dict, arguments: dict) -> dict:
             raise ToolError(f"« {name} » vaut true ou false.")
         if kind == "integer" and (isinstance(value, bool) or not isinstance(value, int)):
             raise ToolError(f"« {name} » est un nombre entier.")
+        if kind == "array" and not (
+            isinstance(value, list) and all(isinstance(item, str) for item in value)
+        ):
+            raise ToolError(f"« {name} » est une liste de textes.")
         if "enum" in expected and value not in expected["enum"]:
             raise ToolError(f"« {name} » vaut l'une de ces valeurs : {', '.join(expected['enum'])}.")
         if kind == "integer":
@@ -816,6 +865,36 @@ def answer_question(api: "Api", task: str, answer: str, ready: bool = False) -> 
     return {"id": card["id"], "title": card["title"], "answered": True, "status": "ready" if moved else "blocked"}
 
 
+def list_solutions(api: "Api", task: str) -> dict:
+    card = _card(api, task)
+    if card["column"] not in ("blocked", "review"):
+        raise ToolError(
+            f"La tâche « {card['title']} » n'attend aucune décision (statut {card['column']}) : "
+            "seules une tâche bloquée et une tâche en review en proposent."
+        )
+    return {"title": card["title"], **api.decision(card["id"])}
+
+
+def apply_solution(
+    api: "Api",
+    task: str,
+    solution: str,
+    number: int = 0,
+    text: str = "",
+    model: str = "",
+    titles: list[str] | None = None,
+) -> dict:
+    card = _card(api, task)
+    if card["column"] not in ("blocked", "review"):
+        raise ToolError(
+            f"La tâche « {card['title']} » n'attend aucune décision (statut {card['column']})."
+        )
+    done = api.decide(
+        card["id"], solution, number=number, text=text, model=model, titles=titles or [], channel="MCP"
+    )
+    return {"id": card["id"], "title": card["title"], **done}
+
+
 def create_idea(api: "Api", title: str, description: str = "", project: str = "", kind: str = "ticket") -> dict:
     scope = _project(api, project)["id"] if project else ""
     return _idea(api.ideas.write(scope, kind, title, description))
@@ -844,6 +923,8 @@ HANDLERS: dict[str, Callable[..., dict]] = {
     "list_ideas": list_ideas,
     "create_task": create_task,
     "answer_question": answer_question,
+    "list_solutions": list_solutions,
+    "apply_solution": apply_solution,
     "create_idea": create_idea,
     "set_idea_state": set_idea_state,
 }

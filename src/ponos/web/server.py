@@ -560,6 +560,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.ticket(match.group(1)))
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
                 return self._json(self.api.talk(match.group(1)))
+            if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/decision", route):
+                try:
+                    return self._json(self.api.decision(match.group(1)))
+                except ValueError as error:
+                    return self._fail(409, str(error))
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/runs", route):
                 return self._json(self.api.runs(match.group(1)))
             if match := re.fullmatch(r"/api/runs/(\d+)/steps", route):
@@ -684,6 +689,20 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
                 return self._json(self.api.tell(match.group(1), str(payload.get("text", ""))))
+            if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/decision", route):
+                titles = payload.get("titles") or []
+                if not isinstance(titles, list):
+                    raise ValueError("titles is a list of strings")
+                return self._json(
+                    self.api.decide(
+                        match.group(1),
+                        str(payload.get("key", "")),
+                        number=int(payload.get("number") or 0),
+                        text=str(payload.get("text", "")),
+                        model=str(payload.get("model", "")),
+                        titles=[str(title) for title in titles],
+                    )
+                )
             if route == "/api/command":
                 return self._json(self.api.commands.start(str(payload.get("line", ""))))
             if route == "/api/chat":

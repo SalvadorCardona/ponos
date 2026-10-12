@@ -673,3 +673,46 @@ export interface Found {
   ideas: Idea[]
   error: string
 }
+
+/** One thing a card waiting on you offers — see `decisions.py`. */
+export interface Solution {
+  key: string
+  /** The column the ticket goes to. */
+  column: ColumnKey
+  /** What it needs before it can be done: nothing, words, a note, a model, titles. */
+  needs: "" | "text" | "note" | "model" | "titles"
+  /** The option's own words, or an instruction ready to edit. */
+  text: string
+  /** The option it is, from 1, for the session's options and points to check. */
+  number: number
+  /** The choice in the runner's words, as the ticket will be told it. */
+  label: string
+}
+
+/** Why a blocked ticket waits, or what a ticket in review brought back. */
+export interface Decision {
+  id: string
+  column: "blocked" | "review"
+  solutions: Solution[]
+  /* -- blocked -- */
+  category?: string
+  /** Whether the session named the category, rather than its words giving it away. */
+  declared?: boolean
+  /** Whether a run said anything at all: a ticket set aside by hand did not. */
+  reported?: boolean
+  reason?: string
+  done?: string
+  detail?: string
+  question?: { ask: string; mode: "yes-no" | "choice" | "free"; options: string[] } | null
+  model?: string
+  /* -- review -- */
+  summary?: string
+  facts?: string
+  pull_request?: string
+  checks?: {
+    state: "passed" | "failed" | "pending" | "none" | "unknown"
+    link: string
+    listed: { name: string; bucket: string; link: string }[]
+  }
+  caveats?: string[]
+}

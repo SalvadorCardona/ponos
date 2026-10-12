@@ -974,8 +974,8 @@ def wait_for_checks(
 RERUN_SETTLE_SECONDS = 20
 
 
-def _failing(url: str, accounts: Accounts | None = None) -> list[dict]:
-    """The pull request's checks that failed, as `gh pr checks --json` lists them.
+def checks(url: str, accounts: Accounts | None = None, timeout: int = 60) -> list[dict]:
+    """The pull request's checks, as `gh pr checks --json` lists them.
 
     Read whatever the exit code: `gh` answers 1 when a check failed, and the
     list it printed is the very thing asked for. Nothing when it cannot say —
@@ -986,16 +986,21 @@ def _failing(url: str, accounts: Accounts | None = None) -> list[dict]:
         return []
     result = run(
         ["gh", "pr", "checks", url, "--json", "name,bucket,link"],
-        timeout=60,
+        timeout=timeout,
         token=token_for(url, accounts),
     )
     try:
-        checks = json.loads(result.out or "[]")
+        listed = json.loads(result.out or "[]")
     except ValueError:
         return []
-    if not isinstance(checks, list):
+    if not isinstance(listed, list):
         return []
-    return [one for one in checks if isinstance(one, dict) and one.get("bucket") in ("fail", "cancel")]
+    return [one for one in listed if isinstance(one, dict)]
+
+
+def _failing(url: str, accounts: Accounts | None = None) -> list[dict]:
+    """The pull request's checks that failed — see `checks`."""
+    return [one for one in checks(url, accounts) if one.get("bucket") in ("fail", "cancel")]
 
 
 def failing_checks(url: str, accounts: Accounts | None = None) -> list[str]:
