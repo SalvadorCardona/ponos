@@ -24,10 +24,25 @@ that raises leaves the file as it was, and two processes starting together do
 not both apply it: the second waits on the write lock, reads the version again
 once it has it, and finds nothing left to do.
 
+**Migrations known by their name, not only by their number.** Counting
+assumed one list for everybody, and a branch has its own until it is rebased:
+the file migrated by a branch where `_write_ups` was the 18th was then asked by
+main, where it is the 19th, to apply the 19th once more — and every run's
+journal stopped on "table write_ups already exists" for an evening. So the file
+keeps, in `migrations`, the name of each one it went through (a function's name
+without its underscore) and when, and `migrate` applies those whose name is not
+there, wherever they sit in the list; one applied under another rank is not
+applied again. A file from before the table has it filled in from its version,
+by rank, as the only thing it can be read from — `at` empty, since nobody wrote
+the moment down. `user_version` is still kept, as the number of names, for the
+runner from before them. `doctor` says when the names are not in the code's
+order: the schema is whole, but was once written by another branch's code.
+
 **A file newer than the code is refused, not read.** A downgrade — a rollback
 of the install, two machines sharing a state directory — would otherwise have
 an old runner writing into tables it does not know the shape of. It says which
-version it found and which it knows, and touches nothing.
+version it found and which it knows — or which migration it has never heard
+of, the mark of a newer version or of another branch — and touches nothing.
 
 Migration 1 holds what the next tickets need first: a run, and the steps of a
 run. A run is one session on one ticket — a ticket run three times is three
@@ -126,7 +141,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
-from .config import state_dir
+from .config import RealStateRefused, refuse_real_state, state_dir
 
 # How long a writer waits for the other process to finish before it gives up.
 # A run's write is a row or two; the console's, the same. Five seconds is many
@@ -682,8 +697,8 @@ def _mends(connection: sqlite3.Connection) -> None:
     )
 
 
-# Appended to, never edited: the version of a file is how many of these it has
-# been through. Statements go through `execute` one at a time — `executescript`
+# Appended to, never edited or renamed: a file remembers each of these by name,
+# and the version of a file is how many of them it has been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
 # a migration under the old version number. What a migration returns, if
 # anything, runs once its transaction is committed.
@@ -722,30 +737,92 @@ def version(connection: sqlite3.Connection) -> int:
     return int(connection.execute("PRAGMA user_version").fetchone()[0])
 
 
+def name(migration: Migration) -> str:
+    """What a migration is known by in the file: its function's name, without the underscore."""
+    return migration.__name__.lstrip("_")
+
+
+def applied(connection: sqlite3.Connection) -> list[str] | None:
+    """The migrations the file says it has been through, in the order it went
+    through them — None for a file from before they were named."""
+    if not connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'migrations'"
+    ).fetchone():
+        return None
+    return [row[0] for row in connection.execute("SELECT name FROM migrations ORDER BY rowid")]
+
+
+def _refuse_newer(connection: sqlite3.Connection, names: list[str]) -> None:
+    """Raise TooNew when the file has been through what this code does not know."""
+    found = version(connection)
+    if found > len(names):
+        raise TooNew(
+            f"{path_of(connection)} is at schema version {found}, and this Ponos "
+            f"only knows up to {len(names)} — it was written by a newer version. "
+            "Update Ponos (ponos update) rather than let an older one write into it"
+        )
+    done = applied(connection)
+    if done is None:
+        return
+    unknown = [migration for migration in done if migration not in names]
+    if unknown:
+        raise TooNew(
+            f"{path_of(connection)} has been through {', '.join(unknown)}, which this "
+            "Ponos does not know — it was written by a newer version, or by another "
+            "branch's code. Update Ponos (ponos update) rather than let this one write into it"
+        )
+    if found > len(done):
+        raise TooNew(
+            f"{path_of(connection)} is at schema version {found} but names only {len(done)} "
+            "of its migrations — the others were applied by a Ponos that does not name "
+            "them, a newer version or an older branch's. Update Ponos (ponos update) "
+            "rather than let this one guess which they were"
+        )
+
+
 def migrate(connection: sqlite3.Connection, migrations: Sequence[Migration] = MIGRATIONS) -> int:
     """Apply every migration the file has not been through, and return its version.
 
-    Raises TooNew, before writing anything, when the file has been through more
-    of them than this code knows.
+    Raises TooNew, before writing anything, when the file has been through a
+    migration this code does not know.
     """
-    known = len(migrations)
-    found = version(connection)
-    if found > known:
-        raise TooNew(
-            f"{path_of(connection)} is at schema version {found}, and this Ponos "
-            f"only knows up to {known} — it was written by a newer version. "
-            "Update Ponos (ponos update) rather than let an older one write into it"
-        )
-    for target in range(found + 1, known + 1):
+    names = [name(migration) for migration in migrations]
+    _refuse_newer(connection, names)
+    if applied(connection) is None:
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            # Read again under the write lock, as below.
+            _refuse_newer(connection, names)
+            if applied(connection) is None:
+                connection.execute(
+                    "CREATE TABLE migrations (name TEXT PRIMARY KEY, at TEXT NOT NULL DEFAULT '')"
+                )
+                connection.executemany(
+                    "INSERT INTO migrations (name) VALUES (?)",
+                    [(done,) for done in names[: version(connection)]],
+                )
+            connection.execute("COMMIT")
+        except BaseException:
+            connection.execute("ROLLBACK")
+            raise
+    for migration, called in zip(migrations, names):
+        if called in (applied(connection) or []):
+            continue
         connection.execute("BEGIN IMMEDIATE")
         try:
             # Read again under the write lock: another process may have applied
             # this one while we were waiting for it.
-            if version(connection) >= target:
+            _refuse_newer(connection, names)
+            done = applied(connection) or []
+            if called in done:
                 connection.execute("COMMIT")
                 continue
-            after = migrations[target - 1](connection)
-            connection.execute(f"PRAGMA user_version = {target}")
+            after = migration(connection)
+            connection.execute(
+                "INSERT INTO migrations (name, at) VALUES (?, ?)",
+                (called, time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())),
+            )
+            connection.execute(f"PRAGMA user_version = {len(done) + 1}")
             connection.execute("COMMIT")
         except BaseException:
             connection.execute("ROLLBACK")
@@ -753,6 +830,32 @@ def migrate(connection: sqlite3.Connection, migrations: Sequence[Migration] = MI
         if after is not None:
             after()
     return version(connection)
+
+
+def disorder(connection: sqlite3.Connection, migrations: Sequence[Migration] = MIGRATIONS) -> str:
+    """How the migrations the file went through differ from this code's list — or nothing.
+
+    A file brought up to date has them all, but not always in this order: one
+    migrated by a branch whose list was not yet rebased went through them in
+    that branch's, and was then given the missing ones. Nothing is missing, so
+    nothing is wrong to the runner; `doctor` still says it, since a schema is
+    only known to be the one the code expects once the migrations agree.
+    """
+    names = [name(migration) for migration in migrations]
+    done = applied(connection) or []
+    missing = [migration for migration in names if migration not in done]
+    unknown = [migration for migration in done if migration not in names]
+    if missing or unknown:
+        said = [f"missing {', '.join(missing)}"] if missing else []
+        said += [f"unknown to this code: {', '.join(unknown)}"] if unknown else []
+        return "; ".join(said)
+    for position, (expected, found) in enumerate(zip(names, done), start=1):
+        if expected != found:
+            return (
+                f"applied in another order than this code's — {found} as number {position}, "
+                f"where this code has {expected}: migrated by another branch's code"
+            )
+    return ""
 
 
 def path_of(connection: sqlite3.Connection) -> str:
@@ -823,7 +926,12 @@ def connect(location: Path | None = None) -> sqlite3.Connection:
     `XDG_STATE_HOME` — gets the file it points at, not the one opened first.
     `location` names another file than the state directory's, for a test.
     """
-    location = location or path()
+    if location is None:
+        try:
+            refuse_real_state()
+        except RealStateRefused as error:
+            raise DatabaseError(str(error)) from error
+        location = path()
     with _opening:
         connection = _connections.get(location)
         if connection is None:
@@ -862,6 +970,8 @@ def close() -> None:
         _locks.clear()
 
 
-def check() -> tuple[Path, int]:
-    """Open the database and say where it is and at which version — for `doctor`."""
-    return path(), version(connect())
+def check() -> tuple[Path, int, str]:
+    """Open the database and say where it is, at which version, and how its
+    migrations differ from the code's — for `doctor`."""
+    connection = connect()
+    return path(), version(connection), disorder(connection)

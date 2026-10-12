@@ -1360,13 +1360,17 @@ def _doctor_database() -> int:
     Opening it is what brings it up to date, so this is also the one command
     that migrates it on purpose. A file newer than the code is the case worth
     a red line: every part of the runner that writes into it would stop on it.
+    Migrations applied in another order than the code's are a yellow one: the
+    file has every table, but was once written by another branch's code.
     """
     try:
-        location, found = db.check()
+        location, found, disorder = db.check()
     except db.DatabaseError as error:
         bad(str(error))
         return 1
     ok(f"{location} — schema version {found} of {len(db.MIGRATIONS)}")
+    if disorder:
+        warn(f"{location} — its migrations do not match this code's list: {disorder}")
     return 0
 
 
@@ -2171,7 +2175,13 @@ def secrets_out_of_config(say=None) -> None:
 
 if __name__ == "__main__":
     # Here rather than in `main`, which the tests call: only a real launch
-    # moves an installation's directories, or its secrets.
+    # moves an installation's directories, or its secrets — and only a real
+    # launch from a checkout is kept off the real state.
+    try:
+        config_module.refuse_real_state()
+    except config_module.RealStateRefused as error:
+        print(f"ponos: {error}", file=sys.stderr)
+        raise SystemExit(2)
     legacy.migrate()
     secrets_out_of_config()
     raise SystemExit(main())

@@ -84,9 +84,49 @@ def config_dir() -> Path:
     return Path(base) / "ponos"
 
 
+class RealStateRefused(Exception):
+    """Ponos runs from a repository, and was not told which state to write."""
+
+
+def checkout() -> Path | None:
+    """The repository these sources run from, when they are not an installation.
+
+    `install.sh` puts them under ~/.local/share/ponos — a clone, so with a
+    `.git` — and the image says it is one; a copy has no `.git` at all. What is
+    left is a checkout or a worktree, run with `PYTHONPATH=src`.
+    """
+    here = Path(__file__).resolve().parents[2]
+    if in_container() or not (here / ".git").exists():
+        return None
+    if here.parent == (Path.home() / ".local" / "share" / "ponos").resolve():
+        return None
+    return here
+
+
 def state_dir() -> Path:
     base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
     return Path(base) / "ponos"
+
+
+def refuse_real_state() -> None:
+    """Raise RealStateRefused when a checkout is about to write the real state.
+
+    The real `ponos.db` was once migrated by a branch's code, from a worktree:
+    its migrations, not yet rebased, did not match main's, and every run's
+    journal stopped on it until it was repaired by hand. A checkout that does
+    not set `XDG_STATE_HOME` is refused instead — the tests set it, and so does
+    whoever means it. Only where the state is written: a path shown is no harm.
+    """
+    if os.environ.get("XDG_STATE_HOME"):
+        return
+    repository = checkout()
+    if repository is not None:
+        raise RealStateRefused(
+            f"ponos runs from the repository {repository}, not from its installation, "
+            "and would write the real state in ~/.local/state/ponos — set XDG_STATE_HOME: "
+            "XDG_STATE_HOME=$(mktemp -d) for a state of its own, "
+            "or XDG_STATE_HOME=~/.local/state to really use the installation's"
+        )
 
 
 def config_path() -> Path:

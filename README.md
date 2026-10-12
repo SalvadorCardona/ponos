@@ -3223,6 +3223,19 @@ the first time a process opens it; `ponos doctor` opens it and says at which ver
 is, and a file written by a newer Ponos is refused untouched rather than read: update
 Ponos instead.
 
+Each migration is remembered by its name, in the `migrations` table, and not only counted:
+one the file has not been through is applied wherever it sits in the list, and one it went
+through under another rank — a branch's code, not yet rebased, migrated it in its own order
+— is not applied twice. A file that names a migration this code does not know is refused
+the same way as a newer one, and `ponos doctor` warns when the names are not in the code's
+order. A file from before the table is given the names of its first migrations, by its
+version.
+
+Launched from a repository rather than from its installation — `PYTHONPATH=src python3 -m
+ponos …` in a checkout or a worktree — Ponos refuses to touch the real state until
+`XDG_STATE_HOME` is set: `XDG_STATE_HOME=$(mktemp -d)` for a state of its own, or
+`XDG_STATE_HOME=~/.local/state` to really work on the installation's. The tests set it.
+
 It holds what used to be a dozen JSON files beside it — the history, the claims, the replay
 counts, the conversations, the credit waits, the Markdown mirror's stamps and journal, the
 index of project pictures. An installation that still has them reads each one in, once,
