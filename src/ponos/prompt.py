@@ -39,6 +39,10 @@ another ticket's validated work, and dropping it to make this one pass would be
 merging a regression nobody asked for — so a conflict that cannot keep both is
 a question, not a choice.
 
+A sixth one is not a frame but a reminder: a session that stopped without its
+report is picked up once, in its own conversation, and told to write it — **the
+account of what it did, and no more work.** See `WRITE_UP`.
+
 Each of them carries a `{language}` line, and it is empty on purpose whenever
 nobody asked for one: every template already says which language to write in —
 the ticket's, the message's — and a runner nobody configured must keep saying
@@ -336,6 +340,30 @@ Then finish the ticket and end on the RESULT line the first message asked for.
 {language}"""
 
 
+# What a session is told when it stopped without its report — no ANSWER.md, no
+# RESULT line — and is picked up once to write it. Not the ticket again, and not
+# “finish it”: the work was done or it was not, and only the session knows which.
+# What it has to do is say so. See `Execution._write_up`.
+WRITE_UP = """\
+You stopped without writing your report, and the ticket cannot be closed \
+without one. Do no more work on it: no new action, no new change. From what you \
+already did in this session, {what} If you could not finish, say what is \
+missing instead.
+
+Then end on the RESULT line the first message asked for.
+{language}"""
+
+# Where that report goes, for each of the two roads.
+WRITE_UP_DOCUMENT = (
+    "write `ANSWER.md` in {path}: what you did, in order — where, what changed, "
+    "and what came of it — or the deliverable itself, when the ticket asked for one."
+)
+WRITE_UP_CODE = (
+    "write your report as your answer: what you did and where — in the repository, "
+    "or outside it, in a service, a dashboard, a board — and what came of it."
+)
+
+
 # What an external action is told, on top of the document frame.
 EXTERNAL = """\
 # This ticket is an external action
@@ -575,6 +603,16 @@ def carry_on(language: str = "") -> str:
     return CARRY_ON.format(language=_language(language))
 
 
+def write_up(answer_in: Path | str = "", language: str = "") -> str:
+    """The message that asks a session for the report it stopped without.
+
+    `answer_in` is the directory its `ANSWER.md` goes into, on a ticket whose
+    deliverable is one; empty, the report is the session's own answer.
+    """
+    what = WRITE_UP_DOCUMENT.format(path=answer_in) if answer_in else WRITE_UP_CODE
+    return WRITE_UP.format(what=what, language=_language(language))
+
+
 def _language(instruction: str) -> str:
     """The language a session is asked to write in, as a paragraph of its own.
 
@@ -619,7 +657,10 @@ def _frames(
         discussion = (
             "# What has already been said on this ticket\n\n"
             "Oldest first. An earlier run may have asked a question here and been "
-            "answered since — that answer is part of what you are being asked.\n\n"
+            "answered since — that answer is part of what you are being asked. If "
+            "what was said last is a question asked of you — what is X, why Y — "
+            "answer it in your report, and when the work is done, end on "
+            "`RESULT: ok`: a question answered is not a reason to stop.\n\n"
             + "\n".join(f"- {line}" for line in comments)
             + "\n\n"
         )

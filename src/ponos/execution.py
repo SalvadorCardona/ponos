@@ -30,8 +30,10 @@ blocked with the question, and an exhausted quota goes to neither — see
 
 from __future__ import annotations
 
+import re
 import shutil
 import time
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -62,6 +64,66 @@ def _both(first: Callable[[dict], None], second: Callable[[dict], None] | None) 
                 listeners.remove(listener)
 
     return listen
+
+
+# What a report says when the work it describes happened outside the repository:
+# a hosting dashboard, a DNS zone, the board, a browser. Read on a code ticket that
+# committed nothing and changed nothing, to tell a ticket done elsewhere from one
+# that did not do its work — see `_done_elsewhere`.
+_ELSEWHERE = re.compile(
+    r"\b(?:dokploy|coolify|vercel|netlify|cloudflare|hostinger|ovh|registrar|dns|"
+    r"notion|slack|telegram|linkedin|browser|navigateur|chrome|dashboard|"
+    r"tableau de bord|traefik|en prod(?:uction)?|in production|prod|"
+    r"(?:re)?deploy(?:ed|ment)?|(?:re)?d[ée]ploy[ée]e?s?|(?:re)?d[ée]ploiement|"
+    r"environment variables?|variables? d'environnement|env vars?)\b",
+    re.IGNORECASE,
+)
+# And what it says when it claims to have changed the code itself: that work
+# should be in a commit, and a report of it is not the deliverable.
+_CODE_CLAIM = re.compile(
+    r"\b(?:modified|changed|edited|rewrote|fixed|modifi[ée]e?s?|chang[ée]e?s?|"
+    r"[ée]dit[ée]e?s?|r[ée][ée]crit|corrig[ée]e?s?)\b[^.\n]{0,60}?"
+    r"\b(?:the code|code|files?|fichiers?|functions?|fonctions?|components?|composants?)\b"
+    r"|\b[\w/-]+\.(?:py|ts|tsx|js|jsx|mjs|go|rs|rb|php|java|kt|swift|vue|svelte|css|scss)\b",
+    re.IGNORECASE,
+)
+
+
+def _done_elsewhere(answer: str) -> bool:
+    """Does this report describe work done outside the repository, and only there?"""
+    return bool(_ELSEWHERE.search(answer or "")) and not _CODE_CLAIM.search(answer or "")
+
+
+def _report(answer: str) -> str:
+    """A session's answer as a report for the page: without its RESULT line."""
+    lines = (answer or "").strip().splitlines()
+    while lines and lines[-1].strip().lstrip("*# ").upper().startswith("RESULT:"):
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def _answer(workdir: Path) -> str:
+    """What a document session left in `ANSWER.md`, or "" when it left nothing."""
+    answer_file = workdir / "ANSWER.md"
+    if not answer_file.exists():
+        return ""
+    return answer_file.read_text(encoding="utf-8", errors="replace").strip()
+
+
+def _answered_anyway(job: Job, outcome: session.Outcome) -> bool:
+    """A blocked verdict that asks nothing, on a ticket somebody spoke on.
+
+    What a session does when it answers a question it was asked in a comment —
+    “what is X?” — and has nothing left to do: it repeats the answer as the
+    reason it stops. With no QUESTION written, there is nothing to wait for;
+    the caller checks the deliverable is there before finishing the ticket.
+    """
+    return bool(
+        outcome.blocked
+        and outcome.question is None
+        and not outcome.over_budget
+        and job.comments
+    )
 
 
 class Execution(Base):
@@ -146,6 +208,8 @@ class Execution(Base):
                 outcome = self._session(job, text, log, chosen, live, run)
             if reason := self._died(outcome):
                 outcome = self._relaunch(job, text, log, chosen, live, run, outcome, reason)
+            if self._report_missing(job, outcome):
+                outcome = self._write_up(job, outcome, log, chosen, live, run)
         except BaseException:
             # A session that dies still leaves a ticket saying “⏳ Live” and a
             # column stuck on whatever it was doing. Closing here is what makes
@@ -265,6 +329,78 @@ class Execution(Base):
             max_budget_usd=self.config.budget.per_ticket_usd,
         )
 
+    def _report_missing(self, job: Job, outcome: session.Outcome) -> bool:
+        """Did this session stop without its report, and may it be asked for it?
+
+        Without it: on a document ticket, no `ANSWER.md`; on a code ticket,
+        nothing committed, nothing changed and not a word of a verdict. Only a
+        session that ended on its own: one that asked a question, crashed,
+        timed out, was stopped or ran out of credit did not forget a report,
+        and picking it up again would pay twice for the same failure. And not
+        twice for one ticket, ever — see `state.written_up`.
+        """
+        if not outcome.ok:
+            return False
+        if job.project.is_code:
+            if (
+                outcome.concluded
+                or git.commits_ahead(job.workdir, job.base)
+                or git.is_dirty(job.workdir)
+            ):
+                return False
+        elif _answer(job.workdir):
+            return False
+        if state.written_up(job.ticket.id):
+            self.say("    · stopped without its report, and was already asked for one once")
+            return False
+        return True
+
+    def _write_up(
+        self,
+        job: Job,
+        outcome: session.Outcome,
+        log: Path,
+        model: str,
+        live: progress.Live | None,
+        run: journal.Run,
+    ) -> session.Outcome:
+        """The same session, picked up once to write the report it stopped without.
+
+        A session that did the work and stopped before saying so — no
+        `ANSWER.md`, no RESULT line — used to block its ticket, and the ticket
+        ran again from the start once somebody had answered a question that
+        was never one. Its conversation still holds everything it did, so it is
+        asked for that, and for nothing else: no more work, only the account
+        of it. What the two halves cost is added up; whatever the second one
+        says is what the ticket is judged on.
+        """
+        state.wrote_up(job.ticket.id)
+        self.say(f"    ↻ stopped without its report — asking session {outcome.session_id} for it")
+        asked = session.run(
+            prompt_module.write_up(
+                "" if job.project.is_code else job.workdir, self.voice.instruction()
+            ),
+            cwd=job.workdir,
+            # Its own log, so the first half's transcript is not truncated.
+            log=log.with_name(f"{log.stem}-report{log.suffix}"),
+            model=model,
+            permission_mode=self.config.runner.permission_mode,
+            timeout_minutes=self.config.runner.timeout_minutes,
+            session_id=outcome.session_id,
+            resume=True,
+            environment=self.environment,
+            on_event=_both(run.event, live.event if live else None),
+            max_budget_usd=self.config.budget.per_ticket_usd,
+        )
+        if session.lost(asked):
+            return outcome
+        return replace(
+            asked,
+            cost_usd=outcome.cost_usd + asked.cost_usd,
+            seconds=outcome.seconds + asked.seconds,
+            turns=outcome.turns + asked.turns,
+        )
+
     def _journal(self, job: Job, log: Path, model: str = "") -> journal.Run:
         """The run this session is about to be, opened in the local journal.
 
@@ -369,6 +505,13 @@ class Execution(Base):
                 home=job.session_home or job.project.path,
             )
 
+        if _answered_anyway(job, outcome) and git.commits_ahead(job.workdir, job.base):
+            # The work is committed and nothing was asked: it goes to review
+            # with its pull request, the answer in its report — see
+            # `_answered_anyway`.
+            self.say("    · blocked without a question, its work committed — sent to review")
+            outcome = replace(outcome, ok=True, blocked=False)
+
         if not outcome.ok:
             code, reason, detail = self._why_stopped(
                 outcome, "session.question" if outcome.blocked else "session.killed"
@@ -394,7 +537,22 @@ class Execution(Base):
 
         commits = git.commits_ahead(job.workdir, job.base)
         if commits == 0:
-            if not git.is_dirty(job.workdir):
+            dirty = git.is_dirty(job.workdir)
+            if not dirty and _done_elsewhere(outcome.answer):
+                # Nothing to commit because nothing was to be: the work was a
+                # deployment, a setting, a board — and its report is what it
+                # delivers, written into the page as a document ticket's is. A
+                # session that changed files and left them uncommitted, or says
+                # it changed the code, is still blocked below.
+                git.remove_worktree(project.path, job.workdir)
+                self.say("    · nothing committed, the work was done outside the repository")
+                return self._deliver_text(
+                    job,
+                    outcome,
+                    _report(outcome.answer) or outcome.summary,
+                    note=said.say("done-elsewhere"),
+                )
+            if not dirty:
                 git.remove_worktree(project.path, job.workdir)
             return self._fail(
                 ticket,
@@ -595,9 +753,14 @@ class Execution(Base):
             )
 
         answer_file = job.workdir / "ANSWER.md"
-        content = ""
-        if answer_file.exists():
-            content = answer_file.read_text(encoding="utf-8", errors="replace").strip()
+        content = _answer(job.workdir)
+
+        # Answered and finished, but said as a stop: read, rather than asked
+        # again — see `_answered_anyway`. In review, since it said blocked.
+        anyway = bool(content) and _answered_anyway(job, outcome)
+        if anyway:
+            self.say("    · blocked without a question, its answer written — sent to review")
+            outcome = replace(outcome, ok=True, blocked=False)
 
         if not outcome.ok or not content:
             code, reason, detail = self._why_stopped(
@@ -621,6 +784,26 @@ class Execution(Base):
                 outcome=outcome,
             )
 
+        return self._deliver_text(job, outcome, content, review=anyway, kept=answer_file)
+
+    def _deliver_text(
+        self,
+        job: Job,
+        outcome: session.Outcome,
+        content: str,
+        *,
+        review: bool = False,
+        kept: Path | None = None,
+        note: str = "",
+    ) -> dict:
+        """A ticket whose deliverable is a text, written into its page.
+
+        `review` sends it to be read rather than to done; `kept` is where the
+        text still is on disk, should the page refuse it; `note` is one more
+        line for the report.
+        """
+        ticket = job.ticket
+        said = self.voice
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         try:
             blocks = self.client.append_markdown(
@@ -634,7 +817,7 @@ class Execution(Base):
                 voice_module.line(error),
                 code="notion.write-failed",
                 note=self._filed(
-                    job, outcome, said.say("answer-on-disk", path=answer_file)
+                    job, outcome, said.say("answer-on-disk", path=kept) if kept else ""
                 ),
                 outcome=outcome,
             )
@@ -660,12 +843,12 @@ class Execution(Base):
         values: dict[str, object] = {
             self.config.notion.prop("agent"): self.agent_label,
             self.config.notion.prop("session"): self._session_value(
-                outcome.session_id, job.session_home
+                outcome.session_id, job.session_home or job.project.path
             ),
             **self._measures(outcome),
         }
         if not forced or postponed:
-            column = "validated" if postponed else "review" if prepared else "done"
+            column = "validated" if postponed else "review" if prepared or review else "done"
             values[self.config.notion.prop("status")] = self.config.notion.state(column)
         self._set(ticket, **values)
         if forced:
@@ -685,11 +868,13 @@ class Execution(Base):
             said.say("nothing-published") if prepared else said.count(blocks, "block"),
             *said.spent(outcome.seconds, outcome.cost_usd),
         )
-        verdict = "waiting" if forced else "prepared" if prepared else "read"
+        verdict = "waiting" if forced else "prepared" if prepared else "review" if review else "read"
         brief = said.brief(outcome.summary)
         self._comment(
             ticket,
-            said.report(said.verdict(verdict, *facts), brief, *said.caveats(outcome.caveats), following),
+            said.report(
+                said.verdict(verdict, *facts), brief, *said.caveats(outcome.caveats), following, note
+            ),
         )
         self.say(
             f"    ✓ {ticket.title} — {blocks} block(s) written to the ticket"

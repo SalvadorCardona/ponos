@@ -3754,6 +3754,59 @@ def a_ticket_whose_run_wrote_no_block_keeps_the_trace_under_its_verdict():
     assert said.startswith("⚠️ Failed — ")
 
 
+def _answered_on(comments: list[str], answer: str, write: str) -> tuple[Runner, dict]:
+    """A document ticket whose session said `answer` and left `write` in ANSWER.md."""
+    from ponos import question
+
+    page = _reviewed("p-doc", "In progress", None)
+    runner = _board_runner([page], {"review": "In review", "done": "Done"})
+    runner.client.append_markdown = lambda _page, _text: 2
+    runner.config.runner.keep_worktree_on_failure = False
+
+    def answered(job, template):
+        if write:
+            (job.workdir / "ANSWER.md").write_text(write)
+        return session.Outcome(
+            ok=False, blocked=True, session_id="s-1", summary=session._summary(answer),
+            answer=answer, log=Path("/logs/x.jsonl"), question=question.parse(answer),
+        )
+
+    runner._run_session = answered
+    job = _doc_job(page)
+    job.comments = comments
+    return runner, runner._execute_document(job)
+
+
+@case
+def a_question_answered_on_a_finished_ticket_goes_to_review_rather_than_blocked():
+    """« C'est quoi X ? » — answered, nothing left to do, and said as a stop.
+
+    No QUESTION written, so nothing to wait for: the ticket is read, not
+    blocked again with its own answer as the reason.
+    """
+    with _state_home():
+        runner, result = _answered_on(
+            ["Salva: c'est quoi un CNAME ?"],
+            "RESULT: blocked — un CNAME est un alias de nom de domaine",
+            "Un CNAME est un alias.",
+        )
+    assert result["status"] == "done", result
+    assert runner.client.written[-1][1]["Status"] == "In review", runner.client.written
+
+    # A real question still blocks, and so does a stop with nothing written.
+    with _state_home():
+        _, asked = _answered_on(
+            ["Salva: c'est quoi un CNAME ?"],
+            "QUESTION: Je le crée chez OVH ?\nMODE: yes-no\nRESULT: blocked — où le créer ?",
+            "Un CNAME est un alias.",
+        )
+        _, empty = _answered_on(["Salva: et alors ?"], "RESULT: blocked — je ne sais pas", "")
+        _, unasked = _answered_on([], "RESULT: blocked — un CNAME est un alias", "Un alias.")
+    assert asked["status"] == "blocked", asked
+    assert empty["status"] == "blocked", empty
+    assert unasked["status"] == "blocked", "nobody asked anything: a stop is a stop"
+
+
 @case
 def a_publication_the_credits_ran_out_on_goes_back_to_validated():
     """Not to ready: the decision to publish it has already been taken."""
@@ -6076,6 +6129,70 @@ def a_doubt_is_never_settled_by_running_the_ticket():
     assert kinds.prudent("writing", "publication") == "publication"
     assert kinds.prudent("code", "external") == "external"
     assert kinds.prudent("code", "writing") == "code"
+
+
+@case
+def a_doubt_between_code_and_another_type_takes_the_one_that_needs_no_commit():
+    """An audit, a deployment, a setting in production: about code, not code.
+
+    Settled rather than asked, whatever the confidence — and said, so the
+    choice can be corrected where it was made.
+    """
+    for kind, alternative, taken in (
+        ("code", "external", "external"),
+        ("external", "code", "external"),
+        ("code", "writing", "writing"),
+        ("writing", "code", "writing"),
+        ("code", "publication", "publication"),
+    ):
+        settled = kinds.settle(kinds.Guess(kind, "", "low", alternative))
+        assert (settled.kind, settled.settled, settled.alternative) == (taken, "code", ""), settled
+        assert kinds.doubt(settled) == "", "settled is not a doubt"
+    plain = kinds.Guess("code", "", "low", "")
+    assert kinds.settle(plain) is plain and kinds.doubt(plain) == "unsure", (
+        "unsure of code alone is still a question"
+    )
+    risky = kinds.Guess("writing", "", "high", "publication")
+    assert kinds.settle(risky) is risky and kinds.doubt(risky) == "hesitant"
+    asked = kinds.prompt("Audit", "Ne code rien.", project="Site", repository=True)
+    assert "An audit, a review, a check or a verification is writing" in asked
+    assert "Deploying or redeploying" in asked
+    assert "Between code and another type, choose the other one" in asked
+
+
+@case
+def a_ticket_settled_off_code_says_so_on_the_ticket():
+    runner, ticket = _typed(body="Vérifie que la prod répond, ne code rien.")
+    answer = '{"type": "code", "reason": "Peut-être un correctif.", "confidence": "low", ' \
+        '"alternative": "external"}'
+    with _state_home(), _naming_session(answer):
+        job = runner.prepare(ticket)
+
+    assert job is not None and job.kind == "external" and not job.project.is_code
+    assert runner.client.written[0] == {"Type": "Action externe"}, runner.client.written
+    said = runner.client.said[0]
+    assert "Code" in said and "commit" in said, said
+
+
+@case
+def a_report_of_work_done_outside_the_repository_is_told_from_a_code_change():
+    from ponos import execution
+
+    for outside in (
+        "Variable SMTP_HOST ajoutée dans Dokploy, application redéployée.",
+        "6 bugs et 13 idées créés dans Notion.",
+        "Enregistrement DNS ajouté chez OVH, le domaine répond.",
+        "Redeployed the app with the new environment variable.",
+    ):
+        assert execution._done_elsewhere(outside), outside
+    for code in (
+        "J'ai corrigé le fichier de configuration puis redéployé dans Dokploy.",
+        "Changed src/app.ts and redeployed.",
+        "Le titre de la page est corrigé.",
+        "",
+    ):
+        assert not execution._done_elsewhere(code), code
+    assert execution._report("Fait.\n\n**RESULT: ok — fait**") == "Fait."
 
 
 @case

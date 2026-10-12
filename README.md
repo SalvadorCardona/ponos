@@ -971,8 +971,8 @@ out**, not by what it is about:
 | --- | --- | --- |
 | **Code** | a worktree, a branch, commits, a pull request — what every ticket on a repository always was | *In review* with its pull request |
 | **Writing** | no repository: a scratch directory and `ANSWER.md`. On a project that has one, the session may *read* it, never change it | *Done*, the answer in the page |
-| **External action** | no repository, the browser allowed (Claude in Chrome), a DNS zone, a service's settings. **It stops at its first doubt** — a wrong account, a value the ticket does not give — rather than acting on a guess | *Done*, with the **log of every action** in the page: where, what changed, before and after, what was checked |
-| **Publication** | public and irreversible: a post, a deployment, a message sent. **In two steps** — see below | *In review*, nothing published; then *Done* once you validated it |
+| **External action** | no repository, the browser allowed (Claude in Chrome), a DNS zone, a service's settings, a deployment or a setting in production. **It stops at its first doubt** — a wrong account, a value the ticket does not give — rather than acting on a guess | *Done*, with the **log of every action** in the page: where, what changed, before and after, what was checked |
+| **Publication** | public and irreversible: a post, a message sent. **In two steps** — see below | *In review*, nothing published; then *Done* once you validated it |
 
 **Empty is a request.** A ticket that reaches *Ready* with no type is classified before
 anything else happens to it: a short session on a light model (`runner.classify_model`,
@@ -999,6 +999,14 @@ takes to answer one question.
   stops it);
 - it hesitated between two types and one of them is *External action* or *Publication* —
   a text run as a text that was a publication is a post nobody read before it went out.
+
+**Except between Code and another type: that one is settled, not asked.** An audit, a
+check, a deployment or a setting changed in production reads like code because it is about
+code — and run as code it came back blocked for want of a commit nobody had asked for. So a
+classification that hesitates between *Code* and anything else takes the other type, whose
+deliverable is its report, whatever its confidence, and the comment says so: *it could have
+been Code: I took External action, which asks for no commit*. One click in the column puts
+it back.
 
 The comment asks *Writing or Publication?* and says which is the more careful of the two —
 in doubt, always the one further along *Writing → Code → External action → Publication*.
@@ -2929,7 +2937,18 @@ them on the program's normal path:
 - **The agent commits, the runner publishes.** Pushing a branch and opening a PR are
   outward-facing gestures: they happen afterwards, once it is established that there are
   commits at all. A session that declares itself done without committing anything is
-  treated as a failure.
+  blocked — unless the worktree is clean and its report says the work happened outside the
+  repository (a Dokploy setting, a redeployment, a DNS record, tickets created in Notion):
+  that ticket is *Done*, its report written into the page, since there was nothing to
+  commit. Uncommitted changes, or a report saying it changed the code, still block it.
+- **A session that stops without its report is asked for it, once.** No `ANSWER.md` on a
+  ticket that needs one, or — on a code ticket — no commit, no change and no `RESULT`
+  line: the runner picks the same conversation back up (`claude --resume`) and asks it for
+  the account of what it did, and for nothing else. Only if that fails too is the ticket
+  blocked, and a ticket is never picked up this way twice (`ponos.db` remembers it). A
+  session that answered a question you asked in a comment — *what is X?* — and has nothing
+  left to do ends `RESULT: ok`; one that still says `blocked` without asking anything, with
+  its deliverable there, goes to *In review* rather than back to *Blocked*.
 - **An ambiguous ticket is not guessed.** The prompt explicitly asks the agent to answer
   `RESULT: blocked` and stop rather than decide in your place. The ticket goes to the
   `blocked` status with the question in a comment — laid out by the runner, one line per

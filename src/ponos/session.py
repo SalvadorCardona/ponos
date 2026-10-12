@@ -74,6 +74,11 @@ class Outcome:
     killed: str = ""
 
     @property
+    def concluded(self) -> bool:
+        """Did it end on a RESULT line, whichever way? Not when it just stopped."""
+        return bool(_verdict(self.answer))
+
+    @property
     def resume_command(self) -> str:
         return f"claude --resume {self.session_id}"
 

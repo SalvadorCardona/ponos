@@ -288,6 +288,35 @@ def repairing(repository: str, base: str, ticket_id: str) -> None:
         pass
 
 
+def written_up(ticket_id: str) -> bool:
+    """Has this ticket's session already been asked for the report it did not write?
+
+    Once a ticket, and never again — see `Execution._write_up`. A table that
+    cannot be read answers yes: a second relaunch is a session nobody budgeted,
+    a missing one only a ticket blocked a little sooner.
+    """
+    try:
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT 1 FROM write_ups WHERE ticket = ?", (ticket_id,)
+            ).fetchone()
+    except db.ERRORS:
+        return True
+    return row is not None
+
+
+def wrote_up(ticket_id: str) -> None:
+    """That ticket's session has been asked for its report: it will not be again."""
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO write_ups (ticket, at) VALUES (?, ?)",
+                (ticket_id, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+            )
+    except db.ERRORS:
+        pass
+
+
 def _number(value: object) -> float | None:
     try:
         return None if value is None or value == "" else float(value)  # type: ignore[arg-type]

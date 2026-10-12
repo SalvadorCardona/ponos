@@ -372,7 +372,7 @@ class Preparation(Base):
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
 
-        guess = kinds.parse(answer)
+        guess = kinds.settle(kinds.parse(answer))
         column = self.config.notion.prop("type")
         said = self.voice
         why = kinds.doubt(guess, self.config.runner.classify_confidence)
@@ -410,13 +410,19 @@ class Preparation(Base):
             # Run as classified all the same: the comment below still says which
             # type it was run as, and why.
             self.say(f"  ! the type could not be written: {voice_module.line(error)}")
-        self.say(f"    · classified as {guess.kind} ({guess.confidence}) — {guess.reason}")
+        self.say(
+            f"    · classified as {guess.kind} ({guess.confidence}) — {guess.reason}"
+            + (f" — rather than {guess.settled}, which needs a commit" if guess.settled else "")
+        )
         level = said.say(f"confidence-{guess.confidence}")
         self._comment(
             ticket,
             said.report(
                 said.verdict("classified", name, said.say("confidence", level=level)),
                 said.brief(guess.reason),
+                said.say("kind-settled", kind=name, other=self.kind_name(guess.settled))
+                if guess.settled
+                else "",
                 said.say("classified-fix", property=column),
             ),
         )

@@ -599,6 +599,37 @@ if refused:
 
 here = Path.cwd()
 
+
+def finish(said, turns=3, cost=0.02):
+    emit({"type": "assistant", "message": {"content": [{"type": "text", "text": said}]}})
+    emit({"type": "result", "subtype": "success", "is_error": False, "result": said,
+          "session_id": session, "num_turns": turns, "total_cost_usd": cost})
+    raise SystemExit(0)
+
+
+# A session that does its work and stops without saying so: no ANSWER.md, no
+# RESULT line. Picked up again to write its report, `once` writes it and
+# `always` says nothing a second time either.
+silent = os.environ.get("FAKE_CLAUDE_SILENT", "")
+if silent and "You stopped without writing your report" in prompt:
+    if silent == "always":
+        finish("Je regarde encore.", turns=1, cost=0.01)
+    (here / "ANSWER.md").write_text("Le domaine pointe sur le serveur.", encoding="utf-8")
+    finish("RESULT: ok — compte rendu écrit", turns=1, cost=0.01)
+if silent:
+    finish("Je branche le domaine.")
+
+# A code ticket whose work happened outside the repository: nothing committed,
+# and the report says where it went — `FAKE_CLAUDE_ELSEWHERE` is that report.
+elsewhere = os.environ.get("FAKE_CLAUDE_ELSEWHERE", "")
+if elsewhere and (here / ".git").exists():
+    finish(elsewhere + "\\nRESULT: ok — fait hors du dépôt")
+
+# A code ticket that changed a file and committed nothing.
+if os.environ.get("FAKE_CLAUDE_DIRTY") and (here / ".git").exists():
+    (here / "FAKE.md").write_text("changed, never committed\\n", encoding="utf-8")
+    finish("J'ai modifié FAKE.md.\\nRESULT: ok — le fichier est modifié")
+
 # A pull request whose rebase stopped on a conflict. The fake resolves it the
 # way the prompt asks — both sides kept — by dropping the markers and keeping
 # every line, then carries the rebase to its end. `FAKE_CLAUDE_RESOLVE=blocked`
@@ -1091,6 +1122,9 @@ def bench(**overrides: object):
                 "FAKE_CLAUDE_BLOCK": "",
                 "FAKE_CLAUDE_OVER_BUDGET": "",
                 "FAKE_CLAUDE_KILL": "",
+                "FAKE_CLAUDE_SILENT": "",
+                "FAKE_CLAUDE_ELSEWHERE": "",
+                "FAKE_CLAUDE_DIRTY": "",
                 "FAKE_GH_REFUSE": "",
                 **{name: str(path) for name, path in logs.items()},
             }
@@ -1688,6 +1722,111 @@ def a_session_that_fails_leaves_a_readable_ticket_and_no_worktree():
         assert not list(worktrees.glob("*")), "the worktree is still on disk"
         assert not machine.pull_requests(), "a failed session still opened a pull request"
         assert machine.branches(repository) == ["main"], machine.branches(repository)
+
+
+@case
+def an_external_action_that_commits_nothing_is_done_with_its_report():
+    """The deployment was the work: no commit was asked for, and none is waited on.
+
+    Typed as an external action, it never sees the repository; left as code by
+    a hesitant classification, it is still not code — and a code ticket that
+    says it worked in Dokploy and committed nothing is done, not blocked.
+    """
+    with bench() as machine:
+        machine.typed()
+        repository = machine.repository("leadz")
+        project = machine.project("Leadz", repository)
+        hesitant = machine.ticket("Réparer le déploiement", "La prod est cassée.", project)
+        os.environ["FAKE_CLAUDE_KIND"] = json.dumps({
+            "type": "code",
+            "reason": "Il faut peut-être corriger la configuration.",
+            "confidence": "low",
+            "alternative": "external",
+        })
+
+        results = machine.run()
+
+        assert [(result["id"], result["status"]) for result in results] == [
+            (hesitant, "done")
+        ], results
+        assert machine.board.value(hesitant, "Type") == "Action externe"
+        classified = machine.board.said(hesitant)[0]
+        assert "n'exige pas de commit" in classified or "asks for no commit" in classified, classified
+        assert machine.status(hesitant) == "Done", machine.status(hesitant)
+        assert not machine.pull_requests()
+
+        # Typed as code by somebody, and done in Dokploy all the same.
+        coded = machine.ticket("Ajouter la variable en prod", "SMTP_HOST manque.", project)
+        machine.board.pages[coded]["properties"]["Type"] = _stored({"select": {"name": "Code"}})
+        report = "J'ai ajouté SMTP_HOST dans Dokploy et redéployé l'application."
+        with _environ({"FAKE_CLAUDE_ELSEWHERE": report}):
+            results = machine.run()
+
+        assert [(result["id"], result["status"]) for result in results] == [
+            (coded, "done")
+        ], results
+        assert machine.status(coded) == "Done", machine.status(coded)
+        assert report in machine.board.body(coded), machine.board.body(coded)
+        assert "RESULT:" not in machine.board.body(coded), "the verdict is the status"
+        assert not machine.pull_requests(), "nothing to review"
+        assert not machine.worktrees(repository), machine.worktrees(repository)
+
+
+@case
+def a_code_ticket_that_changes_code_without_committing_it_is_still_blocked():
+    """The one case the commit is the deliverable, and it is not there."""
+    with bench() as machine:
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        dirty = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+        with _environ({"FAKE_CLAUDE_DIRTY": "1"}):
+            results = machine.run()
+        assert results[0]["status"] == "blocked", results
+        assert machine.status(dirty) == "Blocked", machine.status(dirty)
+
+        # Clean, but saying it changed the code, from a deployment ticket.
+        claimed = machine.ticket("Corriger le déploiement", "Le build casse.", project)
+        said = "J'ai corrigé le fichier docker/entrypoint.py puis redéployé dans Dokploy."
+        with _environ({"FAKE_CLAUDE_ELSEWHERE": said}):
+            results = machine.run()
+        assert results[0]["status"] == "blocked", results
+        assert machine.status(claimed) == "Blocked", machine.status(claimed)
+        assert len(machine.sessions()) == 1, "a session that concluded is not asked again"
+
+
+@case
+def a_session_that_stops_without_its_report_is_asked_for_it_once():
+    """Picked up in its own conversation, for the report and nothing else —
+    blocked only when that fails too, and never asked twice for one ticket."""
+    with bench() as machine:
+        project = machine.project("Leadz", None)
+        ticket = machine.ticket("Brancher le domaine", "leadz.ninja sur le serveur.", project)
+
+        with _environ({"FAKE_CLAUDE_SILENT": "once", "FAKE_CLAUDE_COST": ""}):
+            results = machine.run()
+
+        assert results[0]["status"] == "done", results
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        assert "Le domaine pointe sur le serveur." in machine.board.body(ticket)
+        first, again = machine.sessions()
+        assert again["session"] == first["session"], "the same conversation, carried on"
+        assert "You stopped without writing your report" in again["prompt"]
+        assert "leadz.ninja" not in again["prompt"], "the ticket is not sent again"
+        assert results[0]["cost_usd"] == 0.03, "both halves are paid for"
+
+        silent = machine.ticket("Brancher l'autre domaine", "leadz.io aussi.", project)
+        with _environ({"FAKE_CLAUDE_SILENT": "always"}):
+            results = machine.run()
+        assert results[0]["status"] == "blocked", results
+        assert machine.status(silent) == "Blocked", machine.status(silent)
+        assert len(machine.sessions()) == 2, machine.sessions()
+
+        # Back to ready: it already had its second chance.
+        machine.move(silent, "Ready")
+        with _environ({"FAKE_CLAUDE_SILENT": "always"}):
+            results = machine.run()
+        assert results[0]["status"] == "blocked", results
+        assert len(machine.sessions()) == 1, "not picked up a second time"
 
 
 def _budget(machine: "Bench", **limits: float) -> None:

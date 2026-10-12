@@ -224,6 +224,12 @@ _SAID: dict[str, dict[str, str]] = {
         "en": ", or from `claude` in `{home}`",
         "fr": ", ou depuis `claude` dans `{home}`",
     },
+    "kind-settled": {
+        "en": "It could have been {other}: I took {kind}, which asks for no commit — its "
+        "report is what it delivers.",
+        "fr": "Ça aurait pu être {other} : j'ai pris {kind}, qui n'exige pas de commit — "
+        "son compte rendu est son livrable.",
+    },
     "classified-fix": {
         "en": "Wrong? Change the {property} column — a type somebody chose is never "
         "overwritten.",
@@ -382,6 +388,12 @@ _SAID: dict[str, dict[str, str]] = {
     "nothing-committed": {
         "en": "the session called itself done without committing anything",
         "fr": "la session s'est déclarée terminée sans un seul commit",
+    },
+    "done-elsewhere": {
+        "en": "Nothing committed: the work was done outside the repository, and its report "
+        "is in the page.",
+        "fr": "Aucun commit : le travail a été fait hors du dépôt, et son compte rendu est "
+        "dans la page.",
     },
     "push-refused": {
         "en": "the commits are there, but pushing them was refused",
