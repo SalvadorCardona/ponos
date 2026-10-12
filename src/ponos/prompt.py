@@ -49,6 +49,7 @@ exactly that. `runner.language` is what replaces that rule with a decision, and
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable
 
 DEFAULT = """\
 You are working through a ticket for the {project} project, alone and with \
@@ -58,7 +59,7 @@ nobody to talk to: no one can answer a question while the session runs.
 
 {body}
 
-{comments}{context}{brief}{agent}# Context
+{comments}{context}{brief}{agent}{permissions}# Context
 
 - Repository: {repo}
 - You are in a dedicated git worktree, on branch `{branch}`, created from \
@@ -101,7 +102,7 @@ your answer will be written back into the Notion ticket itself.
 
 {body}
 
-{comments}{context}{brief}{agent}# Context
+{comments}{context}{brief}{agent}{permissions}# Context
 
 - Working directory: {repo} — empty and disposable, it is yours to use.
 - Notion ticket: {url}
@@ -150,7 +151,7 @@ slightly differently. What was validated is what goes out, word for word.
 
 {body}
 
-{comments}{context}{brief}{agent}# Context
+{comments}{context}{brief}{agent}{permissions}# Context
 
 - Working directory: {repo} — empty and disposable, it is yours to use.
 - Notion ticket: {url}
@@ -237,7 +238,7 @@ nobody to talk to: no one can answer a question while the session runs.
 
 {body}
 
-{comments}{context}{brief}{agent}# Context
+{comments}{context}{brief}{agent}{permissions}# Context
 
 - You are in a disposable worktree of {repo}, in the middle of \
 `git rebase origin/{base}` of the branch `{branch}`: git stopped on the \
@@ -303,6 +304,9 @@ QUESTION: <the question itself, one sentence>
 MODE: <yes-no, choice or free>
 OPTION: <one concrete answer — for `choice` only: two to four of them, one per \
 line, the one you would pick first>
+CODE: <only when the permissions section above names one — `access.sudo` or \
+`access.credentials` — and then nothing else>
+COMMAND: <only with a CODE: one command to run, as it is typed — one line each>
 
 Take `yes-no` when one word is enough to carry on, and put the question so that \
 yes means you go ahead; `choice` when there are a few concrete roads, so that \
@@ -374,6 +378,50 @@ choosing one: that is the first thing the reader will check.
 """
 
 
+# What the permissions are told, on top of every frame. The two lists are the
+# user's — see `config.Permissions` — and the rest is what no list should have to
+# repeat: that a thing nobody can do is not a question.
+PERMISSIONS = """\
+# What you may do alone, and what you may not
+
+Salva wrote these rules once so that you do not ask the same question twice.
+
+{allowed}{ask}Anything that is neither listed here nor needed by the ticket, and \
+cannot be undone, is a question: stop and ask it.
+
+**Some things you cannot do at all**: `sudo` that wants a password, `npm login` \
+or any other login, signing in to an account with a code received by e-mail. Do \
+not ask whether you may — nobody can say yes to you. Prepare the exact commands \
+instead, one `COMMAND:` line each, and end `RESULT: blocked` with `CODE: \
+access.sudo` (a command that needs root) or `CODE: access.credentials` (a login), \
+`MODE: free` and a question that only asks to run them and answer « done »: the \
+ticket starts again by itself on that answer.
+
+**A ticket aimed at the wrong repository.** When it targets another SalvadorCardona \
+repository than this project's and the permissions above let you clone one and \
+create its Ponos project, do it and attach the ticket to that project rather than \
+asking. Otherwise ask.
+
+"""
+
+
+def permissions(allowed: Iterable[str] = (), ask: Iterable[str] = ()) -> str:
+    """The section that tells a session what it may do alone.
+
+    Rendered even when both lists are empty: the impossible actions and the
+    wrong repository do not depend on what Salva allowed.
+    """
+
+    def listed(title: str, rules: Iterable[str]) -> str:
+        lines = [f"- {rule}" for rule in (str(item).strip() for item in rules) if rule]
+        return f"{title}\n" + "\n".join(lines) + "\n\n" if lines else ""
+
+    return PERMISSIONS.format(
+        allowed=listed("You do these without asking:", allowed),
+        ask=listed("You always ask Salva before these — `RESULT: blocked`, with the question:", ask),
+    )
+
+
 def kind(kind: str, repository: object = "") -> str:
     """The section a type of ticket adds to the document frame, or nothing.
 
@@ -408,16 +456,20 @@ def build(
     resumed: str = "",
     language: str = "",
     kind: str = "",
+    allowed: Iterable[str] = (),
+    ask: Iterable[str] = (),
 ) -> str:
     scope, frame, heading, role, discussion = _frames(
         project, context, brief, agent_name, agent_brief, comments
     )
+    rules = permissions(allowed, ask)
     text = template.format(
         project=project or "no project",
         scope=scope,
         context=frame,
         brief=heading,
         agent=role,
+        permissions=rules,
         comments=discussion,
         language=_language(language),
         title=title,
@@ -430,6 +482,10 @@ def build(
         kind=f"\n{kind}" if kind else "",
         asking=ASKING,
     )
+    if "{permissions}" not in template:
+        # The same for the permissions: a file written before them must not be
+        # the road by which a session asks what it was told it may do.
+        text = f"{text.rstrip()}\n\n{rules.rstrip()}\n"
     if kind and "{kind}" not in template:
         # A prompt file of your own, older than the types: see the docstring.
         text = f"{text.rstrip()}\n\n{kind}"

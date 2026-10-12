@@ -41,6 +41,10 @@ MODES = ("yes-no", "choice", "free")
 # depends on it — see decisions.py. `other` is what nothing else fits.
 CATEGORIES = ("question", "access", "manual", "credits", "ci", "conflict", "split", "other")
 
+# The blocks that mean "run this yourself, then say done": the session prepares
+# the commands and asks nothing. See `prompt.PERMISSIONS`.
+CODES = ("access.sudo", "access.credentials")
+
 # Two roads is a choice, five is a menu: past four, the session is asking you to
 # do its thinking.
 FEWEST = 2
@@ -48,7 +52,7 @@ MOST = 4
 
 # The fields a blocked session writes before its RESULT line. Uppercase like the
 # RESULT line itself, because a model reads them as the same kind of thing.
-_FIELD = re.compile(r"^(DONE|WHY|CATEGORY|QUESTION|MODE|OPTION)\s*:\s*(.*)$", re.IGNORECASE)
+_FIELD = re.compile(r"^(DONE|WHY|CATEGORY|QUESTION|MODE|OPTION|CODE|COMMAND)\s*:\s*(.*)$", re.IGNORECASE)
 
 # What a session that ends ok hands over for whoever reviews it: one line per
 # thing it could not check. Read like the fields above, from the end.
@@ -93,6 +97,11 @@ class Question:
     # One of CATEGORIES, or "" when the session did not say — the console then
     # reads it off the words, as it does on a report older than the field.
     category: str = ""
+    # An action a session cannot take itself — `access.sudo`, `access.credentials`
+    # — and the commands it prepared for somebody else to run. Never a yes-no:
+    # nobody can say yes to a session that has no password.
+    code: str = ""
+    commands: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # A choice of one is a yes-no that does not know it, and a choice
@@ -105,6 +114,12 @@ class Question:
         if self.mode != "choice":
             self.options = []
         self.category = self.category if self.category in CATEGORIES else ""
+        if self.code in CODES:
+            self.mode = "free"
+            self.options = []
+        else:
+            self.code = ""
+            self.commands = []
 
 
 @dataclass
@@ -149,6 +164,7 @@ def parse(answer: str) -> Question | None:
     """
     found: dict[str, str] = {}
     options: list[str] = []
+    commands: list[str] = []
     for line in reversed(str(answer or "").splitlines()):
         stripped = line.strip().strip("*_`").lstrip("-#> ").strip("*_` ")
         matched = _FIELD.match(stripped)
@@ -158,6 +174,8 @@ def parse(answer: str) -> Question | None:
         value = " ".join(matched.group(2).strip("*_` ").split())
         if name == "OPTION":
             options.insert(0, re.sub(r"^\d[.)]\s*", "", value))
+        elif name == "COMMAND":
+            commands.insert(0, value)
         else:
             found.setdefault(name, value)
     if not found.get("QUESTION"):
@@ -171,6 +189,8 @@ def parse(answer: str) -> Question | None:
         done="" if found.get("DONE", "").lower() in ("nothing", "rien", "-") else found.get("DONE", ""),
         why=found.get("WHY", ""),
         category=found.get("CATEGORY", "").lower().strip(" .`"),
+        code=found.get("CODE", "").lower(),
+        commands=commands,
     )
 
 

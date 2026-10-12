@@ -547,6 +547,42 @@ class Budget:
     per_ticket_usd: float = 0.0
 
 
+# What a session does without asking, and what it never does without Salva's
+# word. Written as sentences, because a model reads them as such — and in the
+# list rather than in the prompt, so that the page can show them and change them.
+ALLOWED = (
+    "redéployer un service sur les Dokploy de Salva (dokploy.cardona.digital et le "
+    "Dokploy d'Animalink), lire leurs logs, ajouter une variable d'environnement non "
+    "secrète ou générer un secret aléatoire propre au service",
+    "taguer et publier une release d'un dépôt de SalvadorCardona, après fusion sur main",
+    "cloner un dépôt de SalvadorCardona manquant dans le workspace et lui créer un "
+    "projet Ponos",
+    "relancer une CI",
+    "fusionner une PR validée",
+)
+ASK = (
+    "publier sur un registre public (npm, PyPI…)",
+    "ouvrir une PR ou une issue sur un dépôt tiers",
+    "toute action qui envoie un e-mail ou un message à quelqu'un d'autre que Salva",
+    "supprimer des données de production",
+    "modifier un DNS",
+    "toute dépense",
+)
+
+
+@dataclass
+class Permissions:
+    """What a session may do alone, and what it must ask first. See prompt.py.
+
+    Both lists have a default and the file only has to say what it changes: a
+    list written empty is a real answer — nothing is allowed alone — and is not
+    the same as a list the file does not carry.
+    """
+
+    allowed: tuple[str, ...] = ALLOWED
+    ask: tuple[str, ...] = ASK
+
+
 def board_dir() -> Path:
     """Where a Markdown board lives when the file does not say.
 
@@ -601,6 +637,7 @@ class Config:
     openrouter: OpenRouter = field(default_factory=OpenRouter)
     claude: Claude = field(default_factory=Claude)
     budget: Budget = field(default_factory=Budget)
+    permissions: Permissions = field(default_factory=Permissions)
     storage: Storage = field(default_factory=Storage)
     # `[github]`: which of your GitHub accounts each owner is worked under, as
     # `owner = "the gh account"`. Empty is a machine with one account, which is
@@ -1462,6 +1499,15 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         per_ticket_usd=_dollars(budget_raw.get("per_ticket_usd")),
     )
 
+    permissions_raw = raw.get("permissions", {})
+    permissions_defaults = Permissions()
+    permissions = Permissions(
+        **{
+            name: _sentences(permissions_raw.get(name), getattr(permissions_defaults, name))
+            for name in ("allowed", "ask")
+        }
+    )
+
     storage_raw = raw.get("storage", {})
     storage_defaults = Storage()
     # Filtered rather than trusted, and for once that is not paranoia: a typo
@@ -1508,6 +1554,7 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         openrouter=openrouter,
         claude=claude,
         budget=budget,
+        permissions=permissions,
         storage=storage,
         github=github,
         exposed=tuple(f"{table}.{key}" for table, key in exposed(raw)),
@@ -1524,6 +1571,17 @@ def _dollars(raw: object) -> float:
         return max(0.0, float(raw))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
+
+
+def _sentences(raw: object, default: tuple[str, ...]) -> tuple[str, ...]:
+    """A list of sentences as the file wrote it, or the default when it wrote none.
+
+    A key that is absent, or not a list, is the default; a list — even an empty
+    one — is the answer. Blank entries are dropped, not kept as empty rules.
+    """
+    if not isinstance(raw, list):
+        return default
+    return tuple(text for item in raw if (text := str(item).strip()))
 
 
 def _channel(raw: object, token: str) -> dict[str, str]:

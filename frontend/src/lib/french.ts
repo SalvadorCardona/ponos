@@ -1211,6 +1211,16 @@ export const FRENCH: Record<string, string> = {
   "Off: the Schedules database is ignored, and none of its rows is touched.":
     "Désactivé : la base Schedules est ignorée, et aucune de ses lignes n'est touchée.",
 
+  "What a session may do alone": "Ce qu'une session fait seule",
+  "Read by every session. What it does without asking, and what always waits for your word — so it stops asking the same question twice. One rule per line.":
+    "Lu par toutes les sessions. Ce qu'elle fait sans demander, et ce qui attend toujours votre accord — pour qu'elle cesse de poser deux fois la même question. Une règle par ligne.",
+  "Done without asking": "Fait sans demander",
+  "One action per line, in your own words. Cleared: the session asks about everything that is not in the ticket.":
+    "Une action par ligne, avec vos mots. Vide : la session demande pour tout ce que le ticket ne dit pas.",
+  "Always asks you first": "Demande toujours d'abord",
+  "One action per line. A session that reaches one stops and asks you.":
+    "Une action par ligne. Une session qui y arrive s'arrête et vous pose la question.",
+
   Notifications: "Notifications",
   "How the runner reaches you: this computer's screen, Telegram or Slack. A reply on Telegram or Slack becomes a comment on the ticket — which is what restarts a blocked one.":
     "Comment le runner vous joint : l'écran de cet ordinateur, Telegram ou Slack. Une réponse sur Telegram ou Slack devient un commentaire sur le ticket — ce qui relance un ticket bloqué.",

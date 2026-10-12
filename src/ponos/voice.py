@@ -1048,7 +1048,14 @@ class Voice:
         if category:
             named = self.say(f"category-{category}")
             why = self.say("because", category=named, why=why) if why else named
-        lines = [why, ask]
+        lines = [why]
+        if getattr(asked, "code", ""):
+            lines.append(f"`{asked.code}`")
+        # The commands a session could not run itself, ready to paste, between
+        # the reason and the question — which stays the last line, as `found`
+        # reads it back.
+        lines += [f"`{command}`" for command in getattr(asked, "commands", [])]
+        lines.append(ask)
         if mode == "choice":
             options = getattr(asked, "options", [])
             lines.append(

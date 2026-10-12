@@ -72,7 +72,7 @@ class Field:
 
     table: str
     key: str
-    kind: str  # text · secret · path · bool · int · choice · events
+    kind: str  # text · secret · path · bool · int · choice · events · lines
     label: str
     help: str = ""
     choices: tuple[str, ...] = ()
@@ -674,6 +674,22 @@ SECTIONS: tuple[Section, ...] = (
                   "Off: the Schedules database is ignored, and none of its rows is touched."),
         ),
     ),
+    Section(
+        key="autonomy",
+        group="execution",
+        title="What a session may do alone",
+        blurb=(
+            "Read by every session. What it does without asking, and what always waits for "
+            "your word — so it stops asking the same question twice. One rule per line."
+        ),
+        fields=(
+            Field("permissions", "allowed", "lines", "Done without asking",
+                  "One action per line, in your own words. Cleared: the session asks about "
+                  "everything that is not in the ticket."),
+            Field("permissions", "ask", "lines", "Always asks you first",
+                  "One action per line. A session that reaches one stops and asks you."),
+        ),
+    ),
     # -- models --------------------------------------------------------------
     Section(
         key="claude",
@@ -1086,6 +1102,7 @@ def _fallback(config: Config, entry: Field) -> object:
         "web": config.web,
         "openrouter": config.openrouter,
         "claude": config.claude,
+        "permissions": config.permissions,
         "storage": config.storage,
     }.get(entry.table)
     if holder is None:  # a channel table: nothing is defaulted into it
@@ -1177,7 +1194,7 @@ def describe(config: Config) -> dict:
                 # The one the runner uses, even when the environment gave it.
                 shown["preview"] = _preview(config_module.secret(stored, entry.table, entry.key))
                 shown["variable"] = config_module.SECRETS[(entry.table, entry.key)]
-            elif entry.kind == "events":
+            elif entry.kind in ("events", "lines"):
                 shown["value"] = [str(item) for item in stated] if isinstance(stated, list) else None
             elif entry.kind == "bool":
                 shown["value"] = bool(stated) if stated is not None else None
@@ -1288,6 +1305,12 @@ def _value(entry: Field, offered: object) -> object:
         # An empty list is a real answer — "tell me nothing" — so it is written
         # rather than removed, which would bring the three back.
         return sorted(set(chosen), key=EVENTS.index)
+    if entry.kind == "lines":
+        if not isinstance(offered, list):
+            raise ValueError(f"{entry.label}: a list")
+        # An empty list is a real answer — "nothing is allowed alone" — so it is
+        # written rather than removed, which would bring the defaults back.
+        return [line for item in offered if (line := " ".join(str(item).split()))]
     text = str(offered).strip()
     if entry.kind == "choice":
         if text and text not in entry.choices:
