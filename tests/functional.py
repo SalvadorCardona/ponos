@@ -46,7 +46,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ponos import config as C  # noqa: E402
-from ponos import credits, db, images, journal, notion, store  # noqa: E402
+from ponos import credits, db, images, journal, notion, project_settings, store  # noqa: E402
 from ponos.config import PRIORITIES  # noqa: E402
 from ponos.runner import Runner  # noqa: E402
 
@@ -1346,8 +1346,42 @@ def a_code_ticket_whose_validation_is_forced_is_merged_and_done_in_one_pass():
         assert [merge["url"] for merge in merges] == [opened[0]["url"]], merges
         assert "FAKE.md" in machine.files_on(repository, "main")
         said = machine.board.said(ticket)
-        assert "Validated automatically (Force validated: Code)" in said[-1], said[-1]
+        assert "Validated automatically (Force validated: Code) — the global setting" in said[-1], said[-1]
         assert not machine.worktrees(repository), machine.worktrees(repository)
+
+
+@case
+def a_project_with_its_own_validation_is_read_before_the_file_in_both_directions():
+    """Merged on the project that asked for it, kept for review on the one that did not.
+
+    The file says the opposite of each project, and each project wins. The
+    report on the merged one says the decision was the project's.
+    """
+    with bench(force_validated_code=False) as machine:
+        perso = machine.project("Perso", machine.repository("perso"))
+        client = machine.project("Client", machine.repository("client"))
+        project_settings.set_validation(perso, "Perso", {"code": True})
+        project_settings.set_validation(client, "Client", {"code": False})
+        merged = machine.ticket("Corriger l'entête", "Le titre est faux.", perso)
+
+        machine.run()
+
+        assert machine.status(merged) == "Done", machine.status(merged)
+        said = machine.board.said(merged)
+        assert "Validated automatically (Force validated: Code) — the project's setting" in said[-1], said[-1]
+        db.close()
+
+    with bench(force_validated_code=True) as machine:
+        client = machine.project("Client", machine.repository("client"))
+        project_settings.set_validation(client, "Client", {"code": False})
+        kept = machine.ticket("Corriger le pied de page", "Le lien est faux.", client)
+
+        machine.run()
+
+        assert machine.status(kept) == "In review", machine.status(kept)
+        assert not machine.merges(), machine.merges()
+        assert "Validated automatically" not in machine.board.said(kept)[-1]
+        db.close()
 
 
 @case

@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Automatic validation, project by project.** A project's page has a new *Settings* tab,
+  and its first setting is *Its own automatic validation*. Off, the project follows the global
+  switches, shown read only with a link to them. On, it gets its own Code, Publication, Writing
+  and External action switches — started from the global ones — and its tickets follow them even
+  against the global ones: merge unread on a personal project, keep the review on a client's.
+  Kept in the runner's local database, so a restart keeps them. The report of a ticket validated
+  automatically now says whose decision it was, the project's setting or the global one, and
+  *Settings › Automatic validation* lists the projects that decide for themselves. A failed or
+  blocked ticket is still never validated.
+
 - **An *Ideas* page.** A new entry in the menu lists every idea — the workspace's and each
   project's, new, kept, thrown or turned into tickets — as cards with the title, the
   description, the *Ticket* / *New project* badge, the project's icon and name (or *Workspace*)

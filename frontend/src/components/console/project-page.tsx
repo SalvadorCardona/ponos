@@ -24,6 +24,7 @@ import { ProjectBrief } from "./project-brief"
 import { ProjectMenu } from "./project-delete"
 import { IdeaList } from "./ideas-list"
 import { ProjectCover } from "./project-picture"
+import { ProjectSettingsTab } from "./project-settings"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
 import { StatisticsBand } from "./statistics-band"
@@ -115,18 +116,21 @@ export function ProjectPage() {
   )
 }
 
-/* The tabs of a project: its tickets, its ideas, and its brief.
+/* The tabs of a project: its tickets, its ideas, its brief and its settings.
  *
  * The tickets come first, because a project is opened more often to see what is
  * being done on it than to reread what every ticket is told; the ideas next, as
- * what could be done on it — every one of them, thrown away included. A project
+ * what could be done on it — every one of them, thrown away included. The
+ * settings last: what this project decides for itself against the runner's
+ * settings, opened the day it should not be treated like the others. A project
  * the configuration alone names has no page for an idea to point at, and no
- * ideas tab. The one picked is written in the address (`&tab=brief`), so a
+ * ideas tab; nor a page for its settings to be kept under, and no settings tab
+ * either — no ticket points at it to be validated anyway. The one picked is written in the address (`&tab=brief`), so a
  * reload or a pasted link comes back to it; the tickets are the tab of an
  * address that says nothing, and of one that says something else. The facts and
  * the statistics stay above the tabs.
  */
-const TABS = ["tickets", "ideas", "brief"] as const
+const TABS = ["tickets", "ideas", "brief", "settings"] as const
 type Tab = (typeof TABS)[number]
 
 function ProjectTabs({ project, children }: { project: ProjectItem; children: React.ReactNode }) {
@@ -138,7 +142,9 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
   const named = new URLSearchParams(searchStr).get("tab")
   const ideas = isAPage(project.id)
   const tab: Tab =
-    mine && TABS.includes(named as Tab) && (named !== "ideas" || ideas) ? (named as Tab) : "tickets"
+    mine && TABS.includes(named as Tab) && ((named !== "ideas" && named !== "settings") || ideas)
+      ? (named as Tab)
+      : "tickets"
   const pick = (value: string) => {
     if (!mine) return
     const rest = searchStr
@@ -161,6 +167,11 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
         <TabsTrigger value="brief" data-slot="project-brief-tab">
           {t("Brief")}
         </TabsTrigger>
+        {ideas ? (
+          <TabsTrigger value="settings" data-slot="project-settings-tab">
+            {t("Settings")}
+          </TabsTrigger>
+        ) : null}
       </TabsList>
       <TabsContent value="tickets">
         <ProjectTickets project={project} />
@@ -171,6 +182,11 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
         </TabsContent>
       ) : null}
       <TabsContent value="brief">{children}</TabsContent>
+      {ideas ? (
+        <TabsContent value="settings">
+          <ProjectSettingsTab project={project.id} />
+        </TabsContent>
+      ) : null}
     </Tabs>
   )
 }

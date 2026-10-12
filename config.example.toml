@@ -446,6 +446,9 @@ merge_method = "squash"
 # A ticket that failed, was blocked or ran out of credit is never validated,
 # and a ticket already in review when you tick one of these stays there.
 # All off: every ticket waits for you, as it always has.
+# A project may have its own four switches instead — the Settings tab of its
+# page in the console, kept in ponos.db rather than here — and those win over
+# these for its tickets, in either direction.
 force_validated_code = false
 force_validated_writing = false
 force_validated_external = false

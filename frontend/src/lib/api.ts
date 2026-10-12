@@ -18,6 +18,7 @@ import type {
   ProjectDeleted,
   ProjectDetail,
   Projects,
+  ProjectSettings,
   Run,
   RunnerState,
   RunSteps,
@@ -169,6 +170,7 @@ export const api = {
     ),
   project: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
   projectBrief: (id: string) => request<ProjectBrief>(`/api/projects/${id}/brief`),
+  projectSettings: (id: string) => request<ProjectSettings>(`/api/projects/${id}/settings`),
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),
   talk: (id: string) => request<Talk>(`/api/tickets/${id}/talk`),
   logs: (ticket = "") =>
@@ -224,6 +226,10 @@ export const api = {
   saveContext: (text: string) => request<{ text: string }>("/api/context", { text }),
   saveProject: (id: string, values: Record<string, unknown>) =>
     request<ProjectDetail>(`/api/projects/${id}`, values),
+  saveProjectSettings: (
+    id: string,
+    values: { validation: { own: boolean; values?: Partial<ProjectSettings["validation"]["values"]> } }
+  ) => request<ProjectSettings>(`/api/projects/${id}/settings`, values),
   deleteProject: (id: string, values: { confirm: string; trash_tickets: boolean }) =>
     request<ProjectDeleted>(`/api/projects/${id}/delete`, values),
   setPicture: (

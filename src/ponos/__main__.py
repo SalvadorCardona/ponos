@@ -20,7 +20,7 @@ from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
 from . import db, journal, kinds, legacy, models, store, voice
-from . import provision
+from . import project_settings, provision
 from . import provider as provider_module
 from . import schedules as schedules_module
 from . import session, state, systemd
@@ -882,6 +882,12 @@ def command_doctor(args: argparse.Namespace) -> int:
         )
         if "code" in forced and not (settings.push and settings.open_pull_request):
             warn("runner.force_validated_code is on, but no pull request is opened to merge")
+    # And the projects that decide for themselves, in either direction: the
+    # line above is not the whole story for them.
+    owning = project_settings.owning_validation()
+    if owning:
+        names = ", ".join(project["name"] or project["id"] for project in owning)
+        ok(f"automatic validation of their own, over the lines above: {names}")
 
     title("Version")
     print(f"  {DIM}Ponos {__version__} — releases: CHANGELOG.md{RESET}")

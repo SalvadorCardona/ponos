@@ -414,8 +414,9 @@ const PathController = ({ formInput, onChange }: InputControllerInterface) => {
 
 /* The « ? » beside a label: the whole sentence of help, of which the line
  * under the field is only the start, and what has to happen for a change to
- * count. A popover rather than a tooltip, because a phone has no hover. */
-function MoreHelp({ field }: { field: SettingField }) {
+ * count. A popover rather than a tooltip, because a phone has no hover. Also
+ * drawn by a project's own settings, beside the same labels. */
+export function MoreHelp({ field }: { field: Pick<SettingField, "label" | "help"> & { after?: string } }) {
   const t = useT()
   return (
     <Popover>

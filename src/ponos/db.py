@@ -90,6 +90,16 @@ every place taken — and the console reads it to say so on the card. Nothing
 about it outlives the pass that wrote it, so the table is rewritten whole, and
 emptied when the pass ends; it is a table and not a file because the console
 reads it while the run writes it.
+
+Migration 16 holds what a project decides for itself, against the settings of
+`config.toml` — see project_settings.py. One row a project, keyed by its page
+id without dashes, and its settings as one JSON object: the first of them is
+its own automatic validation, and the next ones are keys of the same object
+rather than a migration each. Here rather than on the board because nobody
+should have to add a column to their Notion database for a switch of Ponos's;
+the project's name is copied beside it, as `runs` copies a ticket's title, so
+that the global settings can say which projects decide for themselves without
+reading the board.
 """
 
 from __future__ import annotations
@@ -582,6 +592,18 @@ def _held(connection: sqlite3.Connection) -> None:
     )
 
 
+def _project_settings(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE project_settings (
+            project   TEXT PRIMARY KEY,
+            name      TEXT NOT NULL DEFAULT '',
+            settings  TEXT NOT NULL DEFAULT '{}'
+        )
+        """
+    )
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -605,6 +627,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _mcp,
     _ideas_say_who_wrote_them,
     _held,
+    _project_settings,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

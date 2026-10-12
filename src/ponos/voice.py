@@ -179,9 +179,14 @@ _SAID: dict[str, dict[str, str]] = {
     "merged-with": {"en": "{method} merge", "fr": "fusion en {method}"},
     "merged-before": {"en": "already merged", "fr": "déjà fusionnée"},
     "forced-validation": {
-        "en": "Validated automatically (Force validated: {kind})",
-        "fr": "Validation automatique (Force validated : {kind})",
+        "en": "Validated automatically (Force validated: {kind}) — {source}",
+        "fr": "Validation automatique (Force validated : {kind}) — {source}",
     },
+    # Whose decision that was: a project may hold its own automatic validation,
+    # and a report that only said "validated" would leave you guessing which
+    # switch to turn off. See project_settings.py.
+    "forced-by-project": {"en": "the project's setting", "fr": "réglage du projet"},
+    "forced-by-global": {"en": "the global setting", "fr": "réglage global"},
     "credits-out": {
         "en": "out of credit, back in “{status}” until {when}",
         "fr": "crédits épuisés, retour dans « {status} » jusqu'à {when}",
