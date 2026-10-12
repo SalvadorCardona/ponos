@@ -226,6 +226,68 @@ def forget_rebases(ticket_id: str) -> None:
         pass
 
 
+def wait_for_base(ticket_id: str, base: str, url: str, names: list[str]) -> None:
+    """A validated ticket set aside because its base is red, and not it.
+
+    Local, like the replay counts: it is the machine that set the ticket aside
+    that looks again, at the top of each pass, whether the base is green.
+    """
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO base_waits (ticket, base, url, names) VALUES (?, ?, ?, ?)",
+                (ticket_id, base, url, "\n".join(names)),
+            )
+    except db.ERRORS:
+        pass
+
+
+def waiting_for_base(ticket_id: str) -> tuple[str, str, list[str]] | None:
+    """The base, the pull request and the red checks a ticket waits on, or nothing."""
+    try:
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT base, url, names FROM base_waits WHERE ticket = ?", (ticket_id,)
+            ).fetchone()
+    except db.ERRORS:
+        return None
+    return (str(row[0]), str(row[1]), [name for name in str(row[2]).split("\n") if name]) if row else None
+
+
+def forget_base_wait(ticket_id: str) -> None:
+    """The base is green again, or the ticket left the validated column."""
+    try:
+        with db.transaction() as connection:
+            connection.execute("DELETE FROM base_waits WHERE ticket = ?", (ticket_id,))
+    except db.ERRORS:
+        pass
+
+
+def repair_of(repository: str, base: str) -> str:
+    """The ticket opened to repair that base, or nothing."""
+    try:
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT ticket FROM base_repairs WHERE repository = ? AND base = ?",
+                (repository, base),
+            ).fetchone()
+    except db.ERRORS:
+        return ""
+    return str(row[0]) if row else ""
+
+
+def repairing(repository: str, base: str, ticket_id: str) -> None:
+    """Remember the ticket that repairs that base, so that a second is never opened."""
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO base_repairs (repository, base, ticket) VALUES (?, ?, ?)",
+                (repository, base, ticket_id),
+            )
+    except db.ERRORS:
+        pass
+
+
 def _number(value: object) -> float | None:
     try:
         return None if value is None or value == "" else float(value)  # type: ignore[arg-type]
