@@ -317,6 +317,46 @@ def wrote_up(ticket_id: str) -> None:
         pass
 
 
+def mended(ticket_id: str, head: str) -> bool:
+    """Has a session already been sent after the red checks of the ticket's branch at `head`?
+
+    Once a ticket and a head commit, and never again — see `Delivery._mend`.
+    A table that cannot be read answers yes, for the reason `written_up` does:
+    a second session nobody budgeted costs more than a ticket blocked sooner.
+    """
+    try:
+        with db.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT 1 FROM mends WHERE ticket = ? AND head = ?", (ticket_id, head)
+            ).fetchone()
+    except db.ERRORS:
+        return True
+    return row is not None
+
+
+def mending(ticket_id: str, head: str) -> None:
+    """A session is sent after the red checks of that branch at `head`: not again."""
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO mends (ticket, head, at) VALUES (?, ?, ?)",
+                (ticket_id, head, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+            )
+    except db.ERRORS:
+        pass
+
+
+def forget_mending(ticket_id: str, head: str) -> None:
+    """That repair never ran (no credit left): it may be asked for again."""
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "DELETE FROM mends WHERE ticket = ? AND head = ?", (ticket_id, head)
+            )
+    except db.ERRORS:
+        pass
+
+
 def _number(value: object) -> float | None:
     try:
         return None if value is None or value == "" else float(value)  # type: ignore[arg-type]

@@ -675,6 +675,13 @@ def _write_ups(connection: sqlite3.Connection) -> None:
     )
 
 
+def _mends(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        "CREATE TABLE mends (ticket TEXT NOT NULL, head TEXT NOT NULL, "
+        "at TEXT NOT NULL DEFAULT '', PRIMARY KEY (ticket, head))"
+    )
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -702,6 +709,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _red_bases,
     _stops_have_a_cause,
     _write_ups,
+    _mends,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

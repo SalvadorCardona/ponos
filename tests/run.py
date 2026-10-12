@@ -11756,6 +11756,108 @@ def a_green_base_with_a_red_pull_request_keeps_the_pull_request_blocked():
     assert checks == "failed", "red here and not on the base is still the pull request's"
 
 
+def _repairing(heads: list[str], ok: bool = True, then: str = "passed", pushed: list | None = None):
+    """`_mend` of a pull request red by its own fault: what it answered, and the sessions sent.
+
+    `heads` is what the branch is on in turn — before the session, after it —
+    and `then` what the CI says once the fix is pushed.
+    """
+    from types import SimpleNamespace
+
+    from ponos import session as session_module
+
+    url = "https://github.com/x/y/pull/1"
+    page = _reviewed("p1", "In progress", url)
+    runner = _board_runner([page], {})
+    runner._body = lambda ticket: "Le titre est faux."
+    runner._add_cost = lambda *args: None
+    sessions: list[tuple] = []
+    heads = list(heads)
+
+    def work(job, template):
+        sessions.append((job.body, template))
+        return session_module.Outcome(
+            ok=ok, blocked=not ok, session_id="s", summary="done" if ok else "unsure",
+            log=Path("/log"), answer="- `settings.spec.ts` : locator exact\n\nRESULT: ok — x",
+        )
+
+    runner._run_session = work
+    runner._checked = lambda url, workdir, base: (then, "CI: " + then)
+    job = SimpleNamespace(
+        ticket=ticket_module.Ticket(page), workdir=Path("/work"), base="main", branch="ticket/x",
+    )
+    job_copy = ticket_module.Job(
+        ticket_module.Ticket(page), projects.Project("Site", Path("/repo")),
+        branch="ticket/x", base="main", workdir=Path("/work"),
+    )
+    with _state_home(), _git_answering(
+        head=lambda workdir: heads.pop(0) if len(heads) > 1 else heads[0],
+        failing_checks=lambda url, accounts=None: ["frontend"],
+        failed_log=lambda url, accounts=None, most=6000: "Error: locator resolved to 2 elements",
+        pull_request_body=lambda url, accounts=None: "La PR.",
+        rebasing=lambda workdir: False,
+        is_dirty=lambda workdir: False,
+        push_leased=lambda workdir, branch, was, accounts=None: pushed.append((branch, was)) or "",
+        comment_pull_request=lambda *args, **kwargs: None,
+    ):
+        pushed = [] if pushed is None else pushed
+        first = runner._mend(job_copy, url, "CI: red.")
+        second = runner._mend(job_copy, url, "CI: red.") if len(heads) else None
+    del job
+    return first, second, sessions, pushed
+
+
+@case
+def a_pull_request_red_by_its_own_fault_is_repaired_by_a_session_and_goes_on():
+    """The log reaches the session; its fix is pushed on the branch; a green CI lets the merge go on."""
+    from ponos import prompt as prompt_module
+
+    (checks, said, outcome), _, sessions, pushed = _repairing(["aaa", "bbb"], then="passed", pushed=[])
+    assert checks == "passed" and outcome is not None, (checks, said)
+    assert pushed == [("ticket/x", "aaa")], pushed
+    assert len(sessions) == 1 and sessions[0][1] is prompt_module.REPAIR, sessions
+    brief = sessions[0][0]
+    assert "`frontend`" in brief and "locator resolved to 2 elements" in brief, brief
+    assert "locator exact" in said and "réparé" in said or "repaired" in said, said
+
+
+@case
+def a_pull_request_still_red_after_its_repair_is_blocked_once_without_a_second_session():
+    """Red again after the fix: `failed` is returned, and the same red never costs two sessions."""
+    pushed: list = []
+    (checks, said, _), _, sessions, _ = _repairing(["aaa", "bbb"], then="failed", pushed=pushed)
+    assert checks == "failed" and "still red" in said, (checks, said)
+    assert len(sessions) == 1
+
+    # The head the repair pushed, and the one it started from, are both spent.
+    runner_heads = ["aaa", "bbb"]
+    (_, _, _), second, sessions, _ = _repairing(["aaa", "bbb", "bbb"], then="failed", pushed=[])
+    assert second is not None and second[0] == "failed" and second[2] is None, second
+    assert len(sessions) == 1, "a second session was sent after the same red"
+    del runner_heads
+
+
+@case
+def a_repair_that_answers_blocked_or_commits_nothing_pushes_nothing():
+    (checks, said, outcome), _, sessions, pushed = _repairing(["aaa"], ok=False, pushed=[])
+    assert checks == "failed" and outcome is not None and not pushed, (checks, pushed)
+    assert "unsure" in said and "locator exact" in said, said
+
+    (checks, said, _), _, sessions, pushed = _repairing(["aaa"], ok=True, pushed=[])
+    assert checks == "failed" and not pushed and "committed nothing" in said, (said, pushed)
+
+
+@case
+def the_repair_attempts_of_a_ticket_are_kept_by_head_commit():
+    with _state_home():
+        assert not state.mended("p1", "aaa")
+        state.mending("p1", "aaa")
+        assert state.mended("p1", "aaa") and not state.mended("p1", "bbb")
+        assert not state.mended("p2", "aaa")
+        state.forget_mending("p1", "aaa")
+        assert not state.mended("p1", "aaa")
+
+
 @case
 def a_pull_request_set_aside_waits_for_a_green_base_then_goes_on_its_own():
     """Still red: left alone, no merge asked. Green again: merged, and the card says so."""

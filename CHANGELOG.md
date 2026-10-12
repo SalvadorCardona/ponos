@@ -18,6 +18,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A pull request red by its own fault is repaired by a session before it is blocked.** When
+  the checks of a validated pull request are still red after the failed jobs were run again,
+  and are not red on its base, a session is sent after them on the pull request's branch:
+  it is given the names of the red checks and the end of the log of their failed jobs, fixes
+  what the branch broke (not the base, no test turned off) and commits. The runner pushes the
+  fix and waits for the CI: green, the merge goes on; red again, or a session that answers
+  *blocked* or commits nothing, the ticket is blocked as before (`merge.checks-failed`) with
+  the session's report. One attempt per ticket and per head commit, kept in `ponos.db`.
 - **A red base is no longer a red pull request.** When the checks of a pull request fail on
   the newest commit of its base too, the ticket is no longer blocked (or, until now, merged
   over a red base): it is set aside in *Validated* with a line on its card — “the base is red,
