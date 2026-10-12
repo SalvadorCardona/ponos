@@ -1,5 +1,15 @@
 import * as React from "react"
-import { ExternalLink, MoreHorizontal } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import {
+  ExternalLink,
+  GitMerge,
+  KeyRound,
+  type LucideIcon,
+  MessageCircleQuestion,
+  MoreHorizontal,
+  ServerCrash,
+  SquareTerminal,
+} from "lucide-react"
 
 import {
   AlertDialog,
@@ -24,7 +34,7 @@ import { useConsole } from "@/hooks/use-console"
 import { titleOf } from "@/lib/board-store"
 import { currentLanguage, t, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
-import type { Ticket } from "@/lib/types"
+import type { Block, BlockFamily, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /* What a ticket wears wherever it is drawn — on its card, at the top of its
@@ -161,6 +171,51 @@ export function TicketHeld({ ticket }: { ticket: Ticket }) {
       </Chip>
     </div>
   )
+}
+
+/* Why a stopped ticket stopped, as `blocks.py` catalogues it: one icon per
+ * family, so that a column of blocked cards sorts itself at a glance — the
+ * merges, the sessions that came back empty, Ponos's own machinery, the
+ * questions, the accesses only you can give. */
+export const FAMILY_ICON: Record<BlockFamily, LucideIcon> = {
+  merge: GitMerge,
+  session: SquareTerminal,
+  infrastructure: ServerCrash,
+  question: MessageCircleQuestion,
+  access: KeyRound,
+}
+
+/** The colour of a family — on its icon, never on the words beside it. */
+export const familyColor = (family: BlockFamily): string => `var(--family-${family})`
+
+/** A cause's words in the language the console is read in. Written by the server in both. */
+export function blockSaid(words: { en: string; fr: string }): string {
+  return (currentLanguage() === "fr" ? words.fr : words.en) || words.en
+}
+
+/* The cause on a stopped card: a badge with its label, and the line of help
+ * under it. The gesture it proposes is with the others, in `TicketActions`. */
+export function TicketBlock({ block }: { block?: Block | null }) {
+  if (!block) return null
+  const Icon = FAMILY_ICON[block.family] ?? ServerCrash
+  return (
+    <div className="flex flex-col gap-1" data-slot="ticket-block" data-code={block.code}>
+      <div className="flex flex-wrap gap-1.5">
+        <Chip className="text-foreground font-medium">
+          <Icon className="size-3" style={{ color: familyColor(block.family) }} />
+          <span title={block.code}>{blockSaid(block.label)}</span>
+        </Chip>
+      </div>
+      <p className="text-muted-foreground text-xs leading-relaxed break-words">{blockSaid(block.help)}</p>
+    </div>
+  )
+}
+
+/* Where the CI of a pull request's repository is read: its Actions page, from
+ * the pull request's own address. */
+function actionsOf(pullRequest: string): string {
+  const repository = pullRequest.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/pull\//)
+  return repository ? `${repository[1]}/actions` : ""
 }
 
 /** A tag: one word about a ticket, drawn small enough that five of them still read as one row. */
@@ -338,7 +393,16 @@ function Confirmed({
  * away from one. On Done — the column that holds almost every card — the
  * gesture is rare, so it waits behind a "…" rather than sitting on each card.
  */
-export function TicketActions({ ticket, className }: { ticket: Ticket; className?: string }) {
+export function TicketActions({
+  ticket,
+  className,
+  answer,
+}: {
+  ticket: Ticket
+  className?: string
+  /** Where answering opens — the ticket's page, on its discussion. None where the discussion already is. */
+  answer?: { href: string; onClick?: React.MouseEventHandler<HTMLAnchorElement> }
+}) {
   const { move, board } = useConsole()
   const t = useT()
   const [asked, setAsked] = React.useState(false)
@@ -347,7 +411,14 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
   if (ticket.column === "running") return null
   const named = (key: string) =>
     columnTitle(key, board.columns.find((column) => column.key === key)?.name)
-  const again = ticket.column === "review" || ticket.column === "done" || ticket.column === "failed"
+  const block = ticket.column === "blocked" || ticket.column === "failed" ? ticket.block : null
+  // A stop whose cause is Ponos's own, or a thing to set right first, is run
+  // again — « Relancer » — rather than made ready as a draft would be.
+  const again =
+    ticket.column === "review" ||
+    ticket.column === "done" ||
+    ticket.column === "failed" ||
+    (block != null && !["answer", "open-pr"].includes(block.action))
   const ready = {
     title: again
       ? t("Run “{{title}}” again?", { title: titleOf(ticket) })
@@ -371,11 +442,41 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
     confirm: again ? t("Run it again") : t("Make it ready"),
     onConfirm: () => void move(ticket, "ready"),
   }
+  // The gesture the cause of a stop proposes, first on the card. Answering
+  // and the pull request are links; the others put the ticket back in ready,
+  // which is the one thing the console can do about them — the line of help
+  // says what to do first, when there is something.
+  const ci = block?.action === "base-ci" ? actionsOf(ticket.pull_request) : ""
+  const proposed = !block
+    ? null
+    : block.action === "answer" && answer ? (
+        <Button variant="outline" size="sm" asChild className="text-tr-amber hover:text-tr-amber">
+          <Link to={answer.href} onClick={answer.onClick} data-slot="block-action">
+            <MessageCircleQuestion />
+            {t("answer")}
+          </Link>
+        </Button>
+      ) : block.action === "open-pr" && ticket.pull_request ? (
+        <Button variant="outline" size="sm" asChild>
+          <a href={ticket.pull_request} target="_blank" rel="noreferrer noopener" data-slot="block-action">
+            {t("see the pull request")}
+            <ExternalLink />
+          </a>
+        </Button>
+      ) : ci ? (
+        <Button variant="outline" size="sm" asChild>
+          <a href={ci} target="_blank" rel="noreferrer noopener" data-slot="block-action">
+            {t("see the base's CI")}
+            <ExternalLink />
+          </a>
+        </Button>
+      ) : null
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {/* What a card waiting on you is for: why it waits, and what to do —
           see `decision-panel.tsx`. The plain gestures stay beside it. */}
       <DecideButton ticket={ticket} />
+      {proposed}
       {ticket.column === "review" ? (
         <Confirmed label={t("run again")} {...ready} />
       ) : ticket.column === "done" ? (

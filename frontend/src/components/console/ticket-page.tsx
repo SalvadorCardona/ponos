@@ -33,6 +33,7 @@ import {
   SEED,
   columnTitle,
   TicketActions,
+  TicketBlock,
   TicketLinks,
   ago,
   capital,
@@ -108,6 +109,14 @@ export function TicketPage() {
               </span>
             ) : null}
           </div>
+
+          {/* Why it stopped, as on its card: the gesture it proposes is
+              among the actions below, the answer in the discussion. */}
+          {ticket.block ? (
+            <div className="mb-3">
+              <TicketBlock block={ticket.block} />
+            </div>
+          ) : null}
 
           {/* Priority, model and date are the grid's: the tags the card wears
               would say them a second time, one line above. */}

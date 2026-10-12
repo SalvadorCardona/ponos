@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .. import blocks
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, decisions, git, images, question, session, state, store, sync
 from .. import journal, models, project_settings, systemd, voice
@@ -218,6 +219,7 @@ class Api:
             )
             for page in pages
         ]
+        _causes(tickets)
         self._synced = board_module.describe(self.reader, tickets)
         self._hold(tickets)
 
@@ -353,6 +355,9 @@ class Api:
             "scheduled": moment.isoformat(timespec="minutes") if moment else "",
             "created": page.raw.get("created_time", ""),
             "edited": page.raw.get("last_edited_time", ""),
+            # Why it stopped, from the board's « Blocage » column; `_causes`
+            # falls back on the history, and keeps it on a stopped card only.
+            "block": blocks.describe(blocks.known(store.read(page, settings.prop("block")))),
         }
 
     def ticket(self, page_id: str) -> dict:
@@ -378,6 +383,7 @@ class Api:
             self.outbox.marks().get(page_id.replace("-", "")),
             lambda status: names.get(status, "draft"),
         )
+        _causes([card])
         # A board without the duration column still ran the session: its log
         # says how long. Only here, where one ticket is read — on the board it
         # would be a log opened per card.
@@ -1644,6 +1650,23 @@ def _keys(settings) -> tuple[str, ...]:
     column, named or not — see `_draft`.
     """
     return ("draft", *COLUMNS)
+
+
+def _causes(tickets: list[dict]) -> None:
+    """The cause on every card that stopped, and on no other.
+
+    The board's « Blocage » column first; the history's last code for the
+    ticket when the board has no such column, or a stop written before it was
+    there. A card that has left blocked or failed carries none: the cause was
+    the last stop's, and it is not stopped any more.
+    """
+    codes: dict[str, str] | None = None
+    for ticket in tickets:
+        if ticket.get("column") not in ("blocked", "failed"):
+            ticket["block"] = None
+        elif ticket.get("block") is None:
+            codes = state.causes() if codes is None else codes
+            ticket["block"] = blocks.describe(codes.get(str(ticket.get("id", "")), ""))
 
 
 def _status(settings, key: str) -> str:

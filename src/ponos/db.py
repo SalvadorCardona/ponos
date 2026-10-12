@@ -100,6 +100,14 @@ should have to add a column to their Notion database for a switch of Ponos's;
 the project's name is copied beside it, as `runs` copies a ticket's title, so
 that the global settings can say which projects decide for themselves without
 reading the board.
+
+Migration 17 gives a stop its cause: a `code` column on the history and on
+the runs, from the catalogue of blocks.py. A blocked or failed line written
+before it had only its sentence, in whichever language and wording the runner
+had that day; the migration reads the cause back from it (`blocks.classify`),
+and writes the code into the line's own JSON too, since that is what the
+statistics read. A sentence that matches nothing is `unknown` — counted, and
+said to be unclassified, rather than guessed.
 """
 
 from __future__ import annotations
@@ -627,6 +635,35 @@ def _red_bases(connection: sqlite3.Connection) -> None:
     )
 
 
+def _stops_have_a_cause(connection: sqlite3.Connection) -> None:
+    from . import blocks
+
+    connection.execute("ALTER TABLE history ADD COLUMN code TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE runs ADD COLUMN code TEXT NOT NULL DEFAULT ''")
+    stopped = connection.execute(
+        "SELECT id, entry FROM history WHERE status IN ('blocked', 'failed')"
+    ).fetchall()
+    for identifier, raw in stopped:
+        try:
+            entry = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        code = blocks.known(entry.get("code")) or blocks.classify(str(entry.get("reason") or ""))
+        entry["code"] = code
+        connection.execute(
+            "UPDATE history SET code = ?, entry = ? WHERE id = ?",
+            (code, json.dumps(entry, ensure_ascii=False), identifier),
+        )
+    for identifier, reason in connection.execute(
+        "SELECT id, reason FROM runs WHERE status IN ('blocked', 'failed')"
+    ).fetchall():
+        connection.execute(
+            "UPDATE runs SET code = ? WHERE id = ?", (blocks.classify(str(reason or "")), identifier)
+        )
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -652,6 +689,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _held,
     _project_settings,
     _red_bases,
+    _stops_have_a_cause,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

@@ -31,6 +31,7 @@ import {
   columnTitle,
   SEED,
   TicketActions,
+  TicketBlock,
   TicketFoot,
   TicketHeld,
   TicketSync,
@@ -495,6 +496,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       <TicketTags ticket={ticket} />
       <TicketSync ticket={ticket} />
       <TicketHeld ticket={ticket} />
+      <TicketBlock block={ticket.block} />
 
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />
@@ -504,7 +506,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         </p>
       ) : null}
 
-      <TicketActions ticket={ticket} className="-mx-1" />
+      <TicketActions ticket={ticket} className="-mx-1" answer={{ href, onClick: open }} />
       <TicketFoot ticket={ticket} />
     </div>
   )

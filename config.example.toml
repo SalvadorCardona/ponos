@@ -180,6 +180,13 @@ waiting = "Waiting for credit"
 # without the column runs every ticket by what its project holds, as before.
 type = "Type"
 
+# select: why a blocked or failed ticket stopped, as a code from the catalogue
+# (merge.checks-failed, session.question, worktree.residue…) — filled when it
+# stops, emptied when it leaves. What a Notion view filters and groups blocks
+# by; the console reads it for the card's badge. ponos init adds it, with every
+# code as an option. Optional: without it, the code is still in the history.
+block = "Blocage"
+
 # The columns of the *schedules* database — what comes back on its own. A row
 # there is the recipe for a ticket and the cadence it is born at; the body of
 # the page is the brief, copied into each ticket so it reads on its own. What

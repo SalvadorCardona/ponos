@@ -284,6 +284,17 @@ export const FRENCH: Record<string, string> = {
   "{{count}} min": "{{count}} min",
   "{{count}} h": "{{count}} h",
   "run again": "relancer",
+  // Why a ticket stopped (blocks.py), on its card, in the search and in the statistics.
+  answer: "répondre",
+  "see the pull request": "voir la pull request",
+  "see the base's CI": "voir la CI de la base",
+  Cause: "Cause",
+  "Blocks, by cause and week": "Blocages, par cause et par semaine",
+  "No ticket stopped in the period.": "Aucun ticket arrêté sur la période.",
+  "week of {{day}}": "semaine du {{day}}",
+  Merge: "Fusion",
+  Infrastructure: "Infrastructure",
+  Question: "Question",
   "make ready": "rendre prêt",
   validate: "valider",
   done: "terminé",
@@ -1427,6 +1438,9 @@ export const FRENCH: Record<string, string> = {
   Type: "Type",
   "Code, Writing, External action or Publication; empty, it is guessed.":
     "Code, Rédaction, Action externe ou Publication ; vide, il est deviné.",
+  "Block cause": "Cause du blocage",
+  "Written by the runner: why a stopped ticket stopped, as a code.":
+    "Écrite par le runner : pourquoi un ticket arrêté s'est arrêté, sous forme de code.",
   Agent: "Agent",
   "Relation to the Agents database: who handles the ticket.":
     "Relation vers la base Agents : qui traite le ticket.",

@@ -23,6 +23,9 @@ closed that evening, not the next morning.
 The series are computed here rather than in the browser because this is where
 the tests are: the page only draws what it is handed.
 
+The blocks are the history's too: every line that ended blocked or failed,
+counted by the cause it carries (blocks.py) and by the week it fell in.
+
 A project's figures are the same computation over its tickets alone, and over
 the history lines of those tickets: a history line knows its ticket's id, not
 the project's name as the board spells it today, so the board is what says
@@ -35,6 +38,8 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime, timedelta, tzinfo
+
+from .. import blocks
 
 # The runner's history lines that are a ticket reaching `done`. A plain "done"
 # status is not one: a session that opened a pull request reports "done" and
@@ -181,6 +186,8 @@ def figures(
     ]
     average = round(sum(cost_of[key] for key in shut) / len(shut), 2) if shut else None
 
+    stops = blocked(history, first, last, zone)
+
     born = [ticket for ticket, created, _ in known.values() if created and first <= created <= last]
     statuses = Counter(str(ticket.get("column") or "draft") for ticket in born)
     projects = Counter(str(ticket.get("project") or "") for ticket in born)
@@ -198,4 +205,39 @@ def figures(
         "projects": [{"name": name, "count": count} for name, count in projects.most_common()],
         "dated": {"history": from_history, "edited": from_edit},
         "average": average,
+        "blocks": stops,
+    }
+
+
+def blocked(history: list[dict], first: date, last: date, zone: tzinfo | None = None) -> dict:
+    """The stops of a period, by cause and by week — see blocks.py.
+
+    A week is named by its Monday, and every week the period touches is there,
+    empty ones included: a week without a block is the thing the chart is for.
+    A line written before codes existed, and not migrated, is read back from
+    its sentence the way the migration would have.
+    """
+    weeks: dict[date, Counter[str]] = {}
+    monday = first - timedelta(days=first.weekday())
+    while monday <= last:
+        weeks[monday] = Counter()
+        monday += timedelta(days=7)
+    total: Counter[str] = Counter()
+    for entry in history:
+        if entry.get("status") not in ("blocked", "failed"):
+            continue
+        day = day_of(str(entry.get("at", "")), zone)
+        if not day or not first <= day <= last:
+            continue
+        code = blocks.known(entry.get("code")) or blocks.classify(str(entry.get("reason") or ""))
+        weeks[day - timedelta(days=day.weekday())][code] += 1
+        total[code] += 1
+    return {
+        "total": sum(total.values()),
+        "weeks": [
+            {"week": week.isoformat(), "counts": dict(counts)} for week, counts in weeks.items()
+        ],
+        "causes": [
+            {**blocks.cause(code).as_dict(), "count": count} for code, count in total.most_common()
+        ],
     }

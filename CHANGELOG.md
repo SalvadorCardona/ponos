@@ -67,6 +67,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   Sessions now name what they stopped on (`CATEGORY:`) and what to check (`CAVEAT:`); tickets
   blocked before that are read off their words.
 
+- **Why a ticket stopped, as a cause you can count.** Every block or failure now carries a
+  code from a catalogue (`merge.checks-failed`, `session.question`, `worktree.residue`…), with
+  its family, who has to move, a label and a line of help in French and English, the gesture it
+  proposes and what the runner may do about it alone. The card of a stopped ticket shows a badge
+  with the family's icon, the help under it and the gesture — *answer*, *run again*, the pull
+  request; the board's search filters by cause; the statistics show the blocks by cause and by
+  week. The code is kept in the history and the runs (`ponos.db` migration 18, which read every
+  past stop back from its sentence, French or English, and files what matched nothing as
+  `unknown`), and written into a new **`Blocage`** select of the Notion board — run
+  `ponos init` to add it; `ponos doctor` says when it is missing.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added

@@ -28,7 +28,8 @@ its log holds everything all the same.
 A run's `status` is what the ticket came to — done, blocked, failed, waiting —
 not only what its session did: a session that ended well and committed nothing
 is a blocked ticket, and that is what its run says. `reason` is the sentence
-beside it, or the pull request it opened. A run the runner never got to close
+beside it, or the pull request it opened; `code` is the cause of a run that
+stopped, from blocks.py. A run the runner never got to close
 — killed mid-session — keeps a NULL status, and reads as such.
 """
 
@@ -162,14 +163,14 @@ class Run:
         if self.open:
             self._write("UPDATE runs SET session = ?, log = ? WHERE id = ?", (session, str(log), self.id))
 
-    def end(self, status: str, reason: str = "") -> None:
-        """What the ticket came to. Once: a run closed is not reopened."""
+    def end(self, status: str, reason: str = "", code: str = "") -> None:
+        """What the ticket came to, and the cause it stopped on. Once: a run closed is not reopened."""
         if not self.open:
             return
         self._write(
-            "UPDATE runs SET ended_at = ?, status = ?, reason = ?, cost_usd = ?"
+            "UPDATE runs SET ended_at = ?, status = ?, reason = ?, code = ?, cost_usd = ?"
             " WHERE id = ? AND ended_at IS NULL",
-            (_now(), status, str(reason or "")[:TEXT], self.cost, self.id),
+            (_now(), status, str(reason or "")[:TEXT], code, self.cost, self.id),
         )
 
     def _write(self, statement: str, values: tuple | list, many: bool = False) -> None:
@@ -200,7 +201,7 @@ def _run(row: sqlite3.Row | tuple, names: list[str]) -> dict:
 
 _RUN = (
     "SELECT runs.id, runs.ticket, runs.title, runs.kind, runs.project, runs.agent, runs.session,"
-    " runs.log, runs.started_at, runs.ended_at, runs.status, runs.reason, runs.cost_usd,"
+    " runs.log, runs.started_at, runs.ended_at, runs.status, runs.reason, runs.code, runs.cost_usd,"
     " runs.model, runs.reported,"
     " (SELECT count(*) FROM steps WHERE steps.run = runs.id) AS steps FROM runs"
 )

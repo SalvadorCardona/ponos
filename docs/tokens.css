@@ -80,6 +80,14 @@
      tags' blue and amber, which were picked to be told from text. */
   --series-1: #0e8fa8;
   --series-2: #eb6834;
+  /* The five families a block falls in (blocks.py), in a fixed order: slots
+     1 to 5 of the same checked palette, so that a stacked bar of them is
+     still read apart by somebody who does not see red from green. */
+  --family-merge: #2a78d6;
+  --family-session: #eb6834;
+  --family-infrastructure: #1baf7a;
+  --family-question: #eda100;
+  --family-access: #e87ba4;
 }
 
 .dark {
@@ -124,6 +132,11 @@
 
   --series-1: #2cb5d4;
   --series-2: #d95926;
+  --family-merge: #3987e5;
+  --family-session: #d95926;
+  --family-infrastructure: #199e70;
+  --family-question: #c98500;
+  --family-access: #d55181;
 }
 
 /* The two faces the product speaks in: a geometric grotesque for everything

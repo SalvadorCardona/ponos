@@ -711,6 +711,9 @@ _DEFAULT_PROPERTIES = {
     # Publication — which decides the road it takes. Optional, and empty is an
     # answer too: the runner works it out before running the ticket.
     "type": "Type",
+    # Why a blocked or failed ticket stopped: a code of blocks.py, as a select a
+    # Notion view filters on. Written when it stops, emptied when it leaves.
+    "block": "Blocage",
     # Relation to the Agents database. It carries the same word as the database
     # it points at, because it is the same thing.
     "role": "Agent",
