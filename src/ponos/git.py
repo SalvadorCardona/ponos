@@ -1037,13 +1037,14 @@ def rerun_failed_checks(url: str, accounts: Accounts | None = None) -> bool:
     return any(started)
 
 
-def failing_on(url: str, base: str, accounts: Accounts | None = None) -> list[str]:
-    """The checks that failed on the newest commit of `base`, in that pull request's repository.
+def base_failures(url: str, base: str, accounts: Accounts | None = None) -> list[tuple[str, str]]:
+    """The checks that failed on the newest commit of `base`, with the page of each run.
 
     What tells a pull request that broke something from one that merely
     inherited a red `main`: the same check red on both is not the pull
     request's doing. Nothing when it cannot be asked, which leaves the red to
-    the pull request — the cautious reading.
+    the pull request — the cautious reading. The link is the run to open
+    first when the base has to be repaired.
     """
     parts = reference_parts(url)
     if not base or len(parts) < 3 or not shutil.which("gh"):
@@ -1053,13 +1054,53 @@ def failing_on(url: str, base: str, accounts: Accounts | None = None) -> list[st
         ["gh", "api", "--hostname", host,
          f"repos/{owner_name}/commits/{base}/check-runs?per_page=100",
          "-q", ".check_runs[] | select(.conclusion == \"failure\" or .conclusion == "
-               "\"timed_out\" or .conclusion == \"cancelled\") | .name"],
+               "\"timed_out\" or .conclusion == \"cancelled\") | [.name, .html_url] | @tsv"],
         timeout=60,
         token=token_for(url, accounts),
     )
     if not result.ok:
         return []
-    return sorted({line.strip() for line in result.out.splitlines() if line.strip()})
+    found: dict[str, str] = {}
+    for line in result.out.splitlines():
+        name, _, link = line.strip().partition("\t")
+        if name:
+            found.setdefault(name, link)
+    return sorted(found.items())
+
+
+def failing_on(url: str, base: str, accounts: Accounts | None = None) -> list[str]:
+    """The names of the checks that failed on the newest commit of `base`."""
+    return [name for name, _ in base_failures(url, base, accounts)]
+
+
+def ci_at_push(repo: Path, base: str, accounts: Accounts | None = None) -> str:
+    """Does the CI of that repository run when something is pushed to `base`?
+
+    `ran` when at least one push run of the branch did something, `none` when
+    it has no push run at all, `skipped` when every one it has was skipped — the
+    two shapes of a base nobody watches, which is how a red one goes unseen.
+    Nothing when it cannot be asked: no `gh`, no remote on GitHub, no network.
+    """
+    remote = remote_url(repo)
+    parts = reference_parts(remote)
+    if not base or len(parts) < 3 or not shutil.which("gh"):
+        return ""
+    result = run(
+        ["gh", "run", "list", "--branch", base, "--event", "push", "--limit", "20",
+         "--json", "conclusion", "-R", "/".join(parts[:3])],
+        timeout=60,
+        token=token_for(remote, accounts),
+    )
+    try:
+        runs = json.loads(result.out or "[]") if result.ok else None
+    except ValueError:
+        runs = None
+    if not isinstance(runs, list):
+        return ""
+    if not runs:
+        return "none"
+    worked = any(one.get("conclusion") != "skipped" for one in runs if isinstance(one, dict))
+    return "ran" if worked else "skipped"
 
 
 def pull_request_on(repo: Path, branch: str, accounts: Accounts | None = None) -> str:

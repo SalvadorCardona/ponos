@@ -378,6 +378,8 @@ def command_projects(args: argparse.Namespace) -> int:
                 warn(f"{project.name} → {where}\n    {project.note}")
             else:
                 ok(f"{project.name} → {where}")
+            if project.path and (why := _base_without_ci(project.path, configuration.github)):
+                warn(f"{project.name}: {why}")
         except (LookupError, store.StoreError) as error:
             failed += 1
             bad(str(error).replace("\n", "\n    "))
@@ -1004,6 +1006,9 @@ def command_doctor(args: argparse.Namespace) -> int:
         index = resolver._index()  # noqa: SLF001 — diagnostics
         count = sum(len(repos) for repos in index.values())
         ok(f"{root} — {count} repository(ies) found")
+        for repo in sorted({path for repos in index.values() for path in repos}):
+            if why := _base_without_ci(repo, configuration.github):
+                warn(f"{repo.name}: {why}")
     else:
         bad(f"{root} does not exist (runner.workspace_root)")
         problems += 1
@@ -1307,6 +1312,23 @@ def _doctor_provider(configuration: config_module.Config) -> int:
     if which == "openrouter" and not configuration.openrouter.route_sessions:
         warn("openrouter.route_sessions = false — the sessions still run on the CLI's sign-in")
     return 0
+
+
+def _base_without_ci(repo: Path, accounts: git.Accounts | None = None) -> str:
+    """Why the base of that repository goes unwatched, or nothing when it is.
+
+    A base whose CI never runs at push breaks silently: the first pull request
+    to find it red is the one that pays, and then every other. Said for a base
+    with no push run at all and for one whose runs are all skipped; a repository
+    GitHub cannot be asked about says nothing.
+    """
+    base = git.default_branch(repo)
+    found = git.ci_at_push(repo, base, accounts)
+    if found == "none":
+        return f"{base} has no CI run at push — a red base would go unseen"
+    if found == "skipped":
+        return f"{base} has only skipped CI runs at push — a red base would go unseen"
+    return ""
 
 
 def _doctor_database() -> int:

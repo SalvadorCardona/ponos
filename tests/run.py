@@ -4296,6 +4296,8 @@ class _BoardClient:
         self.written: list[tuple[str, dict]] = []
         self.comments_written: list[str] = []
         self.queried: list[object] = []
+        self.created: list[tuple[str, dict]] = []
+        self.bodies: list[str] = []
         # Columns a test adds to the board: the Runner one, to begin with.
         self.columns: dict[str, str] = {}
 
@@ -4335,6 +4337,21 @@ class _BoardClient:
 
     def comment(self, page_id: str, text: str, discussion_id: str = "") -> None:
         self.comments_written.append(text)
+
+    def create_row(self, database_id: str, title: str, values: dict | None = None) -> str:
+        page_id = f"created{len(self.created)}"
+        self.created.append((title, values or {}))
+        status = (values or {}).get("Status", "")
+        self._pages.append(
+            notion.Page(
+                id=page_id, url="", title=title,
+                properties={"Status": {"type": "status", "status": {"name": status}}},
+            )
+        )
+        return page_id
+
+    def append_markdown(self, page_id: str, text: str) -> None:
+        self.bodies.append(text)
 
 
 def _ticked(page: notion.Page) -> notion.Page:
@@ -11212,12 +11229,12 @@ def a_check_that_goes_green_once_run_again_is_a_flake_not_a_question():
 
 
 @case
-def a_check_main_fails_too_is_inherited_and_merged_all_the_same():
+def a_check_main_fails_too_is_the_bases_red_and_not_the_pull_requests():
     """Red twice, but red on the base as well: not the pull request's doing."""
     checks, said, asked = _reading_checks(
         ["failed", "failed"], [["frontend"], ["frontend"]], ["frontend", "core (3.11)"]
     )
-    assert checks == "inherited", checks
+    assert checks == "base-red", checks
     assert asked == ["wait", "rerun", "wait", "base main"], asked
     assert "`frontend`" in said and "`main`" in said, said
 
@@ -11333,6 +11350,169 @@ def the_checks_gh_lists_are_read_into_names_and_runs_to_start_again():
     finally:
         git_module.shutil.which = original_which
         git_module.time.sleep = original_sleep
+
+
+_REPAIR_RUN = "https://github.com/x/y/actions/runs/7"
+
+
+def _red_base(*, names=("frontend",)):
+    """`gh`, answering that the newest commit of the base fails these checks."""
+    return _git_answering(
+        base_failures=lambda url, base, accounts=None: [(name, _REPAIR_RUN) for name in names],
+        failing_on=lambda url, base, accounts=None: list(names),
+    )
+
+
+def _forced_on_red_base(runner, page, url):
+    from types import SimpleNamespace
+
+    runner._checked = lambda url, workdir, base: ("base-red", "")
+    job = SimpleNamespace(
+        ticket=ticket_module.Ticket(page),
+        project=projects.Project("Site", Path("/repo")),
+        workdir=Path("/work"),
+        base="main",
+    )
+    merges: list[str] = []
+    with _github({}, merge=lambda url, method="squash", accounts=None: merges.append(url)):
+        return runner._force_merge(job, url), merges
+
+
+@case
+def a_red_base_sets_the_pull_request_aside_and_opens_one_repair_for_all_of_them():
+    """Base red: no merge, no question, the card says so — and one ticket to repair it."""
+    first, second = "https://github.com/x/y/pull/1", "https://github.com/x/y/pull/2"
+    pages = [_reviewed("p1", "In progress", first), _reviewed("p2", "In progress", second)]
+    with _state_home(), _red_base():
+        runner = _board_runner(pages, {})
+        (why, later), merges = _forced_on_red_base(runner, pages[0], first)
+        assert later and merges == [] and "base is red" in why, (why, later, merges)
+        assert state.waiting_for_base("p1") == ("main", first, ["frontend"])
+
+        (why, later), merges = _forced_on_red_base(runner, pages[1], second)
+        assert later and merges == [], (later, merges)
+        assert state.waiting_for_base("p2")
+
+    assert len(runner.client.created) == 1, runner.client.created
+    title, values = runner.client.created[0]
+    assert title == "Repair main of Site", title
+    assert values["Status"] == "Ready" and values["Priority"] == "High", values
+    assert "`frontend`" in runner.client.bodies[0] and _REPAIR_RUN in runner.client.bodies[0]
+
+
+@case
+def a_repair_that_is_done_is_followed_by_a_new_one_if_the_base_is_red_again():
+    url = "https://github.com/x/y/pull/1"
+    page = _reviewed("p1", "In progress", url)
+    with _state_home(), _red_base():
+        runner = _board_runner([page], {})
+        _forced_on_red_base(runner, page, url)
+        runner.client._pages[-1].properties["Status"] = {"type": "status", "status": {"name": "Done"}}
+        _forced_on_red_base(runner, page, url)
+    assert len(runner.client.created) == 2, runner.client.created
+
+
+@case
+def a_green_base_with_a_red_pull_request_keeps_the_pull_request_blocked():
+    """Base green, the red is the pull request's: today's behaviour, nothing set aside."""
+    checks, said, _ = _reading_checks(["failed", "failed"], [["frontend"], ["frontend"]], [])
+    assert checks == "failed", "red here and not on the base is still the pull request's"
+
+
+@case
+def a_pull_request_set_aside_waits_for_a_green_base_then_goes_on_its_own():
+    """Still red: left alone, no merge asked. Green again: merged, and the card says so."""
+    url = "https://github.com/x/y/pull/1"
+    page = _reviewed("p1", "Validated", url)
+    merges: list[str] = []
+
+    def merge(url, method="squash", accounts=None):
+        merges.append(url)
+        return "merged"
+
+    with _state_home():
+        state.wait_for_base("p1", "main", url, ["frontend"])
+        runner = _board_runner([page], {})
+        with _github({url: "OPEN"}, merge=merge), _git_answering(
+            failing_on=lambda url, base, accounts=None: ["frontend", "lint"]
+        ):
+            assert runner.deliver() == [] and merges == []
+            assert runner.client.comments_written == [], "waiting is not said again at every pass"
+        with _github({url: "OPEN"}, merge=merge), _git_answering(
+            failing_on=lambda url, base, accounts=None: []
+        ):
+            done = runner.deliver()
+        assert merges == [url] and done[0]["status"] == "done", (merges, done)
+        assert state.waiting_for_base("p1") is None
+    assert any("green again" in text for text in runner.client.comments_written)
+
+
+@case
+def a_resolved_pull_request_on_a_red_base_goes_back_to_validated_without_a_question():
+    url = "https://github.com/x/y/pull/1"
+    page = _reviewed("p1", "In progress", url)
+    with _state_home(), _red_base():
+        runner = _board_runner([page], {})
+        done = runner._left_for_base(
+            ticket_module.Ticket(page), projects.Project("Site", Path("/repo")), url, "main", "record"
+        )
+        assert state.waiting_for_base("p1")
+    assert done["status"] == "waiting" and done["reason"] == "merge.base-red", done
+    status = [values["Status"] for _, values in runner.client.written if "Status" in values]
+    assert status == ["Validated"], status
+    assert "the base is red, it is not this pull request" in runner.client.comments_written[-1]
+    assert "Repair main of Site" in runner.client.comments_written[-1]
+
+
+@case
+def the_failures_of_a_base_and_its_ci_at_push_are_read_from_gh():
+    from ponos import git as git_module
+
+    def answering(out, ok=True):
+        return lambda args, *rest, **kept: git_module.Result(0 if ok else 1, out, "")
+
+    original_which = shutil.which
+    git_module.shutil.which = lambda name, *rest, **kept: f"/usr/bin/{name}"
+    try:
+        url = "https://github.com/x/y/pull/1"
+        with _git_answering(
+            run=answering("frontend\thttps://github.com/x/y/runs/1\nlint\t"),
+            token_for=lambda reference, accounts=None: "",
+        ):
+            assert git_module.base_failures(url, "main") == [
+                ("frontend", "https://github.com/x/y/runs/1"), ("lint", "")
+            ]
+        repo = Path("/repo")
+        for out, wanted in (
+            ("[]", "none"),
+            ('[{"conclusion": "skipped"}, {"conclusion": "skipped"}]', "skipped"),
+            ('[{"conclusion": "skipped"}, {"conclusion": "failure"}]', "ran"),
+            ("not json", ""),
+        ):
+            with _git_answering(
+                run=answering(out),
+                remote_url=lambda repo: "git@github.com:x/y.git",
+                token_for=lambda reference, accounts=None: "",
+            ):
+                assert git_module.ci_at_push(repo, "main") == wanted, (out, wanted)
+        with _git_answering(run=answering("", ok=False), remote_url=lambda repo: "git@github.com:x/y.git",
+                            token_for=lambda reference, accounts=None: ""):
+            assert git_module.ci_at_push(repo, "main") == "", "a question GitHub did not answer"
+    finally:
+        git_module.shutil.which = original_which
+
+
+@case
+def doctor_says_when_a_base_has_no_ci_at_push():
+    from ponos import __main__ as cli
+
+    with _git_answering(default_branch=lambda repo: "dev", ci_at_push=lambda repo, base, accounts=None: "none"):
+        assert "dev has no CI run at push" in cli._base_without_ci(Path("/repo"))
+    with _git_answering(default_branch=lambda repo: "dev", ci_at_push=lambda repo, base, accounts=None: "skipped"):
+        assert "only skipped" in cli._base_without_ci(Path("/repo"))
+    for found in ("ran", ""):
+        with _git_answering(default_branch=lambda repo: "dev", ci_at_push=lambda repo, base, accounts=None: found):
+            assert cli._base_without_ci(Path("/repo")) == ""
 
 
 @case

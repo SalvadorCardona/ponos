@@ -18,6 +18,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A red base is no longer a red pull request.** When the checks of a pull request fail on
+  the newest commit of its base too, the ticket is no longer blocked (or, until now, merged
+  over a red base): it is set aside in *Validated* with a line on its card — “the base is red,
+  it is not this pull request” — and no new session. One ticket “Repair `<base>` of
+  `<project>`” is opened, *Ready*, *High* priority, with the failing jobs and the link of the
+  run, and only one while it is open. Each pass reads the base again, and the pull requests
+  set aside go on by themselves once it is green. `ponos doctor` and `ponos projects` warn
+  about a base with no CI run at push, or only skipped ones.
+
 - **A search over the board, and over a project's tickets.** A bar over the columns finds a
   ticket by the words of its title, of its result, of its pull request, by its short id, or by
   a pasted branch or Notion address — case and accents set aside — and filters that combine:

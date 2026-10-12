@@ -1623,8 +1623,15 @@ and the second no longer replays cleanly — “Pull Request has merge conflicts
    `checks_timeout_minutes`; then the merge is asked again. A red check is not taken at
    its word: the failed GitHub Actions jobs are run again once (a flaky test goes green
    and the pull request is merged), and a check still red is compared with the newest
-   commit of the base — red there too, it was inherited rather than caused, and the pull
-   request is merged all the same, its report naming the check and saying so.
+   commit of the base — red there too, the base is the one that is broken, not the pull
+   request. The ticket is then set aside in *Validated* (“the base is red, it is not this
+   pull request”, `merge.base-red`), no session is started again and nobody is asked
+   anything; one ticket “Repair `<base>` of `<project>`” is opened in *Ready* at *High*
+   priority, with the failing jobs and the link of their run — never a second one while it
+   is open — and at every pass the base is read again: once those checks are no longer red
+   there, the pull request goes on by itself. `ponos doctor` and `ponos projects` say when
+   a repository's base has no CI run at push, or only skipped ones: that is how a red base
+   goes unseen.
 5. The pull request gets a comment, and the ticket gets its report: the commit it was
    rebased onto, the files in conflict, how each was resolved, what the checks said. The
    session's cost is added to the ticket's *Cost*.

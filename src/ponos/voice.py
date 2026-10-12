@@ -514,14 +514,51 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "CI: red on {names}, green once run again — a flaky test, not this pull request.",
         "fr": "CI : rouge sur {names}, verte une fois relancée — un test instable, pas cette pull request.",
     },
-    "checks-inherited": {
+    "checks-base-red": {
         "en": (
-            "CI: red on {names}, which `{base}` fails too — inherited, not caused by this "
-            "pull request, so it is merged all the same."
+            "CI: red on {names}, which `{base}` fails too — the base is red, this pull "
+            "request is not to blame."
         ),
         "fr": (
-            "CI : rouge sur {names}, que `{base}` échoue aussi — héritée, pas causée par "
-            "cette pull request, qui est donc fusionnée quand même."
+            "CI : rouge sur {names}, que `{base}` échoue aussi — la base est rouge, "
+            "cette pull request n'y est pour rien."
+        ),
+    },
+    "base-red": {
+        "en": "the base is red, it is not this pull request",
+        "fr": "la base est rouge, ce n'est pas cette PR",
+    },
+    "base-red-held": {
+        "en": (
+            "Left aside until `{base}` is green again, then replayed on its own: no session "
+            "is started for it. Repair ticket: {repair}."
+        ),
+        "fr": (
+            "Mise de côté jusqu'à ce que `{base}` redevienne verte, puis rejouée toute seule : "
+            "aucune session n'est lancée pour elle. Ticket de réparation : {repair}."
+        ),
+    },
+    "base-green-again": {
+        "en": "`{base}` is green again — the pull request is replayed.",
+        "fr": "`{base}` est de nouveau verte — la pull request est rejouée.",
+    },
+    "forced-base-red": {
+        "en": "the base is red, it is not this pull request",
+        "fr": "la base est rouge, ce n'est pas cette PR",
+    },
+    "repair-title": {"en": "Repair {base} of {project}", "fr": "Réparer {base} de {project}"},
+    "repair-body": {
+        "en": (
+            "`{base}` of {project} is red: every open pull request of the repository is "
+            "stopped by it. Failing jobs:\n\n{jobs}\n\nFound while checking {url}. Fix "
+            "`{base}` so that its CI is green again; the pull requests set aside for it are "
+            "replayed on their own once it is."
+        ),
+        "fr": (
+            "`{base}` de {project} est rouge : toutes les pull requests ouvertes du dépôt "
+            "en sont bloquées. Jobs en échec :\n\n{jobs}\n\nConstaté en vérifiant {url}. "
+            "Répare `{base}` pour que sa CI redevienne verte ; les pull requests mises de "
+            "côté pour elle sont rejouées toutes seules dès qu'elle l'est."
         ),
     },
     "checks-failed-on": {

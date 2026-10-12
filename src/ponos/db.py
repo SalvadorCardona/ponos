@@ -604,6 +604,29 @@ def _project_settings(connection: sqlite3.Connection) -> None:
     )
 
 
+def _red_bases(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE base_waits (
+            ticket  TEXT PRIMARY KEY,
+            base    TEXT NOT NULL,
+            url     TEXT NOT NULL,
+            names   TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE base_repairs (
+            repository  TEXT NOT NULL,
+            base        TEXT NOT NULL,
+            ticket      TEXT NOT NULL,
+            PRIMARY KEY (repository, base)
+        )
+        """
+    )
+
+
 # Appended to, never edited: the version of a file is how many of these it has
 # been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -628,6 +651,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _ideas_say_who_wrote_them,
     _held,
     _project_settings,
+    _red_bases,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

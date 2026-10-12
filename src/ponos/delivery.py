@@ -33,7 +33,7 @@ moment it is not sure: a conflict that is a decision, checks that stay red, a
 branch somebody else pushed to, a base that keeps moving. Checks that stay red
 means red twice and red only here — a flaky test is run again before anything
 is concluded, and a check `main` fails too is not the pull request's to answer
-for: see `_checked`. The branch it pushes is the pull request's own, on a
+for — it waits for the base to be green again instead: see `_checked`. The branch it pushes is the pull request's own, on a
 lease; the base is never touched.
 A ticket typed as a publication comes here the same way, whatever its project
 holds: it was prepared in its page, and its page is what goes out.
@@ -324,6 +324,8 @@ class Delivery(Base):
             )
         if state_of == "MERGED":
             return self._merged(ticket, url, said.say("merged-before"))
+        if self._waits_for_base(ticket, url):
+            return None
         method = self.config.runner.merge_method
         # Asked first rather than read in a refusal: a pull request GitHub
         # already calls conflicting is replayed before anything is merged, and
@@ -343,6 +345,7 @@ class Delivery(Base):
     def _merged(self, ticket: Ticket, url: str, *facts: str, notes: tuple = ()) -> dict:
         """Done, and said so: the pull request is in."""
         state.forget_rebases(ticket.id)
+        state.forget_base_wait(ticket.id)
         self._landed_in(url)
         said = self.voice
         self.say(f"  ✓ {ticket.title} — pull request merged, moved to done")
@@ -384,8 +387,8 @@ class Delivery(Base):
         it was pushed from. Then the merge, with `merge_method`, as always.
 
         Red checks are read the way `_checked` reads them: run again once, and
-        compared with the base, so that neither a flaky test nor a red `main`
-        keeps a forced ticket out.
+        compared with the base: a flaky test does not keep a forced ticket out,
+        and a red `main` sets it aside until the base is green again.
 
         Returns why it was not merged, or "" once it is — and whether that is
         only *not yet*. Nothing to catch up with is true when the pull request
@@ -407,6 +410,9 @@ class Delivery(Base):
         later = False
         if checks == "failed":
             refusal = self.voice.say("forced-checks-red")
+        elif checks == "base-red" and self.validated_column():
+            self._set_aside(job.ticket, job.project, url, job.base)
+            refusal, later = self.voice.say("forced-base-red"), True
         elif (
             rebase
             and self.validated_column()
@@ -440,11 +446,12 @@ class Delivery(Base):
         once, before anything is concluded — the gesture you would make by hand.
         A check still red that is red on the newest commit of `base` too was
         inherited, not caused: the pull request makes nothing worse, and is
-        merged like one whose CI passed, saying so. What is left is red here and
-        only here, and that is the one answer that still stops the merge — with
-        the checks named, rather than “CI: red”.
+        put aside, not blamed: the ticket waits for the base to be green again —
+        see `_set_aside` — instead of stopping on an error that is not its own.
+        What is left is red here and only here, and that is the one answer that
+        still stops the merge — with the checks named, rather than “CI: red”.
 
-        Returns `passed`, `pending`, `none`, `inherited` or `failed`, and the
+        Returns `passed`, `pending`, `none`, `base-red` or `failed`, and the
         sentence that says it.
         """
         accounts = self.config.github
@@ -469,8 +476,102 @@ class Delivery(Base):
             return "failed", said.say("checks-failed")
         if set(failing) <= set(git.failing_on(url, base, accounts)):
             self.say(f"    · {', '.join(failing)} red on {base} too — not this pull request's")
-            return "inherited", said.say("checks-inherited", names=_named(failing), base=base)
+            return "base-red", said.say("checks-base-red", names=_named(failing), base=base)
         return "failed", said.say("checks-failed-on", names=_named(failing), base=base)
+
+    def _set_aside(self, ticket: Ticket, project: Project, url: str, base: str) -> str:
+        """A pull request stopped by a red base, set aside until the base is green.
+
+        Red on `base` too, so the pull request is not what is wrong, and a
+        session sent after an error that is not its own would only pay to find
+        that out (48 tickets, in waves of seven to eleven, one repository and
+        one day at a time). Its place is written down — `_merge` looks at the
+        base again at every pass and replays it once it is green — and the
+        repair of the base is opened once, however many pull requests wait for
+        it. Returns the ticket that repairs it, to be named on the card.
+        """
+        failures = git.base_failures(url, base, self.config.github)
+        state.wait_for_base(ticket.id, base, url, [name for name, _ in failures])
+        return self._repair(ticket, project, url, base, failures)
+
+    def _repair(
+        self, ticket: Ticket, project: Project, url: str, base: str, failures: list[tuple[str, str]]
+    ) -> str:
+        """The ticket that repairs a red base: the one already open, else a new one.
+
+        Ready and at High priority, with the failing jobs and the link of their
+        run. One per base: the table remembers the ticket opened for a
+        repository's base, and a second is only opened once that one is done or
+        failed — a base still red after a repair deserves a new look, not
+        silence. Under a lock, because two pull requests of one repository can
+        be put aside by two threads of the same pass.
+        """
+        settings = self.config.notion
+        repository = _repository(url)
+        said = self.voice
+        with self._landed_lock:
+            known = state.repair_of(repository, base)
+            if known:
+                try:
+                    page = self.client.page(known)
+                except store.StoreError:
+                    page = None
+                if page and str(store.read(page, settings.prop("status")) or "") not in (
+                    settings.state("done"),
+                    settings.state("failed"),
+                ):
+                    return page.title
+            if self.dry_run:
+                return ""
+            title = said.say("repair-title", base=base, project=project.name or repository)
+            values: dict[str, object] = {
+                settings.prop("status"): settings.state("ready"),
+                settings.prop("priority"): "High",
+            }
+            if relation := store.read(ticket.page, settings.prop("project")):
+                values[settings.prop("project")] = relation
+            jobs = "\n".join(
+                f"- `{name}`" + (f" — {link}" if link else "") for name, link in failures
+            )
+            try:
+                page_id = self.client.create_row(self.database, title, values)
+                state.repairing(repository, base, page_id)
+                self.client.append_markdown(
+                    page_id,
+                    said.say(
+                        "repair-body",
+                        base=base,
+                        project=project.name or repository,
+                        jobs=jobs or "-",
+                        url=url,
+                    ),
+                )
+            except store.StoreError as error:
+                self.say(
+                    f"    ! the repair of {base} could not be opened: {voice_module.line(error)}"
+                )
+                return ""
+        self.say(f"  ✳ {title} — opened, ready")
+        return title
+
+    def _waits_for_base(self, ticket: Ticket, url: str) -> bool:
+        """Is this validated ticket still set aside for a base that is red?
+
+        Asked at the top of `_merge`. The base is read again, and the ticket
+        goes on as any validated one the moment the checks it was set aside for
+        are no longer red there — said on its card, once. A base that cannot be
+        read counts as green: the merge is asked, and GitHub answers for it.
+        """
+        waited = state.waiting_for_base(ticket.id)
+        if not waited:
+            return False
+        base, _, names = waited
+        if set(names) & set(git.failing_on(url, base, self.config.github)):
+            self.say(f"  · {ticket.title} — {base} is still red, left aside")
+            return True
+        state.forget_base_wait(ticket.id)
+        self._comment(ticket, self.voice.say("base-green-again", base=base))
+        return False
 
     def _refused(self, ticket: Ticket, url: str, refusal: object, *notes: str) -> dict:
         """A merge GitHub would not make, and nothing more the runner can do about it."""
@@ -758,6 +859,8 @@ class Delivery(Base):
                 question=said.say("checks-red-question", url=url),
                 note=said.paragraphs(record, checked),
             )
+        if checks == "base-red":
+            return self._left_for_base(ticket, project, url, job.base, record, checked)
         method = self.config.runner.merge_method
         try:
             git.merge_pull_request(url, method, accounts)
@@ -789,6 +892,43 @@ class Delivery(Base):
                 cost_usd=outcome.cost_usd,
             )
         return done
+
+    def _left_for_base(
+        self, ticket: Ticket, project: Project, url: str, base: str, *notes: str
+    ) -> dict:
+        """A resolved pull request whose checks fail where its base fails too.
+
+        Back to the validated column with the line on its card, and no question
+        — nobody has anything to answer, `_merge` replays it when the base is
+        green. The session that resolved it is not started again.
+        """
+        said = self.voice
+        repair = self._set_aside(ticket, project, url, base)
+        state.forget_rebases(ticket.id)
+        line = said.say("base-red")
+        self.say(f"    ⏸ {ticket.title} — {line}, left validated")
+        self._set(
+            ticket,
+            **{
+                self.config.notion.prop("status"): self.config.notion.state("validated"),
+                self.config.notion.prop("progress"): said.brief(line),
+            },
+        )
+        self._comment(
+            ticket,
+            said.report(
+                said.verdict("waiting", line),
+                said.say("base-red-held", base=base, repair=repair or "-"),
+                url,
+                *notes,
+            ),
+        )
+        return {
+            "ticket": ticket.title,
+            "id": ticket.id,
+            "status": "waiting",
+            "reason": "merge.base-red",
+        }
 
     def _conflict_brief(self, job: Job, url: str, replay: git.Replay) -> str:
         """Everything the resolving session is told, under the ticket's own text."""
