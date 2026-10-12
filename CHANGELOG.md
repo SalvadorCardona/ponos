@@ -42,6 +42,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   many cards they kept (`3 / 12`), the words found are marked on the cards, and the search lives
   in the address: a link to send, a reload that keeps it, and the table under the same search.
   **/** goes to the field, **Escape** empties it; on a phone, the filters fold behind one button.
+- **A runner that survives its own bad days.** A worktree left in the middle of a rebase, a merge
+  or a detached HEAD with changes (a session killed while it resolved conflicts) is saved to a
+  local branch `ponos/backup/<id>-<date>`, the operation is given up, and the ticket starts again
+  from its own branch — the session's prompt and the ticket say where the backup is, instead of
+  "I could not make the worktree". A session killed from outside (SIGKILL/SIGTERM, or cut by a
+  network outage) is resumed once after `runner.relaunch_delay_seconds`, if the network answers;
+  killed again, the ticket is blocked as `session.killed` with the exact cause (the signal, the
+  kernel's out-of-memory line, the network). When Notion cannot be reached (DNS, connection) the
+  run ends quietly instead of failing every few seconds, and no ticket is marked failed. No
+  session is started while less than `runner.min_free_memory_mb` (2048) is available; `ponos
+  doctor` reports it.
 
 - **Unblock and Decide, on the cards that wait on you.** A blocked card opens a panel that says
   why it stopped — in one sentence, under its kind: a decision to make, missing access,

@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from .config import state_dir
@@ -263,6 +264,10 @@ class Worktree:
     carried: int = 0
     start: str = ""
     failure: str = ""
+    # The local branch an interrupted worktree was saved to before it was given
+    # up — see `rescue`. Independent of `reused`: the ticket may have had no
+    # branch of its own worth keeping, and the backup is still there to read.
+    backup: str = ""
 
 
 def _held_at(repo: Path, branch: str) -> str:
@@ -356,6 +361,7 @@ def add_worktree(repo: Path, path: Path, branch: str, base: str) -> Worktree:
     # Registrations for directories somebody deleted by hand: git still counts
     # those as holding their branch, and would refuse to check it out again.
     git(["worktree", "prune"], repo)
+    backup = rescue(repo, path, branch)
 
     local = git(["rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], repo).ok
     remote = git(["rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}"], repo).ok
@@ -366,7 +372,7 @@ def add_worktree(repo: Path, path: Path, branch: str, base: str) -> Worktree:
         result = git(["worktree", "add", "-b", branch, str(path), start], repo)
         if not result.ok:
             raise GitError(f"git worktree add: {result.err or result.out}")
-        return Worktree()
+        return Worktree(backup=backup)
 
     held = _held_at(repo, branch)
     if held and not _same(held, path):
@@ -396,7 +402,74 @@ def add_worktree(repo: Path, path: Path, branch: str, base: str) -> Worktree:
         carried=commits_ahead(path, base),
         start=start,
         failure=rebase(path, start),
+        backup=backup,
     )
+
+
+# What a worktree can be in the middle of, by the file git leaves in its git
+# directory while it is: a rebase is a directory, the others a single file.
+_OPERATIONS = (
+    ("rebase", "rebase-merge"),
+    ("rebase", "rebase-apply"),
+    ("merge", "MERGE_HEAD"),
+    ("cherry-pick", "CHERRY_PICK_HEAD"),
+    ("revert", "REVERT_HEAD"),
+)
+
+
+def interrupted(worktree: Path) -> str:
+    """What a worktree was left in the middle of — '' when it is in no such state.
+
+    A rebase, a merge, a cherry-pick or a revert still under way, or a HEAD
+    that is on no branch while files have changed: what a session killed while
+    it resolved conflicts leaves. Any of those makes the worktree refuse the
+    ticket for good — `_make_room` reads the changes as somebody's work — and
+    `rebase` on top of a rebase only fails again.
+    """
+    found = git(["rev-parse", "--absolute-git-dir"], worktree)
+    if found.ok and found.out:
+        for name, marker in _OPERATIONS:
+            if (Path(found.out) / marker).exists():
+                return name
+    if not git(["symbolic-ref", "--quiet", "HEAD"], worktree).ok and is_dirty(worktree):
+        return "detached"
+    return ""
+
+
+def rescue(repo: Path, path: Path, branch: str) -> str:
+    """Save an interrupted worktree to a branch, give it up, and say where it went.
+
+    `ponos/backup/<id>-<date>`, made of everything the worktree holds — `git
+    add -A` and a commit with no hook: a hook that fails on half-resolved
+    conflicts is exactly the reason not to run one. Then the operation is
+    abandoned and the worktree removed, so that the ticket's own branch — which
+    git leaves untouched until a rebase ends — is checked out again as it was.
+
+    Nothing is given up before the backup exists: a commit that cannot be made
+    stops the ticket, and the worktree with it, rather than lose the work.
+    Returns the branch's name, or '' when there was nothing to save.
+    """
+    if not (path / ".git").exists():
+        return ""
+    operation = interrupted(path)
+    if not operation:
+        return ""
+    name = f"ponos/backup/{branch.rsplit('-', 1)[-1]}-{datetime.now():%Y%m%d-%H%M%S}"
+    git(["add", "-A"], path)
+    git(
+        ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
+         "commit", "--no-verify", "--allow-empty",
+         "-m", f"ponos: sauvegarde d'un worktree interrompu ({operation})"],
+        path,
+        environment=identity(path),
+    )
+    saved = git(["branch", name, "HEAD"], path)
+    if not saved.ok:
+        raise GitError(f"{path} was interrupted in a {operation} and could not be saved: {saved.err}")
+    if operation != "detached":
+        git([operation, "--abort"], path)
+    remove_worktree(repo, path)
+    return name
 
 
 def _make_room(repo: Path, path: Path, base: str) -> None:

@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import channels, conversation, credits, provider, session, state, store, sync
+from . import channels, conversation, credits, provider, resources, session, state, store, sync
 from . import question as question_module
 from . import voice as voice_module
 from .base import Base
@@ -424,6 +424,8 @@ class Reports(Base):
         is not there.
         """
         said = self.voice
+        if outcome.killed:
+            return said.say("session-killed"), said.say("session-killed-detail", why=outcome.killed)
         if outcome.over_budget:
             limit = said.money(self.config.budget.per_ticket_usd)
             return said.say("over-ticket-budget", limit=limit), said.say("over-ticket-budget-detail")
@@ -565,6 +567,18 @@ class Reports(Base):
         """
         try:
             result = work(*arguments)
+        except store.Unreachable as error:
+            # The network went away under this ticket, not the ticket under the
+            # network: it is marked nothing. Left where it is, it is put back to
+            # ready by the sweep of the first pass that can reach the board, and
+            # its branch — commits and all — is picked up by the attempt after.
+            state.release(ticket.id)
+            self.say(
+                f"    ⏸ {ticket.title} — unreachable ({voice_module.line(error)}); "
+                "not marked failed, the next pass carries on"
+            )
+            self._journal_end(ticket, {"status": "interrupted", "reason": "network"})
+            return None
         except Exception as error:  # noqa: BLE001 — the point is to catch it all
             detail = f"{type(error).__name__}: {voice_module.line(error)}"
             state.release(ticket.id)
@@ -720,6 +734,25 @@ class Reports(Base):
             "status": "waiting",
             "reason": f"out of credit until {when}",
         }
+
+    def room_for_a_session(self) -> bool:
+        """Is there memory for one more session? Said once while there is not.
+
+        Asked at every free place, like the reserve, and for the same reason:
+        what a session costs is not known until it runs, but what the machine
+        has left is. Below `min_free_memory_mb` nothing new is started — the
+        ticket stays in ready, and a pass with nothing in flight simply ends,
+        the next one asking again. What is running is left alone: killing a
+        session to save memory would spend what it has already cost.
+        """
+        free = None if self.dry_run else resources.short_of_memory(self.config.runner.min_free_memory_mb)
+        if free is None:
+            self._memory_warned = False
+            return True
+        if not self._memory_warned:
+            self._memory_warned = True
+            self.say(self.voice.say("memory-short", free=free, minimum=self.config.runner.min_free_memory_mb))
+        return False
 
     def under_reserve(self) -> float:
         """The moment nothing new may be started until, or 0.0 while there is room.

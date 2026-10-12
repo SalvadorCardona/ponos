@@ -324,6 +324,20 @@ max_concurrent = 2
 # Past this, the session is killed and the ticket goes back as failed.
 timeout_minutes = 30
 
+# A session killed from outside — SIGKILL (exit 137), SIGTERM (143), or cut off
+# while the network was down — is carried on once with `--resume`, this many
+# seconds later, and only if the network answers. Killed again, the ticket is
+# blocked as `session.killed` with the reason: the signal, the kernel's OOM line
+# when `journalctl -k` or `dmesg` has one, or the network.
+relaunch_delay_seconds = 15
+
+# No session is started while less memory than this is available (MemAvailable
+# in /proc/meminfo, in MB): the ticket stays in Ready and is started by the
+# next pass, once the sessions in flight have let go of some. Eight sessions,
+# `tsc`, `vitest` and PHPUnit at once is how the kernel kills one of them.
+# 0 turns the guard off. `ponos doctor` shows what is available now.
+min_free_memory_mb = 2048
+
 # A subscription is metered in windows: a few hours of work, then Claude Code
 # answers "usage limit reached" to everything until the window rolls over. With
 # this on, that is not a failure — the ticket stays where it is, ticked as

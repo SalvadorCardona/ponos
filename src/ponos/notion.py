@@ -20,13 +20,14 @@ import http.client
 import json
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable
 
 from .config import PLACEHOLDER
-from .store import SLOTS, Comment, Page, Picture, StoreError, read
+from .store import SLOTS, Comment, Page, Picture, StoreError, Unreachable, read
 
 API = "https://api.notion.com/v1"
 # The one seam in this file, and it exists for `tests/functional.py`: the
@@ -86,6 +87,10 @@ class NotionError(StoreError):
     """The API returned an error, or the network is unreachable."""
 
 
+class Offline(NotionError, Unreachable):
+    """Every attempt died on DNS or on the connection: Notion was never reached."""
+
+
 class Client:
     def __init__(
         self,
@@ -135,6 +140,7 @@ class Client:
             },
         )
         last = ""
+        unreachable = False
         replayable = _replayable(method, path)
         for attempt in range(MAX_ATTEMPTS):
             wait = 1.5 * (attempt + 1)
@@ -143,6 +149,7 @@ class Client:
                     return json.loads(response.read() or b"{}")
             except urllib.error.HTTPError as error:
                 # First: an HTTPError is a URLError, which is an OSError.
+                unreachable = False
                 try:
                     payload = error.read().decode(errors="replace")
                 except OSError:
@@ -167,6 +174,7 @@ class Client:
                 # Raised while connecting or sending: the request never reached
                 # Notion whole, so even a comment is safe to send again.
                 last = str(error.reason)
+                unreachable = isinstance(error.reason, (socket.gaierror, ConnectionError, TimeoutError))
             except (ValueError, http.client.InvalidURL) as error:
                 # A malformed path never becomes valid by retrying — most often
                 # a configuration value that is not what it claims to be. And
@@ -177,13 +185,16 @@ class Client:
                 # connection closed halfway. The request may have been carried
                 # out, and a second comment is worse than an error.
                 last = f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
+                unreachable = False
                 if not replayable:
                     raise NotionError(
                         f"{method} {path}: {last} — not retried, it may have been applied"
                     ) from error
             if attempt < MAX_ATTEMPTS - 1:
                 time.sleep(wait)
-        raise NotionError(f"{method} {path}: {last} (gave up after {MAX_ATTEMPTS} attempts)")
+        raise (Offline if unreachable else NotionError)(
+            f"{method} {path}: {last} (gave up after {MAX_ATTEMPTS} attempts)"
+        )
 
     # -- reading -------------------------------------------------------------
 
@@ -275,10 +286,14 @@ class Client:
         try:
             self.schema(identifier)
             return identifier
+        except Unreachable:
+            raise  # not an answer about the identifier: nobody answered
         except NotionError:
             pass
         try:
             payload = self._request("GET", f"/blocks/{identifier}/children?page_size=100")
+        except Unreachable:
+            raise
         except NotionError as error:
             raise NotionError(
                 f"neither a database nor a readable page for {identifier}: {error}\n"

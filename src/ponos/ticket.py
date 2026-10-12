@@ -61,6 +61,8 @@ class Job:
     comments: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     resumed: bool = False
+    # The branch an interrupted worktree of this ticket was saved to, if one was.
+    backup: str = ""
     # Which of the four types the ticket was run as — see kinds.py — and the
     # repository it is not worked in but may read, when the type took it off
     # one. Both empty for a ticket run the way every ticket used to be.

@@ -86,6 +86,8 @@ class Base:
         # Whether this run has already said it cannot read the subscription's
         # usage. Said once — see `under_reserve`, which asks at every free place.
         self._usage_warned = False
+        # Same, for the memory guard: see `Board.room_for_a_session`.
+        self._memory_warned = False
         # The columns a write of this run left out because the board has none
         # by that name. Each is said once — see `_dropped`.
         self._unwritten: set[tuple[str, str]] = set()

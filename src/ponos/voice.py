@@ -345,6 +345,32 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "the session did not make it to the end",
         "fr": "la session n'est pas allée au bout",
     },
+    # A session ended by something other than itself — see Execution._died.
+    "session-killed": {
+        "en": "the session was cut short from outside and could not be carried through",
+        "fr": "la session a été interrompue de l'extérieur et n'a pas pu aller au bout",
+    },
+    "session-killed-detail": {
+        "en": "Cause: {why}. One more try was made once the network answered.",
+        "fr": "Cause : {why}. Une reprise a été tentée dès que le réseau répondait.",
+    },
+    "session-killed-question": {
+        "en": "Put the ticket back in Ready to run it again?",
+        "fr": "Remettre le ticket en Prêt pour le relancer ?",
+    },
+    "killed-signal": {"en": "signal {signal}", "fr": "signal {signal}"},
+    "killed-oom": {
+        "en": "the machine ran out of memory ({line})",
+        "fr": "la machine a manqué de mémoire ({line})",
+    },
+    "killed-network": {
+        "en": "the network was unreachable",
+        "fr": "le réseau était injoignable",
+    },
+    "memory-short": {
+        "en": "Only {free} MB of memory available (under {minimum} MB): no session is started until it comes back.",
+        "fr": "Seulement {free} Mo de mémoire disponibles (sous {minimum} Mo) : aucune session ne démarre avant son retour.",
+    },
     "no-answer": {
         "en": "the session stopped without writing an answer",
         "fr": "la session s'est arrêtée sans écrire de réponse",
@@ -652,6 +678,18 @@ _SAID: dict[str, dict[str, str]] = {
     "branch-rebased": {
         "en": "{was}, rebased onto `{start}` and picked up where it stopped.",
         "fr": "{was}, rejouée sur `{start}` et reprise là où elle s'était arrêtée.",
+    },
+    "worktree-backup": {
+        "en": (
+            "An earlier session left its worktree interrupted (a rebase, a merge or a detached "
+            "HEAD with changes): what it held is saved on the local branch `{backup}` (`git log -p {base}..{backup}`), "
+            "and the ticket starts again from its own branch."
+        ),
+        "fr": (
+            "Une session précédente a laissé son worktree interrompu (rebase, merge ou HEAD "
+            "détachée avec des modifications) : ce qu'il contenait est sauvegardé sur la branche locale `{backup}` "
+            "(`git log -p {base}..{backup}`), et le ticket repart de sa propre branche."
+        ),
     },
     "branch-as-it-stands": {
         "en": (
@@ -1135,6 +1173,11 @@ class Voice:
         if failure := getattr(worktree, "failure", ""):
             return self.say("branch-as-it-stands", was=was, start=start, failure=failure)
         return self.say("branch-rebased", was=was, start=start)
+
+    def backup_note(self, worktree: object, base: str) -> str:
+        """What a ticket's comment says about an interrupted worktree, or nothing."""
+        backup = getattr(worktree, "backup", "")
+        return self.say("worktree-backup", backup=backup, base=base) if backup else ""
 
     def pull_request_body(self, summary: str, url: str, session: str, commits: int) -> str:
         """What a pull request the runner opens says under the session's summary."""
