@@ -11547,13 +11547,17 @@ def the_dokploy_template_keeps_to_the_catalogues_rules():
     assert [domain["serviceName"] for domain in template["config"]["domains"]] == [meta["id"]] == ["ponos"]
     assert template["config"]["domains"][0]["port"] == 8787
     assert (release.BLUEPRINT / meta["logo"]).is_file()
-    given = set(template["config"]["env"])
+    # An array of `KEY=value` strings: the catalogue's AGENTS.md refuses the table form.
+    entries = template["config"]["env"]
+    assert isinstance(entries, list), "env is an array of strings, not a table"
+    env = dict(entry.split("=", 1) for entry in entries)
+    given = set(env)
     read = set(re.findall(r"\$\{(\w+)\}", compose))
     assert given == read, (given ^ read)
     secrets = {"PONOS_WEB_PASSWORD", "PONOS_WEB_TOKEN"}
-    assert all(template["config"]["env"][name].startswith("${") for name in secrets), "generated, never written"
+    assert all(env[name].startswith("${") for name in secrets), "generated, never written"
     for name in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GH_TOKEN", "PONOS_NOTION_TOKEN"):
-        assert template["config"]["env"][name] == "", f"{name} is the user's to give"
+        assert env[name] == "", f"{name} is the user's to give"
 
 
 @case
