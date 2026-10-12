@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { DecideButton } from "@/components/console/decision-panel"
 import { useConsole } from "@/hooks/use-console"
 import { titleOf } from "@/lib/board-store"
 import { currentLanguage, t, useT } from "@/lib/i18n"
@@ -372,6 +373,9 @@ export function TicketActions({ ticket, className }: { ticket: Ticket; className
   }
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
+      {/* What a card waiting on you is for: why it waits, and what to do —
+          see `decision-panel.tsx`. The plain gestures stay beside it. */}
+      <DecideButton ticket={ticket} />
       {ticket.column === "review" ? (
         <Confirmed label={t("run again")} {...ready} />
       ) : ticket.column === "done" ? (

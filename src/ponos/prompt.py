@@ -284,7 +284,8 @@ RESULT: blocked — <what conflicts, and the question it raises>
 
 # What a blocked session hands over, on top of its RESULT line. The runner lays
 # the comment out from these — see question.py — so the session chooses the kind
-# of answer it needs, and never the words around it.
+# of answer it needs, and never the words around it. And what one that ended ok
+# could not check, which its report carries to whoever reviews it.
 ASKING = """
 If you end blocked, write these lines just before the final line — the runner \
 turns them into the question somebody answers from a phone, one line each:
@@ -293,6 +294,11 @@ DONE: <what is done, in a few words, with a Markdown link to the pull request \
 or the page when there is one — or `nothing`>
 WHY: <why you stop, in one short sentence, in the words of the person reading \
 it rather than in yours: "I am not allowed to merge into main", not a log line>
+CATEGORY: <one word: `question` (a decision only they can make), `access` (an \
+access, a token or a permission you lack), `manual` (something only a person \
+can do by hand), `credits`, `ci` (checks that fail), `conflict`, `split` (too \
+big for one ticket: then MODE is `choice` and each OPTION is a sub-ticket you \
+propose), or `other`>
 QUESTION: <the question itself, one sentence>
 MODE: <yes-no, choice or free>
 OPTION: <one concrete answer — for `choice` only: two to four of them, one per \
@@ -303,6 +309,12 @@ yes means you go ahead; `choice` when there are a few concrete roads, so that \
 answering with a number is enough; `free` only when no option makes sense, and \
 then say in the question exactly what to give. Checks, logs and what you tried \
 stay in your report, not in these lines.
+
+If you end ok and there is something the person reviewing your work should \
+check — something you could not test, a known limit, a screenshot you could \
+not take — write it just before the final line, one line each, four at most:
+
+CAVEAT: <what to check, in one short sentence>
 """
 
 # What a session is told when it is picked back up where an exhausted quota left

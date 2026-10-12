@@ -442,6 +442,7 @@ class Execution(Base):
                 said.verdict(verdict, *facts),
                 brief,
                 pull_request,
+                *said.caveats(outcome.caveats),
                 *forced_lines,
                 *(said.brief(note) for note in job.notes),
             ),
@@ -589,7 +590,10 @@ class Execution(Base):
         )
         verdict = "waiting" if forced else "prepared" if prepared else "read"
         brief = said.brief(outcome.summary)
-        self._comment(ticket, said.report(said.verdict(verdict, *facts), brief, following))
+        self._comment(
+            ticket,
+            said.report(said.verdict(verdict, *facts), brief, *said.caveats(outcome.caveats), following),
+        )
         self.say(
             f"    ✓ {ticket.title} — {blocks} block(s) written to the ticket"
             + (", nothing published: in review" if prepared and not forced else "")

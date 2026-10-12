@@ -11,7 +11,9 @@ console you run for yourself.
 
 One ticket is written long on purpose: a brief several screens tall, which is
 the page that stopped scrolling. One is blocked on a question a run asked, for
-the discussion its page opens on and the mark its card wears. Three projects, for the list whose cards
+the discussion its page opens on and the mark its card wears. Two more blocked
+on a report that names its kind of stop, and one in review with points to
+check, for the Unblock and Decide panels. Three projects, for the list whose cards
 open them: two with a repository, and one without, an emoji for its icon. Three tickets for the gestures a card offers — one Done, one
 Validated, one Ready to be set aside and made ready again. Two schedules a pass
 last read weeks ago, one of them turned off. And a check that found a newer
@@ -58,6 +60,27 @@ GESTURES = {
     "0000000000000000000000000000fa11": ("A validated ticket", "Validated"),
     "0000000000000000000000000000a51d": ("A ticket to set aside", "Ready"),
 }
+# Three cards waiting on you, for the Unblock and Decide panels: two blocked on
+# a report that names its kind of stop — one to read, one to act on — and one in
+# review whose report says what to check. No project, so no count moves.
+WAITING = {
+    "00000000000000000000000000b10c01": ("Install Tailscale on the server", "Blocked", "blocked"),
+    "00000000000000000000000000b10c02": ("Choose the host", "Blocked", "blocked"),
+    "00000000000000000000000000de1c01": ("Add the share button", "In review", "review"),
+}
+STUCK = (
+    "🙋 Stuck — branch `ticket/tailscale` ready\n"
+    "Missing access: I have no SSH access to the server\n"
+    "Which way do you prefer?\n"
+    "1. Give me an SSH key · 2. Install it yourself and tell me"
+)
+DELIVERED = (
+    "✅ To review — PR #12 · 3 commits · 9 minutes\n"
+    "Adds a share button under each article.\n"
+    "https://github.com/example/website/pull/12\n"
+    "To check: not tried on Safari\n"
+    "To check: the screenshots on mobile are missing"
+)
 PAUSED = "00000000000000000000000000005ed1"
 DUE = "00000000000000000000000000005ed2"
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
@@ -87,6 +110,16 @@ def board(root: Path, doomed: bool = False) -> None:
     (comments / f"{ASKING}.md").write_text(
         files.render(question, "🙋 Question\nWhich header, the dashboard's or the site's?"), encoding="utf-8"
     )
+    for id, (title, status, column) in WAITING.items():
+        page = {"id": id, "title": title, "Status": status}
+        (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
+            files.render(page, "A short brief."), encoding="utf-8"
+        )
+        said = {"id": f"r{id[-4:]}", "at": "2026-10-01T10:00:00+00:00", "by": "ponos",
+                "discussion": f"r{id[-4:]}"}
+        (comments / f"{id}.md").write_text(
+            files.render(said, STUCK if column == "blocked" else DELIVERED), encoding="utf-8"
+        )
     for number in range(1, 13):
         page = {"id": f"{number:032d}", "title": f"Ticket {number}", "Status": "Backlog"}
         (tickets / f"ticket-{number}-{page['id'][-8:]}.md").write_text(

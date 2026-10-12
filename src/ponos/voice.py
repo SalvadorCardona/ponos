@@ -199,6 +199,19 @@ _SAID: dict[str, dict[str, str]] = {
     # What follows a yes-no question, on its own line: the two words that
     # answer it. Recognised too, in every language — see `question.found`.
     "yes-or-no": {"en": "yes / no", "fr": "oui / non"},
+    # What a ticket stopped on, in front of why — see question.CATEGORIES. Read
+    # back by the console, in every language, to offer what fits: decisions.py.
+    "category-question": {"en": "A decision to make", "fr": "Une décision à prendre"},
+    "category-access": {"en": "Missing access", "fr": "Accès manquant"},
+    "category-manual": {"en": "Something to do by hand", "fr": "Action manuelle requise"},
+    "category-credits": {"en": "Out of credit", "fr": "Crédits épuisés"},
+    "category-ci": {"en": "Failing checks", "fr": "CI en échec"},
+    "category-conflict": {"en": "Conflict", "fr": "Conflit"},
+    "category-split": {"en": "Too big for one ticket", "fr": "Trop gros pour un ticket"},
+    "category-other": {"en": "Stuck", "fr": "Bloqué"},
+    "because": {"en": "{category}: {why}", "fr": "{category} : {why}"},
+    # A line of a review report: what the session could not check itself.
+    "caveat": {"en": "To check: {text}", "fr": "À vérifier : {text}"},
     "trace-in-page": {
         "en": "What it did is in the folded block at the bottom of the page.",
         "fr": "Ce qu'il a fait est dans le bloc replié en bas de la page.",
@@ -702,6 +715,74 @@ _SAID: dict[str, dict[str, str]] = {
     },
     "relayed-no": {"en": "No — do not do that.", "fr": "Non — ne fais pas ça."},
     "relayed-option": {"en": "Option {number}: {option}.", "fr": "Option {number} : {option}."},
+    # A choice made from the console's Unblock and Decide panels, said on the
+    # ticket under the line that says where it came from — see decisions.py.
+    "decision": {"en": "Decision: {choice}.", "fr": "Décision : {choice}."},
+    "decided-answer": {"en": "answer to the question", "fr": "réponse à la question"},
+    "decided-yes": {"en": "yes, go ahead", "fr": "oui, vas-y"},
+    "decided-option": {"en": "option {number}, “{option}”", "fr": "option {number}, « {option} »"},
+    "decided-done-retry": {"en": "done by hand, run it again", "fr": "c'est fait, relancer"},
+    "decided-retry": {"en": "run it again", "fr": "relancer"},
+    "decided-model": {"en": "run it again on {model}", "fr": "relancer avec {model}"},
+    "decided-instruct": {
+        "en": "run it again with an instruction",
+        "fr": "relancer avec une consigne",
+    },
+    "decided-split": {
+        "en": "split into {count} tickets: {titles}",
+        "fr": "découpé en {count} tickets : {titles}",
+    },
+    "offer-split": {"en": "split into sub-tickets", "fr": "découper en sous-tickets"},
+    "decided-abandon": {"en": "abandoned, moved to done", "fr": "abandonné, passé en terminé"},
+    "decided-other": {"en": "an instruction", "fr": "une consigne"},
+    "decided-validate": {"en": "validated", "fr": "validé"},
+    "decided-rework": {
+        "en": "back to work with an instruction",
+        "fr": "renvoyé au travail avec une consigne",
+    },
+    "decided-fix-ci": {"en": "back to work: fix the checks", "fr": "renvoyé : corriger la CI"},
+    "decided-add-tests": {
+        "en": "back to work: add the missing tests",
+        "fr": "renvoyé : ajouter les tests manquants",
+    },
+    "decided-screenshots": {
+        "en": "back to work: take the screenshots",
+        "fr": "renvoyé : faire les captures demandées",
+    },
+    "decided-rebase": {"en": "back to work: rebase onto the base branch", "fr": "renvoyé : rebaser sur la branche de base"},
+    "decided-caveat": {"en": "back to work on a point to check", "fr": "renvoyé sur un point à vérifier"},
+    "decided-reject": {"en": "rejected, moved to done", "fr": "rejeté, passé en terminé"},
+    # What the next session is told when the choice carries no words of its own,
+    # and what the console offers to send, ready to be edited.
+    "told-done-retry": {
+        "en": "I did what you asked by hand: check it and carry on.",
+        "fr": "J'ai fait à la main ce que tu demandais : vérifie et reprends.",
+    },
+    "told-retry": {
+        "en": "Try again, from where you stopped.",
+        "fr": "Réessaie, là où tu t'es arrêté.",
+    },
+    "told-fix-ci": {
+        "en": "The checks fail on the pull request: read them and fix what fails.",
+        "fr": "Les vérifications échouent sur la pull request : lis-les et corrige ce qui échoue.",
+    },
+    "told-add-tests": {
+        "en": "Add the tests that are missing for what you changed.",
+        "fr": "Ajoute les tests qui manquent pour ce que tu as changé.",
+    },
+    "told-screenshots": {
+        "en": "Take the screenshots that were asked for, in the dark and light themes, on desktop and on mobile.",
+        "fr": "Fais les captures demandées, en thème sombre et clair, sur desktop et sur mobile.",
+    },
+    "told-rebase": {
+        "en": "Rebase the branch onto the base branch and resolve what conflicts.",
+        "fr": "Rebase la branche sur la branche de base et résous les conflits.",
+    },
+    "told-caveat": {"en": "Deal with this before review: {caveat}", "fr": "Règle ceci avant la relecture : {caveat}"},
+    "told-split": {
+        "en": "Split from “{title}”: {url}",
+        "fr": "Découpé depuis « {title} » : {url}",
+    },
     "noted": {
         "en": "✓ noted on “{title}” — it runs again in a moment.",
         "fr": "✓ noté sur « {title} » — il repart dans un instant.",
@@ -797,6 +878,11 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "Answer in French, whatever language the message you are answering is in.",
     },
 }
+
+
+def every(key: str) -> tuple[str, ...]:
+    """A sentence as each language says it, for what is read back as well as written."""
+    return tuple(dict.fromkeys(_SAID[key].values()))
 
 
 def openings(key: str) -> tuple[str, ...]:
@@ -918,13 +1004,24 @@ class Voice:
         mode = getattr(asked, "mode", "free")
         if mode == "yes-no":
             ask = f"{ask} → {self.say('yes-or-no')}"
-        lines = [self.brief(getattr(asked, "why", "")), ask]
+        why = self.brief(getattr(asked, "why", ""))
+        # The kind of thing it stopped on, when the session named it: in front
+        # of why, which is where the console reads it back — decisions.py.
+        category = getattr(asked, "category", "")
+        if category:
+            named = self.say(f"category-{category}")
+            why = self.say("because", category=named, why=why) if why else named
+        lines = [why, ask]
         if mode == "choice":
             options = getattr(asked, "options", [])
             lines.append(
                 " · ".join(f"{index}. {self.brief(option, 60)}" for index, option in enumerate(options, 1))
             )
         return [line for line in lines if line]
+
+    def caveats(self, caveats: object) -> list[str]:
+        """What a session could not check, one line each, as a review report says it."""
+        return [self.say("caveat", text=self.brief(caveat)) for caveat in caveats or () if str(caveat).strip()]
 
     def paragraphs(self, *parts: object) -> str:
         """Whatever is worth saying, one paragraph each, blanks dropped.

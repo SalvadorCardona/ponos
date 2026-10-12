@@ -2146,6 +2146,30 @@ back in the queue, and one that names it — `@claude`, or whatever `notion.ment
 asks it for words instead. Nothing is kept on the side; the same sentence typed into Notion
 does the same thing.
 
+**Unblock and Decide.** A *Blocked* card carries an **Unblock** button, and a card *In
+review* a **Decide** one; both open a small panel over the board — a sheet from the bottom of
+the screen on a phone. Unblock says why the ticket stopped, in one sentence and under its
+kind — a decision to make, missing access, something to do by hand, out of credit, failing
+checks, a conflict, too big for one ticket — then what is done and what is missing, and the
+few choices that would get it moving: the options the session proposed, *answer the
+question*, *it's done, run it again*, *run it again on another model*, *with an
+instruction*, *split into sub-tickets* (drafts in the same project, the parent filed away),
+*abandon*, and always last *other: write an instruction*. Decide shows the session's sentence,
+the pull request, its checks as GitHub says them now, and the points the session said it
+could not check; then *validate*, *send back with an instruction* — ready-made for red checks,
+missing tests, screenshots, a rebase, or any of those points — or *reject*. Each choice writes
+one comment — *Answered from the console. Decision: run it again on opus.* and the words you
+typed — which the next session reads as yours, then moves the ticket: to *Ready* to work
+again, *Validated* to merge, *Done* to file it away.
+
+All of it is read off the report the runner already writes. A session that stops names the
+kind of thing it stopped on (a `CATEGORY:` line beside `WHY:` and `QUESTION:`), which the
+report writes in front of why — `Missing access: I have no SSH key for the server`; a session
+that ends ok lists what to check (`CAVEAT:` lines), written `To check: …` under the pull
+request. A report from before those lines, or one the runner wrote itself — a conflict, a red
+CI, a spending limit — is read off its words, and offers the defaults of the kind it reads as.
+The same panel is in the MCP connector, as `list_solutions` and `apply_solution`.
+
 The comment is written with the runner's own Notion token, because that is the only token
 the console has — and it opens the same way an answer relayed from Telegram does, so the
 next run reads it as yours rather than as its own voice.
@@ -2761,6 +2785,8 @@ back is a task, a project, an idea, an amount — never a page or a property.
 | `list_ideas` | Idées | read | the ideas of a project, or of the workspace, by state |
 | `create_task` | Créer une tâche | write | a task, *draft* or *ready*, with its description, project, type and priority — through the console's *New ticket*, so the same rules as any other |
 | `answer_question` | Répondre à une tâche bloquée | write | an answer under a blocked task's question, as the console's discussion writes it; `ready: true` also moves it back to *ready* |
+| `list_solutions` | Solutions d'une tâche en attente | read | why a blocked task stopped (its kind, its reason, what is done) or what a task in review delivered (sentence, pull request, checks, points to check), and the choices the console's Unblock and Decide panels offer |
+| `apply_solution` | Appliquer une solution | write | one of those choices: the decision and its instruction in the task's discussion, then the move — *ready*, *validated* or *done* |
 | `create_idea` | Proposer une idée | write | an idea among the proposed ones, to be kept or thrown away |
 | `set_idea_state` | Garder ou jeter une idée | write | `keep` (for later, nothing on the board), `ticket` (a draft, as swiping right in the pile does), `discard`, or `new` to propose it again |
 

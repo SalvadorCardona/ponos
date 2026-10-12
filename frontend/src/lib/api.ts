@@ -1,6 +1,8 @@
 import type {
   Attached,
   Board,
+  ColumnKey,
+  Decision,
   Cleaned,
   Disk,
   Folder,
@@ -205,6 +207,16 @@ export const api = {
     }),
   tell: (id: string, text: string) =>
     request<unknown>(`/api/tickets/${id}/talk`, { text }),
+  /** What a blocked card, or one in review, offers to do about it. */
+  decision: (id: string) => request<Decision>(`/api/tickets/${id}/decision`),
+  decide: (
+    id: string,
+    choice: { key: string; number?: number; text?: string; model?: string; titles?: string[] }
+  ) =>
+    request<{ id: string; status: string; column: ColumnKey; told: string[]; created: string[] }>(
+      `/api/tickets/${id}/decision`,
+      choice
+    ),
   command: (line: string) => request<unknown>("/api/command", { line }),
   send: (text: string, attachments: string[] = []) =>
     request<unknown>("/api/chat", { text, attachments }),

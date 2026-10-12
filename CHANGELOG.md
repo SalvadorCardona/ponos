@@ -27,6 +27,19 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   in the address: a link to send, a reload that keeps it, and the table under the same search.
   **/** goes to the field, **Escape** empties it; on a phone, the filters fold behind one button.
 
+- **Unblock and Decide, on the cards that wait on you.** A blocked card opens a panel that says
+  why it stopped — in one sentence, under its kind: a decision to make, missing access,
+  something to do by hand, credits, failing checks, a conflict, too big for one ticket — what is
+  done, what is missing, and the choices that would get it moving: the session's own options,
+  answer the question, it's done run it again, another model, an instruction, split into draft
+  sub-tickets, abandon, or an instruction of your own. A card in review opens one with what it
+  delivered, its pull request and checks, the points the session could not check, and validate,
+  send back (ready-made for red checks, tests, screenshots, a rebase) or reject. Each choice
+  leaves one comment the next session reads, and moves the ticket. A popover on a desktop, a
+  sheet from the bottom on a phone; and `list_solutions` / `apply_solution` in the MCP connector.
+  Sessions now name what they stopped on (`CATEGORY:`) and what to check (`CAVEAT:`); tickets
+  blocked before that are read off their words.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added

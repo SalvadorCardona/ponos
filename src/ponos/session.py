@@ -25,13 +25,13 @@ import subprocess
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, quote, urlparse
 
 from . import credits, disk, legacy
-from .question import Question, parse
+from .question import Question, caveats, parse
 
 
 @dataclass
@@ -60,6 +60,9 @@ class Outcome:
     # What a blocked session asked, in the parts it was told to hand over —
     # see question.py. None when it wrote only its RESULT line.
     question: Question | None = None
+    # What a session that ended ok could not check, for whoever reviews it —
+    # its CAVEAT lines. Written on the report, and read back by the console.
+    caveats: list[str] = field(default_factory=list)
 
     @property
     def resume_command(self) -> str:
@@ -309,6 +312,7 @@ def run(
         seconds=seconds,
         exhausted=bool(resets_at),
         question=parse(answer) if blocked and not over_budget else None,
+        caveats=caveats(answer) if not failed and not blocked else [],
         resets_at=resets_at,
         over_budget=over_budget,
     )

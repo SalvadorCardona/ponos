@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config as config_module
-from .. import channels, cleanup, conversation, credits, images, question, session, state, store, sync
+from .. import channels, cleanup, conversation, credits, decisions, git, images, question, session, state, store, sync
 from .. import journal, models, project_settings, systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
@@ -1197,6 +1197,205 @@ class Api:
         }
         self.hub.publish("talk", ticket=page_id, **message)
         return message
+
+    # -- deciding -------------------------------------------------------------
+
+    def decision(self, page_id: str) -> dict:
+        """What a card waiting on you offers: why it waits, and what to do about it.
+
+        A blocked ticket says why it stopped, what is done and what would get it
+        moving; one in review says what it brought back, where its checks stand
+        and what it could not check — see decisions.py. Read off the last report
+        on the page, so a ticket blocked before the reports named their kind of
+        stop reads the same, guessed from its words.
+        """
+        page, column, comments = self._waiting(page_id)
+        settings = self.config.notion
+        said = self.runner.voice
+        if column == "review":
+            found = decisions.delivered(comment.text for comment in comments)
+            url = found.pull_request or str(store.read(page, settings.prop("pull_request")) or "")
+            # Asked of GitHub when the panel opens, not kept: a check that went
+            # green a minute ago is the thing this panel exists to say.
+            listed = git.checks(url, self.config.github, timeout=20) if url else []
+            state = decisions.checks_state(listed) if listed else ("unknown" if url else "none")
+            failing = next(
+                (check for check in listed if check.get("bucket") in ("fail", "cancel")), None
+            )
+            solutions = decisions.deciding(
+                found, said, checks=state, validate=self._validates()
+            )
+            return {
+                "id": page.id.replace("-", ""),
+                "column": column,
+                "summary": found.summary,
+                "facts": found.facts,
+                "pull_request": url,
+                "checks": {
+                    "state": state,
+                    "link": str((failing or {}).get("link") or "") or (f"{url}/checks" if url else ""),
+                    "listed": [
+                        {"name": str(check.get("name") or ""), "bucket": str(check.get("bucket") or ""),
+                         "link": str(check.get("link") or "")}
+                        for check in listed
+                    ],
+                },
+                "caveats": found.caveats,
+                "solutions": self._offered(solutions),
+            }
+        found = decisions.blockage(comment.text for comment in comments)
+        solutions = decisions.unblocking(found, models=self._has("model"))
+        asked = found.question
+        return {
+            "id": page.id.replace("-", ""),
+            "column": column,
+            "category": found.category,
+            "declared": found.declared,
+            "reported": found.reported,
+            "reason": found.reason,
+            "done": found.done,
+            "detail": found.detail,
+            "question": (
+                {"ask": asked.ask, "mode": asked.mode, "options": asked.options} if asked else None
+            ),
+            "model": str(store.read(page, settings.prop("model")) or ""),
+            "solutions": self._offered(solutions),
+        }
+
+    def decide(
+        self,
+        page_id: str,
+        key: str,
+        *,
+        number: int = 0,
+        text: str = "",
+        model: str = "",
+        titles: list[str] | None = None,
+        channel: str = "",
+    ) -> dict:
+        """Do one of the things `decision` offered, and say so on the ticket.
+
+        The comment comes first when the ticket goes back to work, so that the
+        session the move starts reads the instruction; it comes last when the
+        ticket is filed away, and that move is made at once rather than queued,
+        because a comment under a blocked ticket is an answer — the runner would
+        wake it up before the queued move reached the board. `channel` is where
+        the choice came from, said on the comment: the console, unless named.
+        """
+        page, column, comments = self._waiting(page_id)
+        settings = self.config.notion
+        said = self.runner.voice
+        if column == "review":
+            solutions = decisions.deciding(
+                decisions.delivered(comment.text for comment in comments), said, checks="failed",
+                validate=self._validates(),
+            )
+        else:
+            solutions = decisions.unblocking(
+                decisions.blockage(comment.text for comment in comments), models=self._has("model")
+            )
+        solution = next(
+            (
+                offered
+                for offered in solutions
+                if offered.key == key and (key not in ("option", "caveat") or offered.number == number)
+            ),
+            None,
+        )
+        if solution is None:
+            raise ValueError(f"“{key}” is not something this ticket offers")
+        text = str(text or "").strip()
+        named = [title.strip() for title in titles or [] if title.strip()]
+        if solution.needs == "text" and not text:
+            raise ValueError("this choice needs an instruction")
+        if solution.needs == "model" and not model.strip():
+            raise ValueError("choose a model")
+        if solution.needs == "titles" and not named:
+            raise ValueError("name at least one ticket")
+        if solution.key == "model":
+            if not self._has("model"):
+                raise ValueError("this board has no Model column")
+            self.runner.client.update(self.runner.database, page.id, {settings.prop("model"): model.strip()})
+        created = []
+        if solution.key == "split":
+            relation = store.read(page, settings.prop("project")) or []
+            told = said.say("told-split", title=page.title, url=page.url)
+            created = [
+                self.create_ticket(title, told, relation[0] if relation else "", ready=False)
+                for title in named
+            ]
+        relayed = said.say("relayed", channel=channel or said.say("relayed-console"))
+        lines = [f"{relayed}.", *decisions.told(said, solution, text, model=model.strip(), titles=named)]
+        seen = str(store.read(page, settings.prop("status")) or "")
+        if solution.column == "ready":
+            self._say_on(page_id, lines, comments)
+            moved = self.set_status(page_id, "ready", seen)
+        else:
+            if column == "blocked":
+                try:
+                    self._send(
+                        board_module.Write(
+                            page=page.id.replace("-", ""),
+                            column=solution.column,
+                            status=_status(settings, solution.column),
+                            seen=seen,
+                            title=page.title,
+                        )
+                    )
+                except board_module.Conflict as moved_since:
+                    raise ValueError(f"the ticket was moved meanwhile, to {moved_since}") from moved_since
+                moved = {"id": page_id, "status": _status(settings, solution.column)}
+            else:
+                moved = self.set_status(page_id, solution.column, seen)
+            self._say_on(page_id, lines, comments)
+        self.watch.nudge()
+        return {
+            **moved,
+            "column": solution.column,
+            "told": lines[1:],
+            "created": [ticket["id"] for ticket in created],
+        }
+
+    def _waiting(self, page_id: str) -> tuple[store.Page, str, list[store.Comment]]:
+        """A card that waits on you: its page, its column, what was said on it."""
+        settings = self.config.notion
+        page = self.reader.get(page_id) or self.runner.client.page(page_id)
+        status = str(store.read(page, settings.prop("status")) or "")
+        column = _columns(settings).get(status, "draft")
+        if column not in ("blocked", "review"):
+            raise ValueError(f"only a blocked ticket or one in review waits on a decision, not {column}")
+        return page, column, self.runner.client.comments(page_id)
+
+    def _say_on(self, page_id: str, lines: list[str], comments: list[store.Comment]) -> None:
+        """A decision, written where an answer typed at the ticket would go — see `tell`."""
+        thread = _thread(comments, self.runner.myself())
+        self.runner.client.comment(page_id, "\n".join(lines), thread)
+        self.runner.forget_comments(page_id)
+        self.hub.publish(
+            "talk",
+            ticket=page_id,
+            role="you",
+            text="\n".join(lines[1:]),
+            at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
+
+    def _offered(self, solutions: list[decisions.Solution]) -> list[dict]:
+        said = self.runner.voice
+        return [{**solution.as_dict(), "label": decisions.label(said, solution)} for solution in solutions]
+
+    def _validates(self) -> bool:
+        """Whether this board has a validated column the runner would honour."""
+        try:
+            return self.runner.validated_column()
+        except store.StoreError:
+            return False
+
+    def _has(self, key: str) -> bool:
+        """Whether the board has the column a setting names."""
+        try:
+            return self.config.notion.prop(key) in self.runner.client.schema(self.runner.database)
+        except store.StoreError:
+            return False
 
     # -- the configuration ----------------------------------------------------
 
