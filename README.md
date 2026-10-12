@@ -2089,6 +2089,23 @@ in French), with the drafts. Seven columns do not fit a laptop, so the board scr
 edge with more beyond it shows a fade and an arrow. The *table* tab shows the same tickets
 as rows, one column per property.
 
+**A search bar sits over the columns**, the same on a project's *Tickets* tab. Its field
+looks for every word typed, in any order, case and accents set aside, in the title, the
+runner's line on the card (the RESULT a run ended with), the pull request's address — so
+`#201` finds it — the project and the runner; a short id finds its ticket from four
+characters, and a pasted branch, worktree or Notion address finds the one ticket it names.
+Beside it, filters that combine with the words and with each other: *Type*, *Status*,
+*Priority*, *Model*, *Project* (not on a project's page), *Period* (created or changed
+today, in the last 7 or 30 days) and *Other* — with a pull request, waiting for credits,
+a move not yet synchronised, a cost above $1, $5 or $20. Each list offers only what the
+board's tickets carry, with how many carry it. A search hides cards, not columns: each
+column says how many it kept, `3 / 12`, the words found are marked on the cards, and a
+search that keeps nothing says so with a button to clear it. It is all in the address
+(`&q=…&type=code,writing&status=ready`), so a filtered board is a link to send and survives
+a reload and the switch to the table. **/** goes to the field, **Escape** empties it. On a
+narrow screen the filters fold behind one *Filters* button. It searches what the board
+already holds, so it is instant; the brief, which the board does not carry, is not searched.
+
 **A card is a way in.** Click one — or a ticket's title in the table — and the ticket opens
 in a window over the board, the whole screen on a phone; its header has its short id, its
 title, a button to its full page and a cross (Escape closes it too), and the board is
@@ -2143,8 +2160,9 @@ back to wherever it was when it closes; Escape closes it too. **Ctrl+K** (⌘K) 
 palette: the pages, the projects, the tickets on the board, and a few actions (a new
 ticket, the console, a resynchronisation), found by typing a few letters and opened with
 Enter. Both answer from inside a field as well; the magnifying glass in the bar opens the
-same palette, and its tooltip and the bubble's say the keys. They are listed in one place,
-`frontend/src/lib/hotkeys.ts`, which is where a third one goes.
+same palette, and its tooltip and the bubble's say the keys. A third, **/**, goes to the
+search over the board, and only from outside a field. They are listed in one place,
+`frontend/src/lib/hotkeys.ts`, which is where a fourth one goes.
 
 - A line starting with `>` is a **`ponos` subcommand** — `>status`, `>list`,
   `>doctor`, `>logs 1a2b3c4d`. The CLI is already the considered surface of this

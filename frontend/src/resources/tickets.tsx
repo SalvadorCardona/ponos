@@ -10,6 +10,7 @@ import {
 } from "react-data-form"
 import {
   Link,
+  ListTable,
   RowWrapperColumnComponent,
   columnViewOptionFactory,
   createResourceCollection,
@@ -49,6 +50,13 @@ import { StatisticsBand } from "@/components/console/statistics-band"
 import { CardLive } from "@/components/console/session-log"
 import { TicketHead, TicketPage } from "@/components/console/ticket-page"
 import { TicketWindow, opensInTheWindow } from "@/components/console/ticket-window"
+import {
+  Marked,
+  NoMatch,
+  TicketSearch,
+  useSearchWords,
+  useTicketFilter,
+} from "@/components/console/ticket-search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useConsole } from "@/hooks/use-console"
@@ -395,10 +403,11 @@ const ModelCell: InputControllerComponentInterface = ({ formInput }) => {
 const TitleCell: InputControllerComponentInterface = ({ formInput }) => {
   const id = String((useFormContext().form.originalData as TicketItem | undefined)?.id ?? "")
   const title = String(formInput.value ?? "")
+  const words = useSearchWords()
   if (!id) return <>{title}</>
   return (
     <Link to={ticketHref(id)} onClick={opensInTheWindow(id)} className="font-medium hover:underline">
-      {title}
+      <Marked text={title} words={words} />
     </Link>
   )
 }
@@ -443,6 +452,8 @@ const rowForm: FormInterface = {
 function TicketCard({ row }: RowComponentPropsInterface) {
   const ticket = row?.data as TicketItem | undefined
   const { resource } = useCurrentViewResourceContext()
+  // The words of a search, marked where the card says them.
+  const words = useSearchWords()
   if (!ticket) return null
   const href = generateLinkByResource({ resource, resourceAction: ActionList.read, id: ticket.id })
   const open = opensInTheWindow(ticket.id)
@@ -478,7 +489,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         onClick={open}
         className="text-[0.93rem] leading-snug font-semibold break-words hover:underline"
       >
-        {ticket.title}
+        <Marked text={ticket.title} words={words} />
       </Link>
 
       <TicketTags ticket={ticket} />
@@ -489,7 +500,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         <CardLive ticket={ticket} />
       ) : ticket.progress ? (
         <p className="text-muted-foreground line-clamp-3 text-xs leading-relaxed break-words">
-          {ticket.progress}
+          <Marked text={ticket.progress} words={words} />
         </p>
       ) : null}
 
@@ -596,15 +607,16 @@ function NoProjectTicket() {
  * With the number of its cards when there is one to say. The package counts
  * the cards it is handed, and a column that is handed its thirty latest is not
  * a column of thirty: the count is the column's own, drawn here, and the
- * package's is hidden (see `BoardColumn`). */
-function heading(key: string, name: string, count?: number) {
+ * package's is hidden (see `BoardColumn`). While a search is on, it says how
+ * many of them it kept, out of how many: "3 / 12". */
+function heading(key: string, name: string, count?: number, total?: number) {
   return (
     <span className="flex items-center gap-2">
       <span className={cn("size-1.5 shrink-0 rounded-full", SEED[key] ?? "bg-muted-foreground")} />
       <span className="truncate">{capital(name)}</span>
       {count === undefined ? null : (
         <span className="bg-background text-muted-foreground ms-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-normal tabular-nums">
-          {count}
+          {total === undefined ? count : `${count} / ${total}`}
         </span>
       )}
     </span>
@@ -623,9 +635,9 @@ function heading(key: string, name: string, count?: number) {
  * when it got there — and a button under it draws that many more. Every other
  * column is work in flight, and is drawn whole.
  *
- * What a filter keeps is what is counted: the rows are the ones the list was
- * handed, so a search that finds an old ticket finds it among thirty, not
- * behind three hundred. */
+ * What a search keeps is what is counted: the rows are the ones it left, so a
+ * search that finds an old ticket finds it among thirty, not behind three
+ * hundred. */
 const TERMINAL = new Set<string>(["done"])
 export const TERMINAL_PAGE = 30
 
@@ -640,12 +652,15 @@ function BoardColumn({
   column,
   label,
   rows,
+  total,
   dragging,
   onDragging,
 }: {
   column: string
   label: string
   rows: RowInterface[]
+  /** How many the column holds, search or not — said only while one is on. */
+  total?: number
   dragging: boolean
   onDragging: (dragging: boolean) => void
 }) {
@@ -676,7 +691,7 @@ function BoardColumn({
     >
       <RowWrapperColumnComponent
         identifierKey="column"
-        valueIdentifier={{ value: column, label: heading(column, label, mine.length) }}
+        valueIdentifier={{ value: column, label: heading(column, label, mine.length, total) }}
         isDragging={dragging}
         handleDragging={onDragging}
         rows={drawn}
@@ -770,9 +785,16 @@ function DropZone({
  *
  * A column with no card is not drawn, unless you asked for it: a line over the
  * board says how many are hidden and brings them back. While a card is being
- * dragged, each hidden column is a thin drop zone in its place. */
-function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
+ * dragged, each hidden column is a thin drop zone in its place.
+ *
+ * The search bar is over them (see `TicketSearch`). A search hides cards, not
+ * columns: a column with tickets stays where it was, saying how many of them
+ * the search kept — it would otherwise be a board whose columns move at every
+ * letter typed. */
+function BoardColumns({ rows: all = [] }: ListComponentPropsInterface) {
   const board = useBoard()
+  const { kept: rows, filtering } = useTicketFilter(all)
+  const { resource } = useCurrentViewResourceContext()
   const [dragging, setDragging] = React.useState(false)
   const [emptyShown, setEmptyShown] = useEmptyColumnsShown()
   const strip = React.useRef<HTMLDivElement>(null)
@@ -790,13 +812,15 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
     // Offered only where the runner would honour a card dropped there.
     (column) => column.key !== "validated" || board.validate
   )
-  // Counted on the rows the list was handed, so on what the filters left: a
-  // column emptied by a search is as empty as one with nothing in it.
+  // Counted on every row, whatever the search keeps: a column emptied by a
+  // search is not an empty column, and is not folded away.
   const empty = new Set(
     columns
-      .filter((column) => !rows.some((row) => row.data?.column === column.key))
+      .filter((column) => !all.some((row) => row.data?.column === column.key))
       .map((column) => column.key)
   )
+  const totals = (key: string) =>
+    filtering ? all.filter((row) => row.data?.column === key).length : undefined
   const hidden = emptyShown ? 0 : empty.size
 
   React.useEffect(() => {
@@ -814,6 +838,12 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
+      <TicketSearch
+        tickets={all.map((row) => row.data as Ticket)}
+        shown={rows.length}
+        projects={resource["@id"] !== PROJECT_TICKETS}
+      />
+      {filtering && !rows.length ? <NoMatch /> : null}
       {empty.size ? (
         <p className="text-muted-foreground flex items-center justify-end gap-1 text-xs">
           {emptyShown
@@ -824,7 +854,7 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
           </Button>
         </p>
       ) : null}
-      <div className="relative">
+      <div className={cn("relative", filtering && !rows.length && "hidden")}>
         <div
           ref={strip}
           onScroll={measure}
@@ -848,6 +878,7 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
                 column={column.key}
                 label={name}
                 rows={rows}
+                total={totals(column.key)}
                 dragging={dragging}
                 onDragging={setDragging}
               />
@@ -881,6 +912,23 @@ function BoardColumns({ rows = [] }: ListComponentPropsInterface) {
           </div>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+/* The table, under the same search bar as the board: the package's own table,
+ * handed the rows the search keeps. */
+function TicketTable({ rows: all = [] }: ListComponentPropsInterface) {
+  const { kept, filtering } = useTicketFilter(all)
+  const { resource } = useCurrentViewResourceContext()
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <TicketSearch
+        tickets={all.map((row) => row.data as Ticket)}
+        shown={kept.length}
+        projects={resource["@id"] !== PROJECT_TICKETS}
+      />
+      {filtering && !kept.length ? <NoMatch /> : <ListTable rows={kept} />}
     </div>
   )
 }
@@ -959,46 +1007,13 @@ const projectRowForm: FormInterface = {
   },
 }
 
-/** What the filters of a project's tickets ask: a word of the title, a column, a priority, a type. */
-const projectFilterForm: FormInterface = {
-  inputs: {
-    search: { label: "Search", placeholder: "Title or id" },
-    column: {
-      label: "Status",
-      controller: SelectInputController,
-      getValueOptions: async () => [
-        { value: "", label: "any status" },
-        ...(currentBoard()?.columns.map((column) => ({
-          value: column.key,
-          label: capital(columnTitle(column.key, column.name)),
-        })) ?? []),
-      ],
-    },
-    priority: choiceFilter("priority", "Priority", "any priority"),
-    type: choiceFilter("type", "Type", "any type"),
-  },
-}
-
-function choiceFilter(key: "priority" | "type", label: string, any: string) {
-  return {
-    label,
-    controller: SelectInputController,
-    hidden: () => !currentBoard()?.choices?.[key]?.length,
-    getValueOptions: async () => [{ value: "", label: any }, ...(currentBoard()?.choices?.[key] ?? [])],
-  }
-}
-
-/** Whether a ticket is one the filters ask for. A key the filter does not carry asks for nothing. */
+/* Which tickets a list is about: all of them, or a project's. The search over
+ * them is the bar's (see `TicketSearch`), done on the rows this hands over —
+ * which is why it hands them all over: a column says "3 / 12", and needs the
+ * twelve. */
 function matches(ticket: Ticket, filter: Record<string, unknown> = {}): boolean {
-  const said = (key: string) => String(filter[key] ?? "").trim()
-  if (said("project") && ticket.project !== said("project")) return false
-  if (said("column") && ticket.column !== said("column")) return false
-  // The board spells a choice as it likes: "High" in Notion, "high" in a filter.
-  const same = (key: "priority" | "type") =>
-    !said(key) || (ticket[key] ?? "").toLowerCase() === said(key).toLowerCase()
-  if (!same("priority") || !same("type")) return false
-  const word = said("search").toLowerCase()
-  return !word || titleOf(ticket).toLowerCase().includes(word) || ticket.short.toLowerCase().includes(word)
+  const project = String(filter.project ?? "").trim()
+  return !project || ticket.project === project
 }
 
 /* -- the declaration ------------------------------------------------------ */
@@ -1086,6 +1101,7 @@ const options: ResourceOptionInterface<TicketItem, TicketItem, TicketWrite> = {
         ...tableViewOptionFactory({
           id: "table",
           fullWidth: true,
+          listComponent: TicketTable,
           behavior: { rowActions: [] },
         }),
         get name() {
@@ -1137,7 +1153,7 @@ const options: ResourceOptionInterface<TicketItem, TicketItem, TicketWrite> = {
 export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(TICKETS, options)
 
 /* The same tickets under a project's page: this declaration, with the table
- * of `projectRowForm`, the filters of `projectFilterForm`, and an empty line
+ * of `projectRowForm`, the search bar without its project filter, and an empty line
  * that speaks of the project rather than of the board. Not a copy of the
  * options: a column, a card or a way of moving one is changed in one place. */
 export const PROJECT_TICKETS = "project-tickets"
@@ -1152,7 +1168,6 @@ export const projectTickets = createViewResource<TicketItem, TicketItem, TicketW
     [ActionList.list]: {
       ...options.views?.[ActionList.list],
       form: projectRowForm,
-      formFilter: projectFilterForm,
       components: { ...options.views?.[ActionList.list]?.components, noResult: NoProjectTicket },
     },
   },

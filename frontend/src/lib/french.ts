@@ -392,6 +392,28 @@ export const FRENCH: Record<string, string> = {
   "no systemd on this machine": "pas de systemd sur cette machine",
   "timer state unknown": "état de la minuterie inconnu",
 
+  /* -- the search over the board and a project's tickets ------------------- */
+  "Search tickets: title, id, result, pull request…":
+    "Chercher un ticket : titre, id, résultat, pull request…",
+  "Search tickets": "Chercher un ticket",
+  Filters: "Filtres",
+  Clear: "Effacer",
+  Period: "Période",
+  "Created or changed": "Créé ou modifié",
+  "Any time": "N'importe quand",
+  "Last 7 days": "7 derniers jours",
+  "Last 30 days": "30 derniers jours",
+  "With a pull request": "Avec une pull request",
+  "Waiting for credits": "En attente de crédits",
+  "Move not synced": "Déplacement non synchronisé",
+  "Any cost": "Tout coût",
+  Other: "Autres",
+  "More than {{amount}}": "Plus de {{amount}}",
+  "No ticket matches": "Aucun ticket ne correspond",
+  "Other words, or fewer filters, and they will be back.":
+    "D'autres mots, ou moins de filtres, et ils reviendront.",
+  "Clear the filters": "Effacer les filtres",
+
   /* -- a ticket's terminal -------------------------------------------------- */
   Discussion: "Discussion",
   "a question is waiting for you": "une question vous attend",
