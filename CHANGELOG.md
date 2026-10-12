@@ -96,6 +96,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A branch's code can no longer break `ponos.db` for main.** The local database remembers
+  each migration by its name, not only how many it went through: a file migrated by a branch
+  whose migrations were in another order is finished by main without applying one twice —
+  where it used to stop every run's journal on « table write_ups already exists ». A file
+  that went through a migration this Ponos does not know is refused untouched, and
+  `ponos doctor` warns when the migrations are not in the code's order. Ponos launched from a
+  checkout (`PYTHONPATH=src`) no longer writes the real state unless `XDG_STATE_HOME` is set.
 - **A ticket whose work was not a commit is no longer blocked for want of one.** An audit, a
   check, a deployment or a setting in production is classified as *Writing* or *External
   action*, and a classification that hesitates between *Code* and another type takes the other

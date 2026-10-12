@@ -15365,7 +15365,10 @@ def an_installation_from_before_the_rename_starts_with_everything_it_had():
 
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith(("XDG_", "PONOS_", legacy.OLD_PREFIX))}
+    # Said explicitly, where the installation finds it by itself: launched
+    # from this checkout, Ponos would not write a state it was not given.
     environment.update(HOME=str(home), PYTHONPATH=str(ROOT / "src"),
+                       XDG_STATE_HOME=str(home / ".local" / "state"),
                        **{legacy.OLD_PREFIX + "WEB_EMAIL": "me@example.com"})
     done = subprocess.run([sys.executable, "-m", "ponos", "history"], env=environment,
                           capture_output=True, text=True, timeout=60)
@@ -15444,9 +15447,10 @@ def a_ticket_this_machine_took_before_the_rename_is_still_its_own():
 def a_new_database_is_brought_to_the_current_schema():
     with _state_home() as home:
         try:
-            location, found = db.check()
+            location, found, disorder = db.check()
             assert location == home / "ponos.db"
             assert found == len(db.MIGRATIONS) >= 1
+            assert disorder == ""
             connection = db.connect()
             assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
             assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == db.BUSY_TIMEOUT_MS
@@ -15719,6 +15723,135 @@ def doctor_says_the_database_version_and_refuses_a_newer_one():
             assert "newer version" in out.getvalue()
         finally:
             db.close()
+
+
+def _columns(connection, table):
+    return {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrated_by_a_branch(location):
+    """A file migrated by a branch whose last two migrations were in the other
+    order — `_write_ups` before `_stops_have_a_cause`, as on 12/10/2026."""
+    names = [db.name(migration) for migration in db.MIGRATIONS]
+    first, second = names.index("stops_have_a_cause"), names.index("write_ups")
+    assert second == first + 1 == len(names) - 1, "the two this test swaps"
+    branch = (*db.MIGRATIONS[:first], db.MIGRATIONS[second])
+    db.open_at(location, branch).close()
+
+
+@case
+def a_database_migrated_by_a_branch_in_another_order_is_finished_by_main():
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+    _migrated_by_a_branch(location)
+    connection = db.open_at(location)
+    try:
+        assert db.version(connection) == len(db.MIGRATIONS)
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        assert {"write_ups", "history", "runs", "migrations"} <= tables, tables
+        assert "code" in _columns(connection, "history") and "code" in _columns(connection, "runs")
+        done = db.applied(connection)
+        assert sorted(done) == sorted(db.name(migration) for migration in db.MIGRATIONS), done
+        assert done[-2:] == ["write_ups", "stops_have_a_cause"], "the one applied under another rank is not again"
+    finally:
+        connection.close()
+    again = db.open_at(location)
+    try:
+        assert db.version(again) == len(db.MIGRATIONS), "nothing left, nothing replayed"
+    finally:
+        again.close()
+
+
+@case
+def a_database_from_before_the_names_is_given_them_by_its_version():
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+    old = db.open_at(location, db.MIGRATIONS[:5])
+    old.execute("DROP TABLE migrations")
+    old.close()
+    connection = db.open_at(location)
+    try:
+        names = [db.name(migration) for migration in db.MIGRATIONS]
+        assert db.applied(connection) == names
+        rows = connection.execute("SELECT name, at FROM migrations ORDER BY rowid").fetchall()
+        assert all(at == "" for _, at in rows[:5]), "filled in: nobody wrote the moment down"
+        assert all(at for _, at in rows[5:]), "applied now, and said when"
+        assert db.disorder(connection) == ""
+    finally:
+        connection.close()
+
+
+@case
+def a_database_that_went_through_a_migration_this_code_does_not_know_is_refused_untouched():
+    location = Path(tempfile.mkdtemp()) / "ponos.db"
+
+    def notes(connection):
+        connection.execute("CREATE TABLE notes (text TEXT)")
+
+    # Another branch's: in the middle of the list, at the rank main has one more.
+    db.open_at(location, (*db.MIGRATIONS[:-1], notes)).close()
+    raw = sqlite3.connect(location)
+    before = raw.execute("SELECT name FROM sqlite_master ORDER BY name").fetchall()
+    raw.close()
+    try:
+        db.open_at(location)
+    except db.TooNew as error:
+        assert "notes" in str(error) and "ponos update" in str(error), str(error)
+    else:
+        raise AssertionError("a migration nobody here knows must stop the file being written")
+    raw = sqlite3.connect(location)
+    try:
+        assert raw.execute("SELECT name FROM sqlite_master ORDER BY name").fetchall() == before
+        assert raw.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)
+    finally:
+        raw.close()
+
+
+@case
+def doctor_says_when_the_migrations_are_not_in_the_codes_order():
+    from ponos.__main__ import _doctor_database
+
+    with _state_home() as home:
+        try:
+            _migrated_by_a_branch(home / "ponos.db")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                assert _doctor_database() == 0, "every table is there: a yellow line, not a red one"
+            said = out.getvalue()
+            assert "another order" in said and "stops_have_a_cause" in said, said
+        finally:
+            db.close()
+
+
+@case
+def a_checkout_does_not_write_the_real_state_unless_told_to():
+    if C.checkout() is None:
+        return  # a copy without its .git: an installation, which this is not about
+    assert C.checkout() == ROOT
+    previous = os.environ.pop("XDG_STATE_HOME", None)
+    try:
+        try:
+            C.refuse_real_state()
+        except C.RealStateRefused as error:
+            assert "XDG_STATE_HOME" in str(error), str(error)
+        else:
+            raise AssertionError("a checkout without XDG_STATE_HOME must be refused")
+        try:
+            db.connect()
+        except db.DatabaseError as error:
+            assert "XDG_STATE_HOME" in str(error), str(error)
+        else:
+            raise AssertionError("nor open the real database")
+    finally:
+        if previous is not None:
+            os.environ["XDG_STATE_HOME"] = previous
+    home = Path(tempfile.mkdtemp())
+    environment = {key: value for key, value in os.environ.items() if key != "XDG_STATE_HOME"}
+    environment.update(HOME=str(home), PYTHONPATH=str(ROOT / "src"))
+    done = subprocess.run([sys.executable, "-m", "ponos", "history"], env=environment,
+                          capture_output=True, text=True, timeout=60)
+    assert done.returncode == 2 and "XDG_STATE_HOME=$(mktemp -d)" in done.stderr, done.stderr
+    assert not (home / ".local" / "state").exists(), "nothing written"
+    with _state_home():
+        C.refuse_real_state()
 
 
 # -- the run journal ---------------------------------------------------------
