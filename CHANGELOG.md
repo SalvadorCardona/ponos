@@ -165,6 +165,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The dashboard's figures and *Ponos, find me ideas* share one line.** The button is no
+  longer alone on a line of its own above the strip: it sits at the strip's right end, a quiet
+  outlined button with a small mascot. The three figures read the same way — the number, what
+  it counts, then a quieter note, in one face and one size, a rule between them. Where the
+  strip is narrow the button shows the mascot alone, its words in a tooltip, and on a phone
+  the figures stack one a line.
+
 - **Settings in six pages you can find your way in.** Twenty-two sections at one rank become
   six pages, each at its own address: *General* (state of the runner, languages, test mode,
   updates, console access, logs), *Ticket source* (where the board lives, Notion's token,

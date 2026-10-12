@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import { exitOffset, lean, sideOfKey, stamp, verdict, type Side } from "@/lib/swipe"
@@ -56,6 +57,7 @@ export function IdeasButton({
   project = "",
   name = "",
   onClose,
+  inline = false,
   className,
 }: {
   /** The project's page; none for the workspace. */
@@ -64,6 +66,11 @@ export function IdeasButton({
   name?: string
   /** Once the deck is closed: what it decided may change a list drawn behind it. */
   onClose?: () => void
+  /** Drawn at the end of the runner's strip: a quiet button the strip's height,
+   * with the mascot small — and, in a strip narrower than 66rem (the nearest
+   * `@container`), the mascot alone, its words in a tooltip, so that the
+   * strip keeps its line. */
+  inline?: boolean
   className?: string
 }) {
   const t = useT()
@@ -74,27 +81,55 @@ export function IdeasButton({
   const [eager, setEager] = React.useState(false)
   const wake = (on: boolean) =>
     setEager(on && !window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+  // The tooltip says what the words would, and only when they are not shown.
+  const words = React.useRef<HTMLSpanElement>(null)
+  const [tip, setTip] = React.useState(false)
+  const label = project ? t("Find me ideas for this project") : t("Ponos, find me ideas")
+  const button = (
+    <Button
+      size="sm"
+      variant={inline ? "outline" : "default"}
+      className={cn(
+        "group/ideas",
+        inline
+          ? "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-primary/20 bg-primary/5 h-8 gap-1.5 pr-1.5 pl-1 @min-[66rem]:pr-3"
+          : "h-auto gap-2 py-1 pr-3 pl-1.5",
+        className
+      )}
+      data-slot={project ? "project-ideas-button" : "ideas-button"}
+      onClick={() => setOpen(true)}
+      onPointerEnter={() => wake(true)}
+      onPointerLeave={() => wake(false)}
+      onFocus={() => wake(true)}
+      onBlur={() => wake(false)}
+    >
+      <span className={cn("relative inline-flex shrink-0", !inline && "-my-1")}>
+        <Robot state={eager ? "thinking" : "idle"} size={inline ? 24 : 36} />
+        <Sparkles
+          aria-hidden="true"
+          className="absolute -top-0.5 -right-1 size-3 opacity-0 group-hover/ideas:opacity-100 group-focus-visible/ideas:opacity-100 motion-safe:group-hover/ideas:animate-pulse motion-safe:group-focus-visible/ideas:animate-pulse"
+        />
+      </span>
+      <span ref={words} className={cn(inline && "sr-only @min-[66rem]:not-sr-only")}>
+        {label}
+      </span>
+    </Button>
+  )
   return (
     <>
-      <Button
-        size="sm"
-        className={cn("group/ideas h-auto gap-2 py-1 pr-3 pl-1.5", className)}
-        data-slot={project ? "project-ideas-button" : "ideas-button"}
-        onClick={() => setOpen(true)}
-        onPointerEnter={() => wake(true)}
-        onPointerLeave={() => wake(false)}
-        onFocus={() => wake(true)}
-        onBlur={() => wake(false)}
-      >
-        <span className="relative -my-1 inline-flex shrink-0">
-          <Robot state={eager ? "thinking" : "idle"} size={36} />
-          <Sparkles
-            aria-hidden="true"
-            className="absolute -top-0.5 -right-1 size-3 opacity-0 group-hover/ideas:opacity-100 group-focus-visible/ideas:opacity-100 motion-safe:group-hover/ideas:animate-pulse motion-safe:group-focus-visible/ideas:animate-pulse"
-          />
-        </span>
-        {project ? t("Find me ideas for this project") : t("Ponos, find me ideas")}
-      </Button>
+      {inline ? (
+        <Tooltip
+          open={tip}
+          onOpenChange={(on) =>
+            setTip(on && !!words.current && getComputedStyle(words.current).position === "absolute")
+          }
+        >
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        button
+      )}
       {open ? (
         <IdeasDialog
           project={project}
