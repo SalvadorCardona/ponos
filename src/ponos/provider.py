@@ -6,9 +6,10 @@ A server is where it does come up: nobody sits at its browser to sign in, a key
 is what a server is usually given, and the three ways are not the same thing.
 
 - **`cli`** — the subscription, signed in with `claude login` (in a container,
-  from the terminal Dokploy gives you). The only one that keeps Claude in Chrome,
-  which loads on an OAuth session and nothing else, and the only one whose
-  credits come in windows worth waiting for (credits.py).
+  from the terminal Dokploy gives you) or handed over as a token drawn by
+  `claude setup-token`, in `CLAUDE_CODE_OAUTH_TOKEN`. The only one that keeps
+  Claude in Chrome, which loads on an OAuth session and nothing else, and the
+  only one whose credits come in windows worth waiting for (credits.py).
 - **`api_key`** — an Anthropic key, billed by the token. No browser, nothing to
   wait for.
 - **`openrouter`** — the key of `[openrouter]`; with `route_sessions` the
@@ -47,6 +48,11 @@ NAMES = {
 # What somebody types to sign the CLI in, and where. In a container that is the
 # terminal Dokploy opens on the service — or `docker compose exec`.
 LOGIN = "claude auth login"
+
+# The other way to hand a server the subscription: a long-lived token drawn with
+# `claude setup-token` on a machine that has a browser, which Claude Code reads
+# from the environment. Nothing to type in a terminal on the server.
+OAUTH_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 
 CHECK_TIMEOUT = 15
 
@@ -122,6 +128,10 @@ def cli_login() -> Check:
         status = {}
     if not isinstance(status, dict) or not status.get("loggedIn"):
         return Check(False, f"not signed in — {LOGIN}")
+    if status.get("authMethod") == "oauth_token":
+        # `claude setup-token`, given as CLAUDE_CODE_OAUTH_TOKEN: the
+        # subscription, with no account to name — and no sign-in to keep.
+        return Check(True, f"subscription token ({OAUTH_TOKEN_ENV})")
     who = str(status.get("email") or status.get("orgName") or "an account")
     plan = str(status.get("subscriptionType") or "")
     return Check(True, f"{who} ({plan})" if plan else who)

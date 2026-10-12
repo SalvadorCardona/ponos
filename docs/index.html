@@ -997,6 +997,25 @@
     <div id="faq">
       <h3 style="margin:3rem 0 0;font-size:1.25rem">Questions, answered</h3>
       <div class="card faq">
+        <details id="dokploy">
+          <summary>
+            <h3>Can I install Ponos on a server, with Dokploy?</h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="faq-body">
+            <p>Yes, in one click: Ponos has a <a href="https://dokploy.com" target="_blank" rel="noopener">Dokploy</a> template. The image carries everything a ticket needs — Claude Code, git, <code>gh</code>, Node — and your data lives on named volumes, so a restart or a new version keeps it.</p>
+            <ol>
+              <li><b>Create it.</b> In Dokploy, <em>Templates</em>, search <em>Ponos</em>, <em>Create</em>. Until it is in the catalogue: a <em>Compose</em> service, <em>Advanced › Import</em>, and the Base64 the <a href="https://github.com/SalvadorCardona/ponos#install-with-dokploy">documentation</a> prints.</li>
+              <li>
+                <b>Give it a way to reach Claude</b> — the only thing required — in the <em>Environment</em> tab. Your subscription, with the token this prints on any machine with a browser:
+                <pre data-copy><span class="p">$ </span>claude setup-token</pre>
+                into <code>CLAUDE_CODE_OAUTH_TOKEN</code> — or an Anthropic key into <code>ANTHROPIC_API_KEY</code>.
+              </li>
+              <li><b>Optional:</b> <code>GH_TOKEN</code> for the pull requests, <code>PONOS_NOTION_TOKEN</code> for a board in Notion — without it, the board is Markdown files and the console is all you need. <code>PONOS_LANGUAGE</code> is <code>en</code> or <code>fr</code>.</li>
+              <li><b>Deploy, and open the domain.</b> Sign in with <code>PONOS_WEB_EMAIL</code> and <code>PONOS_WEB_PASSWORD</code>: the template generated both, and the <em>Environment</em> tab shows them. The console says what is still missing, and where to add it.</li>
+            </ol>
+          </div>
+        </details>
         <details id="remote-access" open>
           <summary>
             <h3>How do I reach Ponos from my phone, away from my desk?</h3>
@@ -1050,6 +1069,7 @@ url = "https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net"</pre>
       <a href="https://github.com/SalvadorCardona/ponos#usage">Every command <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#what-protects-your-code">What protects your code <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#on-a-server">On a server <span>§</span></a>
+      <a href="https://github.com/SalvadorCardona/ponos#install-with-dokploy">Install with Dokploy <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#when-it-does-not-work">When it does not work <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#architecture">Architecture <span>§</span></a>
       <a href="https://github.com/SalvadorCardona/ponos#ponos-the-mascot">Ponos, the mascot <span>§</span></a>

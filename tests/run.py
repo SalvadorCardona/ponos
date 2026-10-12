@@ -7960,6 +7960,20 @@ def from_outside_this_machine_nobody_claims_the_console_without_its_code():
 
 
 @case
+def a_containers_healthcheck_is_answered_without_a_key():
+    """`/healthz` says the console answers, to anybody — and says nothing else."""
+    path, _ = _saved()
+    api = _Fresh(path)
+    with _console(api, code="K7Q2-M9XD") as console:
+        status, _, said = _talk_to(console, "GET", "/healthz")
+        assert status == 200 and said == {"ok": True}, (status, said)
+        status, _, said = _talk_to(console, "GET", "/healthz", **{"X-Forwarded-For": "203.0.113.9"})
+        assert status == 200 and said == {"ok": True}, "from outside as well, claimed or not"
+        status, _, _ = _talk_to(console, "GET", "/api/board")
+        assert status == 401, "and it opens nothing else"
+
+
+@case
 def behind_https_the_consoles_cookies_are_secure():
     """The proxy says the browser came in over HTTPS: the cookie never goes back in clear.
 
@@ -8013,6 +8027,22 @@ def _environment(**values: str | None):
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
+
+
+@case
+def a_subscription_token_in_the_environment_is_a_signed_in_cli():
+    """`claude setup-token` handed over as CLAUDE_CODE_OAUTH_TOKEN: the CLI works, and says how."""
+    from ponos import provider
+
+    answered = json.dumps({"loggedIn": True, "authMethod": "oauth_token"})
+    original = provider.subprocess.run, provider.session.available
+    provider.session.available = lambda: "/usr/bin/claude"
+    provider.subprocess.run = lambda *_, **__: subprocess.CompletedProcess([], 0, answered, "")
+    try:
+        check = provider.cli_login()
+    finally:
+        provider.subprocess.run, provider.session.available = original
+    assert check.ok and "CLAUDE_CODE_OAUTH_TOKEN" in check.said, check
 
 
 @case
@@ -9344,6 +9374,20 @@ def a_value_the_environment_gives_is_said_to_come_from_it():
     assert drawn["notify.slack.token"]["environment"] == "PONOS_SLACK_TOKEN"
     assert drawn["web.email"]["environment"] == "PONOS_WEB_EMAIL"
     assert drawn["notion.token"]["environment"] == "", "secrets.env holds this one"
+
+
+@case
+def a_container_is_given_its_language_by_the_environment():
+    """`PONOS_LANGUAGE` when the file names none; the file when it does."""
+    path, _ = _saved()
+    with _environment(PONOS_LANGUAGE="fr"):
+        assert C.load(path).runner.language == "fr"
+        assert C.load(path).runner.interface_language() == "fr", "the console follows it too"
+    with _environment(PONOS_LANGUAGE=None):
+        assert C.load(path).runner.language == "", "nothing said is still nothing said"
+    path, _ = _saved('\n[runner]\nlanguage = "en"\n')
+    with _environment(PONOS_LANGUAGE="fr"):
+        assert C.load(path).runner.language == "en", "a language picked in Settings wins"
 
 
 # -- the settings tab ---------------------------------------------------------
@@ -11377,6 +11421,44 @@ def the_version_and_the_changelog_never_drift():
         assert entries[0][0] == version, (
             f"__version__ is {version}, the newest changelog section is [{entries[0][0]}]"
         )
+
+
+@case
+def the_dokploy_template_pins_the_image_of_this_version():
+    """Never `latest`: the image the tag of this tree publishes, and `bump` moves it."""
+    version = release.read_version()
+    assert release.read_pins() == {"docker-compose.yml": version, "meta.json": version}
+
+    copy = Path(tempfile.mkdtemp())
+    for name in release.PINS:
+        shutil.copy(release.BLUEPRINT / name, copy / name)
+    release.write_pins("9.8.7", copy)
+    assert release.read_pins(copy) == {"docker-compose.yml": "9.8.7", "meta.json": "9.8.7"}
+    assert json.loads((copy / "meta.json").read_text(encoding="utf-8"))["version"] == "9.8.7"
+
+
+@case
+def the_dokploy_template_keeps_to_the_catalogues_rules():
+    """What Dokploy/templates refuses, and the variables both files must agree on."""
+    import tomllib
+
+    compose = (release.BLUEPRINT / "docker-compose.yml").read_text(encoding="utf-8")
+    template = tomllib.loads((release.BLUEPRINT / "template.toml").read_text(encoding="utf-8"))
+    meta = json.loads((release.BLUEPRINT / "meta.json").read_text(encoding="utf-8"))
+
+    for refused in ("ports:", "container_name", "networks:", ":latest"):
+        assert refused not in compose, f"{refused} is not allowed in a Dokploy template"
+    assert re.search(r"^services:\n  ponos:$", compose, re.MULTILINE), "the service is the folder's name"
+    assert [domain["serviceName"] for domain in template["config"]["domains"]] == [meta["id"]] == ["ponos"]
+    assert template["config"]["domains"][0]["port"] == 8787
+    assert (release.BLUEPRINT / meta["logo"]).is_file()
+    given = set(template["config"]["env"])
+    read = set(re.findall(r"\$\{(\w+)\}", compose))
+    assert given == read, (given ^ read)
+    secrets = {"PONOS_WEB_PASSWORD", "PONOS_WEB_TOKEN"}
+    assert all(template["config"]["env"][name].startswith("${") for name in secrets), "generated, never written"
+    for name in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GH_TOKEN", "PONOS_NOTION_TOKEN"):
+        assert template["config"]["env"][name] == "", f"{name} is the user's to give"
 
 
 @case
