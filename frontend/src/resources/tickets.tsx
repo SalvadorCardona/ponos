@@ -558,10 +558,7 @@ function DashboardTop({
   if (!loading)
     return listing ? (
       <>
-        <div className="mb-3 flex justify-end">
-          <IdeasButton />
-        </div>
-        <RunnerStrip />
+        <RunnerStrip action={<IdeasButton inline />} />
         <StatisticsBand />
         <TicketWindow />
       </>

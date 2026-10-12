@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Activity, Gauge, Timer } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -16,6 +17,15 @@ import { Rich } from "./text"
  * came to the board, where those tickets are, as a strip rather than tiles: a
  * board is for reading cards, and a row of figures over it is read in one
  * glance or not at all.
+ *
+ * At the end of the same line, whatever the page that holds it puts there — the
+ * dashboard's call for ideas — so that the strip and its button are one band
+ * rather than a button alone on a line of its own above it. Each figure reads
+ * the same way: its number first, then what it counts, then a note one shade
+ * quieter, in one face and one size; a rule between two figures. The strip's
+ * own width decides, not the screen's — the menu beside it takes a quarter of a
+ * laptop — so it is a container: under 44rem one figure a line, and the button
+ * says its words only where the three notes have room beside it.
  *
  * Above them, whatever is stopping the whole thing: a timer that is on above a
  * board that stands still has only one other honest reading, and it is "this
@@ -53,24 +63,37 @@ function Figure({
   value,
   note,
   tone,
+  spare = false,
 }: {
   icon: typeof Activity
   label: string
   value: string
   note: string
   tone?: string
+  /** A note that may go where the line is short. */
+  spare?: boolean
 }) {
   return (
-    <div className="flex min-w-0 items-baseline gap-1.5">
-      <Icon className="text-muted-foreground size-3.5 shrink-0 self-center" aria-hidden />
-      <span className={cn("font-semibold tabular-nums", tone)}>{value}</span>
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-muted-foreground truncate font-mono text-[0.7rem]">· {note}</span>
+    <div className="flex min-w-0 items-center gap-2 @min-[44rem]:border-l @min-[44rem]:pl-3 @min-[44rem]:first:border-l-0 @min-[44rem]:first:pl-0">
+      <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className={cn("font-semibold whitespace-nowrap tabular-nums", tone)}>{value}</span>
+        <span className="text-muted-foreground shrink-0">{label}</span>
+        <span
+          className={cn(
+            "text-muted-foreground/70 truncate",
+            spare && "@min-[44rem]:@max-[60rem]:hidden"
+          )}
+          title={note}
+        >
+          · {note}
+        </span>
+      </span>
     </div>
   )
 }
 
-export function RunnerStrip() {
+export function RunnerStrip({ action }: { action?: React.ReactNode }) {
   const { runner, board } = useConsole()
   const { running: sessions } = useStatus()
   const t = useT()
@@ -107,31 +130,37 @@ export function RunnerStrip() {
         </Alert>
       ) : null}
 
-      <div className="bg-card flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border px-3.5 py-2 text-sm">
-        <Figure
-          icon={Activity}
-          label={t("sessions")}
-          value={String(sessions.length)}
-          note={
-            running
-              ? counted(running, "{{count}} ticket in progress", "{{count}} tickets in progress")
-              : t("nothing in progress")
-          }
-          tone={sessions.length ? "text-tr-green" : undefined}
-        />
-        <Figure
-          icon={Timer}
-          label={t("timer")}
-          value={on ? every(runner?.interval_seconds ?? 0) : t("off")}
-          note={on ? t("between two runs") : timerNote(runner?.timer)}
-          tone={on ? undefined : "text-tr-amber"}
-        />
-        <Figure
-          icon={Gauge}
-          label={t("handled")}
-          value={number(runner?.handled ?? 0)}
-          note={t("{{amount}} spent so far", { amount: money(runner?.spend ?? 0) })}
-        />
+      <div className="bg-card @container flex min-h-12 items-center gap-3 rounded-xl border py-2 pr-2 pl-3.5 text-sm">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 @min-[44rem]:flex-row @min-[44rem]:items-center @min-[44rem]:gap-3">
+          <Figure
+            icon={Activity}
+            label={t("sessions")}
+            value={String(sessions.length)}
+            note={
+              running
+                ? counted(running, "{{count}} ticket in progress", "{{count}} tickets in progress")
+                : t("nothing in progress")
+            }
+            tone={sessions.length ? "text-tr-green" : undefined}
+          />
+          <Figure
+            icon={Timer}
+            label={t("timer")}
+            value={on ? every(runner?.interval_seconds ?? 0) : t("off")}
+            note={on ? t("between two runs") : timerNote(runner?.timer)}
+            tone={on ? undefined : "text-tr-amber"}
+          // "between two runs" says less than the other two notes: where the
+          // line is short, it is the one that gives way.
+          spare={on}
+          />
+          <Figure
+            icon={Gauge}
+            label={t("handled")}
+            value={number(runner?.handled ?? 0)}
+            note={t("{{amount}} spent so far", { amount: money(runner?.spend ?? 0) })}
+          />
+        </div>
+        {action ? <div className="ml-auto shrink-0">{action}</div> : null}
       </div>
     </div>
   )
