@@ -386,8 +386,9 @@ class Execution(Base):
         # still running — is left in validated, for `_merge` to finish.
         forced = refused = ""
         later = False
-        if pull_request and self.config.runner.forces_validation("code"):
-            forced = said.say("forced-validation", kind=self.kind_name("code"))
+        if pull_request:
+            forced = self._forced("code", project)
+        if forced:
             self.say(f"    · {forced}")
             refused, later = self._force_merge(job, pull_request)
         merged = bool(forced and not refused)
@@ -553,7 +554,8 @@ class Execution(Base):
         # for the pass that has credit again to publish it, as it would one you
         # had moved there yourself. A board with no such column has nowhere to
         # hold it, and the ticket waits in review as it always did.
-        forced = prepared and self.config.runner.forces_validation("publication")
+        following = self._forced("publication", job.project) if prepared else ""
+        forced = bool(following)
         postponed = forced and bool(self.under_reserve())
         if postponed and not self.validated_column():
             forced = postponed = False
@@ -569,7 +571,6 @@ class Execution(Base):
             values[self.config.notion.prop("status")] = self.config.notion.state(column)
         self._set(ticket, **values)
         if forced:
-            following = said.say("forced-validation", kind=self.kind_name("publication"))
             self.say(f"    · {following}")
             if not postponed:
                 # One report for the two sessions, the publication's: a ticket

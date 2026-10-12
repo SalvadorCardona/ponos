@@ -335,3 +335,61 @@ test.describe("the page of a project", () => {
     await expect(page.getByText("wherever the clone is")).toHaveCount(0)
   })
 })
+
+test.describe("the settings of a project", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  // Website rather than Newsletter: another test renames Newsletter meanwhile.
+  const WEBSITE = "/?view=console/projects/read/0000000000000000000000000000cafe"
+  const own = (page: Page) => page.getByRole("switch", { name: "Its own automatic validation" })
+  const code = (page: Page) => page.getByRole("switch", { name: "Code tickets" })
+  // `open` waits for Website, which neither of these pages names.
+  const go = async (page: Page, path: string) => {
+    await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+    await page.goto(path)
+  }
+
+  test("follow the global switches until the project has its own, which outlive a reload", async ({ page }) => {
+    await go(page, `${WEBSITE}&tab=settings`)
+    await onThePageOf(page, "Website")
+    await expect(page.getByRole("tab", { name: "Settings", exact: true })).toHaveAttribute("aria-selected", "true")
+
+    // Off: the four global switches, as they stand, and the way to change them.
+    await expect(own(page)).toHaveAttribute("aria-checked", "false")
+    await expect(page.getByText("Off: this project follows the global settings.")).toBeVisible()
+    for (const label of ["Code tickets", "Publication tickets", "Writing tickets", "External action tickets"])
+      await expect(page.getByRole("switch", { name: label })).toBeDisabled()
+    await expect(code(page)).toHaveAttribute("aria-checked", "false")
+    await expect(page.getByRole("link", { name: "Change them in the global settings" })).toBeVisible()
+    // The same « ? » as the global card, with the same sentence behind it.
+    await page.getByRole("button", { name: "More about “Code tickets”" }).click()
+    await expect(page.getByText("A merge GitHub refuses leaves the ticket in review")).toBeVisible()
+    await page.keyboard.press("Escape")
+
+    // On: started from the global values, then a switch of its own.
+    await own(page).click()
+    await expect(own(page)).toHaveAttribute("aria-checked", "true")
+    await expect(code(page)).toBeEnabled()
+    await expect(code(page)).toHaveAttribute("aria-checked", "false")
+    await code(page).click()
+    await expect(code(page)).toHaveAttribute("aria-checked", "true")
+
+    await page.reload()
+    await expect(own(page)).toHaveAttribute("aria-checked", "true")
+    await expect(code(page)).toHaveAttribute("aria-checked", "true")
+
+    // The global card names it, and leads back to it.
+    await go(page, "/?view=console/settings/read/config/execution")
+    const line = page.locator('[data-slot="own-validation"]')
+    await expect(line).toContainText("A project can have its own automatic validation")
+    await line.getByRole("link", { name: "Website" }).click()
+    await onThePageOf(page, "Website")
+    await expect(own(page)).toHaveAttribute("aria-checked", "true")
+
+    // Off again: the global switch shows, and the project's is forgotten.
+    await own(page).click()
+    await expect(own(page)).toHaveAttribute("aria-checked", "false")
+    await expect(code(page)).toHaveAttribute("aria-checked", "false")
+    await expect(code(page)).toBeDisabled()
+  })
+})

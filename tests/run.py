@@ -41,7 +41,7 @@ from ponos import config as C  # noqa: E402
 from ponos import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
 from ponos import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
 from ponos import schedules, session, state, store, sync, systemd  # noqa: E402
-from ponos import db, files, images, journal  # noqa: E402
+from ponos import db, files, images, journal, project_settings  # noqa: E402
 from ponos.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
 from ponos import legacy, models, update, voice, workspace  # noqa: E402
 from ponos import ticket as ticket_module  # noqa: E402
@@ -533,6 +533,133 @@ def force_validated_is_off_for_every_type_until_the_file_says_otherwise():
     assert C.load(path).runner.forces_validation("code")
     web_settings.save(config, {"settings": {"runner.force_validated_code": None}})
     assert not C.load(path).runner.forces_validation("code")
+
+
+@case
+def a_project_with_its_own_validation_overrides_the_file_both_ways():
+    """The project's switches when it has them, the file's otherwise.
+
+    A project without its own is the board as it was; one with its own is
+    taken at its word, even against the file — on where the file is off, off
+    where the file is on. And a database that cannot be read validates nothing.
+    """
+    eager = _config("[runner]\nforce_validated_code = true\n")
+    quiet = _config("")
+    page = "1234abcd-0000-0000-0000-00000000beef"
+    with _state():
+        try:
+            assert project_settings.validation(page) is None
+            assert project_settings.forced_validation(eager, "code", page) == "global"
+            assert project_settings.forced_validation(quiet, "code", page) == ""
+            assert project_settings.forced_validation(eager, "", page) == ""
+
+            # Off on the project, on in the file: the project wins.
+            project_settings.set_validation(page, "Client", {"code": False, "publication": True})
+            assert project_settings.forced_validation(eager, "code", page) == ""
+            assert project_settings.forced_validation(eager, "publication", page) == "project"
+            # On on the project, off in the file: the project wins again.
+            project_settings.set_validation(page, "Client", {"code": True})
+            assert project_settings.forced_validation(quiet, "code", page) == "project"
+            assert project_settings.forced_validation(quiet, "publication", page) == ""
+            # Another project, and a project without a page, still follow the file.
+            assert project_settings.forced_validation(eager, "code", "f" * 32) == "global"
+            assert project_settings.forced_validation(eager, "code", "") == "global"
+
+            # Keyed by the page whichever way its id is spelled, and kept across
+            # a restart: the connection closed, the file opened again.
+            db.close()
+            assert project_settings.validation(page.replace("-", "").upper()) == {
+                "code": True, "writing": False, "external": False, "publication": False,
+            }
+            assert project_settings.owning_validation() == [
+                {"id": page.replace("-", ""), "name": "Client"}
+            ]
+
+            # Handed back to the file: the row goes, and the file decides again.
+            project_settings.set_validation(page, "Client", None)
+            assert project_settings.validation(page) is None
+            assert project_settings.owning_validation() == []
+            assert project_settings.forced_validation(eager, "code", page) == "global"
+
+            # A database that cannot be read is never a merge nobody read.
+            original = project_settings.validation
+
+            def broken(project: str) -> None:
+                raise db.DatabaseError("locked")
+
+            project_settings.validation = broken
+            try:
+                assert project_settings.forced_validation(eager, "code", page) == ""
+            finally:
+                project_settings.validation = original
+        finally:
+            db.close()
+
+
+@case
+def the_validation_line_says_whose_decision_it_was():
+    """A report that only said "validated" would not say which switch to turn off."""
+    english, french = voice.Voice("en"), voice.Voice("fr")
+    line = english.say(
+        "forced-validation", kind="Code", source=english.say("forced-by-project")
+    )
+    assert line == "Validated automatically (Force validated: Code) — the project's setting"
+    assert french.say("forced-by-global") == "réglage global"
+    assert french.say("forced-by-project") == "réglage du projet"
+
+
+@case
+def a_project_page_reads_and_saves_its_own_automatic_validation():
+    """The tab's two calls: what applies, and the project's own switches saved.
+
+    The switches are worded as the global card words them — the same fields —
+    and turning them on starts from the file's values, which `values` already
+    carries while the project has none of its own.
+    """
+    with _state(), _board() as board:
+        try:
+            page = board.create_row("projects", "Perso", {})
+            api = _markdown_api(board)
+            api._config.runner.force_validated_publication = True
+            read = api.project_settings(page)
+            validation = read["validation"]
+            assert validation["own"] is False
+            assert validation["global"]["publication"] is True
+            assert validation["values"] == validation["global"]
+            section = next(item for item in web_settings.SECTIONS if item.key == "validation")
+            assert [field["label"] for field in validation["fields"]] == [
+                field.label for field in section.fields
+            ]
+            assert [field["kind"] for field in validation["fields"]] == [
+                "code", "publication", "writing", "external",
+            ]
+
+            saved = api.save_project_settings(
+                page, {"validation": {"own": True, "values": {"code": True, "publication": False}}}
+            )
+            assert saved["validation"]["own"] is True
+            assert saved["validation"]["values"]["code"] is True
+            assert saved["validation"]["values"]["publication"] is False
+            assert saved["validation"]["global"]["publication"] is True
+            assert project_settings.owning_validation() == [
+                {"id": project_settings.key(page), "name": "Perso"}
+            ]
+
+            for wrong in ({}, {"validation": {"own": "yes"}},
+                          {"validation": {"own": True, "values": {"deploy": True}}},
+                          {"validation": {"own": True, "values": {"code": "on"}}}):
+                try:
+                    api.save_project_settings(page, wrong)
+                except ValueError:
+                    continue
+                raise AssertionError(f"{wrong} should have been refused")
+
+            back = api.save_project_settings(page, {"validation": {"own": False}})
+            assert back["validation"]["own"] is False
+            assert back["validation"]["values"] == back["validation"]["global"]
+            assert project_settings.owning_validation() == []
+        finally:
+            db.close()
 
 
 @case

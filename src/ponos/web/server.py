@@ -491,6 +491,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.project(match.group(1)))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/brief", route):
                 return self._json(self.api.project_brief(match.group(1)))
+            if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/settings", route):
+                return self._json(self.api.project_settings(match.group(1)))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/image/(\w+)", route):
                 data, kind = self.api.picture(match.group(1), match.group(2))
                 return self._send(
@@ -695,6 +697,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.chat.reset())
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/delete", route):
                 return self._json(self.api.removal.delete(match.group(1), payload))
+            if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/settings", route):
+                return self._json(self.api.save_project_settings(match.group(1), payload))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.save_project(match.group(1), payload))
             if route == "/api/settings":

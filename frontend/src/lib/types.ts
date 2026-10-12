@@ -148,6 +148,32 @@ export interface ProjectBrief {
   losses: Record<string, number>
 }
 
+/** The four types of ticket, as the runner keys them. */
+export type TicketKind = "code" | "publication" | "writing" | "external"
+
+/** One switch of the automatic validation, worded as the global card words it. */
+export interface ValidationField {
+  kind: TicketKind
+  /** The global setting's key, `runner.force_validated_code`. */
+  name: string
+  label: string
+  help: string
+}
+
+/** What a project decides for itself — see project_settings.py. */
+export interface ProjectSettings {
+  id: string
+  validation: {
+    /** Whether the project has its own switches; false, the file's apply. */
+    own: boolean
+    /** What applies to its tickets: its own switches, or the file's. */
+    values: Record<TicketKind, boolean>
+    /** The file's, whatever the project says. */
+    global: Record<TicketKind, boolean>
+    fields: ValidationField[]
+  }
+}
+
 /** What deleting a project did, as the server counts it. */
 export interface ProjectDeleted {
   id: string
@@ -532,6 +558,8 @@ export interface Settings {
   sections: SettingSection[]
   projects: Pair[]
   github: Pair[]
+  /** The projects that decide their automatic validation for themselves. */
+  own_validation?: { id: string; name: string }[]
 }
 
 /** The room the runner takes on this machine — see cleanup.py. */

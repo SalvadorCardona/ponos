@@ -73,7 +73,8 @@ deux suites, puis publie l'image sur `ghcr.io`.
   `recurrence.py` (les tickets qui reviennent seuls), `replies.py` (répondre
   aux commentaires), `reports.py` (ce qui s'écrit sur un ticket et ce qui
   atteint ton téléphone), `ticket.py` (`Ticket` et `Job`, sans dépendance).
-- `src/ponos/` — autour du run : `config.py`, `store.py` (la couture
+- `src/ponos/` — autour du run : `config.py` (et `project_settings.py`, ce qu'un
+  projet décide pour lui-même par-dessus, gardé dans `ponos.db`), `store.py` (la couture
   vers un tableau, quel qu'il soit) et les trois qui la remplissent —
   `notion.py`, `files.py` (le board en fichiers Markdown), `sync.py` (les deux
   en phase) —, `git.py`, `session.py`, `provider.py` (qui répond aux sessions :

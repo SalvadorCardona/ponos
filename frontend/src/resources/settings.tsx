@@ -278,7 +278,42 @@ function onPage(group: string, target: string): boolean {
  * the form, but it is a setting, and this is where somebody looks for one —
  * and the two cards that are lists of rows, each a resource of its own, drawn
  * as a resource is drawn: the package's table, its own dialogs. */
-const extra = (section: SettingSection) => (section.key === "languages" ? <LanguagePicker /> : null)
+const extra = (section: SettingSection) =>
+  section.key === "languages" ? <LanguagePicker /> : section.key === "validation" ? <OwnValidation /> : null
+
+/* Above the four switches of the validation card: that they are not the whole
+ * story, since a project may decide for itself — and which ones do, each a
+ * link to the tab where it does. */
+function OwnValidation() {
+  const t = useT()
+  useSettingsRevision()
+  const owning = currentSettings()?.own_validation ?? []
+  return (
+    <p className="text-muted-foreground pt-1 pb-2 text-[13px] leading-relaxed" data-slot="own-validation">
+      {t("A project can have its own automatic validation, in the Settings tab of its page.")}{" "}
+      {owning.length ? (
+        <>
+          {t("Projects with their own, whatever these switches say:")}{" "}
+          {owning.map((project, index) => (
+            <React.Fragment key={project.id}>
+              {index ? ", " : null}
+              <a href={projectSettingsHref(project.id)} className="text-foreground underline underline-offset-2">
+                {project.name || project.id}
+              </a>
+            </React.Fragment>
+          ))}
+          .
+        </>
+      ) : (
+        t("None does today.")
+      )}
+    </p>
+  )
+}
+
+/** A project's settings tab, written out rather than imported: projects.tsx imports this file. */
+const projectSettingsHref = (id: string) =>
+  `${generateLink({ scope: SCOPE, resourceId: "projects", resourceAction: ActionList.read, id })}&tab=settings`
 
 function pairs(section: SettingSection) {
   if (!(section.pairs in pairResources)) return null

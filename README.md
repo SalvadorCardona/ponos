@@ -1742,7 +1742,18 @@ one.
 
 Ticked, a ticket of that type no longer stops in *In review*: as soon as its session has
 succeeded, the runner does what moving it to *Validated* would have set off, then moves it
-to *Done*. Its report says so — *Validated automatically (Force validated: Code)*.
+to *Done*. Its report says so, and says whose decision it was — *Validated automatically
+(Force validated: Code) — the global setting*, or *— the project's setting*.
+
+**Project by project.** The four switches above are every project's, until a project has
+its own: on its page in the console, the *Settings* tab has *Its own automatic validation*.
+Off — the default — the project follows the global switches, shown there read only with a
+link to change them. On, it gets the same four switches of its own, started from what the
+global ones said, and they are what its tickets follow, even where they contradict the
+global ones — merging unread on a project of your own, every pull request read on a
+client's, whatever `config.toml` says. They are kept in the runner's local database
+(`ponos.db`), not on the board, and survive a restart; *Settings › Automatic validation*
+names the projects that have their own, and so does `ponos doctor`.
 
 - **Code** — the pull request is opened, its CI waited for (at most
   `checks_timeout_minutes`, only on a repository with workflows; a red check is run again
@@ -1765,7 +1776,8 @@ to *Done*. Its report says so — *Validated automatically (Force validated: Cod
 
 Two guards hold whatever is ticked: a ticket whose session failed, was blocked or ran out
 of credit is never validated, and the option only applies to tickets run after it is
-switched on — a ticket already in *In review* stays there until you move it.
+switched on — a ticket already in *In review* stays there until you move it. Neither guard
+is a project's to lift: its own switches only decide what the global ones would have.
 `ponos doctor` says which types are forced.
 
 ---

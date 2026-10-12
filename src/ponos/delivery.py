@@ -14,6 +14,8 @@ made in advance, for every ticket of one type: the session succeeds, and what
 this column would set off is set off straight away — `_force_merge` for a pull
 request, `_publish` for a publication — without the ticket passing through it.
 Only on a success, never on a ticket already in review, and said in the report.
+A project may make that gesture for itself, against the file in either
+direction — see project_settings.py — and the report says whose it was.
 Writing and external action have nothing to set off: they end in done already.
 
 The two are not carried out the same way, and the asymmetry is the module.
@@ -49,7 +51,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-from . import agents, git, kinds, session, state, store
+from . import agents, git, kinds, project_settings, session, state, store
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
@@ -354,6 +356,22 @@ class Delivery(Base):
             said.report(said.verdict("merged", said.pull_request(url), *facts), url, *notes),
         )
         return {"ticket": ticket.title, "id": ticket.id, "status": "done", "merged": url}
+
+    def _forced(self, kind: str, project: Project) -> str:
+        """The line saying a ticket of that type is validated without you, or "".
+
+        The project's own automatic validation when it has one, the file's
+        otherwise; the line says which of the two decided. Asked only once the
+        session has succeeded — a failed or blocked ticket never gets this far.
+        """
+        source = project_settings.forced_validation(self.config, kind, project.notion_id)
+        if not source:
+            return ""
+        return self.voice.say(
+            "forced-validation",
+            kind=self.kind_name(kind),
+            source=self.voice.say(f"forced-by-{source}"),
+        )
 
     def _force_merge(self, job: Job, url: str) -> tuple[str, bool]:
         """Merge a pull request just opened, for a type whose validation is forced.

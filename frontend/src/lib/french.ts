@@ -1654,4 +1654,14 @@ export const FRENCH: Record<string, string> = {
   "any status": "tous les statuts",
   "any priority": "toutes les priorités",
   "any type": "tous les types",
+  "Its own automatic validation": "Avoir sa propre validation automatique",
+  "This project's switches apply to its tickets, whatever the global settings say.":
+    "Les interrupteurs de ce projet s'appliquent à ses tickets, quoi que disent les réglages globaux.",
+  "Off: this project follows the global settings.": "Désactivé : ce projet suit les réglages globaux.",
+  "The global settings that apply, read only.": "Les réglages globaux qui s'appliquent, en lecture seule.",
+  "Change them in the global settings": "Les modifier dans les réglages globaux",
+  "A project can have its own automatic validation, in the Settings tab of its page.":
+    "Un projet peut avoir sa propre validation automatique, dans l'onglet Réglages de sa page.",
+  "Projects with their own, whatever these switches say:": "Projets qui ont la leur, quoi que disent ces interrupteurs :",
+  "None does today.": "Aucun n'en a pour l'instant.",
 }

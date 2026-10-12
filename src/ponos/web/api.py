@@ -25,7 +25,7 @@ from typing import Any
 
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, images, question, session, state, store, sync
-from .. import journal, models, systemd, voice
+from .. import journal, models, project_settings, systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -1201,8 +1201,86 @@ class Api:
     # -- the configuration ----------------------------------------------------
 
     def settings(self) -> dict:
-        """Every setting the file holds, as the console draws it — secrets aside."""
-        return settings_module.describe(self.config)
+        """Every setting the file holds, as the console draws it — secrets aside.
+
+        And the projects that decide their automatic validation for themselves,
+        which the file does not hold but its validation card has to say: a
+        switch that reads "on" is not the whole truth on those.
+        """
+        return {
+            **settings_module.describe(self.config),
+            "own_validation": project_settings.owning_validation(),
+        }
+
+    # -- a project's own settings -------------------------------------------
+
+    def _validation_fields(self) -> list[dict]:
+        """The global card's switches, as they are worded there — one source for both pages."""
+        section = next(item for item in settings_module.SECTIONS if item.key == "validation")
+        return [
+            {
+                "kind": field.key.removeprefix("force_validated_"),
+                "name": field.name,
+                "label": field.label,
+                "help": field.help,
+            }
+            for field in section.fields
+        ]
+
+    def project_settings(self, page_id: str) -> dict:
+        """What a project decides for itself, and what the file decides when it does not.
+
+        `global` is what the runner would apply without the project's own
+        switches — the file's, defaults included — so that a page can show it
+        as it stands, and fill the project's in with it when they are turned on.
+        """
+        bare = project_settings.key(page_id)
+        globally = {
+            kind: self.config.runner.forces_validation(kind) for kind in kinds_module.KINDS
+        }
+        own = project_settings.validation(bare)
+        return {
+            "id": bare,
+            "validation": {
+                "own": own is not None,
+                "values": own if own is not None else globally,
+                "global": globally,
+                "fields": self._validation_fields(),
+            },
+        }
+
+    def save_project_settings(self, page_id: str, payload: dict) -> dict:
+        """Give a project its own settings, or hand them back to the file.
+
+        `validation.own` false forgets the project's switches; true keeps those
+        sent, type by type, and a type left out is off — never the file's, which
+        would make a project's choice change the day somebody edits config.toml.
+        """
+        bare = project_settings.key(page_id)
+        validation = payload.get("validation")
+        if not isinstance(validation, dict) or not isinstance(validation.get("own"), bool):
+            raise ValueError("say whether the project has its own automatic validation")
+        values = validation.get("values") or {}
+        if not isinstance(values, dict) or any(
+            kind not in kinds_module.KINDS or not isinstance(value, bool)
+            for kind, value in values.items()
+        ):
+            raise ValueError("automatic validation is a switch for each type of ticket")
+        try:
+            row = next(
+                (
+                    item
+                    for item in self.projects().values()
+                    if project_settings.key(item["id"]) == bare
+                ),
+                None,
+            )
+        except store.StoreError:
+            row = None
+        name = str(row["name"]) if row else ""
+        project_settings.set_validation(bare, name, values if validation["own"] else None)
+        self.hub.publish("settings", project=bare)
+        return self.project_settings(bare)
 
     def folder(self, typed: str) -> dict:
         """A folder of this machine, for a path field to pick a file or a folder from."""
