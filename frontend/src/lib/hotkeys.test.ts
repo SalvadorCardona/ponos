@@ -36,6 +36,15 @@ test("the two shortcuts are two keys", () => {
   assert.equal(hotkeyFor(press("l", { ctrlKey: true }), null), null)
 })
 
+test("/ goes to the search, Shift or not, and is a character in a field", () => {
+  assert.equal(hotkeyFor(press("/"), null), "search")
+  // Shift+: on a French keyboard.
+  assert.equal(hotkeyFor(press("/", { shiftKey: true }), { tagName: "DIV" }), "search")
+  assert.equal(hotkeyFor(press("/"), { tagName: "INPUT", type: "search" }), null)
+  assert.equal(hotkeyFor(press("/", { ctrlKey: true }), null), null)
+  assert.equal(label(HOTKEYS.search, true), "/")
+})
+
 test("a field is where words are typed, a button is not", () => {
   assert.equal(isTyping({ tagName: "TEXTAREA" }), true)
   assert.equal(isTyping({ tagName: "INPUT", type: "text" }), true)

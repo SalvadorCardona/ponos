@@ -12,6 +12,8 @@ import {
 } from "react-resource-view"
 import { tanstackAdapter } from "react-resource-view/tanstack"
 
+import { readQuery, writeQuery } from "./ticket-search"
+
 // The dictionary has to be in place before a resource is declared: the words
 // the views are built with go through it. See `i18n.ts`, which applies it on
 // import.
@@ -142,14 +144,14 @@ export function useLayoutInTheAddress(resourceId: string): void {
     // would otherwise send everybody back to the first layout.
     layouts.set(resourceId, viewVariant === first ? "" : viewVariant)
     if (carried === viewVariant || (!carried && viewVariant === first)) return
-    void latest.current({
-      to: generateLinkByResource({
-        resource,
-        resourceAction: ActionList.list,
-        viewVariantId: viewVariant,
-      }),
-      replace: true,
-    })
+    const [path, search = ""] = generateLinkByResource({
+      resource,
+      resourceAction: ActionList.list,
+      viewVariantId: viewVariant,
+    }).split("?")
+    // A search on the board is still on in the table: its words go along.
+    const searched = readQuery(window.location.search)
+    void latest.current({ to: `${path}${writeQuery(`?${search}`, searched)}`, replace: true })
   }, [listing, resourceId, viewVariant, first, resource, carried, setViewResource])
 }
 

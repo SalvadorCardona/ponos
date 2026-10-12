@@ -16,6 +16,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ## [Unreleased]
 
+### Added
+
+- **A search over the board, and over a project's tickets.** A bar over the columns finds a
+  ticket by the words of its title, of its result, of its pull request, by its short id, or by
+  a pasted branch or Notion address — case and accents set aside — and filters that combine:
+  type, status, priority, model, project, period, and a few switches (a pull request, waiting
+  for credits, not yet synchronised, what it cost). The columns stay where they are and say how
+  many cards they kept (`3 / 12`), the words found are marked on the cards, and the search lives
+  in the address: a link to send, a reload that keeps it, and the table under the same search.
+  **/** goes to the field, **Escape** empties it; on a phone, the filters fold behind one button.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added

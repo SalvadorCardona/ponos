@@ -1,7 +1,8 @@
 /* The console's keyboard shortcuts, all of them, in one list.
  *
- * Two today: the palette (Ctrl+K, ⌘K on a Mac) and the drawer the conversation
- * lives in (Ctrl+J, ⌘J). One more is a line here and a handler where it acts —
+ * Three today: the palette (Ctrl+K, ⌘K on a Mac), the drawer the conversation
+ * lives in (Ctrl+J, ⌘J), and the search over the board (/, the key most sites
+ * give their search field). One more is a line here and a handler where it acts —
  * `useHotkeys` reads this list, the palette prints it, the bubble's tooltip
  * says it — so a shortcut is never written in one place and forgotten in
  * another.
@@ -15,7 +16,7 @@
  * file as it stands, the way it reads `composer.ts`.
  */
 
-export type HotkeyId = "palette" | "console"
+export type HotkeyId = "palette" | "console" | "search"
 
 export interface Hotkey {
   id: HotkeyId
@@ -31,6 +32,7 @@ export interface Hotkey {
 export const HOTKEYS: Record<HotkeyId, Hotkey> = {
   palette: { id: "palette", key: "k", mod: true, inFields: true },
   console: { id: "console", key: "j", mod: true, inFields: true },
+  search: { id: "search", key: "/", mod: false, inFields: false },
 }
 
 /** What `matches` reads of a keydown. */
@@ -43,11 +45,13 @@ export interface KeyPress {
 }
 
 /* Ctrl or ⌘, whichever the machine has: a Mac with Ctrl pressed is not wrong
- * about what it meant. Never with Alt or Shift — Ctrl+Shift+J is the browser's
- * own console, and AltGr arrives as Ctrl+Alt on Windows. */
+ * about what it meant. Never with Alt, nor Shift with Ctrl — Ctrl+Shift+J is
+ * the browser's own console, and AltGr arrives as Ctrl+Alt on Windows. A key
+ * alone may come with Shift: "/" is Shift+: on a French keyboard, and
+ * `key` already says the character it made. */
 export function matches(press: KeyPress, hotkey: Hotkey): boolean {
   const mod = press.ctrlKey || press.metaKey
-  if (mod !== hotkey.mod || press.altKey || press.shiftKey) return false
+  if (mod !== hotkey.mod || press.altKey || (hotkey.mod && press.shiftKey)) return false
   return press.key.toLowerCase() === hotkey.key
 }
 
