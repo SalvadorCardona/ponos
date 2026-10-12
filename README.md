@@ -1668,6 +1668,15 @@ and the second no longer replays cleanly — “Pull Request has merge conflicts
    there, the pull request goes on by itself. `ponos doctor` and `ponos projects` say when
    a repository's base has no CI run at push, or only skipped ones: that is how a red base
    goes unseen.
+   A check that is red here and only here is not a question yet: a session is sent after
+   it, on the branch of the pull request, told the names of the red checks and the end of
+   the log of their failed jobs (`gh run view --log-failed`, cut). It fixes what the branch
+   broke — not the base, no test turned off — and commits; the runner pushes it with the
+   same lease, waits for the CI again and, once it is green, merges as usual. One attempt
+   per ticket and per head commit, kept in `ponos.db` (table `mends`, like `write_ups`): the
+   same red never costs two sessions. If it answers *blocked*, commits nothing or the CI is
+   still red, the ticket is blocked as before (`merge.checks-failed`), with the session's
+   report on the card.
 5. The pull request gets a comment, and the ticket gets its report: the commit it was
    rebased onto, the files in conflict, how each was resolved, what the checks said. The
    session's cost is added to the ticket's *Cost*.
@@ -1675,8 +1684,8 @@ and the second no longer replays cleanly — “Pull Request has merge conflicts
 It stops and asks instead — *Blocked*, as before, but with the conflict and the question
 rather than GitHub's refusal — when the session judges a conflict to be a decision (two
 behaviours that cannot both hold, code deleted on one side and changed on the other, a
-schema or a migration changed on both), when checks fail here and not on the base (the
-report names them), when somebody else
+schema or a migration changed on both), when checks still fail here and not on the base after
+the repair session (the report names them), when somebody else
 pushed to the branch in the meantime (the lease refuses to overwrite their commits, and
 the ticket says so), and when the base keeps moving: a ticket's branch is replayed twice
 at most before it asks. Whatever resolution was reached is pushed on a branch of its

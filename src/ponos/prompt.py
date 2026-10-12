@@ -39,6 +39,10 @@ another ticket's validated work, and dropping it to make this one pass would be
 merging a regression nobody asked for — so a conflict that cannot keep both is
 a question, not a choice.
 
+A repair is the fifth one's sibling, for a pull request whose branch is up to
+date and whose CI is red by its own fault: **fix what this branch broke, and
+touch nothing else** — not the base, and never a test turned off to get a green.
+
 A sixth one is not a frame but a reminder: a session that stopped without its
 report is picked up once, in its own conversation, and told to write it — **the
 account of what it did, and no more work.** See `WRITE_UP`.
@@ -284,6 +288,54 @@ it stops being one:
 
 RESULT: ok — <what you resolved, in one sentence>
 RESULT: blocked — <what conflicts, and the question it raises>
+{asking}"""
+
+
+REPAIR = """\
+A pull request of the {project} project was validated — a human read it and \
+said yes — and its branch is up to date with `{base}`, but its CI is red, and \
+red here only: the failed jobs were run again once and failed again, and the \
+same checks are not red on `{base}`. You are repairing that, alone and with \
+nobody to talk to: no one can answer a question while the session runs.
+
+# Ticket — {title}
+
+{body}
+
+{comments}{context}{brief}{agent}{permissions}# Context
+
+- You are in a disposable worktree of {repo}, on the branch `{branch}`, at the \
+commit the red checks ran on.
+- Notion ticket: {url}
+
+# What is expected
+
+1. Read the end of the failed jobs' log above, find what this branch broke, \
+and fix that and only that: most of the time it is a line — a test that looked \
+for something the branch renamed, a link written the wrong way, a lockfile out \
+of step. A failure that has nothing to do with the branch (a network timeout, a \
+service down) is not a thing to fix: say so.
+2. Never touch `{base}`, never disable, skip or delete a test to make it pass, \
+never loosen a check, and change nothing the failure does not ask for.
+3. Run what failed again, the way the CI runs it (see its workflow, the \
+package.json, the Makefile), until it passes — three attempts at most. Then \
+commit the fix on its own, with a message that says what it repairs.
+4. **Do not push** and do not merge: the runner pushes and waits for the CI.
+5. Stop rather than guess when the failure is a decision (two behaviours that \
+cannot both hold, a test that is right and a feature that is wrong), or when \
+it is not this branch's. Leave the worktree as it is, and say what fails and \
+which question it raises.
+{language}
+Before the final line, write a short report in Markdown for the person who \
+validated the pull request: what was red, what you changed, what you ran and \
+what it said. No heading.
+
+End with a final line, exactly one of these two. It is read on a phone, as a \
+notification, so it is one sentence of under 200 characters and it is cut where \
+it stops being one:
+
+RESULT: ok — <what you repaired, in one sentence>
+RESULT: blocked — <what fails, and the question it raises>
 {asking}"""
 
 

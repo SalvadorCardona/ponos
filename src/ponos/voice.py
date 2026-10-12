@@ -546,6 +546,30 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "The resolution is pushed, and the pull request's checks fail on it: {url}",
         "fr": "La résolution est poussée, et les vérifications de la pull request échouent : {url}",
     },
+    "repair-fixed": {
+        "en": "A session repaired the red checks ({names}) and pushed the fix.",
+        "fr": "Une session a réparé les vérifications rouges ({names}) et poussé le correctif.",
+    },
+    "repair-still-red": {
+        "en": "The repair was pushed, and the checks are still red.",
+        "fr": "Le correctif est poussé, et les vérifications sont toujours rouges.",
+    },
+    "repair-blocked": {
+        "en": "A session looked at the red checks ({names}) and could not repair them.",
+        "fr": "Une session a examiné les vérifications rouges ({names}) sans pouvoir les réparer.",
+    },
+    "repair-nothing": {
+        "en": "A session looked at the red checks ({names}) and committed nothing.",
+        "fr": "Une session a examiné les vérifications rouges ({names}) sans rien valider.",
+    },
+    "repair-unfinished": {
+        "en": "The repairing session left its worktree unfinished, nothing was pushed.",
+        "fr": "La session de réparation a laissé son worktree inachevé, rien n'est poussé.",
+    },
+    "repair-push-refused": {
+        "en": "The repair could not be pushed: {error}",
+        "fr": "Le correctif n'a pas pu être poussé : {error}",
+    },
     "checks-passed": {"en": "CI: green.", "fr": "CI : verte."},
     "checks-failed": {"en": "CI: red.", "fr": "CI : rouge."},
     "checks-flaky": {

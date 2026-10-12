@@ -1141,6 +1141,37 @@ def rerun_failed_checks(url: str, accounts: Accounts | None = None) -> bool:
     return any(started)
 
 
+def failed_log(url: str, accounts: Accounts | None = None, most: int = 6000) -> str:
+    """The end of the log of the pull request's failed jobs, or nothing when unknown.
+
+    `gh run view --log-failed`, one run after the other, each cut to its tail:
+    what went wrong is at the end of a log, and the beginning of one is a
+    hundred lines of setup that would only crowd the prompt of the session
+    reading it. `most` is for all the runs together.
+    """
+    parts = reference_parts(url)
+    runs = sorted(
+        {
+            found.group(1)
+            for one in _failing(url, accounts)
+            if (found := re.search(r"/actions/runs/(\d+)", str(one.get("link") or "")))
+        }
+    )
+    if not runs or len(parts) < 3:
+        return ""
+    token = token_for(url, accounts)
+    logs = []
+    for one in runs:
+        result = run(
+            ["gh", "run", "view", one, "--log-failed", "-R", "/".join(parts[:3])],
+            timeout=120,
+            token=token,
+        )
+        if result.ok and result.out.strip():
+            logs.append(result.out.strip()[-(most // len(runs)):])
+    return "\n\n".join(logs)
+
+
 def base_failures(url: str, base: str, accounts: Accounts | None = None) -> list[tuple[str, str]]:
     """The checks that failed on the newest commit of `base`, with the page of each run.
 

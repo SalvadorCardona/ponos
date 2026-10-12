@@ -51,6 +51,7 @@ from __future__ import annotations
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -491,6 +492,92 @@ class Delivery(Base):
             return "base-red", said.say("checks-base-red", names=_named(failing), base=base)
         return "failed", said.say("checks-failed-on", names=_named(failing), base=base)
 
+    def _mend(
+        self, job: Job, url: str, checked: str
+    ) -> tuple[str, str, session.Outcome | None]:
+        """A pull request red by its own fault: a session reads the log and tries once.
+
+        The red `_checked` could not excuse — still red after the failed jobs
+        were run again, and not red on the base — is most often a line: a test
+        that looked for a name the branch changed, a link written the wrong way.
+        It used to be a question (51 tickets blocked on it); a session now gets
+        the checks' names and the end of their log, on the very branch of the
+        pull request, as for a conflict. One attempt per ticket and per head
+        commit, written down before it starts (`state.mending`), and the
+        commit the repair pushes is written down too: whatever happens next, the
+        runner never sends a second session after the same red.
+
+        Returns the checks as they stand — `passed` when the fix went green,
+        anything `_checked` says otherwise — and what to report, and the session
+        when there was one, for its cost and its credit.
+        """
+        ticket, said = job.ticket, self.voice
+        head = git.head(job.workdir)
+        if not head or state.mended(ticket.id, head):
+            return "failed", checked, None
+        accounts = self.config.github
+        failing = git.failing_checks(url, accounts)
+        names = _named(failing) or "?"
+        state.mending(ticket.id, head)
+        self.say(f"    ↻ checks red ({', '.join(failing) or '?'}) — sending a session after them")
+        log = git.failed_log(url, accounts)
+        brief = "\n\n".join(
+            part
+            for part in (
+                self._body(ticket).strip(),
+                f"# The pull request — {url}",
+                git.pull_request_body(url, accounts).strip() or "(no description)",
+                "# The checks that fail on it, and not on the base",
+                "\n".join(f"- `{name}`" for name in failing) or "(gh did not name them)",
+                "# The end of the failed jobs' log",
+                f"```\n{log}\n```" if log else "(gh could not read the log: open the runs)",
+            )
+            if part
+        )
+        short = short_id(ticket.id)
+        repairing = replace(
+            job,
+            body=brief,
+            session_id=session.new_id(),
+            log=state.log_file(f"{short}-repair"),
+            resume=False,
+        )
+        try:
+            outcome = self._run_session(repairing, prompt_module.REPAIR)
+        except (OSError, FileNotFoundError) as error:
+            self.say(f"    ! the repair could not start: {error}")
+            return "failed", checked, None
+        self._add_cost(ticket, outcome)
+        if self._out_of_credit(outcome):
+            state.forget_mending(ticket.id, head)
+            return "failed", checked, outcome
+        told = _report_of(outcome.answer)
+        if not outcome.ok:
+            return "failed", said.paragraphs(
+                checked, said.say("repair-blocked", names=names), outcome.summary, told
+            ), outcome
+        if git.rebasing(job.workdir) or git.is_dirty(job.workdir):
+            return "failed", said.paragraphs(
+                checked, told, said.say("repair-unfinished")
+            ), outcome
+        fixed = git.head(job.workdir)
+        if not fixed or fixed == head:
+            return "failed", said.paragraphs(
+                checked, said.say("repair-nothing", names=names), told
+            ), outcome
+        state.mending(ticket.id, fixed)
+        failure = git.push_leased(job.workdir, job.branch, head, accounts)
+        if failure:
+            return "failed", said.paragraphs(
+                checked, told, said.say("repair-push-refused", error=failure)
+            ), outcome
+        pushed = said.say("repair-fixed", names=names)
+        git.comment_pull_request(url, f"Ponos — {said.paragraphs(pushed, told)}", accounts)
+        checks, again = self._checked(url, job.workdir, job.base)
+        if checks == "failed":
+            again = said.paragraphs(said.say("repair-still-red"), again)
+        return checks, said.paragraphs(pushed, told, again), outcome
+
     def _set_aside(self, ticket: Ticket, project: Project, url: str, base: str) -> str:
         """A pull request stopped by a red base, set aside until the base is green.
 
@@ -889,6 +976,10 @@ class Delivery(Base):
         record = said.paragraphs(facts, told)
         git.comment_pull_request(url, f"Ponos — {record}", accounts)
         checks, checked = self._checked(url, job.workdir, job.base)
+        if checks == "failed":
+            checks, checked, repair = self._mend(job, url, checked)
+            if repair and self._out_of_credit(repair):
+                return self._requeue(ticket, validated, repair)
         if checks == "failed":
             state.forget_rebases(ticket.id)
             return self._fail(
