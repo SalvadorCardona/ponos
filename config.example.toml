@@ -366,7 +366,8 @@ model = ""
 # session then keeps the rule its prompt already carries — answer in the language
 # the ticket is written in, reply in the language you were written to — so a
 # French ticket comes back in French, under an English report. Naming a language
-# here is what replaces that rule with a decision.
+# here is what replaces that rule with a decision. Left empty here, PONOS_LANGUAGE
+# from the environment is read instead — how a container is given one.
 language = ""
 
 # The language the console opens in, until you pick one with its FR / EN select

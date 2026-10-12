@@ -422,6 +422,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if not self._host_is_ours():
             return self._fail(421, "this console is not served under that name")
+        # What a container's healthcheck asks: the console answers. Nothing
+        # behind the door — not even whether it was claimed — so no key.
+        if route == "/healthz":
+            return self._json({"ok": True})
         # The MCP server's doors, which carry keys of their own — see `oauth`.
         if route.startswith("/.well-known/"):
             return self._discovery(route)

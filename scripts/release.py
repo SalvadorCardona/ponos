@@ -18,6 +18,10 @@ already wrote into the shapes git and GitHub want.
 once: a version written without its changelog entry, or an entry promoted
 without its version, is the failure mode this script exists to make impossible.
 
+The Dokploy template in `docker/dokploy/` pins the image of a version — never
+`latest` — and `bump` moves that pin with `__version__`, so the tagged tree
+points at the very image its tag publishes. `check` refuses a pin that lags.
+
 `publish` is idempotent. It is run twice on purpose — once by the release
 workflow when the tag lands, and once by hand when Actions is not the one
 doing it — and the second run finds the release already there and says so.
@@ -36,6 +40,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INIT = ROOT / "src" / "ponos" / "__init__.py"
 CHANGELOG = ROOT / "CHANGELOG.md"
+BLUEPRINT = ROOT / "docker" / "dokploy"
+
+# Where the Dokploy template says its version: the image it pulls, and the
+# catalogue entry, which Dokploy requires to match it.
+PINS = {
+    "docker-compose.yml": re.compile(r"(image: ghcr\.io/salvadorcardona/ponos:)([^\s]+)"),
+    "meta.json": re.compile(r'("version": ")([^"]+)(")'),
+}
 NAME = "ponos"
 
 # X.Y.Z, with room for the -rc.1 nobody has needed yet but everybody eventually does.
@@ -115,6 +127,28 @@ def write_version(version: str, init: Path | None = None) -> None:
     if count != 1:
         raise Problem(f"no __version__ to rewrite in {path}")
     path.write_text(text, encoding="utf-8")
+
+
+def read_pins(blueprint: Path | None = None) -> dict[str, str]:
+    """The version each file of the Dokploy template pins."""
+    found = {}
+    for name, pattern in PINS.items():
+        match = pattern.search(((blueprint or BLUEPRINT) / name).read_text(encoding="utf-8"))
+        found[name] = match.group(2) if match else ""
+    return found
+
+
+def write_pins(version: str, blueprint: Path | None = None) -> None:
+    for name, pattern in PINS.items():
+        path = (blueprint or BLUEPRINT) / name
+        text, count = pattern.subn(
+            lambda match: match.group(1) + version + "".join(match.groups()[2:]),
+            path.read_text(encoding="utf-8"),
+            count=1,
+        )
+        if count != 1:
+            raise Problem(f"no version to rewrite in {path}")
+        path.write_text(text, encoding="utf-8")
 
 
 # -- the changelog -----------------------------------------------------------
@@ -223,9 +257,11 @@ def command_bump(arguments: argparse.Namespace) -> int:
     text = promote(text, version, date)
     CHANGELOG.write_text(text, encoding="utf-8")
     write_version(version)
+    write_pins(version)
     print(f"{current} → {version}  ({date})")
     print(f"  {INIT.relative_to(ROOT)}")
     print(f"  {CHANGELOG.relative_to(ROOT)}")
+    print(f"  {BLUEPRINT.relative_to(ROOT)}/")
     print(f"\nreview the diff, commit it, then: {sys.argv[0]} check")
     return 0
 
@@ -242,6 +278,10 @@ def command_check(arguments: argparse.Namespace) -> int:
 
     if version != read_version():
         problems.append(f"__version__ is {read_version()}, not {version}")
+
+    for name, pinned in read_pins().items():
+        if pinned != version:
+            problems.append(f"{BLUEPRINT.relative_to(ROOT)}/{name} pins {pinned or 'nothing'}, not {version}")
 
     text = CHANGELOG.read_text(encoding="utf-8")
     try:

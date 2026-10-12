@@ -18,6 +18,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Install with Dokploy, in one click.** A Dokploy template, in `docker/dokploy/`: the image
+  pinned to a release, the four volumes, a domain on the console, and the sign-in generated
+  for you. Only a way to reach Claude is asked for — the token `claude setup-token` prints,
+  now read as `CLAUDE_CODE_OAUTH_TOKEN` and named as such in the console, or an Anthropic key,
+  which then becomes the provider. A container given no Notion token starts on a board of
+  Markdown files, `PONOS_LANGUAGE` sets the language of the reports and of the console, and
+  `/healthz` answers the image's new healthcheck. A release moves the template's pin with
+  the version. See *Install with Dokploy* in the README.
+
 - **Automatic validation, project by project.** A project's page has a new *Settings* tab,
   and its first setting is *Its own automatic validation*. Off, the project follows the global
   switches, shown read only with a link to them. On, it gets its own Code, Publication, Writing

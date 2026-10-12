@@ -18,6 +18,7 @@ script cannot make for you.
 | the notes | the `## [Unreleased]` section of `CHANGELOG.md` | whoever merges a change |
 | the tag | `v<version>` on `main` | you, at step 5 |
 | the release | GitHub, body taken from the changelog | the `release` workflow, on the tag |
+| the image | `ghcr.io/salvadorcardona/ponos:<version>`, and the pin in `docker/dokploy/` | the workflow; the pin, `release.py bump` |
 
 Everything downstream is derived. `ponos --version`, the version in the
 web console header, the release title and the release body all read from those
@@ -57,7 +58,7 @@ Run them from `main`, up to date, with a clean tree.
 2. **Bump.** `python3 scripts/release.py bump minor` (or `patch`, `major`, or an
    explicit `X.Y.Z`). It promotes `[Unreleased]` to `## [X.Y.Z] - <today>`,
    opens a fresh empty `[Unreleased]`, and rewrites `__version__` — both files,
-   or neither. It refuses an empty `[Unreleased]`, a version that already has a
+   or neither — and the image the Dokploy template in `docker/dokploy/` pins. It refuses an empty `[Unreleased]`, a version that already has a
    section, and a version that does not move forward.
 
 3. **Check.** `python3 tests/run.py` and then `python3 scripts/release.py

@@ -58,6 +58,12 @@ SECRETS: dict[tuple[str, str], str] = {
 # The ones the environment wins for — see the module's docstring.
 _ENVIRONMENT_FIRST = (WEB_PASSWORD_ENV,)
 
+# The language the reports are written in, when the file names none: what a
+# container is given once, in a compose file or a Dokploy template, before
+# anybody opens the console. The file wins — a language picked in Settings is a
+# decision taken later than the deployment.
+LANGUAGE_ENV = "PONOS_LANGUAGE"
+
 # Where the secrets file is, when it is not beside the configuration.
 SECRETS_PATH_ENV = "PONOS_SECRETS"
 
@@ -1245,7 +1251,9 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         # Kept as the file wrote it: `voice` reads it down to a language it
         # speaks, and the difference between "nothing was said" and "English was
         # asked for" is one the loader must not flatten.
-        language=str(runner_raw.get("language", defaults.language)).strip(),
+        language=str(
+            runner_raw.get("language", defaults.language) or os.environ.get(LANGUAGE_ENV, "")
+        ).strip(),
         app_language=str(runner_raw.get("app_language", defaults.app_language)).strip(),
         permission_mode=str(runner_raw.get("permission_mode", defaults.permission_mode)).strip(),
         branch_prefix=str(runner_raw.get("branch_prefix", defaults.branch_prefix)),

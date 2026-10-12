@@ -64,4 +64,9 @@ USER ponos
 WORKDIR /workspace
 EXPOSE 8787
 
+# The console answers: /healthz needs no key and says nothing else. A minute of
+# grace, for a first start that writes its configuration and draws its token.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8787/healthz || exit 1
+
 ENTRYPOINT ["tini", "-g", "--", "/app/docker/entrypoint.sh"]
