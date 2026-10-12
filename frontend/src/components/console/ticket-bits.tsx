@@ -154,6 +154,9 @@ export function TicketHeld({ ticket }: { ticket: Ticket }) {
     places: t("waiting: all {{count}} places taken — starts at the next free one", {
       count: held.detail,
     }),
+    project: t("waiting: its project already holds {{count}} places — starts when one frees", {
+      count: held.detail,
+    }),
     limit: t("waiting: --limit reached for this pass"),
     pass: t("waiting: the next reading of the board by the pass under way"),
     next: t("waiting: the next run of the timer"),

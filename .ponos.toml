@@ -1,0 +1,3 @@
+# What `ponos` settles by itself when it replays a branch: see src/ponos/generated.py.
+generated = ["src/ponos/web/static/**"]
+build = "cd frontend && npm ci && npm run build"

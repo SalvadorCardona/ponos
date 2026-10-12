@@ -34,6 +34,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   e-mail stops asking yes or no: it prepares the commands, ends blocked with `access.sudo` or
   `access.credentials`, and the ticket carries on when you answer « fait ». A ticket aimed at
   another of your repositories gets it cloned and its project created, when `allowed` says so.
+- **Fewer merges blocked by the queue itself.** Conflicts in generated files and in
+  `CHANGELOG.md` no longer cost a session: a replay keeps both sides of the changelog, takes the
+  base's version of the files a project declares generated (`generated = [...]` and `build = "..."`
+  in a `.ponos.toml` at the root of its repository), runs the build and commits its result in the
+  replay — a session starts only for a conflict in hand-written code. The merges of one repository
+  now wait in a line, one at a time, each pull request replayed on the base the previous merge left,
+  and `runner.max_concurrent_per_project` (default 2, also in *Settings*) keeps one project from
+  taking every place with pull requests that touch the same files.
 - **A search over the board, and over a project's tickets.** A bar over the columns finds a
   ticket by the words of its title, of its result, of its pull request, by its short id, or by
   a pasted branch or Notion address — case and accents set aside — and filters that combine:

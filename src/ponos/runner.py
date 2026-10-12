@@ -229,10 +229,9 @@ class Runner(
                     and len(flight) < width
                     and (remaining is None or remaining > 0) and self.room_for_a_session()
                 ):
-                    ticket = queued.pop(0)
-                    if ticket.id in hand:
-                        continue
-                    hand.take(ticket.id)
+                    ticket = self.pick(queued, hand)
+                    if ticket is None:
+                        break
                     if remaining is not None:
                         remaining -= 1
                     # Claimed here, in the one thread that does it, so that two

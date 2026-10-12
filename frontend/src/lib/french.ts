@@ -146,6 +146,7 @@ export const FRENCH: Record<string, string> = {
   "waiting: today's spending limit reached until {{at}}": "en attente : plafond de dépense du jour atteint jusqu’à {{at}}",
   "waiting: a session is still on it — run again once it ends": "en attente : une session est encore dessus — relancé dès qu’elle se termine",
   "waiting: all {{count}} places taken — starts at the next free one": "en attente : les {{count}} places sont prises — part à la prochaine qui se libère",
+  "waiting: its project already holds {{count}} places — starts when one frees": "en attente : son projet occupe déjà {{count}} places — part dès qu’une se libère",
   "waiting: --limit reached for this pass": "en attente : --limit atteint pour cette passe",
   "waiting: the next reading of the board by the pass under way": "en attente : la prochaine lecture du tableau par la passe en cours",
   "waiting: the next run of the timer": "en attente : le prochain passage du timer",
@@ -1040,6 +1041,9 @@ export const FRENCH: Record<string, string> = {
   "`ponos enable` writes it into the systemd timer":
     "`ponos enable` l'écrit dans la minuterie systemd",
   "Tickets in parallel": "Tickets en parallèle",
+  "Tickets in parallel per project": "Tickets en parallèle par projet",
+  "How many of those sessions may work on the same project at once. Pull requests written side by side on one repository touch the same files and conflict when the first one lands: 2 keeps that rare.":
+    "Combien de ces sessions peuvent travailler en même temps sur un même projet. Des pull requests écrites côte à côte sur un dépôt touchent les mêmes fichiers et entrent en conflit dès que la première est fusionnée : 2 garde cela rare.",
   "How many Claude sessions run at the same time. Each is a full session: 2 suits a laptop.":
     "Combien de sessions Claude tournent en même temps. Chacune est une session complète : 2 convient à un portable.",
   "Time limit per ticket (minutes)": "Durée maximale par ticket (minutes)",

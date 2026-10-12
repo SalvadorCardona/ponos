@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import git, journal, progress, resources, session, state, store
+from . import generated, git, journal, progress, resources, session, state, store
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
@@ -587,7 +587,7 @@ class Execution(Base):
                 else job.base
             )
             was = git.head(job.workdir)
-            if failure := git.rebase(job.workdir, start):
+            if failure := git.rebase(job.workdir, start, generated.settle):
                 self.say(f"    ! not replayed onto {start}: {failure}")
                 job.notes.append(said.say("rebase-refused", base=start, error=failure))
             elif git.head(job.workdir) != was:

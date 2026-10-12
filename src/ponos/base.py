@@ -83,6 +83,9 @@ class Base:
         self._landed: dict[str, int] = {}
         self._replayed_after: dict[str, int] = {}
         self._landed_lock = threading.Lock()
+        # One merge at a time per repository: the line a validated pull request
+        # waits in for its turn. See `Delivery._queue`.
+        self._queues: dict[str, threading.Lock] = {}
         # Whether this run has already said it cannot read the subscription's
         # usage. Said once — see `under_reserve`, which asks at every free place.
         self._usage_warned = False

@@ -328,6 +328,17 @@ interval_seconds = 1800
 # nothing is in flight.
 max_concurrent = 2
 
+# Of those places, how many one project may hold at once. Pull requests written
+# side by side on one repository touch the same files, and each one that lands
+# makes the others conflict; a ticket whose project is already at this number
+# waits in the ready column, and the next ticket of another project goes first.
+# Only projects with a repository count. A project may also say which files its
+# build generates in a `.ponos.toml` at the root of its repository, so that a
+# replay settles their conflicts without a session:
+#   generated = ["src/ponos/web/static/**"]
+#   build = "cd frontend && npm ci && npm run build"
+max_concurrent_per_project = 2
+
 # Past this, the session is killed and the ticket goes back as failed.
 timeout_minutes = 30
 

@@ -527,6 +527,7 @@ for reading rather than for filling in.
 | `runner.workspace_root` | `~/workspace` | where to look for repositories — and where one you have not cloned yet is cloned |
 | `runner.interval_seconds` | `1800` | seconds between two passes, and how often a pass in flight looks at the board — for a ticket to put in an empty place, and for one you have validated since — `ponos enable` applies a change |
 | `runner.max_concurrent` | `2` | tickets handled side by side — an empty place is filled from the board without waiting for anything to end |
+| `runner.max_concurrent_per_project` | `2` | of those places, how many one project (with a repository) may hold at once — the next ticket of another project goes first, and the held one starts when a place of its project frees |
 | `runner.timeout_minutes` | `30` | past this, the session is killed and the ticket fails |
 | `runner.wait_for_credits` | `true` | a spent subscription window puts the runner to sleep instead of failing tickets — see *When the credits run out* below |
 | `runner.credit_reserve_percent` | `5` | the share of each window the runner refuses to touch, so there is a subscription left for you — `0`–`50`, see *Stopping before the wall* below |
@@ -588,6 +589,14 @@ for reading rather than for filling in.
 | `openrouter.route_sessions` | `false` | run the sessions themselves on it |
 | `openrouter.base_url` | `https://openrouter.ai/api/v1` | only for a gateway of your own |
 | `openrouter.transcription_model` | `openai/whisper-1` | what the console's microphone is transcribed with |
+
+`max_concurrent_per_project` caps how many of those places one project may hold: pull
+requests written side by side on one repository touch the same files, and each one that
+lands makes the others conflict. A ready ticket whose project is already at the limit stays
+in the column — the pass says `project at its limit` — and the next ticket of another
+project goes first; it starts as soon as a ticket of its project ends. Projects without a
+repository (documents) are not counted. It is also in the console's *Settings*, under
+*Tickets in parallel per project*.
 
 `max_concurrent` is a number of **places**, not a batch size. A pass keeps that many
 sessions running for as long as the ready column has anything in it: a session that ends
@@ -1676,6 +1685,37 @@ own, `<branch>-rebased-<commit>`, for you to look at. A project named in
 
 Set `rebase = false` and all of it goes away: the branch is pushed as it was written, and
 a merge refused is a question, as before.
+
+**Generated files and the changelog never reach a session.** Nearly every conflict of a
+busy repository is in a bundle a build writes (`src/ponos/web/static/**`) or in
+`CHANGELOG.md`, and neither is a decision. A replay settles them itself, wherever it runs —
+before a pull request opens, when a merge is refused for being behind, and at step 1 above:
+
+- `CHANGELOG.md` is merged by union, whatever the project: both sides are kept, the base's
+  entries first. Nothing to declare.
+- A project declares its generated files in a `.ponos.toml` at the root of its repository
+  (read from the base, not from the branch):
+
+  ```toml
+  generated = ["src/ponos/web/static/**"]
+  build = "cd frontend && npm ci && npm run build"
+  ```
+
+  A conflict on one of those paths takes the base's version. When the replay reaches its
+  end, `build` runs in the replay's worktree and what it wrote is committed on top
+  (`Regenerate the generated files`), only if the branch changes a generated file at all.
+  A build that fails stops the replay: bundles that do not match their sources are not
+  pushed. Without a `build`, the base's version simply stays.
+
+A session is started only if a conflict is left in hand-written code — and it is then
+given the list without the files that were settled.
+
+**One merge at a time per repository.** The merges of a repository wait in a line — the
+validated ones of the pass and the forced ones of the sessions alike — and each pull
+request is replayed onto the base as the merge before it left it, just before its own
+merge. Three validated pull requests on one repository merge one after the other, and
+the base no longer moves under a replay in progress (the *“`main` keeps moving faster”*
+block). The line is held across the replay and the merge, never across a wait for CI.
 
 ### Validated, and what it sets off
 
