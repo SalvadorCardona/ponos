@@ -11367,6 +11367,101 @@ def a_directory_holding_work_is_not_cleared_to_make_room():
 
 
 @case
+def a_residue_that_cannot_be_deleted_is_moved_aside_and_the_worktree_is_made():
+    """Files a container made as root: no right to delete them, still a ticket to run."""
+    from ponos import git as git_module
+
+    original = (git_module.shutil.rmtree, git_module.shutil.which)
+    with tempfile.TemporaryDirectory() as home:
+        root = Path(home)
+        os.environ["XDG_STATE_HOME"] = str(root / "state")
+        path = root / "worktrees" / "leadz-9d2cb790"
+        (path / "vendor" / "lib").mkdir(parents=True)
+        (path / "vendor" / "lib" / "a.php").write_text("x")
+        (path / "vendor").chmod(0o500)  # nothing in it can be unlinked, as non-root
+        try:
+            # The deletion refused whatever the user is, and no Docker to ask.
+            git_module.shutil.rmtree = lambda *_args, **_kept: None
+            git_module.shutil.which = lambda _name: None
+            aside = git_module.discard(path)
+            assert not path.exists() and Path(aside).is_dir()
+            assert Path(aside).parent == root / "state" / "ponos" / "leftovers"
+            # Nothing but a directory git cannot be asked about: a fresh one is made.
+            path.mkdir()
+            made, _commands = _worktree_for(commits=0, path_exists=True)
+            assert not isinstance(made, git_module.GitError)
+        finally:
+            git_module.shutil.rmtree, git_module.shutil.which = original
+            os.environ.pop("XDG_STATE_HOME", None)
+            for directory, _names, _files in os.walk(root):
+                os.chmod(directory, 0o700)
+
+
+@case
+def a_residue_is_emptied_by_a_container_when_docker_is_there():
+    from ponos import git as git_module
+
+    sent: list[list[str]] = []
+    original = (git_module.shutil.rmtree, git_module.shutil.which, git_module.run)
+    with tempfile.TemporaryDirectory() as home:
+        path = Path(home) / "leadz-9d2cb790"
+        path.mkdir()
+        (path / "var").mkdir()
+
+        def docker(args, *_rest, **_kept):
+            sent.append(list(args))
+            original[0](path / "var")
+            return git_module.Result(0, "", "")
+
+        try:
+            git_module.shutil.rmtree = lambda *_args, **_kept: None
+            git_module.shutil.which = lambda _name: "/usr/bin/docker"
+            git_module.run = docker
+            assert git_module.discard(path) == ""
+        finally:
+            git_module.shutil.rmtree, git_module.shutil.which, git_module.run = original
+        assert not path.exists()
+    assert sent and sent[0][:2] == ["docker", "run"] and "sh" not in sent[0] and "-c" not in sent[0]
+    assert sent[0][-5:] == ["find", "/w", "-mindepth", "1", "-delete"]
+
+
+@case
+def a_directory_with_a_git_is_never_a_residue():
+    from ponos import git as git_module
+
+    with tempfile.TemporaryDirectory() as home:
+        worktrees = Path(home) / "worktrees"
+        (worktrees / "real-11111111").mkdir(parents=True)
+        (worktrees / "real-11111111" / ".git").write_text("gitdir: /elsewhere")
+        (worktrees / "left-22222222" / "vendor").mkdir(parents=True)
+        assert git_module.residues(worktrees) == [worktrees / "left-22222222"]
+        assert git_module.discard(worktrees / "real-11111111") == ""
+        assert (worktrees / "real-11111111" / ".git").exists()
+
+
+@case
+def clean_removes_a_residue_and_leaves_a_real_worktree():
+    from ponos import __main__ as cli
+
+    with tempfile.TemporaryDirectory() as home:
+        root = Path(home)
+        repo, worktrees = root / "repo", root / "ponos" / "worktrees"
+        repo.mkdir()
+        for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "x"]):
+            subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                cwd=repo, check=True, capture_output=True,
+            )
+        real = worktrees / "real-11111111"
+        worktrees.mkdir(parents=True)
+        subprocess.run(["git", "worktree", "add", "-q", str(real)], cwd=repo, check=True, capture_output=True)
+        (worktrees / "left-22222222" / ".phpunit.cache").mkdir(parents=True)
+        kept = cli._clear_residues(sorted(worktrees.iterdir()))
+        assert not (worktrees / "left-22222222").exists()
+        assert (real / ".git").exists() and kept == [real]
+
+
+@case
 def only_a_replayed_branch_is_ever_force_pushed():
     """A rebase rewrites what origin already has, so the push stops being a
 

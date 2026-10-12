@@ -232,6 +232,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A worktree directory left full of root-owned files no longer blocks its ticket.** The
+  containers of a project (`vendor/`, `var/`, `.vite/`…) write files the runner's user cannot
+  delete, so `git worktree remove` left the directory behind and the ticket came back with
+  "could not create the worktree". A directory with no `.git` is now emptied — through a
+  `docker run --rm … find -delete` (no shell) when it holds somebody else's files, or moved
+  to `leftovers/` in the state directory when there is no Docker — both when a worktree is
+  removed and when one is created. `ponos clean` empties these residues without `--force`
+  and leaves every real worktree alone; `ponos doctor` counts them. A directory with a
+  `.git` is never touched by it.
 - **A ticket moved back to ready is played again, even by the pass that already ran it.**
   A pass refills itself and can last for hours, and it held out every ticket it had ever
   started: a ticket played, blocked and moved back to ready waited until the pass ended,

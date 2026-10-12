@@ -32,6 +32,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .config import state_dir
+
 
 class GitError(Exception):
     pass
@@ -413,6 +415,8 @@ def _make_room(repo: Path, path: Path, base: str) -> None:
             "  ponos clean --force   removes it, and says so when it would not"
         )
     remove_worktree(repo, path)
+    if path.exists():
+        discard(path)
 
 
 def repository_of(worktree: Path) -> Path | None:
@@ -453,8 +457,78 @@ def repository_of(worktree: Path) -> Path | None:
 def remove_worktree(repo: Path, path: Path) -> None:
     git(["worktree", "remove", "--force", str(path)], repo)
     if path.exists():
-        shutil.rmtree(path, ignore_errors=True)
+        try:
+            discard(path)
+        except GitError:
+            pass  # still there: the next worktree asked for here says so, loudly
     git(["worktree", "prune"], repo)
+
+
+# Where a directory nobody could empty is put aside. Not `tidied`: that name is
+# the file `cleanup` stamps the day of its last pass with.
+LEFTOVERS = "leftovers"
+
+# Small enough to pull in seconds, and it has `find`.
+DOCKER_IMAGE = "alpine"
+
+
+def is_residue(path: Path) -> bool:
+    """A directory that was a worktree and is now only what its containers wrote.
+
+    No `.git` at its top: a worktree, a clone and anything git tracks has one,
+    and none of those is ever ours to empty. `git worktree remove` takes the
+    `.git` file first, so what is left is `vendor/`, `var/` and caches that a
+    Docker container created as root — files the runner's own user cannot delete.
+    """
+    return path.is_dir() and not path.is_symlink() and not (path / ".git").exists()
+
+
+def discard(path: Path) -> str:
+    """Get `path` out of the way: "" when it is gone, else where it was moved to.
+
+    Deleted when we can; when the files belong to somebody else (root, through a
+    container), by a container that can, `find -delete` run with no shell so
+    nothing in the directory's name is ever interpreted; and when there is no
+    Docker either, moved aside — renaming needs the right to write the parent
+    directory, not the files inside it, so it works where deleting cannot, and
+    the ticket gets a fresh directory instead of a refusal. Returns "" for a
+    directory with a `.git`, too, and leaves it exactly where it is.
+    """
+    if not is_residue(path):
+        return ""
+    shutil.rmtree(path, ignore_errors=True)
+    if not path.exists():
+        return ""
+    if shutil.which("docker"):
+        run(
+            [
+                "docker", "run", "--rm", "-v", f"{path}:/w", DOCKER_IMAGE,
+                "find", "/w", "-mindepth", "1", "-delete",
+            ],
+            timeout=600,
+        )
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+        if not path.exists():
+            return ""
+    aside = state_dir() / LEFTOVERS
+    aside.mkdir(parents=True, exist_ok=True)
+    target = aside / f"{path.name}-{time.strftime('%Y%m%d-%H%M%S')}"
+    try:
+        path.rename(target)
+    except OSError:
+        # Another filesystem, or nowhere to write: nothing better than saying so.
+        raise GitError(f"{path} cannot be emptied or moved aside — remove it by hand")
+    return str(target)
+
+
+def residues(root: Path) -> list[Path]:
+    """The directories under `root` that are only residue — see `is_residue`."""
+    if not root.is_dir():
+        return []
+    return [directory for directory in sorted(root.iterdir()) if is_residue(directory)]
 
 
 def has_ref(repo: Path, reference: str) -> bool:

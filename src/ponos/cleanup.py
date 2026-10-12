@@ -209,7 +209,11 @@ class Cleanup(Base):
             # in it git could be asked about.
             if (directory / ".git").exists():
                 return False
-            shutil.rmtree(directory, ignore_errors=True)
+            try:
+                git.discard(directory)
+            except git.GitError as error:
+                self.say(f"  ! {directory.name} kept: {error}")
+                return False
             return True
         if git.is_dirty(directory):
             self.say(f"  ! {directory.name} kept: its ticket is done, but it has uncommitted changes")

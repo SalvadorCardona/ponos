@@ -2788,6 +2788,7 @@ ponos schedules --run <name>  # make its ticket now, without waiting for the hou
 ponos sync         # reconcile the Notion board and the Markdown one
 ponos sync --journal         # what past reconciliations carried, and what they refused
 ponos doctor       # full diagnostics
+ponos clean                  # empty worktree directories that are only root-owned residue (no .git)
 ponos clean --force          # remove worktrees, their branches, and scratch dirs
 ponos update       # move the installation to the newest version
 ponos update --check         # what is available, changing nothing
