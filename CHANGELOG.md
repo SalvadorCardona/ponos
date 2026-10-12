@@ -26,7 +26,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   run, and only one while it is open. Each pass reads the base again, and the pull requests
   set aside go on by themselves once it is green. `ponos doctor` and `ponos projects` warn
   about a base with no CI run at push, or only skipped ones.
-
+- **What a session may do alone is written down.** A `[permissions]` policy — `allowed` and
+  `ask`, edited on the Execution page of the Settings with sensible defaults — is read by every
+  session: redeploying a service, tagging a release or merging a validated pull request no
+  longer raise a question, publishing on a public registry or sending a message to anybody but
+  you always do. A session that needs a `sudo` password, an `npm login` or a code received by
+  e-mail stops asking yes or no: it prepares the commands, ends blocked with `access.sudo` or
+  `access.credentials`, and the ticket carries on when you answer « fait ». A ticket aimed at
+  another of your repositories gets it cloned and its project created, when `allowed` says so.
 - **A search over the board, and over a project's tickets.** A bar over the columns finds a
   ticket by the words of its title, of its result, of its pull request, by its short id, or by
   a pasted branch or Notion address — case and accents set aside — and filters that combine:

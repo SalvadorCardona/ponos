@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
@@ -111,6 +112,12 @@ function held(field: SettingField): SettingValue {
     const fallback = Array.isArray(field.fallback) ? (field.fallback as string[]) : []
     return (field.value as string[] | null) ?? fallback
   }
+  if (field.kind === "lines") {
+    // The rules the runner reads are the ones shown, so that "default" is text
+    // you can edit rather than a greyed hint: one per line, in a single box.
+    const fallback = Array.isArray(field.fallback) ? (field.fallback as string[]) : []
+    return ((field.value as string[] | null) ?? fallback).join("\n")
+  }
   if (field.kind === "int") return field.value === null ? "" : (field.value as number)
   return field.value === null ? "" : String(field.value)
 }
@@ -125,6 +132,11 @@ function told(field: SettingField, value: unknown): SettingValue {
     const chosen = new Set(Array.isArray(value) ? value.map(String) : [])
     return field.choices.filter((choice) => chosen.has(choice))
   }
+  if (field.kind === "lines")
+    return String(value ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
   if (field.kind === "secret") return value === FORGOTTEN ? null : String(value ?? "").trim()
   if (field.kind === "int") {
     const text = String(value ?? "").trim()
@@ -214,6 +226,18 @@ const EventsController = ({ formInput, onChange }: InputControllerInterface) => 
     </div>
   )
 }
+
+/* One rule a line, in a box tall enough to read them: the lists are sentences,
+ * and a single-line input would show the first twenty words of the first. */
+const LinesController = ({ formInput, onChange }: InputControllerInterface) => (
+  <Textarea
+    id={formInput.id}
+    name={formInput.name}
+    rows={Math.min(Math.max(String(formInput.value ?? "").split("\n").length + 1, 4), 12)}
+    value={String(formInput.value ?? "")}
+    onChange={(event) => onChange({ ...formInput, value: event.target.value })}
+  />
+)
 
 /* A number, its unit beside it, and the one thing the package's number control
  * cannot say: nothing at all. It reads an emptied box as `Number("")`, which is
@@ -854,6 +878,7 @@ function input(field: SettingField): SettingInput {
     }
 
   if (field.kind === "events") return { ...shared, controller: EventsController }
+  if (field.kind === "lines") return { ...shared, controller: LinesController }
   if (field.kind === "secret") return { ...shared, controller: SecretController }
   if (field.kind === "int") return { ...shared, controller: CountController }
   if (field.kind === "path") return { ...shared, controller: PathController }

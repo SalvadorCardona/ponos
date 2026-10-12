@@ -527,6 +527,9 @@ def command_status(args: argparse.Namespace) -> int:
     if configuration.budget.per_ticket_usd > 0:
         ok(f"per-ticket limit {configuration.budget.per_ticket_usd:.2f} $")
 
+    rules = configuration.permissions
+    ok(f"permissions: {len(rules.allowed)} done alone, {len(rules.ask)} always asked")
+
     title("Board")
     try:
         configuration.require_usable()

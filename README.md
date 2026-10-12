@@ -3012,6 +3012,33 @@ Set `runner.wait_for_credits = false` to have the old behaviour back — an exha
 reported as the session failure it looks like. There is one case for it: an
 `ANTHROPIC_API_KEY` runner, which is billed per token and hits nothing to wait for.
 
+### What a session may do alone
+
+`[permissions]` is a policy every session reads — it is put in the prompt of every ticket
+that works, a document ticket and a publication included — so that it stops asking the
+same question twice. It has two lists of sentences, written in your own words and edited on
+the *Execution* page of the Settings, where the defaults are shown and can be changed:
+
+- `allowed` — what a session does without asking. By default: redeploy a service on the
+  Dokploy instances, read their logs, add a non-secret variable or generate a random secret
+  of the service; tag and publish a release of a SalvadorCardona repository after the merge
+  into `main`; clone a missing SalvadorCardona repository and create its Ponos project;
+  re-run a CI; merge a validated pull request.
+- `ask` — what always waits for your word, the ticket ending blocked with the question. By
+  default: publishing on a public registry, opening a pull request or an issue on somebody
+  else's repository, anything that sends a message to someone but you, deleting production
+  data, changing a DNS, spending money.
+
+A list the file does not carry is the default; a list written `[]` is an answer — nothing
+allowed, or nothing held back. Two things hold whatever the lists say. A session that needs
+a `sudo` password, an `npm login` or a code received by e-mail cannot be given one, so it
+does not ask yes or no: it prepares the exact commands, ends blocked with the code
+`access.sudo` or `access.credentials` (`CODE:` and one `COMMAND:` line each, next to the
+other lines of the question) and the ticket starts again by itself when you answer « fait ».
+And a ticket aimed at another SalvadorCardona repository than its project's is not a
+question when `allowed` lets the session clone it: it creates the project and attaches the
+ticket there.
+
 ### Stopping before the wall
 
 Waiting for a spent window is the cure; not spending it all is the treatment.

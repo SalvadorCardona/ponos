@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ponos import config as C  # noqa: E402
 from ponos import agents, channels, conversation, credits, kinds, markdown, naming, notion  # noqa: E402
-from ponos import notify, openrouter, progress, projects, prompt, provision  # noqa: E402
+from ponos import notify, openrouter, progress, projects, prompt, provision, question  # noqa: E402
 from ponos import schedules, session, state, store, sync, systemd  # noqa: E402
 from ponos import db, files, images, journal, project_settings  # noqa: E402
 from ponos.channels import slack as slack_channel, telegram as telegram_channel  # noqa: E402
@@ -6071,6 +6071,80 @@ def a_prompt_file_older_than_the_types_still_says_do_not_publish():
     assert "- Notion ticket: u\n\n# What is expected" in plain, "no type, no change"
 
 
+@case
+def every_session_reads_what_it_may_do_alone():
+    """The policy is in the prompt of each ticket, the list written or the default."""
+    common = dict(project="", title="T", body="b", repo="/tmp/x", branch="", base="", url="u")
+    for template in (prompt.DEFAULT, prompt.DOCUMENT, prompt.DELIVERY, prompt.RESOLVE):
+        text = prompt.build(template, **common, allowed=["relancer une CI"], ask=["modifier un DNS"])
+        assert "You do these without asking:\n- relancer une CI" in text, template[:30]
+        assert "before these" in text and "- modifier un DNS" in text
+        assert text.index("# What you may do alone") < text.index("# Context") or "{agent}" not in template
+        assert "access.sudo" in text and "access.credentials" in text
+    old = prompt.build("Old template — {title}", **common, allowed=["relancer une CI"])
+    assert "- relancer une CI" in old, "a prompt file of your own gets it at its end"
+    nothing = prompt.build(prompt.DEFAULT, **common)
+    assert "You do these without asking" not in nothing and "access.sudo" in nothing
+    assert "# What you may do alone" not in prompt.conversation(
+        prompt.CONVERSATION, project="", title="T", body="b", where="w", url="u", message="m"
+    )
+
+    defaults = C.Permissions()
+    assert any("dokploy.cardona.digital" in rule for rule in defaults.allowed)
+    assert "toute dépense" in defaults.ask and "modifier un DNS" in defaults.ask
+    assert C.load(_saved()[0]).permissions == defaults
+
+
+@case
+def the_permissions_are_edited_in_the_settings_and_an_empty_list_is_an_answer():
+    path, config = _saved()
+    drawn = {
+        field["name"]: field
+        for section in web_settings.describe(config)["sections"]
+        for field in section["fields"]
+    }
+    assert drawn["permissions.allowed"]["fallback"] == list(C.ALLOWED)
+    assert drawn["permissions.ask"]["value"] is None
+    web_settings.save(config, {"settings": {
+        "permissions.allowed": [" relancer   une CI ", "", "fusionner une PR validée"],
+        "permissions.ask": [],
+    }})
+    saved = C.load(path).permissions
+    assert saved.allowed == ("relancer une CI", "fusionner une PR validée")
+    assert saved.ask == (), "emptied is written, not brought back to the default"
+    web_settings.save(config, {"settings": {"permissions.ask": None}})
+    assert C.load(path).permissions.ask == C.ASK
+    try:
+        web_settings.save(config, {"settings": {"permissions.allowed": "relancer une CI"}})
+        raise AssertionError("a string is not a list")
+    except ValueError:
+        pass
+
+
+@case
+def a_ticket_that_needs_sudo_blocks_with_the_commands_and_no_yes_no():
+    answer = (
+        "Tailscale needs root.\n"
+        "DONE: nothing\n"
+        "WHY: je n'ai pas le mot de passe sudo\n"
+        "QUESTION: Lance ces commandes puis réponds « fait »\n"
+        "MODE: yes-no\n"
+        "CODE: access.sudo\n"
+        "COMMAND: sudo apt install -y tailscale\n"
+        "COMMAND: `sudo tailscale up`\n"
+        "RESULT: blocked — sudo demande un mot de passe"
+    )
+    asked = question.parse(answer)
+    assert asked.code == "access.sudo" and asked.mode == "free", "never a yes-no"
+    assert asked.commands == ["sudo apt install -y tailscale", "sudo tailscale up"]
+    lines = voice.Voice("fr").question(asked)
+    assert lines[1] == "`access.sudo`"
+    assert lines[2:4] == ["`sudo apt install -y tailscale`", "`sudo tailscale up`"]
+    assert lines[-1].startswith("Lance ces commandes") and "oui" not in lines[-1].lower()
+    unknown = question.parse("QUESTION: ok ?\nMODE: yes-no\nCODE: whatever\nCOMMAND: rm -rf /")
+    assert unknown.code == "" and unknown.commands == [] and unknown.mode == "yes-no"
+
+
 class _TypedClient(_NamelessClient):
     """The same ticket, on a board that has a Type column — in French."""
 
@@ -9574,6 +9648,7 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
         ("openrouter", C.OpenRouter()),
         ("claude", C.Claude()),
         ("storage", C.Storage()),
+        ("permissions", C.Permissions()),
     ):
         for name in vars(holder):
             # The two channel tables are their own sections, and `projects` is a
@@ -9601,7 +9676,7 @@ def every_setting_the_file_holds_is_one_the_console_can_reach():
 
     for name, field in web_settings.FIELDS.items():
         assert field.label, name
-        assert field.kind in ("text", "secret", "path", "bool", "int", "choice", "events"), name
+        assert field.kind in ("text", "secret", "path", "bool", "int", "choice", "events", "lines"), name
         if field.kind == "choice":
             assert field.choices, name
 

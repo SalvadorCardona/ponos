@@ -89,6 +89,8 @@ class Execution(Base):
             agent_brief=job.agent.brief,
             comments=job.comments,
             language=self.voice.instruction(),
+            allowed=self.config.permissions.allowed,
+            ask=self.config.permissions.ask,
             kind="" if job.project.is_code else prompt_module.kind(job.kind, job.reference or ""),
             # A branch picked up from an earlier attempt: the session is told,
             # because a worktree that opens on somebody's half-done work and
