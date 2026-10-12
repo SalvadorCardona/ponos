@@ -15731,10 +15731,11 @@ def _columns(connection, table):
 
 def _migrated_by_a_branch(location):
     """A file migrated by a branch whose last two migrations were in the other
-    order — `_write_ups` before `_stops_have_a_cause`, as on 12/10/2026."""
+    order — `_write_ups` before `_stops_have_a_cause`, as on 12/10/2026. Those
+    that main has after them since, the branch did not have yet."""
     names = [db.name(migration) for migration in db.MIGRATIONS]
     first, second = names.index("stops_have_a_cause"), names.index("write_ups")
-    assert second == first + 1 == len(names) - 1, "the two this test swaps"
+    assert second == first + 1, "the two this test swaps"
     branch = (*db.MIGRATIONS[:first], db.MIGRATIONS[second])
     db.open_at(location, branch).close()
 
@@ -15747,11 +15748,12 @@ def a_database_migrated_by_a_branch_in_another_order_is_finished_by_main():
     try:
         assert db.version(connection) == len(db.MIGRATIONS)
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        assert {"write_ups", "history", "runs", "migrations"} <= tables, tables
+        assert {"write_ups", "mends", "history", "runs", "migrations"} <= tables, tables
         assert "code" in _columns(connection, "history") and "code" in _columns(connection, "runs")
         done = db.applied(connection)
         assert sorted(done) == sorted(db.name(migration) for migration in db.MIGRATIONS), done
-        assert done[-2:] == ["write_ups", "stops_have_a_cause"], "the one applied under another rank is not again"
+        first = done.index("write_ups")
+        assert done[first:first + 2] == ["write_ups", "stops_have_a_cause"], "the one applied under another rank is not again"
     finally:
         connection.close()
     again = db.open_at(location)
