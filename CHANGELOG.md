@@ -16,6 +16,8 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-12
+
 ### Added
 
 - **Install with Dokploy, in one click.** A Dokploy template, in `docker/dokploy/`: the image
