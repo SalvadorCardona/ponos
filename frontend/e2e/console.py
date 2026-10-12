@@ -100,7 +100,12 @@ def board(root: Path, doomed: bool = False) -> None:
     )
     long = {"id": LONG, "title": "A long ticket", "Status": "Ready"}
     (tickets / f"a-long-ticket-{LONG[-8:]}.md").write_text(files.render(long, brief), encoding="utf-8")
-    asking = {"id": ASKING, "title": "A ticket with a question", "Status": "Blocked"}
+    asking = {
+        "id": ASKING,
+        "title": "A ticket with a question",
+        "Status": "Blocked",
+        "Blocage": "session.question",
+    }
     (tickets / f"a-ticket-with-a-question-{ASKING[-8:]}.md").write_text(
         files.render(asking, "Put the logo in the header."), encoding="utf-8"
     )

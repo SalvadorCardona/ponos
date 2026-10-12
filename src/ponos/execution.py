@@ -313,13 +313,6 @@ class Execution(Base):
             return self.voice.say("session-killed-question")
         return (outcome.question or detail) if outcome.blocked else ""
 
-    @staticmethod
-    def _coded(result: dict, outcome: session.Outcome) -> dict:
-        """The result of a ticket whose session was killed, with the code that says so."""
-        if outcome.killed:
-            result["code"] = "session.killed"
-        return result
-
     # -- a ticket on a repository ----------------------------------------------
 
     def _execute_code(self, job: Job) -> dict:
@@ -330,7 +323,9 @@ class Execution(Base):
         try:
             worktree = git.add_worktree(project.path, job.workdir, job.branch, job.base)
         except git.GitError as error:
-            return self._fail(ticket, self.voice.say("no-worktree"), str(error))
+            return self._fail(
+                ticket, self.voice.say("no-worktree"), str(error), code="worktree.residue"
+            )
         if worktree.reused:
             # A ticket that has run before: said out loud, because the session
             # about to start is continuing somebody's work rather than opening
@@ -353,7 +348,9 @@ class Execution(Base):
             )
         except (OSError, FileNotFoundError) as error:
             git.remove_worktree(project.path, job.workdir)
-            return self._fail(ticket, self.voice.say("no-session"), str(error))
+            return self._fail(
+                ticket, self.voice.say("no-session"), str(error), code="session.not-started"
+            )
 
         said = self.voice
 
@@ -373,8 +370,8 @@ class Execution(Base):
             )
 
         if not outcome.ok:
-            reason, detail = self._why_stopped(
-                outcome, "asked-something" if outcome.blocked else "session-failed"
+            code, reason, detail = self._why_stopped(
+                outcome, "session.question" if outcome.blocked else "session.killed"
             )
             # An agent that asked a question is waiting for you; a session that
             # crashed is waiting for someone to look at the log. Different rows
@@ -384,17 +381,15 @@ class Execution(Base):
                 kept = said.say("worktree-kept", path=job.workdir, branch=job.branch)
             else:
                 git.remove_worktree(project.path, job.workdir)
-            return self._coded(
-                self._fail(
-                    ticket,
-                    reason,
-                    detail,
-                    blocked=outcome.blocked or bool(outcome.killed),
-                    question=self._question(outcome, detail),
-                    note=self._filed(job, outcome, kept),
-                    outcome=outcome,
-                ),
-                outcome,
+            return self._fail(
+                ticket,
+                reason,
+                detail,
+                code=code,
+                blocked=outcome.blocked or bool(outcome.killed),
+                question=self._question(outcome, detail),
+                note=self._filed(job, outcome, kept),
+                outcome=outcome,
             )
 
         commits = git.commits_ahead(job.workdir, job.base)
@@ -405,6 +400,7 @@ class Execution(Base):
                 ticket,
                 said.say("nothing-committed"),
                 outcome.summary,
+                code="session.no-commit",
                 blocked=True,
                 question=outcome.summary,
                 note=self._filed(job, outcome),
@@ -457,6 +453,7 @@ class Execution(Base):
                     ticket,
                     said.say("push-refused"),
                     pushed.err or pushed.out,
+                    code="merge.push-refused",
                     note=self._filed(
                         job, outcome, said.say("push-refused-detail", branch=job.branch)
                     ),
@@ -581,7 +578,9 @@ class Execution(Base):
                 self.config.runner.document_prompt_file, prompt_module.DOCUMENT
             ))
         except (OSError, FileNotFoundError) as error:
-            return self._fail(ticket, self.voice.say("no-session"), str(error))
+            return self._fail(
+                ticket, self.voice.say("no-session"), str(error), code="session.not-started"
+            )
 
         said = self.voice
         if self._out_of_credit(outcome):
@@ -601,8 +600,8 @@ class Execution(Base):
             content = answer_file.read_text(encoding="utf-8", errors="replace").strip()
 
         if not outcome.ok or not content:
-            reason, detail = self._why_stopped(
-                outcome, "no-answer" if outcome.blocked or not content else "session-failed"
+            code, reason, detail = self._why_stopped(
+                outcome, "session.no-answer" if outcome.blocked or not content else "session.killed"
             )
             if not content and outcome.ok:
                 detail = said.say("no-answer-detail", summary=outcome.summary)
@@ -611,17 +610,15 @@ class Execution(Base):
                 kept = said.say("workdir-kept", path=job.workdir)
             else:
                 shutil.rmtree(job.workdir, ignore_errors=True)
-            return self._coded(
-                self._fail(
-                    ticket,
-                    reason,
-                    detail,
-                    blocked=outcome.blocked or not content or bool(outcome.killed),
-                    question=self._question(outcome, detail) or outcome.question or detail,
-                    note=self._filed(job, outcome, kept),
-                    outcome=outcome,
-                ),
-                outcome,
+            return self._fail(
+                ticket,
+                reason,
+                detail,
+                code=code,
+                blocked=outcome.blocked or not content or bool(outcome.killed),
+                question=self._question(outcome, detail) or outcome.question or detail,
+                note=self._filed(job, outcome, kept),
+                outcome=outcome,
             )
 
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -635,6 +632,7 @@ class Execution(Base):
                 ticket,
                 said.say("answer-not-written"),
                 voice_module.line(error),
+                code="notion.write-failed",
                 note=self._filed(
                     job, outcome, said.say("answer-on-disk", path=answer_file)
                 ),

@@ -243,6 +243,7 @@ class Delivery(Base):
                         ticket,
                         said.say("no-pull-request"),
                         said.say("no-pull-request-detail", project=project.name),
+                        code="merge.no-pr",
                         blocked=True,
                         question=said.say("no-pull-request-question"),
                     )
@@ -319,6 +320,7 @@ class Delivery(Base):
                 ticket,
                 said.say("pull-request-closed"),
                 said.say("pull-request-closed-detail", url=url),
+                code="merge.pr-closed",
                 blocked=True,
                 question=said.say("pull-request-closed-question", url=url),
             )
@@ -581,6 +583,7 @@ class Delivery(Base):
             ticket,
             said.say("merge-refused"),
             said.paragraphs(url, *notes, refusal),
+            code="merge.refused",
             blocked=True,
             question=said.say("merge-refused-question", error=voice_module.line(refusal)),
         )
@@ -697,6 +700,7 @@ class Delivery(Base):
             ticket,
             said.say("rebased-too-often", base=base),
             url,
+            code="merge.base-moving",
             blocked=True,
             question=said.say("rebased-too-often-question", count=MOST_REBASES, base=base),
         )
@@ -802,7 +806,9 @@ class Delivery(Base):
             try:
                 outcome = self._run_session(job, prompt_module.RESOLVE)
             except (OSError, FileNotFoundError) as error:
-                return self._fail(ticket, said.say("no-session"), str(error))
+                return self._fail(
+                    ticket, said.say("no-session"), str(error), code="session.not-started"
+                )
             self._add_cost(ticket, outcome)
             if self._out_of_credit(outcome):
                 return self._requeue(ticket, validated, outcome)
@@ -813,6 +819,7 @@ class Delivery(Base):
                     ticket,
                     said.say("conflict-open", base=job.base),
                     outcome.summary or outcome.error,
+                    code="merge.conflict-decision",
                     blocked=True,
                     question=outcome.question or question,
                     note=said.paragraphs(
@@ -824,6 +831,7 @@ class Delivery(Base):
                     ticket,
                     said.say("conflict-unfinished"),
                     problem,
+                    code="merge.conflict-unfinished",
                     blocked=True,
                     question=said.say("conflict-unfinished-question", problem=problem),
                     note=said.paragraphs(facts, told, self._aside(job, replay)),
@@ -839,11 +847,14 @@ class Delivery(Base):
                     ticket,
                     said.say("pushed-over", branch=job.branch),
                     failure,
+                    code="merge.pushed-over",
                     blocked=True,
                     question=said.say("pushed-over-question", branch=job.branch),
                     note=said.paragraphs(facts, aside),
                 )
-            return self._fail(ticket, said.say("push-refused"), failure, note=aside)
+            return self._fail(
+                ticket, said.say("push-refused"), failure, code="merge.push-refused", note=aside
+            )
         self._forgiven(ticket, url)
         count = self._replayed(ticket, url)
         record = said.paragraphs(facts, told)
@@ -855,6 +866,7 @@ class Delivery(Base):
                 ticket,
                 said.say("checks-red"),
                 url,
+                code="merge.checks-failed",
                 blocked=True,
                 question=said.say("checks-red-question", url=url),
                 note=said.paragraphs(record, checked),
@@ -1079,7 +1091,9 @@ class Delivery(Base):
             ))
         except (OSError, FileNotFoundError) as error:
             state.release(ticket.id)
-            return self._fail(ticket, self.voice.say("no-session"), str(error))
+            return self._fail(
+                ticket, self.voice.say("no-session"), str(error), code="session.not-started"
+            )
         # Every road from here writes a status that is not "in progress", so the
         # note about where it came from has done its work.
         state.release(ticket.id)
@@ -1096,6 +1110,7 @@ class Delivery(Base):
                 ticket,
                 said.say("not-published"),
                 outcome.summary or outcome.error,
+                code="publish.failed",
                 blocked=outcome.blocked,
                 question=outcome.question or outcome.summary,
                 note=said.paragraphs(

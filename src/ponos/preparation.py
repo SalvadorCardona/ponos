@@ -52,14 +52,22 @@ class Preparation(Base):
                     self.client, relation[0], clone=not self.dry_run
                 )
             except (LookupError, store.StoreError) as error:
-                self._fail(ticket, self.voice.say("no-project"), str(error), blocked=True)
+                self._fail(
+                    ticket,
+                    self.voice.say("no-project"),
+                    str(error),
+                    code="project.no-repo",
+                    blocked=True,
+                )
                 return None
 
         short = short_id(ticket.id)
         try:
             body = self.client.blocks_text(ticket.page.id, live=False)
         except store.StoreError as error:
-            self._fail(ticket, self.voice.say("unreadable"), str(error))
+            self._fail(
+                ticket, self.voice.say("unreadable"), str(error), code="notion.read-failed"
+            )
             return None
         if is_blank(body):
             body = ""
@@ -68,6 +76,7 @@ class Preparation(Base):
                     ticket,
                     self.voice.say("empty-ticket"),
                     self.voice.say("empty-ticket-detail"),
+                    code="ticket.empty",
                     blocked=True,
                 )
                 return None
@@ -388,6 +397,7 @@ class Preparation(Base):
                 ticket,
                 reason,
                 said.paragraphs(said.sentence(reason), guess.reason),
+                code="ticket.kind-unsure",
                 blocked=True,
                 question=question,
             )

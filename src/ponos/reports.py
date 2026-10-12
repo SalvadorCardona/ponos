@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import channels, conversation, credits, provider, resources, session, state, store, sync
+from . import blocks, channels, conversation, credits, provider, resources, session, state, store, sync
 from . import question as question_module
 from . import voice as voice_module
 from .base import Base
@@ -62,6 +62,8 @@ class Reports(Base):
             values = {name: value for name, value in values.items() if name != status}
             if not values:
                 return
+        if status in values:
+            values = {**self._block_cleared(ticket, str(values[status])), **values}
         try:
             self.client.update(self.database, ticket.page.id, values)
         except store.StoreError as error:
@@ -71,6 +73,23 @@ class Reports(Base):
             self.client.update(self.database, ticket.page.id, {status: values[status]})
         if status in values:
             self._remember(ticket, str(values[status]))
+
+    def _blocked_by(self, code: str) -> dict[str, object]:
+        """The board's « Blocage » column, saying which cause a ticket stopped on."""
+        return {self.config.notion.prop("block"): code}
+
+    def _block_cleared(self, ticket: Ticket, target: str) -> dict[str, object]:
+        """The « Blocage » cell emptied, when a ticket that stopped leaves for anywhere else.
+
+        Ridden on whatever status write moves it — taken again, merged, put
+        back in ready — so that no road out of blocked has to remember it. Only
+        on a card that says something, as for the refusal below.
+        """
+        settings = self.config.notion
+        if target in (settings.state("blocked"), settings.state("failed")):
+            return {}
+        block = settings.prop("block")
+        return {block: ""} if store.read(ticket.page, block) else {}
 
     def _refusal_cleared(self, ticket: Ticket) -> dict[str, object]:
         """The card's line emptied, when a forced merge left its refusal there.
@@ -415,21 +434,30 @@ class Reports(Base):
 
     # -- the endings that are not a result -------------------------------------
 
-    def _why_stopped(self, outcome: session.Outcome, reason: str) -> tuple[str, str]:
-        """The sentence a session that did not finish ends a ticket on, and its detail.
+    def _why_stopped(self, outcome: session.Outcome, code: str) -> tuple[str, str, str]:
+        """The code a session that did not finish ends a ticket on, its sentence and its detail.
 
-        `reason` is the runner's word for the ordinary case. A session the CLI
-        cut short at the ticket's spending limit says so instead, because "it
-        asked you something" would send somebody looking for a question that
-        is not there.
+        `code` is the runner's word for the ordinary case, and the sentence is
+        the one its cause is said with. A session the CLI cut short at the
+        ticket's spending limit says so instead, because "it asked you
+        something" would send somebody looking for a question that is not there.
         """
         said = self.voice
         if outcome.killed:
-            return said.say("session-killed"), said.say("session-killed-detail", why=outcome.killed)
+            return (
+                "session.killed",
+                said.say("session-killed"),
+                said.say("session-killed-detail", why=outcome.killed),
+            )
         if outcome.over_budget:
             limit = said.money(self.config.budget.per_ticket_usd)
-            return said.say("over-ticket-budget", limit=limit), said.say("over-ticket-budget-detail")
-        return said.say(reason), (outcome.summary if outcome.blocked else outcome.error) or ""
+            return (
+                "session.over-budget",
+                said.say("over-ticket-budget", limit=limit),
+                said.say("over-ticket-budget-detail"),
+            )
+        sentence = said.say(blocks.cause(code).said[0])
+        return code, sentence, (outcome.summary if outcome.blocked else outcome.error) or ""
 
     def _fail(
         self,
@@ -437,6 +465,7 @@ class Reports(Base):
         reason: str,
         detail: str = "",
         *,
+        code: str,
         blocked: bool = False,
         question: str | question_module.Question | None = "",
         note: str = "",
@@ -456,13 +485,23 @@ class Reports(Base):
         `outcome` is the session that ended this way, when there was one: what it
         cost is written like any other run's — a session that asked a question
         or crashed has been paid for all the same, and the day's limit counts it.
+
+        `code` is the cause, from the catalogue (blocks.py) — required, and
+        refused when the catalogue does not know it: it goes into the history,
+        the run, and the board's « Blocage » column, where the reason's
+        sentence could only be read, never counted.
         """
-        spent = self._measures(outcome) if outcome else {}
+        # A session that stopped on an action it cannot take names it itself
+        # (`CODE: access.sudo`): that is the cause, more precisely than ours.
+        if blocked and isinstance(question, question_module.Question) and blocks.known(question.code):
+            code = question.code
+        blocks.cause(code)
+        spent = {**(self._measures(outcome) if outcome else {}), **self._blocked_by(code)}
         ended = (
             {"seconds": round(outcome.seconds, 1), "cost_usd": outcome.cost_usd} if outcome else {}
         )
         if blocked:
-            return self._block(ticket, reason, detail, question, note, spent, ended)
+            return self._block(ticket, reason, detail, question, note, spent, ended, code)
         said = self.voice
         self.say(f"    ✗ {ticket.title} — {reason}")
         asked = said.sentence(reason)
@@ -480,6 +519,7 @@ class Reports(Base):
             "id": ticket.id,
             "status": "failed",
             "reason": reason,
+            "code": code,
             **ended,
         }
 
@@ -492,6 +532,7 @@ class Reports(Base):
         note: str,
         spent: dict[str, object],
         ended: dict[str, object],
+        code: str,
     ) -> dict:
         """A ticket that stopped on a question, asked in four lines at most.
 
@@ -546,6 +587,7 @@ class Reports(Base):
             "id": ticket.id,
             "status": "blocked",
             "reason": reason,
+            "code": code,
             **ended,
         }
 
@@ -583,7 +625,7 @@ class Reports(Base):
             detail = f"{type(error).__name__}: {voice_module.line(error)}"
             state.release(ticket.id)
             try:
-                result = self._fail(ticket, self.voice.say("crashed"), detail)
+                result = self._fail(ticket, self.voice.say("crashed"), detail, code="runner.crashed")
             except Exception as unwritten:  # noqa: BLE001
                 self.say(
                     f"    ✗ {ticket.title} — {detail}, and the failure could not be "
@@ -594,6 +636,7 @@ class Reports(Base):
                     "id": ticket.id,
                     "status": "failed",
                     "reason": detail,
+                    "code": "runner.crashed",
                 }
         self._journal_end(ticket, result)
         return result
@@ -613,6 +656,7 @@ class Reports(Base):
         run.end(
             str(result.get("status") or "done"),
             str(result.get("pull_request") or result.get("merged") or result.get("reason") or ""),
+            str(result.get("code") or ""),
         )
 
     def _filed(self, job: Job, outcome: session.Outcome, *rest: object) -> str:

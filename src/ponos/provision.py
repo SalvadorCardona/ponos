@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import notion
+from . import blocks, notion
 from .config import PRIORITIES, Notion
 from .schedules import CADENCES
 
@@ -47,6 +47,15 @@ _STATUS_COLOURS = {
 
 # The four types, from the most harmless road to the most guarded one.
 _TYPE_COLOURS = {"code": "blue", "writing": "gray", "external": "orange", "publication": "red"}
+
+# The families of blocks.py, in the colours the console draws them in.
+_BLOCK_COLOURS = {
+    "merge": "purple",
+    "session": "blue",
+    "infrastructure": "red",
+    "question": "orange",
+    "access": "yellow",
+}
 
 _PRIORITY_COLOURS = {"Urgent": "red", "High": "orange", "Normal": "default", "Low": "gray"}
 
@@ -189,6 +198,12 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
             [settings.kind(key) for key in _TYPE_COLOURS], {
                 settings.kind(key): colour for key, colour in _TYPE_COLOURS.items()
             }
+        ),
+        # Why a ticket stopped, one option per cause of the catalogue, coloured
+        # by family — so a Notion view can be filtered and grouped by it.
+        settings.prop("block"): _select(
+            blocks.CODES,
+            {cause.code: _BLOCK_COLOURS[cause.family] for cause in blocks.CAUSES.values()},
         ),
     }
     # Single-property relations: the ticket points at its project, and the

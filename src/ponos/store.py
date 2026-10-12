@@ -68,6 +68,10 @@ COLUMNS: dict[str, tuple[tuple[str, ...], str]] = {
     "waiting": (("checkbox",), "a ticket held back by the credit does not say so"),
     "role": (("relation",), "no agent, and so no role, per ticket"),
     "type": (("select",), "the kind a ticket was classified as is not kept on the board"),
+    "block": (
+        ("select",),
+        "why a ticket stopped is not on the board, so no Notion view can filter blocks by cause",
+    ),
 }
 
 

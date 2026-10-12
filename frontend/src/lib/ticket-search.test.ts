@@ -129,6 +129,20 @@ test("the query goes into the address and comes back the same", () => {
   assert.deepEqual(readQuery("?only=pr,nonsense&since=yesterday&cost=abc"), query({ only: ["pr"] }))
 })
 
+test("a stopped ticket is found by the cause it stopped on, and the address keeps it", () => {
+  const refused = ticket({ column: "blocked", block: { code: "merge.refused" } })
+  const asked = ticket({ column: "blocked", block: { code: "session.question" } })
+  const running = ticket({ column: "running" })
+  assert.equal(keeps(refused, { block: ["merge.refused"] }), true)
+  assert.equal(keeps(refused, { block: ["merge.refused", "session.question"] }), true)
+  assert.equal(keeps(asked, { block: ["merge.refused"] }), false)
+  assert.equal(keeps(running, { block: ["merge.refused"] }), false)
+  assert.equal(keeps(running, {}), true)
+  const given = query({ block: ["merge.refused", "worktree.residue"] })
+  assert.deepEqual(readQuery(writeQuery("", given)), given)
+  assert.equal(active(given), 1)
+})
+
 test("what is on, counted", () => {
   assert.equal(isEmpty(EMPTY), true)
   assert.equal(isEmpty(query({ text: "  " })), true)

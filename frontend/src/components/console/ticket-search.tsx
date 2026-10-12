@@ -2,7 +2,7 @@ import * as React from "react"
 import { useLocation, useRouter } from "@tanstack/react-router"
 import { ChevronDown, Search, SearchX, SlidersHorizontal, X } from "lucide-react"
 
-import { capital, columnTitle } from "@/components/console/ticket-bits"
+import { blockSaid, capital, columnTitle } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -407,6 +407,13 @@ export function TicketSearch({
     project: projects
       ? offered(tickets, (ticket) => ticket.project).sort((a, b) => a.label.localeCompare(b.label))
       : [],
+    // Why the stopped ones stopped, the commonest cause first.
+    block: offered(
+      tickets,
+      (ticket) => ticket.block?.code ?? "",
+      [],
+      (value, ticket) => (ticket?.block ? blockSaid(ticket.block.label) : value)
+    ).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
   }
   const names: Record<Facet, string> = {
     type: t("Type"),
@@ -414,6 +421,7 @@ export function TicketSearch({
     priority: t("Priority"),
     model: t("Model"),
     project: t("Project"),
+    block: t("Cause"),
   }
   const on = active(query)
   const filtering = on > 0 || Boolean(query.text.trim())

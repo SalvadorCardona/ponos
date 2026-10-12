@@ -32,6 +32,8 @@ export interface TicketQuery {
   model: string[]
   /** The project, by name: that is what a ticket carries. */
   project: string[]
+  /** Why a stopped ticket stopped, by its code in `blocks.py`: `merge.refused`… */
+  block: string[]
   only: Flag[]
   /** At least this many dollars spent; 0 is any. */
   cost: number
@@ -45,6 +47,7 @@ export const EMPTY: TicketQuery = {
   priority: [],
   model: [],
   project: [],
+  block: [],
   only: [],
   cost: 0,
   since: "",
@@ -56,7 +59,7 @@ export const PERIODS: Exclude<Period, "">[] = ["today", "7d", "30d"]
 export const COSTS = [1, 5, 20]
 
 /** The lists a query filters by, in the order the bar draws them. */
-export const FACETS = ["type", "status", "priority", "model", "project"] as const
+export const FACETS = ["type", "status", "priority", "model", "project", "block"] as const
 export type Facet = (typeof FACETS)[number]
 
 /** The little the search reads of a ticket: `Ticket` has it, and so does a test. */
@@ -77,6 +80,8 @@ export interface Searchable {
   edited: string
   held?: { reason: string; detail: string }
   sync?: string
+  /** On a stopped ticket, its cause. */
+  block?: { code: string } | null
 }
 
 /** One of the board's choices, the way `Board.choices` says it. */
@@ -194,6 +199,7 @@ export function matchesQuery(ticket: Searchable, query: TicketQuery, context: Co
   if (!among(ticket.priority, query.priority, choices.priority)) return false
   if (!among(ticket.model, query.model, choices.model)) return false
   if (query.project.length && !query.project.includes(ticket.project)) return false
+  if (query.block.length && !query.block.includes(ticket.block?.code ?? "")) return false
   if (!query.only.every((flag) => flagged(ticket, flag))) return false
   if (query.cost > 0 && !((ticket.cost ?? 0) >= query.cost)) return false
   if (query.since) {
@@ -254,7 +260,16 @@ function parts(search: string): { key: string; raw: string; part: string }[] {
 
 /** The query an address carries; anything it does not say is empty. */
 export function readQuery(search: string): TicketQuery {
-  const query: TicketQuery = { ...EMPTY, type: [], status: [], priority: [], model: [], project: [], only: [] }
+  const query: TicketQuery = {
+    ...EMPTY,
+    type: [],
+    status: [],
+    priority: [],
+    model: [],
+    project: [],
+    block: [],
+    only: [],
+  }
   for (const { key, raw } of parts(search)) {
     // Decoded before it is cut: the router writes the address again as it
     // reads it, and turns every comma into %2C on the way.

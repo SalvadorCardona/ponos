@@ -54,6 +54,27 @@ export interface Ticket {
   sync_status?: string
   /** On a ready card only: why it is still there — see `held` in `web/board.py`. */
   held?: { reason: string; detail: string }
+  /** On a blocked or failed card only: why it stopped — see `blocks.py`. */
+  block?: Block | null
+}
+
+/** The families a cause belongs to, each drawn with its icon. */
+export type BlockFamily = "merge" | "session" | "infrastructure" | "question" | "access"
+
+/** What a stopped card offers: run it again, answer, clean, the base's CI, the pull request. */
+export type BlockAction = "retry" | "answer" | "clean" | "base-ci" | "open-pr"
+
+/** Why a ticket stopped, as `blocks.py` describes it — its words in both languages. */
+export interface Block {
+  code: string
+  family: BlockFamily
+  /** Who has to move: Ponos, you, or something outside both. */
+  who: "ponos" | "user" | "external"
+  action: BlockAction
+  /** What the runner may do on its own: `retry:n`, `wait-base` or `ask`. */
+  policy: string
+  label: { en: string; fr: string }
+  help: { en: string; fr: string }
 }
 
 /** A ticket, with the page under it: the brief, the report, the notes between. */
@@ -610,6 +631,12 @@ export interface Statistics {
   dated: { history: number; edited: number }
   /** What a ticket closed in the period cost in all; null when none was. */
   average: number | null
+  /** The stops of the period: by week (named by its Monday), and by cause, the commonest first. */
+  blocks?: {
+    total: number
+    weeks: { week: string; counts: Record<string, number> }[]
+    causes: (Block & { count: number })[]
+  }
 }
 
 /* -- ideas ---------------------------------------------------------------- */

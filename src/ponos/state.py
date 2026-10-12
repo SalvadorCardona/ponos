@@ -300,8 +300,9 @@ def record(entry: dict) -> None:
     entry = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **entry}
     with db.transaction() as connection:
         connection.execute(
-            "INSERT INTO history (at, ticket, status, kind, project, seconds, cost_usd, entry)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO history"
+            " (at, ticket, status, kind, project, seconds, cost_usd, code, entry)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 str(entry.get("at") or ""),
                 str(entry.get("id") or ""),
@@ -310,6 +311,7 @@ def record(entry: dict) -> None:
                 str(entry.get("project") or ""),
                 _number(entry.get("seconds")),
                 _number(entry.get("cost_usd")),
+                str(entry.get("code") or ""),
                 json.dumps(entry, ensure_ascii=False),
             ),
         )
@@ -359,6 +361,23 @@ def spent_by_project(since: datetime) -> list[tuple[str, int, float]]:
             (stamp,),
         ).fetchall()
     return [(str(project or ""), int(count), float(total or 0.0)) for project, count, total in rows]
+
+
+def causes() -> dict[str, str]:
+    """{ticket id without dashes: the cause it last stopped on}, from the history.
+
+    What a card falls back on when the board has no « Blocage » column to read
+    it from. Empty when the database cannot be read: a card without its badge
+    is still a card.
+    """
+    try:
+        with db.transaction(immediate=False) as connection:
+            rows = connection.execute(
+                "SELECT ticket, code FROM history WHERE code != '' ORDER BY id"
+            ).fetchall()
+    except db.ERRORS:
+        return {}
+    return {str(ticket).replace("-", ""): str(code) for ticket, code in rows}
 
 
 def history(limit: int = 20) -> list[dict]:

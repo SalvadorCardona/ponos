@@ -904,6 +904,7 @@ tickets are made up:
 | `Scheduled` | date | *optional* — **hold the ticket until that moment**, then run it — or, on a validated ticket, publish it |
 | `Waiting for credit` | checkbox | *optional* — ticked by the runner while the subscription's window is spent under the ticket. It does not move: it is still ready, and the tick is the note saying why nobody has got to it yet |
 | `Type` | select | *optional* — `Code`, `Writing`, `External action`, `Publication`: **the road the ticket takes**. Empty, the runner works it out before running it — see [The type of a ticket](#the-type-of-a-ticket) |
+| `Blocage` | select | *optional* — filled by the runner when a ticket stops: **why**, as a code (`merge.checks-failed`, `session.question`, `worktree.residue`…), emptied when it leaves *Blocked* or *Failed* — see [Why a ticket stopped](#why-a-ticket-stopped) |
 
 `Waiting for credit` is an attribute rather than an eighth column, and on purpose: nothing
 happened to a ticket nothing was started for, so nothing on the board should say it moved.
@@ -1516,6 +1517,22 @@ ticket.
 | `done` | **Done** | that pull request has been merged — or the ticket produced a document, which has nothing to wait for. |
 | `failed` | **Failed** | something broke: the session, the push, the worktree. |
 | `blocked` | **Blocked** | the agent would not guess and asked a question instead — or its project could not be located. Answer in a comment and the ticket runs again. |
+
+<a id="why-a-ticket-stopped"></a>**Why a ticket stopped** is a code, not only a sentence. Every
+stop the runner decides has its cause in a catalogue, `src/ponos/blocks.py`: a code
+`domain.cause` — `merge.checks-failed`, `merge.base-moving`, `merge.conflict-decision`,
+`session.question`, `session.no-commit`, `worktree.residue`, `notion.write-failed`… — a
+family (merge, session, infrastructure, question, access), who has to move (Ponos, you,
+or GitHub and Notion), a label and a line of help in both languages, the gesture it
+proposes (run it again, answer, clean, look at the CI or at the pull request) and what the
+runner may do about it alone (`retry:n`, `wait-base`, `ask`). The code goes into the
+history and the run in `ponos.db`, into the `Blocage` select of the board — one option per
+code, coloured by family, created by `ponos init`, and named by `ponos doctor` when it is
+missing — and onto the card in the console: a badge with the family's icon, the help under
+it, and the gesture first among the buttons. The search over the board filters by it, and
+the statistics count it week by week. The history written before codes existed was read
+back from its sentences, French and English, when `ponos.db` was migrated; a sentence that
+matched no cause is counted as `unknown`.
 
 Four of those names are deliberate. *In review* rather than *Done*, because nothing is
 done when the runner lets go of a ticket: a pull request is waiting for a human, and a
@@ -2351,7 +2368,9 @@ is dated by the runner's history (in `ponos.db`) when the runner made it — a p
 merged from *Validated*, a document written or published — and by the page's last edit
 otherwise: a ticket you dragged to *Done*, or one closed because you merged its pull request
 yourself. The *Closed* card says, under the pointer, how many closings each one dated. The spend is the
-history's too: the `Cost` column says what a ticket cost, not on which day. The page they used to have is gone, and its old address,
+history's too: the `Cost` column says what a ticket cost, not on which day. Under them, the
+**blocks, by cause and week**: one bar a week, stacked by family, and beside it every
+cause of the period with its count — see [Why a ticket stopped](#why-a-ticket-stopped). The page they used to have is gone, and its old address,
 `/?view=console/statistics/list`, leads to the dashboard.
 
 **Settings** is `config.toml` drawn as a page — the same file, the same keys, and every one

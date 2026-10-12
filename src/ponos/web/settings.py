@@ -495,6 +495,7 @@ SECTIONS: tuple[Section, ...] = (
                 "waiting": ("Waiting for credit", "Ticked while the subscription limit is reached."),
                 "role": ("Agent", "Relation to the Agents database: who handles the ticket."),
                 "type": ("Type", "Code, Writing, External action or Publication; empty, it is guessed."),
+                "block": ("Block cause", "Written by the runner: why a stopped ticket stopped, as a code."),
                 "cadence": ("Schedule: cadence", "Hourly, Daily, Weekly or Monthly."),
                 "at": ("Schedule: time", "The hour, written 09:00."),
                 "day": ("Schedule: day", "Monday… or 1 to 31."),

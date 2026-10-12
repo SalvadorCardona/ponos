@@ -27,6 +27,29 @@ test("a ticket waiting on you is marked on the board", async ({ page }) => {
   await expect(card).toHaveText("waiting for you")
 })
 
+test("a stopped card says why, how to get it going, and answering opens its page", async ({ page }) => {
+  await open(page, "/")
+  const id = ASKING.split("/").pop()
+  const card = page.locator('[data-slot="ticket-block"][data-code="session.question"]')
+  await expect(card).toHaveCount(1)
+  await expect(card).toContainText("Question for you")
+  await expect(card).toContainText("answer on the ticket and it carries on")
+  const answer = page.locator(`[data-slot="block-action"][href$="${id}"]`)
+  await expect(answer).toHaveText("answer")
+  // The search offers the cause, and keeps the card by it.
+  await page.getByRole("button", { name: "Cause" }).click()
+  await page.getByRole("menuitemcheckbox", { name: /Question for you/ }).click()
+  await page.keyboard.press("Escape")
+  await expect(page).toHaveURL(/block=session\.question/)
+  await expect(card).toHaveCount(1)
+  // The card's link opens the ticket's window, as its title does: the
+  // discussion is there.
+  await answer.click()
+  await expect(page.getByRole("dialog").locator('[data-slot="dialog-title"]')).toHaveText(
+    "A ticket with a question"
+  )
+})
+
 test("its page opens on the discussion, marked, and the answer goes through the console's bar", async ({ page }) => {
   await open(page, ASKING)
   const toggle = page.locator('[data-slot="ticket-talk-tab"]')

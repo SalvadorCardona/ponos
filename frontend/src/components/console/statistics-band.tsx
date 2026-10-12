@@ -9,13 +9,13 @@ import { api, why } from "@/lib/api"
 import { currentBoard } from "@/lib/board-store"
 import { currentLanguage, useT } from "@/lib/i18n"
 import { money, number } from "@/lib/numbers"
-import type { Statistics, StatisticsDay } from "@/lib/types"
+import type { BlockFamily, Statistics, StatisticsDay } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import { Eyebrow, Panel } from "./frame"
 import { LineChart } from "./line-chart"
 import { Robot } from "./robot"
-import { capital, columnTitle } from "./ticket-bits"
+import { FAMILY_ICON, blockSaid, capital, columnTitle, familyColor } from "./ticket-bits"
 
 /* What the runner got through, over a period — at the top of the dashboard.
  *
@@ -347,9 +347,147 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
           >
             <Bars rows={rows} most={widest} />
           </Panel>
+
+          {figures.blocks ? (
+            <Panel
+              eyebrow={t("Blocks, by cause and week")}
+              className="min-w-0 md:col-span-2 xl:col-span-3"
+              bodyClassName="pb-3"
+            >
+              <BlocksChart blocks={figures.blocks} />
+            </Panel>
+          ) : null}
         </div>
       )}
     </>
+  )
+}
+
+/* The families, in the order the legend and the stack list them — the order
+ * of `blocks.FAMILIES`, which their colours are assigned in. */
+const FAMILIES: BlockFamily[] = ["merge", "session", "infrastructure", "question", "access"]
+
+const FAMILY_NAME: Record<BlockFamily, string> = {
+  merge: "Merge",
+  session: "Session",
+  infrastructure: "Infrastructure",
+  question: "Question",
+  access: "Access",
+}
+
+// The bars' height: the curves' own, so that the panels read as one band.
+const BLOCK_CHART = CHART + 24
+
+/* Why tickets stopped, week after week (`blocks` in `web/statistics.py`).
+ *
+ * One bar a week, stacked by family — five colours read apart, where twenty
+ * causes would be a rainbow nobody decodes — and every cause, by name, in the
+ * list beside it: that list is the chart's table, the counts a person reads,
+ * and the colours there only point back to a family. The pointer over a bar
+ * says its week cause by cause. */
+function BlocksChart({ blocks }: { blocks: NonNullable<Statistics["blocks"]> }) {
+  const t = useT()
+  if (!blocks.total)
+    return <p className="text-muted-foreground text-sm">{t("No ticket stopped in the period.")}</p>
+  const familyOf = new Map(blocks.causes.map((cause) => [cause.code, cause.family]))
+  const labelOf = new Map(blocks.causes.map((cause) => [cause.code, blockSaid(cause.label)]))
+  const present = FAMILIES.filter((family) => blocks.causes.some((cause) => cause.family === family))
+  const weeks = blocks.weeks.map((week) => {
+    const stack = present.map((family) => ({
+      family,
+      count: Object.entries(week.counts)
+        .filter(([code]) => familyOf.get(code) === family)
+        .reduce((sum, [, count]) => sum + count, 0),
+    }))
+    const total = stack.reduce((sum, part) => sum + part.count, 0)
+    const said = Object.entries(week.counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([code, count]) => `${labelOf.get(code) ?? code} — ${number(count)}`)
+    return { week: week.week, stack, total, said }
+  })
+  const most = Math.max(1, ...weeks.map((week) => week.total))
+  // A label under every bar while they fit, one in every few beyond.
+  const every = Math.max(1, Math.ceil(weeks.length / 12))
+  const widest = Math.max(1, ...blocks.causes.map((cause) => cause.count))
+  const weekOf = (week: string) =>
+    t("week of {{day}}", {
+      day: date(week).toLocaleDateString(locale(), { day: "numeric", month: "short" }),
+    })
+
+  return (
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <figure className="flex min-w-0 flex-col gap-2" aria-label={t("Blocks, by cause and week")}>
+        <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {present.map((family) => {
+            const Icon = FAMILY_ICON[family]
+            return (
+              <li key={family} className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-sm" style={{ background: familyColor(family) }} />
+                <Icon className="size-3" />
+                {t(FAMILY_NAME[family])}
+              </li>
+            )
+          })}
+        </ul>
+        <div className="flex items-end gap-[2px]" style={{ height: BLOCK_CHART }}>
+          {weeks.map((week) => (
+            <div
+              key={week.week}
+              className="hover:bg-muted/60 flex h-full min-w-0 flex-1 flex-col justify-end rounded-sm"
+              title={[`${weekOf(week.week)} — ${number(week.total)}`, ...week.said].join("\n")}
+              data-slot="blocks-week"
+            >
+              {/* Drawn from the top down, so the first family sits on the axis. */}
+              <div className="flex flex-col-reverse gap-[2px]" style={{ height: `${(week.total / most) * 100}%` }}>
+                {week.stack
+                  .filter((part) => part.count)
+                  .map((part, index, parts) => (
+                    <span
+                      key={part.family}
+                      className={cn("block min-h-[2px] w-full", index === parts.length - 1 && "rounded-t")}
+                      style={{ flexGrow: part.count, background: familyColor(part.family) }}
+                    />
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-muted-foreground flex gap-[2px] font-mono text-[0.65rem]">
+          {weeks.map((week, index) => (
+            <span key={week.week} className="min-w-0 flex-1 truncate text-center">
+              {index % every === 0
+                ? date(week.week).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" })
+                : ""}
+            </span>
+          ))}
+        </div>
+      </figure>
+
+      <ul className="flex max-h-56 min-w-0 flex-col gap-1.5 overflow-y-auto" data-slot="blocks-causes">
+        {blocks.causes.map((cause) => {
+          const Icon = FAMILY_ICON[cause.family]
+          return (
+            <li
+              key={cause.code}
+              className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-3 text-sm"
+              title={`${cause.code} — ${blockSaid(cause.help)}`}
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <Icon className="size-3.5 shrink-0" style={{ color: familyColor(cause.family) }} />
+                <span className="truncate">{blockSaid(cause.label)}</span>
+              </span>
+              <span className="bg-muted h-2 overflow-hidden rounded-full">
+                <span
+                  className="block h-full rounded-full"
+                  style={{ width: `${(cause.count / widest) * 100}%`, background: familyColor(cause.family) }}
+                />
+              </span>
+              <span className="font-mono text-xs font-semibold tabular-nums">{number(cause.count)}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
