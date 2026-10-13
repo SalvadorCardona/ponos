@@ -54,6 +54,7 @@ export const LABEL: Record<string, string> = {
   blocked: "Blocked",
   failed: "Failed",
   done: "Done",
+  cancelled: "Cancelled",
 }
 
 /** A column's name as the board heads it: the board's word, with a capital — Notion's may have none. */
@@ -76,9 +77,12 @@ export const TONE: Record<string, string> = {
   validated: "text-tr-pink",
   blocked: "text-tr-amber",
   failed: "text-tr-red",
+  cancelled: "text-muted-foreground/70 line-through",
 }
 
-/** The same colour again, as a dot — over a column, beside a status. */
+/** The same colour again, as a dot — over a column, beside a status. Done
+ * has none, and is the plain grey dot; cancelled is that grey hollowed out,
+ * the one end apart from the other. */
 export const SEED: Record<string, string> = {
   ready: "bg-tr-green",
   running: "bg-tr-blue",
@@ -86,6 +90,7 @@ export const SEED: Record<string, string> = {
   validated: "bg-tr-pink",
   blocked: "bg-tr-amber",
   failed: "bg-tr-red",
+  cancelled: "ring-muted-foreground bg-transparent ring-[1.5px] ring-inset",
 }
 
 /* How long ago, in the two words a card has room for. Cards are read in a
@@ -478,26 +483,52 @@ export function TicketActions({
           </a>
         </Button>
       ) : null
+  // Giving a ticket up is offered wherever it stands but in the runner's hands,
+  // and only on a board that has a column to give it up in. Behind "…": it is
+  // the gesture a card is least often for, and one click from it is enough —
+  // the way back is on the cancelled card itself.
+  const cancel =
+    board.cancel && ticket.column !== "cancelled" ? (
+      <DropdownMenuItem onSelect={() => void move(ticket, "cancelled")}>{t("cancel the ticket")}</DropdownMenuItem>
+    ) : null
+  const menu = (items: React.ReactNode) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" aria-label={t("More actions")} title={t("More actions")}>
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">{items}</DropdownMenuContent>
+    </DropdownMenu>
+  )
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {/* What a card waiting on you is for: why it waits, and what to do —
           see `decision-panel.tsx`. The plain gestures stay beside it. */}
       <DecideButton ticket={ticket} />
       {proposed}
+      {/* A cancelled ticket is reopened as a draft: given up on is not ready,
+          and the session a ready ticket starts is paid for. */}
+      {ticket.column === "cancelled" ? (
+        <Button
+          variant="outline"
+          size="sm"
+          title={t("Back to the drafts: the runner does not touch it until it is made ready.")}
+          onClick={() => void move(ticket, "draft")}
+        >
+          {t("reopen")}
+        </Button>
+      ) : null}
       {ticket.column === "review" ? (
         <Confirmed label={t("run again")} {...ready} />
       ) : ticket.column === "done" ? (
         <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" aria-label={t("More actions")} title={t("More actions")}>
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
+          {menu(
+            <>
               <DropdownMenuItem onSelect={() => setAsked(true)}>{t("run again")}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              {cancel}
+            </>
+          )}
           <Confirmed open={asked} onOpenChange={setAsked} {...ready} />
         </>
       ) : ticket.column !== "ready" ? (
@@ -535,6 +566,7 @@ export function TicketActions({
           {t("set aside")}
         </Button>
       ) : null}
+      {cancel && ticket.column !== "done" ? menu(cancel) : null}
     </div>
   )
 }

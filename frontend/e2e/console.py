@@ -14,8 +14,9 @@ the page that stopped scrolling. One is blocked on a question a run asked, for
 the discussion its page opens on and the mark its card wears. Two more blocked
 on a report that names its kind of stop, and one in review with points to
 check, for the Unblock and Decide panels. Three projects, for the list whose cards
-open them: two with a repository, and one without, an emoji for its icon. Three tickets for the gestures a card offers — one Done, one
-Validated, one Ready to be set aside and made ready again. Two schedules a pass
+open them: two with a repository, and one without, an emoji for its icon. Five tickets for the gestures a card offers — one Done, one
+Validated, one Ready to be set aside and made ready again, one Ready to be
+given up, and one Cancelled to be reopened. Two schedules a pass
 last read weeks ago, one of them turned off. And a check that found a newer
 version than this checkout, for the version at the top right to offer it — a
 commit that exists nowhere, so that a click on "Update now" could only ever fail;
@@ -59,6 +60,8 @@ GESTURES = {
     "0000000000000000000000000000d0e0": ("A finished ticket", "Done"),
     "0000000000000000000000000000fa11": ("A validated ticket", "Validated"),
     "0000000000000000000000000000a51d": ("A ticket to set aside", "Ready"),
+    "0000000000000000000000000000c0de": ("A ticket to give up", "Ready"),
+    "0000000000000000000000000000c0ff": ("A ticket given up", "Cancelled"),
 }
 # Three cards waiting on you, for the Unblock and Decide panels: two blocked on
 # a report that names its kind of stop — one to read, one to act on — and one in

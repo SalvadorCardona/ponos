@@ -42,6 +42,20 @@ test("a stopped card says why, and Unblock opens on the question's answer", asyn
   await expect(page).toHaveURL(/block=session\.question/)
   await expect(card).toHaveCount(1)
   // The panel shows the question, and the field to answer it is already open.
+  // The board is wider than the window once Done and Cancelled both hold a
+  // card: the strip scrolls smoothly, so the button is brought in, and clicked
+  // once it has stopped moving rather than mid-scroll.
+  await unblock.scrollIntoViewIfNeeded()
+  await expect
+    .poll(() =>
+      unblock.evaluate(async (button) => {
+        const before = button.getBoundingClientRect()
+        await new Promise((done) => setTimeout(done, 150))
+        const after = button.getBoundingClientRect()
+        return after.left === before.left && after.top === before.top && after.right <= window.innerWidth
+      })
+    )
+    .toBe(true)
   await unblock.click()
   const panel = page.locator('[data-slot="decision-panel"]')
   await expect(panel).toContainText("Which header, the dashboard's or the site's?")

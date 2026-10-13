@@ -1009,7 +1009,7 @@ def a_bare_page_becomes_the_whole_board():
     # runner reads both. Every column must be there, validated included.
     options = [option["name"] for option in schema["Status"]["select"]["options"]]
     assert options == [
-        "Ready", "In progress", "In review", "Validated", "Done", "Failed", "Blocked",
+        "Ready", "In progress", "In review", "Validated", "Done", "Failed", "Blocked", "Cancelled",
     ]
     # And the credit is not one of them: a ticket nothing was started for has not
     # moved, so it is ticked where it stands rather than sent to an eighth column.
@@ -1098,9 +1098,10 @@ def two_states_on_one_column_produce_one_option():
     settings.status = {"failed": "Needs you", "blocked": "Needs you"}
     names = [option["name"] for option in provision.status_options(settings)]
     assert names.count("Needs you") == 1
-    # Six: the two that were merged count once, and renaming a failure column
-    # says nothing about the validated one, which keeps its default.
-    assert len(names) == 6 and "Validated" in names
+    # Seven: the two that were merged count once, and renaming a failure column
+    # says nothing about the validated one, nor the cancelled one, which keep
+    # their defaults.
+    assert len(names) == 7 and "Validated" in names and "Cancelled" in names
 
     settings.status = {"review": "Done", "done": "Done"}
     names = [option["name"] for option in provision.status_options(settings)]
@@ -1459,7 +1460,11 @@ def waking_looks_everywhere_but_where_a_status_already_speaks():
     runner._journals = {}
     runner.config = _config("")
     runner._workspace = workspace.Workspace(tickets="db")
-    runner.client = type("S", (), {"schema": lambda self, database: {"Status": "status"}})()
+    offered: list[str] = []
+    runner.client = type("S", (), {
+        "schema": lambda self, database: {"Status": "status"},
+        "options": lambda self, database, name: offered,
+    })()
     excluded = {
         condition["status"]["does_not_equal"] for condition in runner._woken_filter()["and"]
     }
@@ -1469,6 +1474,14 @@ def waking_looks_everywhere_but_where_a_status_already_speaks():
     # board adds later — left in, because that is where an answer is expected.
     # A ticket waiting for credit is not among them: it never left Ready.
     assert len(runner._woken_filter()["and"]) == 5
+    # A cancelled ticket is given up on: a comment under it wakes nothing — on
+    # a board that offers the option, since Notion refuses a filter on one it
+    # does not know.
+    offered.append("Cancelled")
+    excluded = {
+        condition["status"]["does_not_equal"] for condition in runner._woken_filter()["and"]
+    }
+    assert excluded == {"In review", "Validated", "Done", "Ready", "In progress", "Cancelled"}
 
 
 # -- talking in the comments -------------------------------------------------
@@ -8843,6 +8856,31 @@ def the_open_curve_starts_from_the_board_as_it_stood_and_ends_on_it():
 
 
 @case
+def a_cancelled_ticket_is_neither_closed_nor_open_and_keeps_its_cost():
+    """Given up on is not done, and not somebody's to deal with any more.
+
+    It leaves the open curve on its last edit without being counted closed,
+    and what its sessions spent stays in the spending: the money is gone.
+    """
+    from datetime import date
+
+    tickets = [
+        _card("kept", "ready", "2026-09-01T09:00:00.000Z"),
+        _card("dropped", "cancelled", "2026-09-01T09:00:00.000Z", edited="2026-09-03T09:00:00.000Z"),
+    ]
+    history = [
+        {"at": "2026-09-02T12:00:00+00:00", "id": "dropped", "status": "blocked", "cost_usd": 2.0},
+    ]
+    figures = web_statistics.figures(
+        tickets, history, date(2026, 9, 1), date(2026, 9, 4), timezone.utc
+    )
+    assert [item["open"] for item in figures["days"]] == [2, 2, 1, 1]
+    assert figures["totals"] == {"open": 1, "closed": 0, "created": 2, "cost": 2.0}, figures["totals"]
+    assert figures["average"] is None, "no ticket closed, none averaged"
+    assert {item["key"]: item["count"] for item in figures["statuses"]} == {"ready": 1, "cancelled": 1}
+
+
+@case
 def the_projects_figures_add_up_to_the_boards():
     """Created and spent, project by project, are the board's — less the tickets with no project.
 
@@ -9278,6 +9316,102 @@ def a_ticket_under_no_known_status_is_a_draft_and_no_column_is_added_for_it():
     assert keys[0] == "draft" and "other" not in keys, keys
     assert board["columns"][0] == {"key": "draft", "name": ""}, "the console names the drafts, not the board"
     assert [item["column"] for item in board["tickets"]] == ["draft", "draft", "ready"]
+
+
+class _CancelClient(_ColumnsClient):
+    """The same database, offering — or not — a cancelled option."""
+
+    def __init__(self, statuses: list[str], offered: bool) -> None:
+        super().__init__(statuses)
+        self.offered = offered
+
+    def options(self, database: str, prop: str) -> list[str]:
+        return [*super().options(database, prop), *(["Cancelled"] if self.offered else [])]
+
+
+@case
+def a_cancelled_ticket_has_its_column_where_the_board_offers_one():
+    """Cancelled closes the row, beside Done — on a board that can say it.
+
+    A Notion board without the option is told rather than written into: no
+    gesture is offered, and a move asked anyway is refused in words rather than
+    sent to an API that would reject it.
+    """
+    quiet = type("W", (), {"nudge": lambda self: None})()
+
+    api = _bare_api(_CancelClient(["Ready", "Cancelled", "Done"], offered=True))
+    api._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
+    api._schema_at = time.time()
+    api.watch = quiet
+    board = api.board()
+    keys = [column["key"] for column in board["columns"]]
+    assert keys[-2:] == ["done", "cancelled"], keys
+    assert board["cancel"] is True
+    assert [item["column"] for item in board["tickets"]] == ["ready", "done", "cancelled"]
+    assert api.set_status("1" * 32, "cancelled")["status"] == "Cancelled"
+
+    bare = _bare_api(_CancelClient(["Ready", "Done"], offered=False))
+    bare._runner._workspace = type("W", (), {"projects": "", "tickets": "db"})()
+    bare._schema_at = time.time()
+    bare.watch = quiet
+    assert bare.board()["cancel"] is False
+    try:
+        bare.set_status("1" * 32, "cancelled")
+    except ValueError as error:
+        assert "no “Cancelled” option" in str(error), error
+    else:
+        raise AssertionError("a status the board does not offer is refused before it is sent")
+
+    # A board that points cancelled at a status the runner moves tickets
+    # through has no cancelled column of its own: a cancelled `ready` is run.
+    api._config.notion.status = api._runner.config.notion.status = {"cancelled": "Done"}
+    assert api.board()["cancel"] is False
+
+
+@case
+def a_markdown_board_reads_and_writes_the_cancelled_status():
+    """A board of files declares every default column, cancelled with them."""
+    with _board() as board:
+        assert "Cancelled" in board.options("tickets", "Status")
+        page = board.create_row("tickets", "Plus besoin", {"Status": "Ready"})
+        api = _markdown_api(board)
+        api.watch = type("W", (), {"nudge": lambda self: None})()
+        api._schema_at = time.time()
+        shown = api.board()
+        assert shown["cancel"] is True
+        assert "cancelled" in [column["key"] for column in shown["columns"]]
+        board.update("tickets", page, {"Status": "Cancelled"})
+        card = next(item for item in api.board()["tickets"] if item["id"] == page.replace("-", ""))
+        assert card["column"] == "cancelled" and card["status"] == "Cancelled"
+        assert store.read(board.page(page), "Status") == "Cancelled"
+
+
+@case
+def the_runner_never_runs_a_cancelled_ticket_even_when_named():
+    """Not from the ready column, not woken by a comment, not by `run --ticket`."""
+    with _board() as board:
+        page = board.create_row("tickets", "Abandonné", {"Status": "Cancelled"})
+        runner = Runner.__new__(Runner)
+        runner._journals = {}
+        runner.config = C.Config(
+            notion=C.Notion(), runner=C.Runner(), projects={}, path=Path("/nowhere/config.toml"),
+            web=C.Web(), storage=C.Storage(mode="markdown", path=board.root),
+        )
+        runner.client = board
+        runner._workspace = board.workspace(runner.config.notion)
+        said: list[str] = []
+        runner.say = said.append
+        assert runner.cancelled_column()
+        assert runner.requested(page) == []
+        assert said == ["Requested ticket is cancelled — not run: Abandonné"]
+        assert page.replace("-", "") not in {
+            ticket_module.Ticket(found).id for found in board.query(runner.database, runner._ready_filter())
+        }
+        assert page.replace("-", "") not in {
+            ticket_module.Ticket(found).id for found in board.query(runner.database, runner._woken_filter())
+        }
+        board.update("tickets", page, {"Status": "Blocked"})
+        assert [ticket.title for ticket in runner.requested(page)] == ["Abandonné"]
 
 
 class _DraftClient(_ColumnsClient):
@@ -16373,10 +16507,11 @@ def each_choice_moves_the_ticket_and_leaves_the_instruction_for_the_next_session
 
         third = blocked("Give up")
         api.decide(third, "abandon", text="Not needed any more.")
-        assert store.read(board.page(third), "Status") == settings.state("done"), "moved at once"
+        # Given up on, not done: the board offers a cancelled column.
+        assert store.read(board.page(third), "Status") == settings.state("cancelled"), "moved at once"
         assert third not in api.outbox.marks()
         assert board.comments(third)[-1].text.splitlines()[1:] == [
-            "Decision: abandoned, moved to done.", "Not needed any more.",
+            "Decision: abandoned, moved to cancelled.", "Not needed any more.",
         ]
 
         fourth = blocked("Too big", said.report(

@@ -92,8 +92,7 @@ class Runner(
         # validated, merged or published on their way to done.
         delivered: list[dict] = []
         if reference:
-            tickets = [self.fetch_one(reference)]
-            self.say(f"Requested ticket: {tickets[0].title}")
+            tickets = self.requested(reference)
         else:
             if not self.dry_run:
                 self.sweep()

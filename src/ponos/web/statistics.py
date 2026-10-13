@@ -106,7 +106,10 @@ def figures(
     tickets are counted, and only what its sessions spent.
     A ticket is open on a day if it was created by the end of it and not yet
     closed: that is every status but done, failed and blocked included — they
-    are still somebody's to deal with.
+    are still somebody's to deal with. A cancelled ticket is neither: it leaves
+    the open ones on its last edit without being counted closed — nothing got
+    done — and what its sessions spent stays in the spending, which is money
+    gone all the same.
     """
     if project is not None:
         tickets = [ticket for ticket in tickets if (ticket.get("project") or "") == project]
@@ -114,6 +117,8 @@ def figures(
         history = [entry for entry in history if str(entry.get("id", "")).replace("-", "") in mine]
     dated = closings(history, zone)
     known = {}
+    # The day each cancelled ticket left the open ones — see above.
+    dropped_on_day: dict[str, date] = {}
     from_history = from_edit = 0
     for ticket in tickets:
         created = day_of(ticket.get("created", ""), zone)
@@ -130,10 +135,14 @@ def figures(
             # page that was since recreated could be.
             if closed and created and closed < created:
                 closed = created
+        elif ticket.get("column") == "cancelled":
+            dropped = day_of(ticket.get("edited", ""), zone) or created or date.min
+            dropped_on_day[ticket.get("id", "")] = max(dropped, created) if created else dropped
         known[ticket.get("id", "")] = (ticket, created, closed)
 
     created_on: Counter[date] = Counter()
     closed_on: Counter[date] = Counter()
+    dropped_on: Counter[date] = Counter(dropped_on_day.values())
     for _, created, closed in known.values():
         if created:
             created_on[created] += 1
@@ -143,10 +152,11 @@ def figures(
     # What was open the evening before the period: the curve starts from the
     # board as it stood, not from zero.
     def open_on(day: date) -> int:
+        ended = {key: closed or dropped_on_day.get(key) for key, (_, _, closed) in known.items()}
         return sum(
             1
-            for _, created, closed in known.values()
-            if (created is None or created <= day) and (closed is None or closed > day)
+            for key, (_, created, _) in known.items()
+            if (created is None or created <= day) and (ended[key] is None or ended[key] > day)
         )
 
     spent_on: Counter[date] = Counter()
@@ -160,7 +170,7 @@ def figures(
     spent = 0.0
     day = first
     while day <= last:
-        stock += created_on[day] - closed_on[day]
+        stock += created_on[day] - closed_on[day] - dropped_on[day]
         spent += spent_on[day]
         days.append(
             {

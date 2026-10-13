@@ -23,6 +23,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   its type, whatever the case and the accents. Both live in the address (`filter=…`), so a link or
   a reload opens the same list, and when nothing matches the list says so with a button that clears
   the search.
+- **A *Cancelled* status, for the tickets you give up on.** Terminal like *Done*, and apart
+  from it: the runner never runs a cancelled ticket — not from *Ready*, not woken by a comment,
+  not named with `ponos run --ticket` — and the statistics count it neither closed nor open,
+  while what it already cost stays in the spending. In the console it is the last column of
+  the board, with a hollow grey dot, cards struck through, its place in the status filter and
+  in the breakdown by status; any card but a running one offers **cancel the ticket** behind
+  its "…", a cancelled one **reopen** (back to the drafts), and *Abandon* or *Reject* in the
+  decision panel file the ticket there. The Markdown board knows it out of the box; on Notion,
+  `ponos init` adds the option to a select, and `ponos doctor` says when the board has none —
+  the gesture is then simply not offered. `cancelled = "Cancelled"` names it under
+  `[notion.status]`.
+
 - **An *MCP* tab in the console's Settings explains MCP and plugs Ponos in step by step.** It says
   in a few sentences what an MCP is (the Notion one a session reads its ticket with, Ponos's own
   that Claude talks to), then walks through it: pick Claude Code, Claude desktop or another client,

@@ -17,6 +17,7 @@ export type ColumnKey =
   | "blocked"
   | "failed"
   | "done"
+  | "cancelled"
 
 export interface Ticket {
   id: string
@@ -89,6 +90,8 @@ export interface Board {
   tickets: Ticket[]
   /** Whether this board has a `validated` column the runner would honour. */
   validate?: boolean
+  /** Whether this board has a `cancelled` column to give a ticket up in. */
+  cancel?: boolean
   columns: { key: ColumnKey; name: string }[]
   /** What a new ticket may be given beside its title, for the columns this
    * board has: a column it lacks is not a key here. */

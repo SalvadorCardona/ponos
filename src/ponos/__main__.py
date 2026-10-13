@@ -1158,14 +1158,29 @@ def command_doctor(args: argparse.Namespace) -> int:
             else:
                 bad(f"{key:<9} → “{wanted}” is not offered by the database")
                 problems += 1
-        # The one status the runner never writes nor reads, and that nothing
-        # defaults: named, it has to be an option the board already offers, and
-        # one apart from the runner's own — a draft that is `ready` is taken.
-        draft = configuration.notion.state("draft")
         moved = [
             configuration.notion.state(key)
             for key in ("ready", "running", "review", "validated", "done", "failed", "blocked")
         ]
+        # Optional like validated, and said apart: a board without it has no
+        # way to give a ticket up but to call it done, and the console offers
+        # none. Never a problem — but one that is a status the runner moves
+        # tickets through would be a ticket given up on and run anyway.
+        cancelled = configuration.notion.state("cancelled")
+        if cancelled in moved:
+            bad(f"cancelled → “{cancelled}” is also a status the runner moves tickets through")
+            problems += 1
+        elif cancelled in options:
+            ok(f"cancelled → “{cancelled}” — never run")
+        else:
+            warn(
+                f"cancelled → “{cancelled}” not offered — no column to give a ticket up in. "
+                "`init` adds it to a select; on a Notion status, add the option by hand"
+            )
+        # The one status the runner never writes nor reads, and that nothing
+        # defaults: named, it has to be an option the board already offers, and
+        # one apart from the runner's own — a draft that is `ready` is taken.
+        draft = configuration.notion.state("draft")
         if not draft:
             print(f"  {DIM}draft     → none named — a ticket being written has no status{RESET}")
         elif draft in moved:

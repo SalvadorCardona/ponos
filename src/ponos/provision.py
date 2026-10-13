@@ -43,6 +43,8 @@ _STATUS_COLOURS = {
     "done": "green",
     "failed": "red",
     "blocked": "orange",
+    # Grey, and not done's green: given up on is not finished.
+    "cancelled": "gray",
 }
 
 # The four types, from the most harmless road to the most guarded one.
@@ -144,7 +146,7 @@ def status_options(settings: Notion) -> list[dict]:
     `review`, and the board simply has no validated column.
     """
     seen: dict[str, str] = {}
-    for key in ("ready", "running", "review", "validated", "done", "failed", "blocked"):
+    for key in ("ready", "running", "review", "validated", "done", "failed", "blocked", "cancelled"):
         name = settings.state(key).strip()
         if name and name not in seen:
             seen[name] = _STATUS_COLOURS[key]
