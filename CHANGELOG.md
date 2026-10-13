@@ -154,6 +154,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- ***Blocked* now comes right after *In progress* on the board.** A ticket waiting on your answer
+  is a ticket in progress that stopped, so it is read beside it: the columns, the status filter and
+  the MCP tools all follow the one order — ready, in progress, blocked, in review, validated,
+  failed, done, cancelled.
 - Every confirmation window of the console — making a ticket ready, validating,
   leaving a brief or the context unsaved, saving what Markdown cannot keep,
   deleting a project — is now the same window, and answers the keyboard: it opens
