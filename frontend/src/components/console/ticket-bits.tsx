@@ -39,9 +39,9 @@ export const LABEL: Record<string, string> = {
   draft: "Draft",
   ready: "Ready",
   running: "In progress",
+  blocked: "Blocked",
   review: "In review",
   validated: "Validated",
-  blocked: "Blocked",
   failed: "Failed",
   done: "Done",
   cancelled: "Cancelled",
@@ -63,9 +63,9 @@ export function columnTitle(key: string, name?: string): string {
 export const TONE: Record<string, string> = {
   ready: "text-tr-green",
   running: "text-tr-blue",
+  blocked: "text-tr-amber",
   review: "text-tr-violet",
   validated: "text-tr-pink",
-  blocked: "text-tr-amber",
   failed: "text-tr-red",
   cancelled: "text-muted-foreground/70 line-through",
 }
@@ -76,9 +76,9 @@ export const TONE: Record<string, string> = {
 export const SEED: Record<string, string> = {
   ready: "bg-tr-green",
   running: "bg-tr-blue",
+  blocked: "bg-tr-amber",
   review: "bg-tr-violet",
   validated: "bg-tr-pink",
-  blocked: "bg-tr-amber",
   failed: "bg-tr-red",
   cancelled: "ring-muted-foreground bg-transparent ring-[1.5px] ring-inset",
 }

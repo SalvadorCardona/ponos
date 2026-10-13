@@ -66,8 +66,11 @@ DISK_TTL = 600
 # The columns, in the order they are meant to be read. Anything the board
 # carries that is none of them is a draft, so it is never hidden. The drafts
 # come before them, whether or not the board names its own — see `_keys`.
-# Cancelled closes the row, beside done: the two ends a ticket can come to.
-COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done", "cancelled")
+# Blocked follows running: a ticket waiting on an answer is a ticket in
+# progress that stopped, so it is read next to it. Cancelled closes the row,
+# beside done: the two ends a ticket can come to. This is the one order — the
+# console, the filters and the MCP tools all take it from here.
+COLUMNS = ("ready", "running", "blocked", "review", "validated", "failed", "done", "cancelled")
 
 
 class Api:

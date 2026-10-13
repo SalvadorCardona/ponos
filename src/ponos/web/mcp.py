@@ -45,6 +45,7 @@ from .. import db, ideas, journal, state, store, systemd
 from .. import kinds as kinds_module
 from ..config import PRIORITIES
 from . import live
+from .api import COLUMNS
 from .oauth import READ, WRITE, Grant
 
 if TYPE_CHECKING:
@@ -54,10 +55,9 @@ if TYPE_CHECKING:
 # asks for one of them gets it; any other is answered with the newest.
 VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
-# The columns a task can be in, as the tools name them — the console's own keys.
-STATUSES = (
-    "draft", "ready", "running", "review", "validated", "blocked", "failed", "done", "cancelled",
-)
+# The columns a task can be in, as the tools name them — the console's own keys,
+# in the console's own order.
+STATUSES = ("draft", *COLUMNS)
 
 # What one answer carries at most: a description is a brief, not a book, and a
 # conversation is read for its last turns.
@@ -157,9 +157,10 @@ TOOLS: list[dict] = [
         "description": "Liste les tâches de Ponos, les plus récemment modifiées d'abord, avec "
         "pour chacune son identifiant, son titre, son projet, son statut, son type, sa priorité, "
         "sa pull request et son coût. Statuts : draft (brouillon, jamais lancé), ready (en file, "
-        "le runner le prendra à sa prochaine passe), running (session en cours), review (travail "
+        "le runner le prendra à sa prochaine passe), running (session en cours), "
+        "blocked (« vous attend » : une session pose une question), review (travail "
         "livré, attend une relecture), validated (relu, en cours de fusion ou de publication), "
-        "blocked (« vous attend » : une session pose une question), failed (échec), done "
+        "failed (échec), done "
         "(terminé), cancelled (abandonné, jamais repris). Pour « ce qui m'attend » ou « les tâches bloquées », passer "
         "waiting_for_you=true. Ne renvoie pas le détail d'une tâche : utiliser get_task.",
         "inputSchema": _schema(
