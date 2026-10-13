@@ -1,6 +1,6 @@
 import * as React from "react"
-import { Check, Clock, Copy, FileText, Folder, FolderGit2, Plus } from "lucide-react"
-import { ActionList, type FormInterface } from "react-data-form"
+import { Check, Clock, Copy, FileText, Folder, FolderGit2, Plus, SearchX, X } from "lucide-react"
+import { ActionList, SelectInputController, type FormInterface } from "react-data-form"
 import {
   Link,
   ListPagination,
@@ -11,6 +11,7 @@ import {
   generateLinkByResource,
   tableViewOptionFactory,
   useCurrentViewResourceContext,
+  useListViewContext,
   type ListComponentPropsInterface,
 } from "react-resource-view"
 
@@ -30,6 +31,7 @@ import { api } from "@/lib/api"
 import { useTicketTallies, type Tally } from "@/lib/board-store"
 import { counted, t } from "@/lib/i18n"
 import { repositoryName, shortPath } from "@/lib/places"
+import { KINDS, filtering, keeps } from "@/lib/project-search"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
 import type { Project, Projects } from "@/lib/types"
@@ -665,6 +667,22 @@ function ProjectsFoot() {
  * With the one gesture this console has for it: a project is a page on the
  * board, or a name mapped to a path in the settings — and the second is here. */
 function NoProject() {
+  const { filterContext } = useListViewContext()
+  if (filtering(filterContext.filter))
+    return (
+      <EmptyState
+        icon={SearchX}
+        title={t("No project matches")}
+        action={
+          <Button variant="outline" size="sm" onClick={() => filterContext.resetFilter({})}>
+            <X />
+            {t("Clear the search")}
+          </Button>
+        }
+      >
+        {t("Other words, or another type, and they will be back.")}
+      </EmptyState>
+    )
   return (
     <EmptyState
       robot="sleep"
@@ -681,6 +699,27 @@ function NoProject() {
 
 /* -- the declaration ------------------------------------------------------ */
 
+/* The search over the list: the words of a name (or of a type), and one of the
+ * two types. The labels are read from the dictionary as the bar is drawn. */
+const formFilter: FormInterface = {
+  inputs: {
+    q: {
+      label: "Search",
+      get placeholder() {
+        return t("Search a project")
+      },
+    },
+    type: {
+      label: "Type",
+      controller: SelectInputController,
+      getValueOptions: async () => [
+        { value: "", label: t("All types") },
+        ...KINDS.map((kind) => ({ value: kind, label: kind === "code" ? t("code work") : t("document work") })),
+      ],
+    },
+  },
+}
+
 export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrite>(PROJECTS, {
   name: "Projects",
   scope: SCOPE,
@@ -694,12 +733,12 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
   canUpdate: true,
   canDelete: false,
 
-  getCollection: async () => {
+  getCollection: async (filter) => {
     const read = await readAgain()
     return {
       data: createResourceCollection({
         id: "/api/projects",
-        items: read.projects.map((project) => item(project)),
+        items: read.projects.map((project) => item(project)).filter((row) => keeps(row, filter)),
       }),
     } as never
   },
@@ -767,6 +806,9 @@ export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrit
         "What the tickets are about: where the work happens, and what conventions hold there. One with no repository is not a mistake — its tickets come back as a document.",
       // A card, or a row, is a link to the project's page: no button under it.
       behavior: { rowActions: [] },
+      // The search is the package's own: it lives in the address (`q`, `type`),
+      // and the rows are kept by `keeps`, as the list is read.
+      formFilter,
       components: {
         top: ProjectsTop,
         bottom: ProjectsFoot,

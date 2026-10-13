@@ -18,6 +18,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The projects list can be searched by name and narrowed to a type.** A search field and a *Type*
+  menu (code or document) sit above the cards and the table; the words match a project's name or
+  its type, whatever the case and the accents. Both live in the address (`filter=…`), so a link or
+  a reload opens the same list, and when nothing matches the list says so with a button that clears
+  the search.
 - **An *MCP* tab in the console's Settings explains MCP and plugs Ponos in step by step.** It says
   in a few sentences what an MCP is (the Notion one a session reads its ticket with, Ponos's own
   that Claude talks to), then walks through it: pick Claude Code, Claude desktop or another client,
