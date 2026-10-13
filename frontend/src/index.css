@@ -261,6 +261,17 @@
     }
   }
 
+  /* A board's columns whole on a phone. Since 0.15 each column scrolls inside
+     a box a screen high less 14rem, so its last cards stay where the page's
+     end cannot lift them out from under the discussion's bubble; left to
+     grow, as they did before, the room under the content above does it. The
+     box has no `data-slot`, so it is found by the cap it carries. */
+  @media (width < 48rem) {
+    [class*="max-h-[calc(100dvh-14rem)]"] {
+      max-height: none;
+    }
+  }
+
   /* The bottom bar's entries share its width. The package lays them out from
      the left at the width of their names, which left the right end of a phone
      empty once the bar was down to four (see `resources/scope`); a quarter
