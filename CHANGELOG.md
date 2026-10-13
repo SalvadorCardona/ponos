@@ -130,6 +130,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A blocked card has one button, Unblock.** The pink *Unblock*, *answer* and *make ready*
+  side by side left you to guess which one was yours; the card now carries a single
+  *Unblock*, drawn the way *answer* was, and its panel picks for the cause: a question
+  opens on its answer field, missing access on what is missing and *it's done, run it
+  again*, any other stop on its reason and running it again. Every panel ends with a field
+  for an instruction of your own and, quietly, *run it again without changes* — what *make
+  ready* did. The mark at the top of the card says the cause it stopped on, when the runner
+  knows it, instead of *waiting for you* above a second badge.
+
 - **The blocks chart is folded behind *Show more*.** On the dashboard and on a project's page,
   the statistics keep to the four cards and the curves; *Blocks, by cause and week* opens under
   them with a button, and the choice is kept in the browser, one for both pages.

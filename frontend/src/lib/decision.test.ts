@@ -10,9 +10,14 @@ import {
   LABELS,
   actionOf,
   away,
+  buttonsOf,
   categoryOf,
   immediate,
+  instructionOf,
   labelOf,
+  openedWith,
+  plainRetry,
+  promptOf,
   prefilled,
   sendable,
   titlesIn,
@@ -84,4 +89,31 @@ test("the way forward stands out and the way out reads as one", () => {
   assert.equal(tone(offer("reject", "note"), 0), "outline")
   assert.ok(away(offer("reject", "note")) && away(offer("abandon", "note")) && !away(offer("retry")))
   assert.equal(tone(offer("other", "text"), 0), "outline")
+})
+
+test("a blocked panel writes its instruction in a field of its own, and opens on the answer", () => {
+  const asked = [offer("answer", "text"), offer("instruct", "text"), offer("abandon", "note"), offer("other", "text")]
+  assert.deepEqual(buttonsOf("blocked", asked).map((one) => one.key), ["answer", "abandon"])
+  assert.equal(instructionOf("blocked", asked)?.key, "instruct")
+  assert.equal(openedWith("blocked", asked)?.key, "answer")
+  // Out of credit offers no instruction of its kind: the field sends "other".
+  const credits = [offer("retry"), offer("abandon", "note"), offer("other", "text")]
+  assert.equal(instructionOf("blocked", credits)?.key, "other")
+  assert.equal(openedWith("blocked", credits), null)
+  // In review, nothing changes: every offer is a button, none opens by itself.
+  const review = [offer("validate"), offer("rework", "text"), offer("reject", "note")]
+  assert.deepEqual(buttonsOf("review", review), review)
+  assert.equal(instructionOf("review", review), null)
+})
+
+test("running it again without changes is offered quietly, where no button already does it", () => {
+  assert.ok(plainRetry("blocked", [offer("done-retry", "note"), offer("other", "text")]))
+  assert.ok(!plainRetry("blocked", [offer("retry"), offer("other", "text")]))
+  assert.ok(!plainRetry("review", [offer("validate")]))
+})
+
+test("an answer's field asks for an answer, the others for what they need", () => {
+  assert.equal(promptOf(offer("answer", "text")), "Your answer")
+  assert.equal(promptOf(offer("instruct", "text")), "The instruction the next session reads")
+  assert.equal(promptOf(offer("model", "model")), "A note, if you want one")
 })

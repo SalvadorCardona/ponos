@@ -1,5 +1,13 @@
 import * as React from "react"
-import { CircleCheck, CircleDashed, CircleX, ExternalLink, GitPullRequest, LifeBuoy, Scale } from "lucide-react"
+import {
+  CircleCheck,
+  CircleDashed,
+  CircleX,
+  ExternalLink,
+  GitPullRequest,
+  MessageCircleQuestion,
+  Scale,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -16,17 +24,24 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { onPhone } from "@/components/console/shell"
+import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import { titleOf, useBoard } from "@/lib/board-store"
 import {
   CHECKS,
   PROMPTS,
   actionOf,
+  actionsOf,
   away,
+  buttonsOf,
   categoryOf,
   immediate,
+  instructionOf,
   labelOf,
+  openedWith,
+  plainRetry,
   prefilled,
+  promptOf,
   sendable,
   titlesIn,
   tone,
@@ -50,6 +65,14 @@ import { cn } from "@/lib/utils"
  * to that button by looking it up again each time it is placed, so a card drawn
  * anew is followed rather than lost. On a phone it is a sheet from the bottom of
  * the screen, where a thumb reaches.
+ *
+ * On a blocked card it is the only gesture there is, drawn the way "answer"
+ * was — an outline in the colour of a ticket waiting on you — and the panel
+ * does the choosing the card used to leave to you: a question opens on its
+ * answer, a missing access on what is missing and "it's done", any other stop
+ * on its reason and running it again. Under every one of them, a field for an
+ * instruction of your own, and — quietly, where nothing above already does it
+ * — running it again as it is, which was "make ready".
  */
 
 let opened: string | null = null
@@ -85,12 +108,17 @@ export function DecideButton({ ticket, className }: { ticket: Ticket; className?
   const t = useT()
   const action = actionOf(ticket.column)
   if (!action) return null
-  const Icon = ticket.column === "blocked" ? LifeBuoy : Scale
+  const blocked = ticket.column === "blocked"
+  const Icon = blocked ? MessageCircleQuestion : Scale
   return (
     <Button
       size="sm"
+      variant={blocked ? "outline" : "default"}
       data-decide={ticket.id}
-      className={cn("bg-tr-pink hover:bg-tr-pink/90 text-white", className)}
+      className={cn(
+        blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white",
+        className
+      )}
       onClick={(event) => {
         last = event.currentTarget.getBoundingClientRect()
         show(opened === ticket.id ? null : ticket.id)
@@ -199,7 +227,7 @@ function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: ()
     )
   return (
     <div className="space-y-4 text-sm">
-      {decision.column === "review" ? <Delivered decision={decision} /> : <Stuck decision={decision} />}
+      {decision.column === "review" ? <Delivered decision={decision} /> : <Stuck decision={decision} ticket={ticket} />}
       <Choices decision={decision} ticket={ticket} onDone={onDone} />
     </div>
   )
@@ -213,9 +241,13 @@ function Heading({ children }: { children: React.ReactNode }) {
   )
 }
 
-/* Why a blocked ticket stopped: its kind, its reason, what is done and what is missing. */
-function Stuck({ decision }: { decision: Decision }) {
+/* Why a blocked ticket stopped: its kind, its reason, what is done and what is
+ * missing — and, for a stop on a pull request or on its base's CI, the way to
+ * them the card used to carry. */
+function Stuck({ decision, ticket }: { decision: Decision; ticket?: Ticket }) {
   const t = useT()
+  const pullRequest = ticket?.pull_request ?? ""
+  const ci = ticket?.block?.action === "base-ci" ? actionsOf(pullRequest) : ""
   const asked = decision.question
   const reason = decision.reason?.trim()
   const missing = asked?.ask && asked.ask !== reason ? asked.ask : ""
@@ -233,6 +265,27 @@ function Stuck({ decision }: { decision: Decision }) {
           {decision.done ? <p>{t("Already done: {{done}}", { done: decision.done })}</p> : null}
           {missing ? <p>{t("What is missing: {{missing}}", { missing })}</p> : null}
           {decision.detail ? <p className="line-clamp-3">{decision.detail}</p> : null}
+        </div>
+      ) : null}
+      {pullRequest || ci ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {pullRequest ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={pullRequest} target="_blank" rel="noreferrer">
+                <GitPullRequest />
+                {t("Pull request")}
+                <ExternalLink className="opacity-60" />
+              </a>
+            </Button>
+          ) : null}
+          {ci ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={ci} target="_blank" rel="noreferrer">
+                {t("CI")}
+                <ExternalLink className="opacity-60" />
+              </a>
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -304,8 +357,11 @@ function Delivered({ decision }: { decision: Decision }) {
 function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ticket; onDone: () => void }) {
   const t = useT()
   const board = useBoard()
-  const [chosen, setChosen] = React.useState<Solution | null>(null)
+  const { move } = useConsole()
+  const opening = openedWith(decision.column, decision.solutions)
+  const [chosen, setChosen] = React.useState<Solution | null>(opening)
   const [text, setText] = React.useState("")
+  const [instruction, setInstruction] = React.useState("")
   const [model, setModel] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const models = (board.choices?.model ?? []).filter((one) => one.value && one.value !== decision.model)
@@ -348,12 +404,15 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
 
   const same = (one: Solution, other: Solution | null) =>
     other !== null && one.key === other.key && one.number === other.number
+  const buttons = buttonsOf(decision.column, decision.solutions)
+  const written = instructionOf(decision.column, decision.solutions)
+  const plain = ticket && plainRetry(decision.column, decision.solutions)
 
   return (
     <section data-slot="decision-choices">
       <Heading>{decision.column === "review" ? t("Your decision") : t("What would unblock it")}</Heading>
       <ul className="space-y-1.5">
-        {decision.solutions.map((solution, index) => (
+        {buttons.map((solution, index) => (
           <li key={`${solution.key}-${solution.number}`}>
             <Button
               variant={same(solution, chosen) ? "secondary" : tone(solution, index)}
@@ -402,11 +461,13 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
                   </Select>
                 ) : null}
                 <Textarea
-                  autoFocus
+                  // The answer a question opens on is under its reason, read
+                  // first: the field waits for a click rather than taking it.
+                  autoFocus={!same(solution, opening)}
                   value={text}
                   rows={solution.needs === "titles" ? 4 : 3}
-                  aria-label={t(solution.needs === "model" ? PROMPTS.note : PROMPTS[solution.needs])}
-                  placeholder={t(solution.needs === "model" ? PROMPTS.note : PROMPTS[solution.needs])}
+                  aria-label={t(promptOf(solution))}
+                  placeholder={t(promptOf(solution))}
                   onChange={(event) => setText(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -434,6 +495,57 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
           </li>
         ))}
       </ul>
+      {written ? (
+        <form
+          data-slot="decision-instruction"
+          className="mt-3 space-y-1.5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (sendable(written, instruction)) void apply(written, instruction, "")
+          }}
+        >
+          <Heading>{t("Or an instruction of your own")}</Heading>
+          <Textarea
+            value={instruction}
+            rows={2}
+            aria-label={t(PROMPTS.text)}
+            placeholder={t("Drop that part, only do…")}
+            onChange={(event) => setInstruction(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                event.currentTarget.form?.requestSubmit()
+              }
+            }}
+            className="text-sm"
+          />
+          <div className="flex items-center justify-between gap-1.5">
+            {/* "Make ready", kept for when nothing needs saying: the same
+                move the card made, quieter, under the choices that say why. */}
+            {plain ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                disabled={busy}
+                data-slot="decision-plain-retry"
+                className="text-muted-foreground hover:text-foreground h-auto px-0"
+                onClick={() => {
+                  onDone()
+                  void move(ticket, "ready")
+                }}
+              >
+                {t("Run it again without changes")}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button type="submit" size="sm" disabled={busy || !sendable(written, instruction)}>
+              {t("Send and run again")}
+            </Button>
+          </div>
+        </form>
+      ) : null}
     </section>
   )
 }

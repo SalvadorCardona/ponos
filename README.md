@@ -2222,22 +2222,27 @@ tab itself: everything said on it, oldest first — the runner's reports, your a
 answers you gave from Telegram — and the console's own message bar to say the next thing
 (Enter sends, the microphone dictates; no files, since a comment carries text). A ticket
 **waiting on you** — in *Blocked*, or with a question a run asked and nobody has answered
-yet — opens on that tab, and its card on the board says *waiting for you*. What you type is a
+yet — opens on that tab, and its card on the board says *waiting for you*, or the cause it
+stopped on when the runner knows it (*Question for you*, *Credentials missing*…). What you type is a
 *comment on the ticket*, written into the thread the runner last spoke in, which is the
 gesture the runner already knows: an answer under the question a run asked puts the ticket
 back in the queue, and one that names it — `@claude`, or whatever `notion.mention` says —
 asks it for words instead. Nothing is kept on the side; the same sentence typed into Notion
 does the same thing.
 
-**Unblock and Decide.** A *Blocked* card carries an **Unblock** button, and a card *In
+**Unblock and Decide.** A *Blocked* card carries one button, **Unblock** — no *answer* or
+*make ready* beside it: the panel chooses for you — and a card *In
 review* a **Decide** one; both open a small panel over the board — a sheet from the bottom of
 the screen on a phone. Unblock says why the ticket stopped, in one sentence and under its
 kind — a decision to make, missing access, something to do by hand, out of credit, failing
 checks, a conflict, too big for one ticket — then what is done and what is missing, and the
 few choices that would get it moving: the options the session proposed, *answer the
-question*, *it's done, run it again*, *run it again on another model*, *with an
-instruction*, *split into sub-tickets* (drafts in the same project, the parent filed away),
-*abandon*, and always last *other: write an instruction*. Decide shows the session's sentence,
+question* (open already, under the question, when the session asked one), *it's done, run it
+again*, *run it again on another model*, *split into sub-tickets* (drafts in the same
+project, the parent filed away), *abandon* — the pull request or the base's CI a link
+away when that is where it stopped — and always under them a field for an instruction of
+your own (“drop that part, only do X”), with a quiet *run it again without changes* where
+no choice above already does that. Decide shows the session's sentence,
 the pull request, its checks as GitHub says them now, and the points the session said it
 could not check; then *validate*, *send back with an instruction* — ready-made for red checks,
 missing tests, screenshots, a rebase, or any of those points — or *reject*. Each choice writes

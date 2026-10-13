@@ -28,6 +28,8 @@ import {
 import { ComboboxInputController } from "@/components/console/combobox"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
+  FAMILY_ICON,
+  blockSaid,
   columnTitle,
   SEED,
   TicketActions,
@@ -458,6 +460,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   if (!ticket) return null
   const href = generateLinkByResource({ resource, resourceAction: ActionList.read, id: ticket.id })
   const open = opensInTheWindow(ticket.id)
+  const Waiting = (ticket.block && FAMILY_ICON[ticket.block.family]) || MessageCircleQuestion
 
   return (
     <div className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3">
@@ -469,16 +472,18 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         {/* Waiting on you: a run that asks a question lands in the blocked
             column, and so does a ticket held by hand — both wait for a word
             from you. The board reads no discussion, so the column is what it
-            goes by; the page it opens is on the discussion. */}
+            goes by; the page it opens is on the discussion. Where the cause
+            is known the mark says it, rather than a second badge under it. */}
         {ticket.column === "blocked" ? (
           <Link
             to={href}
             onClick={open}
             data-slot="ticket-waiting"
-            className="bg-tr-amber/15 text-tr-amber inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 font-sans font-semibold hover:underline"
+            title={ticket.block?.code}
+            className="bg-tr-amber/15 text-tr-amber inline-flex min-w-0 items-center gap-1 rounded-xl px-1.5 py-0.5 font-sans leading-tight font-semibold whitespace-normal hover:underline"
           >
-            <MessageCircleQuestion className="size-3" />
-            {t("waiting for you")}
+            <Waiting className="size-3 shrink-0" />
+            {ticket.block ? blockSaid(ticket.block.label) : t("waiting for you")}
           </Link>
         ) : null}
         <span className="flex-1" />
@@ -496,7 +501,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       <TicketTags ticket={ticket} />
       <TicketSync ticket={ticket} />
       <TicketHeld ticket={ticket} />
-      <TicketBlock block={ticket.block} />
+      <TicketBlock block={ticket.block} labelled={ticket.column !== "blocked"} />
 
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />

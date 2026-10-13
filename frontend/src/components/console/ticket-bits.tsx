@@ -32,6 +32,7 @@ import {
 import { DecideButton } from "@/components/console/decision-panel"
 import { useConsole } from "@/hooks/use-console"
 import { titleOf } from "@/lib/board-store"
+import { actionsOf } from "@/lib/decision"
 import { currentLanguage, t, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import type { Block, BlockFamily, Ticket } from "@/lib/types"
@@ -197,28 +198,25 @@ export function blockSaid(words: { en: string; fr: string }): string {
 }
 
 /* The cause on a stopped card: a badge with its label, and the line of help
- * under it. The gesture it proposes is with the others, in `TicketActions`. */
-export function TicketBlock({ block }: { block?: Block | null }) {
+ * under it. The gesture it proposes is with the others, in `TicketActions`.
+ * A blocked card already says its label in the badge at its top, where it
+ * used to say only "waiting for you": `labelled` false keeps the help alone. */
+export function TicketBlock({ block, labelled = true }: { block?: Block | null; labelled?: boolean }) {
   if (!block) return null
   const Icon = FAMILY_ICON[block.family] ?? ServerCrash
   return (
     <div className="flex flex-col gap-1" data-slot="ticket-block" data-code={block.code}>
-      <div className="flex flex-wrap gap-1.5">
-        <Chip className="text-foreground font-medium">
-          <Icon className="size-3" style={{ color: familyColor(block.family) }} />
-          <span title={block.code}>{blockSaid(block.label)}</span>
-        </Chip>
-      </div>
+      {labelled ? (
+        <div className="flex flex-wrap gap-1.5">
+          <Chip className="text-foreground font-medium">
+            <Icon className="size-3" style={{ color: familyColor(block.family) }} />
+            <span title={block.code}>{blockSaid(block.label)}</span>
+          </Chip>
+        </div>
+      ) : null}
       <p className="text-muted-foreground text-xs leading-relaxed break-words">{blockSaid(block.help)}</p>
     </div>
   )
-}
-
-/* Where the CI of a pull request's repository is read: its Actions page, from
- * the pull request's own address. */
-function actionsOf(pullRequest: string): string {
-  const repository = pullRequest.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/pull\//)
-  return repository ? `${repository[1]}/actions` : ""
 }
 
 /** A tag: one word about a ticket, drawn small enough that five of them still read as one row. */
@@ -412,16 +410,22 @@ export function TicketActions({
   // A ticket the runner has in hand is not one you move: drawing an empty row
   // for it would leave a gap on the card where the gestures would have been.
   if (ticket.column === "running") return null
+  // A blocked card has one gesture, Unblock: its cause is known, so the panel
+  // it opens is the one to choose between answering, an instruction and
+  // running it again as it is — see `decision-panel.tsx`. Three buttons that
+  // all put it back to work left you to guess which one was yours.
+  if (ticket.column === "blocked")
+    return (
+      <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
+        <DecideButton ticket={ticket} />
+      </div>
+    )
   const named = (key: string) =>
     columnTitle(key, board.columns.find((column) => column.key === key)?.name)
-  const block = ticket.column === "blocked" || ticket.column === "failed" ? ticket.block : null
-  // A stop whose cause is Ponos's own, or a thing to set right first, is run
-  // again — « Relancer » — rather than made ready as a draft would be.
-  const again =
-    ticket.column === "review" ||
-    ticket.column === "done" ||
-    ticket.column === "failed" ||
-    (block != null && !["answer", "open-pr"].includes(block.action))
+  const block = ticket.column === "failed" ? ticket.block : null
+  // A ticket that has run already is run again — « Relancer » — rather than
+  // made ready as a draft would be.
+  const again = ticket.column === "review" || ticket.column === "done" || ticket.column === "failed"
   const ready = {
     title: again
       ? t("Run “{{title}}” again?", { title: titleOf(ticket) })
