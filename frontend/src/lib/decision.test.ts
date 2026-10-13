@@ -1,4 +1,4 @@
-/* The Unblock and Decide panels' decisions, held to what they say.
+/* The Unblock and Decide tabs' decisions, held to what they say.
  *
  *     npm test          (node --test, nothing to install)
  */
@@ -10,6 +10,7 @@ import {
   LABELS,
   actionOf,
   away,
+  decisionTabOf,
   buttonsOf,
   categoryOf,
   immediate,
@@ -40,6 +41,13 @@ test("a blocked card is unblocked, a card in review is decided, and nothing else
   assert.equal(actionOf("done"), null)
 })
 
+test("the tab that unblocks or decides is a blocked or reviewed ticket's, and no other's", () => {
+  assert.equal(decisionTabOf("blocked"), "unblock")
+  assert.equal(decisionTabOf("review"), "decide")
+  for (const column of ["draft", "ready", "running", "validated", "failed", "done", "cancelled"])
+    assert.equal(decisionTabOf(column), null, column)
+})
+
 test("every category the runner names has a name, and an unknown one reads as stuck", () => {
   for (const key of ["question", "access", "manual", "credits", "ci", "conflict", "split", "other"])
     assert.ok(CATEGORIES[key], key)
@@ -55,6 +63,11 @@ test("every key the runner offers has a button, and an option is called by its w
     assert.ok(LABELS[key], key)
   assert.equal(labelOf(offer("option", "", "Use Dokploy", 1)), "Use Dokploy")
   assert.equal(labelOf(offer("retry")), "Run it again")
+})
+
+test("giving a ticket up says the column it is filed in", () => {
+  assert.equal(labelOf({ ...offer("abandon", "note"), column: "done" }), "Abandon — move to done")
+  assert.equal(labelOf({ ...offer("abandon", "note"), column: "cancelled" }), "Abandon — move to cancelled")
 })
 
 test("a click is enough only for what needs nothing typed", () => {

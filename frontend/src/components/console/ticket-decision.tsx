@@ -12,7 +12,6 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -20,21 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { onPhone } from "@/components/console/shell"
+import { openInTheWindow } from "@/components/console/ticket-window"
 import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import { titleOf, useBoard } from "@/lib/board-store"
 import {
   CHECKS,
   PROMPTS,
+  type DecisionTab,
   actionOf,
   actionsOf,
   away,
   buttonsOf,
   categoryOf,
+  decisionTabOf,
   immediate,
   instructionOf,
   labelOf,
@@ -50,7 +50,7 @@ import { useT } from "@/lib/i18n"
 import type { Decision, Solution, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-/* The panel a card waiting on you opens: why it waits, and what to do about it.
+/* What a card waiting on you is for: why it waits, and what to do about it.
  *
  * A blocked card used to offer "make ready" and nothing else, and one in review
  * three gestures that said nothing of what they were deciding on: the reason was
@@ -58,56 +58,32 @@ import { cn } from "@/lib/utils"
  * does, see `decisions.py` — and lays out the few choices that fit, each a click,
  * or a click and a sentence.
  *
- * Held once, at the top of the console, like the ticket window and for the same
- * reason: a card is drawn again whenever the stream moves the board, and a
- * popover held by the card would close under the person reading it. A card only
- * says which ticket to open, and where its button is — the popover is anchored
- * to that button by looking it up again each time it is placed, so a card drawn
- * anew is followed rather than lost. On a phone it is a sheet from the bottom of
- * the screen, where a thumb reaches.
+ * It is a tab of the ticket — Unblock, or Decide — beside its brief, its
+ * discussion and its session. It was a panel of its own for a while, held over
+ * the console, and the ticket's window opened under it: two windows over the
+ * board, saying the ticket's title and why it stopped twice. The button on a
+ * card opens the window on this tab; the same button on the ticket itself, in
+ * its window or on its page, only switches to it.
  *
- * On a blocked card it is the only gesture there is, drawn the way "answer"
- * was — an outline in the colour of a ticket waiting on you — and the panel
- * does the choosing the card used to leave to you: a question opens on its
- * answer, a missing access on what is missing and "it's done", any other stop
- * on its reason and running it again. Under every one of them, a field for an
- * instruction of your own, and — quietly, where nothing above already does it
- * — running it again as it is, which was "make ready".
+ * On a blocked ticket it is drawn the way "answer" was — an outline in the
+ * colour of a ticket waiting on you — and the tab does the choosing the card
+ * used to leave to you: a question opens on its answer, a missing access on
+ * what is missing and "it's done", any other stop on its reason and running it
+ * again. Under every one of them, a field for an instruction of your own, and —
+ * quietly, where nothing above already does it — running it again as it is,
+ * which was "make ready".
  */
 
-let opened: string | null = null
-let last: DOMRect | null = null
-const listeners = new Set<() => void>()
-
-function show(id: string | null) {
-  if (opened === id) return
-  opened = id
-  for (const listener of listeners) listener()
-}
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-const useOpened = () => React.useSyncExternalStore(subscribe, () => opened)
-
-/* Where the button that opened the panel is now — or was, when it is gone. */
-const anchor = {
-  getBoundingClientRect: () => {
-    const button = opened ? document.querySelector(`[data-decide="${opened}"]`) : null
-    if (button) last = button.getBoundingClientRect()
-    return last ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 3, 0, 0)
-  },
-}
+/** How a ticket shown on screen goes to one of its tabs: none around a card, which opens the window instead. */
+export const TicketTabContext = React.createContext<((tab: DecisionTab) => void) | null>(null)
 
 /** The call to action of a card waiting on you: Unblock, or Decide. Nothing on any other card. */
 export function DecideButton({ ticket, className }: { ticket: Ticket; className?: string }) {
   const t = useT()
+  const goTo = React.useContext(TicketTabContext)
   const action = actionOf(ticket.column)
-  if (!action) return null
+  const tab = decisionTabOf(ticket.column)
+  if (!action || !tab) return null
   const blocked = ticket.column === "blocked"
   const Icon = blocked ? MessageCircleQuestion : Scale
   return (
@@ -119,10 +95,7 @@ export function DecideButton({ ticket, className }: { ticket: Ticket; className?
         blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white",
         className
       )}
-      onClick={(event) => {
-        last = event.currentTarget.getBoundingClientRect()
-        show(opened === ticket.id ? null : ticket.id)
-      }}
+      onClick={() => (goTo ? goTo(tab) : openInTheWindow(ticket.id, tab))}
     >
       <Icon />
       {t(action)}
@@ -130,68 +103,9 @@ export function DecideButton({ ticket, className }: { ticket: Ticket; className?
   )
 }
 
-/** The panel itself, drawn once by the console. */
-export function DecisionPanel() {
-  const id = useOpened()
-  const board = useBoard()
-  const t = useT()
-  const ticket = id ? board.tickets.find((item) => item.id === id) : undefined
-  const [phone, setPhone] = React.useState(onPhone)
-  React.useEffect(() => {
-    if (id) setPhone(onPhone())
-  }, [id])
-  const title = ticket ? titleOf(ticket) : ""
-  const heading = ticket ? t(actionOf(ticket.column) ?? "Decide") : t("Decide")
-  // Above the button or under it, whichever has more room: the panel scrolls
-  // within what it is given rather than running off the screen.
-  const room = id ? anchor.getBoundingClientRect() : null
-  const side = room && room.top > window.innerHeight - room.bottom ? "top" : "bottom"
-  const body = id ? <Panel key={id} id={id} ticket={ticket} onDone={() => show(null)} /> : null
-
-  if (phone)
-    return (
-      <Sheet open={Boolean(id)} onOpenChange={(open) => (open ? undefined : show(null))}>
-        <SheetContent
-          side="bottom"
-          data-slot="decision-panel"
-          closeLabel={t("Close")}
-          className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-xl pb-[max(1rem,env(safe-area-inset-bottom))]"
-        >
-          <SheetHeader className="pr-10 pb-2">
-            <SheetTitle className="text-base">{heading}</SheetTitle>
-            <SheetDescription className="line-clamp-2 break-words">{title}</SheetDescription>
-          </SheetHeader>
-          <div className="px-4">{body}</div>
-        </SheetContent>
-      </Sheet>
-    )
-
-  return (
-    <Popover open={Boolean(id)} onOpenChange={(open) => (open ? undefined : show(null))}>
-      <PopoverAnchor virtualRef={{ current: anchor }} />
-      <PopoverContent
-        data-slot="decision-panel"
-        role="dialog"
-        aria-label={`${heading} · ${title}`}
-        side={side}
-        align="start"
-        collisionPadding={12}
-        className="max-h-[min(80vh,var(--radix-popover-content-available-height))] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto p-4"
-        // A click on another card's button opens that one: closing on the
-        // way would be a flicker, and reopening the same one a toggle.
-        onInteractOutside={(event) => {
-          const target = event.target instanceof Element ? event.target.closest("[data-decide]") : null
-          if (target) event.preventDefault()
-        }}
-      >
-        <p className="text-muted-foreground mb-2 line-clamp-2 text-xs break-words">
-          <span className="text-foreground font-semibold">{heading}</span>
-          {title ? ` · ${title}` : ""}
-        </p>
-        {body}
-      </PopoverContent>
-    </Popover>
-  )
+/** The tab itself: why the ticket waits, and the choices. `onDone` is told once one is sent. */
+export function TicketDecision({ ticket, onDone }: { ticket: Ticket; onDone: () => void }) {
+  return <Panel key={ticket.id} id={ticket.id} ticket={ticket} onDone={onDone} />
 }
 
 function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: () => void }) {
@@ -226,7 +140,7 @@ function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: ()
       </div>
     )
   return (
-    <div className="space-y-4 text-sm">
+    <div data-slot="ticket-decision" className="space-y-4 text-sm">
       {decision.column === "review" ? <Delivered decision={decision} /> : <Stuck decision={decision} ticket={ticket} />}
       <Choices decision={decision} ticket={ticket} onDone={onDone} />
     </div>

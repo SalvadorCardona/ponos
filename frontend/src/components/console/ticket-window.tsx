@@ -28,11 +28,13 @@ import { ticketHref } from "@/resources/tickets"
  */
 
 let windowed: string | null = null
+let asked: string | null = null
 const listeners = new Set<() => void>()
 
-function show(id: string | null) {
-  if (windowed === id) return
+function show(id: string | null, tab: string | null = null) {
+  if (windowed === id && asked === tab) return
   windowed = id
+  asked = tab
   for (const listener of listeners) listener()
 }
 
@@ -45,6 +47,13 @@ const subscribe = (listener: () => void) => {
 
 /** The ticket open in the window, if one is. */
 export const useTicketWindow = () => React.useSyncExternalStore(subscribe, () => windowed)
+
+/** The tab the window was asked to open on, when it holds this ticket — Unblock, from a card's button. */
+export const useTicketWindowTab = (id: string) =>
+  React.useSyncExternalStore(subscribe, () => (windowed === id ? asked : null))
+
+/** Opens a ticket in the window, on one of its tabs: what a card's Unblock does. */
+export const openInTheWindow = (id: string, tab: string) => show(id, tab)
 
 /**
  * What a link to a ticket does on the board: a plain click opens the window,

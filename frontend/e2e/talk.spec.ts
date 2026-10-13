@@ -41,7 +41,7 @@ test("a stopped card says why, and Unblock opens on the question's answer", asyn
   await page.keyboard.press("Escape")
   await expect(page).toHaveURL(/block=session\.question/)
   await expect(card).toHaveCount(1)
-  // The panel shows the question, and the field to answer it is already open.
+  // The window opens on its Unblock tab: the question, and the field to answer it already open.
   // The board is wider than the window once Done and Cancelled both hold a
   // card: the strip scrolls smoothly, so the button is brought in, and clicked
   // once it has stopped moving rather than mid-scroll.
@@ -57,7 +57,8 @@ test("a stopped card says why, and Unblock opens on the question's answer", asyn
     )
     .toBe(true)
   await unblock.click()
-  const panel = page.locator('[data-slot="decision-panel"]')
+  await expect(page.locator('[data-slot="ticket-decide-tab"]')).toHaveAttribute("aria-selected", "true")
+  const panel = page.locator('[data-slot="ticket-decision"]')
   await expect(panel).toContainText("Which header, the dashboard's or the site's?")
   await expect(panel.getByRole("textbox", { name: "Your answer" })).toBeVisible()
 })

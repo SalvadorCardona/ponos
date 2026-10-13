@@ -1753,7 +1753,7 @@ export const FRENCH: Record<string, string> = {
   "Projects with their own, whatever these switches say:": "Projets qui ont la leur, quoi que disent ces interrupteurs :",
   "None does today.": "Aucun n'en a pour l'instant.",
 
-  /* -- Unblock and Decide (decision-panel.tsx, lib/decision.ts) ------------ */
+  /* -- Unblock and Decide (ticket-decision.tsx, lib/decision.ts) ----------- */
   Unblock: "Débloquer",
   Decide: "Décider",
   "A decision to make": "Une décision à prendre",
@@ -1771,6 +1771,8 @@ export const FRENCH: Record<string, string> = {
   "Run it again with an instruction": "Relancer en ajoutant une consigne",
   "Split into sub-tickets": "Découper en sous-tickets",
   "Abandon — move to done": "Abandonner — passer en terminé",
+  "Abandon — move to cancelled": "Abandonner — passer en abandonné",
+  "your decision is awaited": "votre décision est attendue",
   "Other: write an instruction": "Autre : écrire une consigne",
   "Send back with an instruction": "Renvoyer en cours avec une consigne",
   "Fix the CI": "Corriger la CI",
