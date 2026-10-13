@@ -11,17 +11,7 @@ import {
   SquareTerminal,
 } from "lucide-react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -363,27 +353,22 @@ function Confirmed({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const t = useT()
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      {label ? (
-        <AlertDialogTrigger asChild>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={body}
+      confirm={confirm}
+      onConfirm={onConfirm}
+      trigger={
+        label ? (
           <Button variant="outline" size="sm" className={className}>
             {label}
           </Button>
-        </AlertDialogTrigger>
-      ) : null}
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{body}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>{confirm}</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        ) : null
+      }
+    />
   )
 }
 

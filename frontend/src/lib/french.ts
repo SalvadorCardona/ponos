@@ -33,6 +33,8 @@ export const FRENCH: Record<string, string> = {
   Edit: "Modifier",
   delete: "retirer",
   Cancel: "Annuler",
+  Esc: "Échap",
+  Enter: "Entrée",
   Delete: "Supprimer",
   "Search...": "Rechercher…",
   "Select...": "Choisir…",

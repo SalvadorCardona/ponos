@@ -147,6 +147,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- Every confirmation window of the console — making a ticket ready, validating,
+  leaving a brief or the context unsaved, saving what Markdown cannot keep,
+  deleting a project — is now the same window, and answers the keyboard: it opens
+  on its main button, Enter does the main thing, Escape cancels, and a small
+  badge in each button says so (hidden on a touch screen). A second Enter, or
+  a key held down, does nothing while the first is on its way.
+
 - **A blocked card has one button, Unblock.** The pink *Unblock*, *answer* and *make ready*
   side by side left you to guess which one was yours; the card now carries a single
   *Unblock*, drawn the way *answer* was, and its panel picks for the cause: a question

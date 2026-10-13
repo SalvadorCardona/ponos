@@ -4,17 +4,8 @@ import { Pencil } from "lucide-react"
 import { Link } from "react-resource-view"
 import { toast } from "sonner"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { ApiError, api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
@@ -219,40 +210,26 @@ function BriefEditor({
         </span>
       </div>
 
-      <AlertDialog open={asking} onOpenChange={setAsking}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("Save and lose these?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {kinds.map(([kind, count]) => `${lostName(kind, t)} (${count})`).join(", ")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void write()}>{t("Save anyway")}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title={t("Save and lose these?")}
+        description={kinds.map(([kind, count]) => `${lostName(kind, t)} (${count})`).join(", ")}
+        confirm={t("Save anyway")}
+        onConfirm={() => void write()}
+      />
 
-      <AlertDialog
+      <ConfirmDialog
         open={leaving.status === "blocked"}
         onOpenChange={(open) => {
           if (!open) leaving.reset?.()
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("Leave without saving?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("The changes made to this brief are not saved.")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("Keep editing")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => leaving.proceed?.()}>{t("Leave")}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={t("Leave without saving?")}
+        description={t("The changes made to this brief are not saved.")}
+        cancel={t("Keep editing")}
+        confirm={t("Leave")}
+        onConfirm={() => leaving.proceed?.()}
+      />
     </div>
   )
 }
