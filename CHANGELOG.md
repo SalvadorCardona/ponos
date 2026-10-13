@@ -158,6 +158,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   is a ticket in progress that stopped, so it is read beside it: the columns, the status filter and
   the MCP tools all follow the one order — ready, in progress, blocked, in review, validated,
   failed, done, cancelled.
+- **Unblock is a tab of the ticket's window, not a second window beside it.** *Unblock* on a card —
+  and *Decide* on one in review — used to open a panel of its own over the board, and opening the
+  ticket put its window under it: two windows saying the same thing. The button now opens the
+  ticket's window on an *Unblock* (or *Decide*) tab, beside *Brief*, *Discussion* and *Live*,
+  with everything the panel had; on the ticket itself it only switches to the tab. The tab is
+  there only while the ticket waits on you, is named in the address of the ticket's page
+  (`&tab=unblock`), and goes once a choice is sent, for the discussion — or the session, when one
+  starts. *Abandon* says it files the ticket as cancelled when the board has that column.
 - Every confirmation window of the console — making a ticket ready, validating,
   leaving a brief or the context unsaved, saving what Markdown cannot keep,
   deleting a project — is now the same window, and answers the keyboard: it opens

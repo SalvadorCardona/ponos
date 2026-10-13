@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DecideButton } from "@/components/console/decision-panel"
+import { DecideButton } from "@/components/console/ticket-decision"
 import { useConsole } from "@/hooks/use-console"
 import { titleOf } from "@/lib/board-store"
 import { actionsOf } from "@/lib/decision"
@@ -400,9 +400,9 @@ export function TicketActions({
   // A ticket the runner has in hand is not one you move: drawing an empty row
   // for it would leave a gap on the card where the gestures would have been.
   if (ticket.column === "running") return null
-  // A blocked card has one gesture, Unblock: its cause is known, so the panel
+  // A blocked card has one gesture, Unblock: its cause is known, so the tab
   // it opens is the one to choose between answering, an instruction and
-  // running it again as it is — see `decision-panel.tsx`. Three buttons that
+  // running it again as it is — see `ticket-decision.tsx`. Three buttons that
   // all put it back to work left you to guess which one was yours.
   if (ticket.column === "blocked")
     return (
@@ -489,7 +489,7 @@ export function TicketActions({
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {/* What a card waiting on you is for: why it waits, and what to do —
-          see `decision-panel.tsx`. The plain gestures stay beside it. */}
+          see `ticket-decision.tsx`. The plain gestures stay beside it. */}
       <DecideButton ticket={ticket} />
       {proposed}
       {/* A cancelled ticket is reopened as a draft: given up on is not ready,

@@ -2240,9 +2240,12 @@ asks it for words instead. Nothing is kept on the side; the same sentence typed 
 does the same thing.
 
 **Unblock and Decide.** A *Blocked* card carries one button, **Unblock** — no *answer* or
-*make ready* beside it: the panel chooses for you — and a card *In
-review* a **Decide** one; both open a small panel over the board — a sheet from the bottom of
-the screen on a phone. Unblock says why the ticket stopped, in one sentence and under its
+*make ready* beside it: the tab it opens chooses for you — and a card *In
+review* a **Decide** one; both open the ticket's window on a tab of that name, beside *Brief*,
+*Discussion* and *Live*, there only while the ticket waits on you. The same button on the ticket
+itself switches to it, and on its page the tab is in the address (`&tab=unblock`,
+`&tab=decide`), so a link opens on it. Once a choice is sent the tab goes and the ticket shows
+its discussion — its session, when one starts. Unblock says why the ticket stopped, in one sentence and under its
 kind — a decision to make, missing access, something to do by hand, out of credit, failing
 checks, a conflict, too big for one ticket — then what is done and what is missing, and the
 few choices that would get it moving: the options the session proposed, *answer the
@@ -2257,7 +2260,8 @@ could not check; then *validate*, *send back with an instruction* — ready-made
 missing tests, screenshots, a rebase, or any of those points — or *reject*. Each choice writes
 one comment — *Answered from the console. Decision: run it again on opus.* and the words you
 typed — which the next session reads as yours, then moves the ticket: to *Ready* to work
-again, *Validated* to merge, *Done* to file it away.
+again, *Validated* to merge, *Done* — or *Cancelled*, on a board that has that column — to
+file it away.
 
 All of it is read off the report the runner already writes. A session that stops names the
 kind of thing it stopped on (a `CATEGORY:` line beside `WHY:` and `QUESTION:`), which the
@@ -2900,7 +2904,7 @@ back is a task, a project, an idea, an amount — never a page or a property.
 | `list_ideas` | Idées | read | the ideas of a project, or of the workspace, by state |
 | `create_task` | Créer une tâche | write | a task, *draft* or *ready*, with its description, project, type and priority — through the console's *New ticket*, so the same rules as any other |
 | `answer_question` | Répondre à une tâche bloquée | write | an answer under a blocked task's question, as the console's discussion writes it; `ready: true` also moves it back to *ready* |
-| `list_solutions` | Solutions d'une tâche en attente | read | why a blocked task stopped (its kind, its reason, what is done) or what a task in review delivered (sentence, pull request, checks, points to check), and the choices the console's Unblock and Decide panels offer |
+| `list_solutions` | Solutions d'une tâche en attente | read | why a blocked task stopped (its kind, its reason, what is done) or what a task in review delivered (sentence, pull request, checks, points to check), and the choices the console's Unblock and Decide tabs offer |
 | `apply_solution` | Appliquer une solution | write | one of those choices: the decision and its instruction in the task's discussion, then the move — *ready*, *validated* or *done* |
 | `create_idea` | Proposer une idée | write | an idea among the proposed ones, to be kept or thrown away |
 | `set_idea_state` | Garder ou jeter une idée | write | `keep` (for later, nothing on the board), `ticket` (a draft, as swiping right in the pile does), `discard`, or `new` to propose it again |

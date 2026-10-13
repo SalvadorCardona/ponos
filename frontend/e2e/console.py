@@ -12,8 +12,9 @@ console you run for yourself.
 One ticket is written long on purpose: a brief several screens tall, which is
 the page that stopped scrolling. One is blocked on a question a run asked, for
 the discussion its page opens on and the mark its card wears. Two more blocked
-on a report that names its kind of stop, and one in review with points to
-check, for the Unblock and Decide panels. Three projects, for the list whose cards
+on a report that names its kind of stop, three more on the same report for
+the Unblock gestures that move a ticket, and one in review with points to
+check, for the Unblock and Decide tabs. Three projects, for the list whose cards
 open them: two with a repository, and one without, an emoji for its icon. Five tickets for the gestures a card offers — one Done, one
 Validated, one Ready to be set aside and made ready again, one Ready to be
 given up, and one Cancelled to be reopened. Two schedules a pass
@@ -63,12 +64,16 @@ GESTURES = {
     "0000000000000000000000000000c0de": ("A ticket to give up", "Ready"),
     "0000000000000000000000000000c0ff": ("A ticket given up", "Cancelled"),
 }
-# Three cards waiting on you, for the Unblock and Decide panels: two blocked on
-# a report that names its kind of stop — one to read, one to act on — and one in
-# review whose report says what to check. No project, so no count moves.
+# Cards waiting on you, for the Unblock and Decide tabs: blocked on a report
+# that names its kind of stop — one to read, and one for each gesture that moves
+# it — and one in review whose report says what to check. No project, so no
+# count moves.
 WAITING = {
     "00000000000000000000000000b10c01": ("Install Tailscale on the server", "Blocked", "blocked"),
     "00000000000000000000000000b10c02": ("Choose the host", "Blocked", "blocked"),
+    "00000000000000000000000000b10c03": ("Open the firewall", "Blocked", "blocked"),
+    "00000000000000000000000000b10c04": ("Move the old backups", "Blocked", "blocked"),
+    "00000000000000000000000000b10c05": ("Renew the certificate", "Blocked", "blocked"),
     "00000000000000000000000000de1c01": ("Add the share button", "In review", "review"),
 }
 STUCK = (

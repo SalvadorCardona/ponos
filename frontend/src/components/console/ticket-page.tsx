@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocation, useRouter } from "@tanstack/react-router"
-import { ArrowLeft, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
+import { ArrowLeft, CircleAlert, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
 import { ActionList } from "react-data-form"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
 import { toast } from "sonner"
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConsole, useSteps } from "@/hooks/use-console"
 import { why } from "@/lib/api"
+import { type DecisionTab, actionOf, decisionTabOf } from "@/lib/decision"
 import { useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import type { TicketDetail } from "@/lib/types"
@@ -28,7 +29,9 @@ import { Eyebrow, Fact, Facts } from "./frame"
 import { Markdown } from "./markdown"
 import { MOOD, Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
+import { TicketDecision, TicketTabContext } from "./ticket-decision"
 import { TicketTalk } from "./ticket-talk"
+import { useTicketWindowTab } from "./ticket-window"
 import {
   SEED,
   columnTitle,
@@ -71,6 +74,9 @@ export function TicketPage() {
   const { ticket: open, openTicket, board } = useConsole()
   const t = useT()
   const brief = useBrief(page)
+  // Unblock, pressed on the ticket itself: a tab to switch to, under it.
+  const [asked, setAsked] = React.useState<{ tab: DecisionTab; at: number }>()
+  const goTo = React.useCallback((tab: DecisionTab) => setAsked({ tab, at: Date.now() }), [])
 
   // The page is the ticket's terminal too: opening it loads the discussion.
   React.useEffect(() => {
@@ -120,7 +126,9 @@ export function TicketPage() {
 
           {/* Priority, model and date are the grid's: the tags the card wears
               would say them a second time, one line above. */}
-          <TicketActions ticket={ticket} className="-mx-1" />
+          <TicketTabContext.Provider value={goTo}>
+            <TicketActions ticket={ticket} className="-mx-1" />
+          </TicketTabContext.Provider>
 
           {/* Chosen once per ticket, not every time the column moves: a
               tab that switched itself under the reader would lose them. */}
@@ -129,6 +137,7 @@ export function TicketPage() {
             ticket={ticket}
             brief={brief}
             talking={open?.id === ticket.id}
+            asked={asked}
           />
         </>
       ) : context.error ? (
@@ -307,7 +316,8 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
   )
 }
 
-/* The three tabs of a ticket: its brief, its discussion, its session.
+/* The tabs of a ticket: its brief, its discussion, its session — and, on one
+ * waiting on you, what unblocks it, or what you decide (see `ticket-decision.tsx`).
  *
  * Which one a ticket opens on says what it is waiting for. A running ticket
  * opens on its session, because that is what somebody opening it then has
@@ -324,14 +334,18 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
  * The tab picked is written in the address (`&tab=live`), so a reload, the
  * way back, or a link pasted elsewhere comes back to it — on the ticket's own
  * page only: the window over the board has the board's address, and keeps its
- * tab to itself.
+ * tab to itself, opened on Unblock by the card that asked for it.
+ *
+ * The Unblock or Decide tab is there only while the ticket waits on you. Once
+ * a choice is sent it goes, with nothing left to decide, and the ticket shows
+ * its discussion — its session, when one starts: that is what comes next.
  *
  * The status, the actions and the session's whereabouts stay above the tabs,
  * on every one of them; the facts that describe the ticket are the brief's.
  * `talking` says the discussion held is this ticket's, and not still the last
  * one's.
  */
-const TABS = ["brief", "discussion", "live"] as const
+const TABS = ["brief", "discussion", "live", "unblock", "decide"] as const
 type Tab = (typeof TABS)[number]
 
 const isTab = (value: string | null | undefined): value is Tab => TABS.includes(value as Tab)
@@ -365,10 +379,13 @@ function TicketTabs({
   ticket,
   brief,
   talking,
+  asked,
 }: {
   ticket: TicketDetail
   brief: ReturnType<typeof useBrief>
   talking: boolean
+  /** A tab the ticket's own Unblock button asked for — the latest press. */
+  asked?: { tab: DecisionTab; at: number }
 }) {
   const { talk, talkWaiting } = useConsole()
   const { sessions } = useSteps()
@@ -376,11 +393,29 @@ function TicketTabs({
   const session = sessions.find((candidate) => candidate.source === ticket.short)
   const running = ticket.column === "running" || Boolean(session)
   const waiting = ticket.column === "blocked" || (talking && talkWaiting)
+  // Sent: the tab goes at once, before the stream has said the ticket moved.
+  const [settled, setSettled] = React.useState(false)
+  React.useEffect(() => setSettled(false), [ticket.column])
+  const deciding = settled ? null : decisionTabOf(ticket.column)
+  const action = actionOf(ticket.column)
   const [addressed, address] = useAddressedTab(ticket.id)
+  const windowTab = useTicketWindowTab(ticket.id)
+  const requested = isTab(windowTab) ? windowTab : undefined
   const [tab, setTab] = React.useState<Tab>(
-    () => addressed ?? (running ? "live" : waiting ? "discussion" : "brief")
+    () => addressed ?? requested ?? (running ? "live" : waiting ? "discussion" : "brief")
   )
-  const picked = React.useRef(Boolean(addressed))
+  const picked = React.useRef(Boolean(addressed ?? requested))
+  // Left by itself when the decision was sent: still free to follow a session that starts.
+  const left = React.useRef(false)
+  const show = React.useCallback(
+    (next: Tab, chosen: boolean) => {
+      if (chosen) picked.current = true
+      left.current = !chosen
+      setTab(next)
+      address(next)
+    },
+    [address]
+  )
   React.useEffect(() => {
     if (waiting && !picked.current) setTab((was) => (was === "brief" ? "discussion" : was))
   }, [waiting])
@@ -388,6 +423,19 @@ function TicketTabs({
   React.useEffect(() => {
     if (addressed) setTab(addressed)
   }, [addressed])
+  // The Unblock button above the tabs, pressed.
+  React.useEffect(() => {
+    if (asked) show(asked.tab, true)
+  }, [asked, show])
+  // Nothing left to decide — sent from here, or moved elsewhere: the tab goes,
+  // and the ticket shows what comes next.
+  const gone = (tab === "unblock" || tab === "decide") && tab !== deciding
+  React.useEffect(() => {
+    if (gone) show(running ? "live" : "discussion", false)
+  }, [gone, running, show])
+  React.useEffect(() => {
+    if (running && left.current && tab === "discussion") show("live", false)
+  }, [running, tab, show])
   // What was said, not a line saying the discussion could not be read.
   const count = talking ? talk.filter((message) => message.role !== "error").length : 0
 
@@ -395,10 +443,7 @@ function TicketTabs({
     <Tabs
       value={tab}
       onValueChange={(value) => {
-        if (!isTab(value)) return
-        picked.current = true
-        setTab(value)
-        address(value)
+        if (isTab(value)) show(value, true)
       }}
       className="mt-6 gap-4"
     >
@@ -432,6 +477,16 @@ function TicketTabs({
             </>
           ) : null}
         </TabsTrigger>
+        {deciding && action ? (
+          <TabsTrigger value={deciding} data-slot="ticket-decide-tab">
+            {t(action)}
+            <CircleAlert
+              data-slot="ticket-decide-badge"
+              className={cn("size-4", deciding === "unblock" ? "text-tr-amber" : "text-tr-pink")}
+              aria-label={t("your decision is awaited")}
+            />
+          </TabsTrigger>
+        ) : null}
       </TabsList>
 
       <TabsContent value="brief">
@@ -476,6 +531,11 @@ function TicketTabs({
       <TabsContent value="live">
         <TicketLive ticket={ticket} />
       </TabsContent>
+      {deciding ? (
+        <TabsContent value={deciding}>
+          <TicketDecision ticket={ticket} onDone={() => setSettled(true)} />
+        </TabsContent>
+      ) : null}
     </Tabs>
   )
 }

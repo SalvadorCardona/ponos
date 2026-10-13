@@ -826,7 +826,7 @@ _SAID: dict[str, dict[str, str]] = {
     },
     "relayed-no": {"en": "No — do not do that.", "fr": "Non — ne fais pas ça."},
     "relayed-option": {"en": "Option {number}: {option}.", "fr": "Option {number} : {option}."},
-    # A choice made from the console's Unblock and Decide panels, said on the
+    # A choice made from the console's Unblock and Decide tabs, said on the
     # ticket under the line that says where it came from — see decisions.py.
     "decision": {"en": "Decision: {choice}.", "fr": "Décision : {choice}."},
     "decided-answer": {"en": "answer to the question", "fr": "réponse à la question"},

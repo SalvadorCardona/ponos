@@ -1,4 +1,4 @@
-/* What the Unblock and Decide panels decide, without a DOM to decide it in.
+/* What the Unblock and Decide tabs decide, without a DOM to decide it in.
  *
  * The server says what a card offers (`decisions.py`): a key, the column it
  * moves the ticket to, and what it needs before it can be done. What a button
@@ -41,6 +41,7 @@ export const LABELS: Record<string, string> = {
   instruct: "Run it again with an instruction",
   split: "Split into sub-tickets",
   abandon: "Abandon — move to done",
+  "abandon-cancelled": "Abandon — move to cancelled",
   other: "Other: write an instruction",
   validate: "Validate",
   rework: "Send back with an instruction",
@@ -69,9 +70,13 @@ export const promptOf = (offer: Offer): string =>
 export const categoryOf = (key: string | undefined): string =>
   CATEGORIES[key ?? ""] ?? CATEGORIES.other
 
-/** The button an offer is drawn as: the option's words, or its key's sentence. */
+/** The button an offer is drawn as: the option's words, or its key's sentence — giving up says where it files the ticket. */
 export const labelOf = (offer: Offer): string =>
-  offer.key === "option" ? offer.text : (LABELS[offer.key] ?? offer.key)
+  offer.key === "option"
+    ? offer.text
+    : offer.key === "abandon" && offer.column === "cancelled"
+      ? LABELS["abandon-cancelled"]
+      : (LABELS[offer.key] ?? offer.key)
 
 /** Whether a click does it at once, rather than opening a field to fill first. */
 export const immediate = (offer: Offer): boolean => offer.needs === ""
@@ -103,7 +108,7 @@ export function tone(offer: Offer, index: number): "default" | "outline" {
   return index === 0 && offer.key !== "other" && !away(offer) ? "default" : "outline"
 }
 
-/* A blocked ticket's panel is laid out rather than listed. Writing an
+/* A blocked ticket's tab is laid out rather than listed. Writing an
  * instruction is not one choice among others but a field that is always
  * there — "drop that part, only do X" fits every kind of stop — so the two
  * offers that open one ("instruct", "other") are not drawn as buttons. */
@@ -119,11 +124,11 @@ export const instructionOf = <T extends Offer>(column: string, offers: T[]): T |
     ? null
     : (WRITTEN.map((key) => offers.find((offer) => offer.key === key)).find(Boolean) ?? null)
 
-/** The offer whose field opens with the panel: a question's answer, which is what it waits for. */
+/** The offer whose field opens with the tab: a question's answer, which is what it waits for. */
 export const openedWith = <T extends Offer>(column: string, offers: T[]): T | null =>
   column === "blocked" ? (offers.find((offer) => offer.key === "answer") ?? null) : null
 
-/** Whether the panel adds a quiet "run it again without changes": only where no offer already does that. */
+/** Whether the tab adds a quiet "run it again without changes": only where no offer already does that. */
 export const plainRetry = (column: string, offers: Offer[]): boolean =>
   column === "blocked" && !offers.some((offer) => offer.key === "retry")
 
@@ -137,6 +142,15 @@ export function actionsOf(pullRequest: string): string {
 /** What a card's call to action says, in the column it is in. */
 export const actionOf = (column: string): string | null =>
   column === "blocked" ? "Unblock" : column === "review" ? "Decide" : null
+
+/* The call to action is a tab of the ticket's window, and of its page, named
+ * in the address like the others (`&tab=unblock`): a link to a blocked ticket
+ * opens on what unblocks it. */
+export type DecisionTab = "unblock" | "decide"
+
+/** The tab a ticket waiting on you has for it, in the column it is in — none on any other. */
+export const decisionTabOf = (column: string): DecisionTab | null =>
+  column === "blocked" ? "unblock" : column === "review" ? "decide" : null
 
 /** The words a pull request's checks are summed up in. */
 export const CHECKS: Record<string, string> = {
