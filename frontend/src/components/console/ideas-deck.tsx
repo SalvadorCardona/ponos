@@ -22,8 +22,9 @@ import { projectHref } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
 import { IdeaOrigin } from "./idea-origin"
-import { Byline, IdeaList } from "./ideas-list"
+import { Byline } from "./idea-cards"
 import { Robot } from "./robot"
+import { ScopedIdeas } from "./scoped-ideas"
 
 /* Ideas, one card at a time.
  *
@@ -45,7 +46,7 @@ import { Robot } from "./robot"
  * Keeping a card here turns it into a ticket at once — the deck is for deciding
  * quickly. Keeping one for later without a ticket, throwing it away, making it
  * new again, or writing one by hand is the list's, the deck's second tab (see
- * `ideas-list.tsx`), which holds every idea of the scope, thrown ones included.
+ * `scoped-ideas.tsx`), which holds every idea of the scope, thrown ones included.
  */
 
 type Phase = "loading" | "finding" | "ready" | "failed"
@@ -366,7 +367,7 @@ function IdeasDialog({
             </div>
           </TabsContent>
           <TabsContent value="history" className="min-h-0 flex-1 overflow-y-auto">
-            <IdeaList project={project} name={name} />
+            <ScopedIdeas project={project} name={name} />
           </TabsContent>
         </Tabs>
       </DialogContent>

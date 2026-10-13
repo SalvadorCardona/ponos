@@ -1,12 +1,14 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 /* The Ideas page: every idea in one place, with the project it is for.
  *
  * The ideas come from the same fake `claude` as the swipe's spec (see
  * `console.py`). What is checked is what somebody does with the page: reaching
  * it from the menu, finding the ideas Ponos asked for in it, the project's name
- * on its ideas, the two filters, and turning an idea into a ticket of the right
- * project — and, at the width of a phone, a single column inside the screen.
+ * on its ideas, the three filters and the address that keeps them, the gestures
+ * of a card — the one in sight and the ones in its menu —, reading one and
+ * writing one, and turning an idea into a ticket of the right project — and, at
+ * the width of a phone, a single column inside the screen.
  *
  * One server and one file, one test after another: the ideas are the console's.
  */
@@ -24,6 +26,25 @@ async function open(page: Page, path = PAGE) {
 const cards = (page: Page) => page.locator('[data-slot="ideas-item"]')
 const origin = (page: Page, name: string) => page.locator('[data-slot="idea-origin"]', { hasText: name })
 const status = (page: Page, key: string) => page.locator(`[data-slot="ideas-filter"][data-status="${key}"]`)
+const drawer = (page: Page) => page.locator('[data-slot="drawer-popup"]')
+/** What the address says the list is filtered on. */
+const filterOf = (page: Page) => {
+  // Written by the package encoded once more than a search parameter is.
+  let said = new URL(page.url()).searchParams.get("filter") || "{}"
+  while (!said.startsWith("{")) said = decodeURIComponent(said)
+  return JSON.parse(said)
+}
+
+/** One of the gestures a card keeps in its menu. Opened again when it closes
+ * under the click: a menu opened while the last one is still leaving is closed
+ * by the focus that one gives back to its button. */
+async function choose(page: Page, card: Locator, name: string) {
+  const item = page.getByRole("menuitem", { name, exact: true })
+  await expect(async () => {
+    if (!(await item.isVisible())) await card.locator('[data-slot="ideas-menu"]').click()
+    await item.click({ timeout: 1000 })
+  }).toPass()
+}
 
 /** Ask for a batch from the page's button, sort nothing, and close the swipe. */
 async function ask(page: Page) {
@@ -47,7 +68,7 @@ test.describe("at 1440px", () => {
     await expect(origin(page, "Workspace").first()).toBeVisible()
   })
 
-  test("the page's buttons look like the dashboard's", async ({ page }) => {
+  test("the swipe's button looks like the dashboard's, and New idea is at the top of the list", async ({ page }) => {
     const look = (selector: string) =>
       page.locator(selector).first().evaluate((el) => {
         const css = getComputedStyle(el)
@@ -57,7 +78,8 @@ test.describe("at 1440px", () => {
     const dashboard = await look('[data-slot="ideas-button"]')
     await open(page)
     expect(await look('[data-slot="ideas-button"]')).toBe(dashboard)
-    expect(await look('[data-slot="ideas-new"]')).toBe(dashboard)
+    const header = page.locator('[data-slot="list-header"]')
+    await expect(header.getByRole("button", { name: "New idea", exact: true })).toBeVisible()
   })
 
   test("a project's ideas carry its name, and the filters narrow the list", async ({ page }) => {
@@ -96,17 +118,21 @@ test.describe("at 1440px", () => {
     const title = (await cards(page).first().locator('[data-slot="ideas-title"]').textContent())!
     const mine = () => cards(page).filter({ hasText: title })
 
-    await mine().getByRole("button", { name: "Keep", exact: true }).click()
+    // One gesture in sight, the others in the menu.
+    await expect(mine().getByRole("button", { name: "Turn into a ticket" })).toBeVisible()
+    await expect(mine().getByRole("button", { name: "Keep", exact: true })).toHaveCount(0)
+
+    await choose(page, mine(), "Keep")
     await status(page, "kept").click()
     await expect(mine()).toHaveAttribute("data-status", "kept")
-    await mine().getByRole("button", { name: "Back to new" }).click()
+    await choose(page, mine(), "Back to new")
     await expect(mine()).toHaveCount(0)
 
     await status(page, "proposed").click()
-    await mine().getByRole("button", { name: "Throw away" }).click()
+    await choose(page, mine(), "Throw away")
     await status(page, "discarded").click()
     await expect(mine()).toHaveAttribute("data-status", "discarded")
-    await mine().getByRole("button", { name: "Back to new" }).click()
+    await choose(page, mine(), "Back to new")
     await expect(mine()).toHaveCount(0)
   })
 
@@ -129,6 +155,69 @@ test.describe("at 1440px", () => {
     const made = board.find((ticket) => ticket.title === title)
     expect(made?.column).toBe("draft")
     expect(made?.project).toBeTruthy()
+  })
+  test("the filters are in the address, and a reload or a shared link opens the same list", async ({ page }) => {
+    await open(page)
+    await expect(cards(page).first()).toBeVisible()
+    await status(page, "proposed").click()
+    const filter = page.locator('[data-slot="ideas-project-filter"]')
+    await filter.click()
+    await page.getByRole("option", { name: "Website" }).click()
+    await page.locator('[data-slot="ideas-author-filter"]').click()
+    await page.getByRole("option", { name: "Written by Ponos" }).click()
+    await expect.poll(() => filterOf(page)).toMatchObject({ status: "proposed", author: "ponos" })
+    expect(filterOf(page).project).toBeTruthy()
+    const shown = await cards(page).count()
+    expect(shown).toBeGreaterThan(0)
+    const address = page.url()
+
+    await page.reload()
+    await expect(cards(page)).toHaveCount(shown)
+    await expect(status(page, "proposed")).toHaveAttribute("aria-pressed", "true")
+    await expect(filter).toContainText("Website")
+    await expect(page.locator('[data-slot="ideas-author-filter"]')).toContainText("Written by Ponos")
+    for (const card of await cards(page).all()) {
+      await expect(card).toHaveAttribute("data-status", "proposed")
+      await expect(card).toHaveAttribute("data-author", "ponos")
+    }
+
+    await open(page, address)
+    await expect(cards(page)).toHaveCount(shown)
+    // Back to "all": nothing left in the address.
+    await page.getByRole("button", { name: "Clear the search" }).first().click()
+    await expect(status(page, "all")).toHaveAttribute("aria-pressed", "true")
+    await expect.poll(() => Object.keys(filterOf(page)).length).toBe(0)
+  })
+
+  test("a list the filters empty says so, and its button brings the ideas back", async ({ page }) => {
+    await open(page)
+    await page.locator('[data-slot="ideas-author-filter"]').click()
+    await page.getByRole("option", { name: "Written by us" }).click()
+    await status(page, "ticket").click()
+    await expect(page.getByText("No idea matches these filters.")).toBeVisible()
+    await page.getByRole("button", { name: "Clear the filters" }).click()
+    await expect(cards(page).first()).toBeVisible()
+  })
+
+  test("an idea's title opens it whole, and New idea writes one", async ({ page }) => {
+    await open(page)
+    await status(page, "proposed").click()
+    const first = cards(page).first()
+    const title = (await first.locator('[data-slot="ideas-title"]').textContent())!
+    await first.locator('[data-slot="ideas-title"]').click()
+    const whole = drawer(page).locator('[data-slot="ideas-page"]')
+    await expect(whole.getByRole("heading", { name: title })).toBeVisible()
+    await expect(whole.getByRole("button", { name: "Turn into a ticket" })).toBeVisible()
+    await expect(whole.getByRole("button", { name: "Keep", exact: true })).toBeVisible()
+    await page.keyboard.press("Escape")
+
+    await page.locator('[data-slot="list-header"]').getByRole("button", { name: "New idea", exact: true }).click()
+    await drawer(page).getByLabel("Title").fill("A shop for the mugs")
+    await drawer(page).getByRole("button", { name: "Create" }).click()
+    await expect(page.getByText("Idea saved: A shop for the mugs")).toBeVisible()
+    const mine = cards(page).filter({ hasText: "A shop for the mugs" })
+    await expect(mine).toHaveAttribute("data-author", "human")
+    await expect(mine.locator('[data-slot="idea-origin"]')).toHaveText("Workspace")
   })
 })
 

@@ -22,11 +22,11 @@ import { Eyebrow, Fact, Facts } from "./frame"
 import { IdeasButton } from "./ideas-deck"
 import { ProjectBrief } from "./project-brief"
 import { ProjectMenu } from "./project-delete"
-import { IdeaList } from "./ideas-list"
 import { ProjectCover } from "./project-picture"
 import { ProjectSettingsTab } from "./project-settings"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
+import { ScopedIdeas } from "./scoped-ideas"
 import { StatisticsBand } from "./statistics-band"
 import { Away, Chip, reachable } from "./ticket-bits"
 
@@ -178,7 +178,7 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
       </TabsContent>
       {ideas ? (
         <TabsContent value="ideas">
-          <IdeaList project={project.id.replace(/-/g, "")} name={project.name} find />
+          <ScopedIdeas project={project.id.replace(/-/g, "")} name={project.name} find />
         </TabsContent>
       ) : null}
       <TabsContent value="brief">{children}</TabsContent>
