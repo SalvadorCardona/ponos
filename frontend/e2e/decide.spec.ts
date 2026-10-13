@@ -24,6 +24,17 @@ const panel = (page: Page) => page.locator('[data-slot="decision-panel"]')
 test.describe("on a desktop", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
+  test("a blocked card offers Unblock and nothing else", async ({ page }) => {
+    await board(page)
+    const unblock = page.locator(`[data-decide="${READ}"]`)
+    await expect(unblock).toHaveText("Unblock")
+    const card = page.locator("div.rounded-2xl.p-3", { has: unblock }).last()
+    await expect(card.getByRole("button")).toHaveText(["Unblock"])
+    await expect(card.locator('[data-slot="block-action"]')).toHaveCount(0)
+    // No catalogued cause on this one: its mark says only that it waits.
+    await expect(card.locator('[data-slot="ticket-waiting"]')).toHaveText("waiting for you")
+  })
+
   test("a blocked card says why it is stuck and what would unblock it", async ({ page }) => {
     await board(page)
     await page.locator(`[data-decide="${READ}"]`).click()
@@ -35,11 +46,17 @@ test.describe("on a desktop", () => {
     const choices = panel(page).locator("[data-solution]")
     await expect(choices.first()).toHaveText(/Give me an SSH key/)
     await expect(panel(page).getByRole("button", { name: "It's done, run it again" })).toBeVisible()
-    await expect(choices.last()).toHaveText("Other: write an instruction")
+    await expect(choices.last()).toHaveText("Abandon — move to done")
+    // An instruction of your own is not a choice among them: its field is always there.
+    await expect(panel(page).getByRole("button", { name: "Other: write an instruction" })).toHaveCount(0)
+    const instruction = panel(page).locator('[data-slot="decision-instruction"]')
+    await expect(instruction.getByRole("textbox")).toBeVisible()
+    await expect(instruction.getByRole("button", { name: "Send and run again" })).toBeDisabled()
+    // Nothing above runs it again as it is, so the quiet way does.
+    await expect(panel(page).getByRole("button", { name: "Run it again without changes" })).toBeVisible()
     // A choice that needs words opens its field; one that does not, does not.
-    await choices.last().click()
-    const send = panel(page).getByRole("button", { name: "Send and run again" })
-    await expect(send).toBeDisabled()
+    await panel(page).getByRole("button", { name: "It's done, run it again" }).click()
+    await expect(panel(page).getByRole("textbox")).toHaveCount(2)
     await page.keyboard.press("Escape")
     await expect(panel(page)).toBeHidden()
   })
@@ -47,16 +64,16 @@ test.describe("on a desktop", () => {
   test("an instruction of your own moves the ticket to Ready and is left on it", async ({ page }) => {
     await board(page)
     await page.locator(`[data-decide="${ACT}"]`).click()
-    await panel(page).getByRole("button", { name: "Other: write an instruction" }).click()
-    await panel(page).getByRole("textbox").fill("Use the key in 1Password.")
-    await panel(page).getByRole("button", { name: "Send and run again" }).click()
+    const instruction = panel(page).locator('[data-slot="decision-instruction"]')
+    await instruction.getByRole("textbox").fill("Use the key in 1Password.")
+    await instruction.getByRole("button", { name: "Send and run again" }).click()
     await expect(page.getByText("“Choose the host” moved to Ready")).toBeVisible()
     await expect(panel(page)).toBeHidden()
     const said = (await (await page.request.get(`/api/tickets/${ACT}/talk`)).json()) as {
       messages: { text: string }[]
     }
     const last = said.messages[said.messages.length - 1].text
-    expect(last).toContain("Decision: an instruction.")
+    expect(last).toContain("Decision: run it again with an instruction.")
     expect(last).toContain("Use the key in 1Password.")
   })
 

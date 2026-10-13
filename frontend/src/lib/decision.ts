@@ -61,6 +61,10 @@ export const PROMPTS: Record<Offer["needs"], string> = {
   titles: "One sub-ticket a line",
 }
 
+/** What the field under an offer says while it is empty: an answer is an answer, not an instruction. */
+export const promptOf = (offer: Offer): string =>
+  offer.key === "answer" ? "Your answer" : offer.needs === "model" ? PROMPTS.note : PROMPTS[offer.needs]
+
 /** The category's name, for one the server sent — or "Stuck" for one it did not know. */
 export const categoryOf = (key: string | undefined): string =>
   CATEGORIES[key ?? ""] ?? CATEGORIES.other
@@ -97,6 +101,37 @@ export const away = (offer: Offer): boolean => offer.key === "abandon" || offer.
 /** How a button looks: the way forward stands out, the rest are outlines. */
 export function tone(offer: Offer, index: number): "default" | "outline" {
   return index === 0 && offer.key !== "other" && !away(offer) ? "default" : "outline"
+}
+
+/* A blocked ticket's panel is laid out rather than listed. Writing an
+ * instruction is not one choice among others but a field that is always
+ * there — "drop that part, only do X" fits every kind of stop — so the two
+ * offers that open one ("instruct", "other") are not drawn as buttons. */
+const WRITTEN = ["instruct", "other"]
+
+/** The offers drawn as buttons: on a blocked ticket, all but the instruction, which has its field. */
+export const buttonsOf = <T extends Offer>(column: string, offers: T[]): T[] =>
+  column === "blocked" ? offers.filter((offer) => !WRITTEN.includes(offer.key)) : offers
+
+/** The offer the always-open field of a blocked ticket sends: an instruction, or "other" where there is none. */
+export const instructionOf = <T extends Offer>(column: string, offers: T[]): T | null =>
+  column !== "blocked"
+    ? null
+    : (WRITTEN.map((key) => offers.find((offer) => offer.key === key)).find(Boolean) ?? null)
+
+/** The offer whose field opens with the panel: a question's answer, which is what it waits for. */
+export const openedWith = <T extends Offer>(column: string, offers: T[]): T | null =>
+  column === "blocked" ? (offers.find((offer) => offer.key === "answer") ?? null) : null
+
+/** Whether the panel adds a quiet "run it again without changes": only where no offer already does that. */
+export const plainRetry = (column: string, offers: Offer[]): boolean =>
+  column === "blocked" && !offers.some((offer) => offer.key === "retry")
+
+/* Where the CI of a pull request's repository is read: its Actions page, from
+ * the pull request's own address. */
+export function actionsOf(pullRequest: string): string {
+  const repository = pullRequest.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/pull\//)
+  return repository ? `${repository[1]}/actions` : ""
 }
 
 /** What a card's call to action says, in the column it is in. */
