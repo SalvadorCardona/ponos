@@ -262,6 +262,12 @@ last_ticket = "Last ticket"
 #   blocked  the agent could not settle the ticket and asked a question instead
 #            of guessing — or the project could not be located. Its own column:
 #            "waiting for you" and "something is wrong" are different days
+#   cancelled  a ticket you gave up on. Terminal, like done, and not done: the
+#            runner never runs it, never takes it back, never answers it into
+#            work again, and the statistics count it neither closed nor open —
+#            what it cost stays in the totals. Optional: a board that does not
+#            offer the option has no such gesture (`doctor` says so, `init`
+#            adds it to a select); move it out of the column to reopen it
 #   draft    optional, and with no default: the option your board already has
 #            for a ticket still being written. The console draws those tickets
 #            in a "Drafts" column, and "New ticket" with "Ready to run" off puts
@@ -277,6 +283,7 @@ validated = "Validated"
 done = "Done"
 failed = "Failed"
 blocked = "Blocked"
+cancelled = "Cancelled"
 # draft = "Draft"
 
 # The four types a ticket can be, as the options of its Type column spell them.

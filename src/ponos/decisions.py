@@ -262,14 +262,15 @@ def delivered(comments: Iterable[str]) -> Delivered:
     return Delivered(summary=summary, pull_request=pull_request, caveats=caveats, facts=facts)
 
 
-def unblocking(found: Blockage, *, models: bool = True) -> list[Solution]:
+def unblocking(found: Blockage, *, models: bool = True, cancel: bool = False) -> list[Solution]:
     """What a blocked ticket offers, the session's own proposals first.
 
     A yes-no question offers its yes, and a choice its options — except on a
     ticket too big for one, whose options are the sub-tickets it proposes and go
     into the split instead. Then whatever its kind of stop calls for, and last,
     always, an instruction of your own. `models` is whether the board has a Model
-    column to run it again on another model with.
+    column to run it again on another model with, and `cancel` whether it has a
+    cancelled one to file an abandoned ticket under rather than done.
     """
     solutions: list[Solution] = []
     asked = found.question
@@ -291,7 +292,7 @@ def unblocking(found: Blockage, *, models: bool = True) -> list[Solution]:
         elif key == "model":
             solutions.append(Solution("model", "ready", needs="model"))
         elif key == "abandon":
-            solutions.append(Solution("abandon", "done", needs="note"))
+            solutions.append(Solution("abandon", "cancelled" if cancel else "done", needs="note"))
         elif key in ("instruct",):
             solutions.append(Solution(key, "ready", needs="text"))
         else:
@@ -301,7 +302,12 @@ def unblocking(found: Blockage, *, models: bool = True) -> list[Solution]:
 
 
 def deciding(
-    found: Delivered, said: voice_module.Voice, *, checks: str = "", validate: bool = True
+    found: Delivered,
+    said: voice_module.Voice,
+    *,
+    checks: str = "",
+    validate: bool = True,
+    cancel: bool = False,
 ) -> list[Solution]:
     """What a ticket in review offers: validate, send it back, or reject it.
 
@@ -309,7 +315,8 @@ def deciding(
     checks, and each point the session said it could not check — with the
     instruction written out, for you to send as it is or to change. `validate`
     is whether the board has the column the runner acts on; without it, a
-    validated ticket is a done one.
+    validated ticket is a done one. `cancel` is whether a rejected ticket can be
+    filed as cancelled — given up on — rather than as done.
     """
     solutions = [Solution("validate", "validated" if validate else "done")]
     solutions.append(Solution("rework", "ready", needs="text"))
@@ -329,7 +336,7 @@ def deciding(
             else f"{said.say(f'told-{key}')} — {caveat}"
         )
         solutions.append(Solution(key, "ready", needs="text", text=text, number=number))
-    solutions.append(Solution("reject", "done", needs="note"))
+    solutions.append(Solution("reject", "cancelled" if cancel else "done", needs="note"))
     return solutions
 
 
@@ -354,6 +361,8 @@ def label(
         if not named:
             return said.say("offer-split")
         return said.say("decided-split", count=len(named), titles=" · ".join(named))
+    if solution.column == "cancelled":
+        return said.say(f"decided-{solution.key}-cancelled")
     return said.say(f"decided-{solution.key}")
 
 

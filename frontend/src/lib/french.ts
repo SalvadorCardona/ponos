@@ -226,6 +226,7 @@ export const FRENCH: Record<string, string> = {
   Blocked: "Bloqué",
   Failed: "Échoué",
   Done: "Terminé",
+  Cancelled: "Abandonné",
   Draft: "Brouillon",
   "(untitled ticket)": "(ticket sans titre)",
   // The pages of a long list, which the console draws itself (`pagination.tsx`).
@@ -299,6 +300,10 @@ export const FRENCH: Record<string, string> = {
   Infrastructure: "Infrastructure",
   Question: "Question",
   "make ready": "rendre prêt",
+  "cancel the ticket": "abandonner le ticket",
+  reopen: "rouvrir",
+  "Back to the drafts: the runner does not touch it until it is made ready.":
+    "Retour aux brouillons : le runner n'y touche pas tant qu'il n'est pas rendu prêt.",
   validate: "valider",
   done: "terminé",
   hold: "mettre en attente",
@@ -1415,6 +1420,8 @@ export const FRENCH: Record<string, string> = {
   "Something broke; a log says what.": "Quelque chose a cassé ; un journal dit quoi.",
   "The runner asked you a question and is waiting.":
     "Le runner vous a posé une question et attend.",
+  "Given up on: never run, counted neither done nor open.":
+    "Laissé tomber : jamais lancé, compté ni terminé ni ouvert.",
   "Optional: the option your board already has for tickets still being written. Never picked up. Empty: a draft has no status.":
     "Facultatif : l'option que votre tableau a déjà pour les tickets en cours d'écriture. Jamais pris en charge. Vide : un brouillon n'a pas de statut.",
 

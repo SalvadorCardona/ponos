@@ -73,3 +73,40 @@ test("a Ready ticket is set aside in one click, and made ready again once confir
   await expect(page.getByText("“A ticket to set aside” moved to Ready")).toBeVisible()
   await expect(page.getByRole("button", { name: "set aside" })).toBeVisible()
 })
+
+test("a ticket is given up from its menu, and lands in its own column", async ({ page }) => {
+  await open(page, "0000000000000000000000000000c0de", "A ticket to give up")
+  await page.getByRole("button", { name: "More actions" }).click()
+  await page.getByRole("menuitem", { name: "cancel the ticket" }).click()
+  await expect(page.getByText("“A ticket to give up” moved to Cancelled")).toBeVisible()
+  await expect
+    .poll(async () => {
+      const tickets = (await (await page.request.get("/api/board")).json()).tickets as {
+        id: string
+        column: string
+        sync?: string
+      }[]
+      const ticket = tickets.find((item) => item.id === "0000000000000000000000000000c0de")
+      return `${ticket?.column} ${ticket?.sync ?? ""}`.trim()
+    })
+    .toBe("cancelled")
+})
+
+test("a cancelled ticket wears its column, struck through, and is reopened as a draft", async ({ page }) => {
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.goto("/?view=console/tickets")
+  const column = page.locator("header").filter({ hasText: /^Cancelled/ })
+  await expect(column.first()).toBeVisible()
+  const title = page.getByRole("link", { name: "A ticket given up", exact: true }).first()
+  await expect(title).toHaveCSS("text-decoration-line", "line-through")
+
+  // Searchable by its status, like any other column.
+  await page.getByRole("button", { name: /^Status/ }).click()
+  await expect(page.getByRole("menuitemcheckbox", { name: /^Cancelled/ })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  await open(page, "0000000000000000000000000000c0ff", "A ticket given up")
+  await expect(page.getByText("Cancelled", { exact: true }).first()).toBeVisible()
+  await page.getByRole("button", { name: "reopen" }).click()
+  await expect(page.getByText("“A ticket given up” moved to Draft")).toBeVisible()
+})

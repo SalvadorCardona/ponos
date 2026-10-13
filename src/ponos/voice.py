@@ -845,6 +845,10 @@ _SAID: dict[str, dict[str, str]] = {
     },
     "offer-split": {"en": "split into sub-tickets", "fr": "découper en sous-tickets"},
     "decided-abandon": {"en": "abandoned, moved to done", "fr": "abandonné, passé en terminé"},
+    "decided-abandon-cancelled": {
+        "en": "abandoned, moved to cancelled",
+        "fr": "abandonné, classé sans suite",
+    },
     "decided-other": {"en": "an instruction", "fr": "une consigne"},
     "decided-validate": {"en": "validated", "fr": "validé"},
     "decided-rework": {
@@ -863,6 +867,10 @@ _SAID: dict[str, dict[str, str]] = {
     "decided-rebase": {"en": "back to work: rebase onto the base branch", "fr": "renvoyé : rebaser sur la branche de base"},
     "decided-caveat": {"en": "back to work on a point to check", "fr": "renvoyé sur un point à vérifier"},
     "decided-reject": {"en": "rejected, moved to done", "fr": "rejeté, passé en terminé"},
+    "decided-reject-cancelled": {
+        "en": "rejected, moved to cancelled",
+        "fr": "rejeté, classé sans suite",
+    },
     # What the next session is told when the choice carries no words of its own,
     # and what the console offers to send, ready to be edited.
     "told-done-retry": {

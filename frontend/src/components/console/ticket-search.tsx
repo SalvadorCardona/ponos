@@ -391,7 +391,10 @@ export function TicketSearch({
   const facets: Record<Facet, Option[]> = {
     type: offered(tickets, (ticket) => ticket.type, choices.type),
     status: board.columns
-      .filter((column) => column.key !== "validated" || board.validate)
+      .filter(
+        (column) =>
+          (column.key !== "validated" || board.validate) && (column.key !== "cancelled" || board.cancel)
+      )
       .map((column) => ({
         value: column.key,
         label: capital(columnTitle(column.key, column.name)),

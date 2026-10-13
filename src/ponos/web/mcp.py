@@ -55,7 +55,9 @@ if TYPE_CHECKING:
 VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
 # The columns a task can be in, as the tools name them — the console's own keys.
-STATUSES = ("draft", "ready", "running", "review", "validated", "blocked", "failed", "done")
+STATUSES = (
+    "draft", "ready", "running", "review", "validated", "blocked", "failed", "done", "cancelled",
+)
 
 # What one answer carries at most: a description is a brief, not a book, and a
 # conversation is read for its last turns.
@@ -158,7 +160,7 @@ TOOLS: list[dict] = [
         "le runner le prendra à sa prochaine passe), running (session en cours), review (travail "
         "livré, attend une relecture), validated (relu, en cours de fusion ou de publication), "
         "blocked (« vous attend » : une session pose une question), failed (échec), done "
-        "(terminé). Pour « ce qui m'attend » ou « les tâches bloquées », passer "
+        "(terminé), cancelled (abandonné, jamais repris). Pour « ce qui m'attend » ou « les tâches bloquées », passer "
         "waiting_for_you=true. Ne renvoie pas le détail d'une tâche : utiliser get_task.",
         "inputSchema": _schema(
             {

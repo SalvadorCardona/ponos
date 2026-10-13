@@ -129,7 +129,7 @@ class Recurrence(Base):
     def _busy(self, schedule: schedules_module.Schedule) -> bool:
         """Is the previous occurrence still going?
 
-        Anywhere but done or failed — so still ready, in progress, in review,
+        Anywhere but done, failed or cancelled — so still ready, in progress, in review,
         validated, or blocked on a question nobody has answered — means yes. A
         ticket the integration can no longer read is not one of those: a page
         somebody deleted would otherwise wedge its schedule for good.
@@ -142,7 +142,9 @@ class Recurrence(Base):
         except store.StoreError:
             return False
         status = str(store.read(page, settings.prop("status")) or "")
-        return status not in (settings.state("done"), settings.state("failed"))
+        return status not in (
+            settings.state("done"), settings.state("failed"), settings.state("cancelled")
+        )
 
     def _born(self, schedule: schedules_module.Schedule) -> dict | None:
         """One schedule, one ticket, in the ready column.

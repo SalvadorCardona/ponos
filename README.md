@@ -1523,7 +1523,7 @@ This is where your control over the system lives. The names are yours — map th
 board, because a status the database does not offer would only fail at the very end of a
 ticket.
 
-`ponos init` creates these seven:
+`ponos init` creates these eight:
 
 | Key | Default | What it means |
 | --- | --- | --- |
@@ -1534,6 +1534,7 @@ ticket.
 | `done` | **Done** | that pull request has been merged — or the ticket produced a document, which has nothing to wait for. |
 | `failed` | **Failed** | something broke: the session, the push, the worktree. |
 | `blocked` | **Blocked** | the agent would not guess and asked a question instead — or its project could not be located. Answer in a comment and the ticket runs again. |
+| `cancelled` | **Cancelled** | you gave up on it. **Terminal**, like *Done*, and not *Done*: the runner never runs it — not from *Ready*, not woken by a comment, not even named with `ponos run --ticket` — and the statistics count it neither closed nor open, though what its sessions spent stays in the spending. *Optional*: a board without the option simply has no such gesture; `ponos doctor` says so, and `ponos init` adds it to a select (on a Notion *status* property, add the option by hand). |
 
 <a id="why-a-ticket-stopped"></a>**Why a ticket stopped** is a code, not only a sentence. Every
 stop the runner decides has its cause in a catalogue, `src/ponos/blocks.py`: a code
@@ -1566,6 +1567,14 @@ its own would have been just as wrong, because nothing happened to that ticket. 
 still ready. So it stays where it is and is *ticked*, in a **Waiting for credit** checkbox
 — an attribute of the ticket, not a moment of its life. See
 [the tickets database](#the-tickets-database).
+
+*Cancelled* is the other end of a ticket, beside *Done*: given up on, not finished. Filing
+the tickets nobody wants any more under *Done* is how *Done* stops meaning "this got done".
+In the console it is a column of its own, last, its dot a hollow grey and its cards struck
+through; a card offers **cancel the ticket** behind its "…", a cancelled one offers
+**reopen**, which sends it back to the drafts — not to *Ready*, since a ready ticket starts
+a session that is paid for. *Abandon* on a blocked ticket and *Reject* on one in review
+file it there too, on a board that has the column.
 
 *Validated* is the fourth, and the odd one: every other column **reports**, this one
 **asks**. It is the answer to the question *In review* puts — is this what you wanted? —

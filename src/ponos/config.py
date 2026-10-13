@@ -835,6 +835,11 @@ PRIORITIES = ("Urgent", "High", "Normal", "Low")
 # There is no column for "the credit ran out": a ticket nothing was started for
 # has not moved, so nothing on the board should say it did. It stays where it
 # was and is ticked — see `waiting` in `_DEFAULT_PROPERTIES`.
+#
+# "Cancelled" is the other end of a ticket, beside Done: given up on, not
+# finished. Terminal like it — the runner never runs it, never takes it back —
+# and apart from it, because a board that files the tickets nobody wanted any
+# more under Done is a board whose Done stops meaning "this got done".
 _DEFAULT_STATUS = {
     "ready": "Ready",
     "running": "In progress",
@@ -843,6 +848,7 @@ _DEFAULT_STATUS = {
     "done": "Done",
     "failed": "Failed",
     "blocked": "Blocked",
+    "cancelled": "Cancelled",
 }
 
 

@@ -490,10 +490,15 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         <span className="text-muted-foreground min-w-0 truncate">{ago(ticket.created)}</span>
       </div>
 
+      {/* Given up on: still read, struck through, the way a list crosses out
+          what it no longer means to do. */}
       <Link
         to={href}
         onClick={open}
-        className="text-[0.93rem] leading-snug font-semibold break-words hover:underline"
+        className={cn(
+          "text-[0.93rem] leading-snug font-semibold break-words hover:underline",
+          ticket.column === "cancelled" && "text-muted-foreground line-through"
+        )}
       >
         <Marked text={ticket.title} words={words} />
       </Link>
@@ -645,7 +650,7 @@ function heading(key: string, name: string, count?: number, total?: number) {
  * What a search keeps is what is counted: the rows are the ones it left, so a
  * search that finds an old ticket finds it among thirty, not behind three
  * hundred. */
-const TERMINAL = new Set<string>(["done"])
+const TERMINAL = new Set<string>(["done", "cancelled"])
 export const TERMINAL_PAGE = 30
 
 /* How far each terminal column was opened, for as long as the tab lives: going
@@ -816,8 +821,10 @@ function BoardColumns({ rows: all = [] }: ListComponentPropsInterface) {
   }, [])
 
   const columns = board.columns.filter(
-    // Offered only where the runner would honour a card dropped there.
-    (column) => column.key !== "validated" || board.validate
+    // Offered only where the runner would honour a card dropped there, and
+    // where the board has the option a cancelled card is written with.
+    (column) =>
+      (column.key !== "validated" || board.validate) && (column.key !== "cancelled" || board.cancel)
   )
   // Counted on every row, whatever the search keeps: a column emptied by a
   // search is not an empty column, and is not folded away.

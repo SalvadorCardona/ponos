@@ -66,7 +66,8 @@ DISK_TTL = 600
 # The columns, in the order they are meant to be read. Anything the board
 # carries that is none of them is a draft, so it is never hidden. The drafts
 # come before them, whether or not the board names its own — see `_keys`.
-COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done")
+# Cancelled closes the row, beside done: the two ends a ticket can come to.
+COLUMNS = ("ready", "running", "review", "validated", "blocked", "failed", "done", "cancelled")
 
 
 class Api:
@@ -250,6 +251,9 @@ class Api:
         return {
             "tickets": tickets,
             "validate": offers,
+            # And whether it has a cancelled one, for the same reason: giving a
+            # ticket up is offered only where the board can say it.
+            "cancel": self._cancels(),
             "columns": columns,
             "choices": self._choices(),
             # What a ticket with no model of its own runs on — empty, the CLI's.
@@ -1140,6 +1144,10 @@ class Api:
         if key not in _keys(self.config.notion):
             raise ValueError(f"unknown column “{key}”")
         settings = self.config.notion
+        if key == "cancelled" and not self._cancels():
+            raise ValueError(
+                f"this board has no “{settings.state('cancelled')}” option to cancel a ticket into"
+            )
         status = _status(settings, key)
         held = self.reader.get(page_id)
         if seen is None:
@@ -1229,7 +1237,7 @@ class Api:
                 (check for check in listed if check.get("bucket") in ("fail", "cancel")), None
             )
             solutions = decisions.deciding(
-                found, said, checks=state, validate=self._validates()
+                found, said, checks=state, validate=self._validates(), cancel=self._cancels()
             )
             return {
                 "id": page.id.replace("-", ""),
@@ -1250,7 +1258,7 @@ class Api:
                 "solutions": self._offered(solutions),
             }
         found = decisions.blockage(comment.text for comment in comments)
-        solutions = decisions.unblocking(found, models=self._has("model"))
+        solutions = decisions.unblocking(found, models=self._has("model"), cancel=self._cancels())
         asked = found.question
         return {
             "id": page.id.replace("-", ""),
@@ -1294,11 +1302,12 @@ class Api:
         if column == "review":
             solutions = decisions.deciding(
                 decisions.delivered(comment.text for comment in comments), said, checks="failed",
-                validate=self._validates(),
+                validate=self._validates(), cancel=self._cancels(),
             )
         else:
             solutions = decisions.unblocking(
-                decisions.blockage(comment.text for comment in comments), models=self._has("model")
+                decisions.blockage(comment.text for comment in comments), models=self._has("model"),
+                cancel=self._cancels(),
             )
         solution = next(
             (
@@ -1388,6 +1397,13 @@ class Api:
     def _offered(self, solutions: list[decisions.Solution]) -> list[dict]:
         said = self.runner.voice
         return [{**solution.as_dict(), "label": decisions.label(said, solution)} for solution in solutions]
+
+    def _cancels(self) -> bool:
+        """Whether this board has a cancelled column of its own — see `cancelled_column`."""
+        try:
+            return self.runner.cancelled_column()
+        except store.StoreError:
+            return False
 
     def _validates(self) -> bool:
         """Whether this board has a validated column the runner would honour."""

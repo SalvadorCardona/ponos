@@ -175,9 +175,11 @@ class Board(Base):
         Ready is on its way, running is in flight, in review is waiting on a
         merge, validated is about to be carried out, and done is done: a comment
         on a ticket that came back with its pull request is a conversation about
-        the work, not a request to do it again. What is left is where a run
-        leaves a ticket it could not finish — which is precisely where an answer
-        is expected.
+        the work, not a request to do it again. Cancelled is given up on, and a
+        word under it is not the runner's to take as an order — only on a board
+        that offers it, since a filter on an option Notion does not know is
+        refused. What is left is where a run leaves a ticket it could not
+        finish — which is precisely where an answer is expected.
         """
         status_property = self.config.notion.prop("status")
         kind = self.client.schema(self.database).get(status_property, "status")
@@ -185,6 +187,8 @@ class Board(Base):
             self.config.notion.state(key)
             for key in ("done", "review", "validated", "ready", "running")
         }
+        if self.cancelled_column():
+            settled.add(self.config.notion.state("cancelled"))
         return {
             "and": [
                 {"property": status_property, kind: {"does_not_equal": value}}
@@ -396,11 +400,40 @@ class Board(Base):
         except store.StoreError:
             return ""
 
-    def fetch_one(self, reference: str) -> Ticket:
+    def cancelled_column(self) -> bool:
+        """Does this board offer a cancelled option of its own?
+
+        Optional, like validated: a board without it has no such gesture, and
+        nothing else changes. One that points it at a status the runner moves
+        tickets through has none either — a cancelled ticket that is `done`
+        is a done one, and one that is `ready` would be run.
+        """
+        settings = self.config.notion
+        cancelled = settings.state("cancelled")
+        others = ("ready", "running", "review", "validated", "done", "failed", "blocked")
+        if not cancelled or cancelled in (settings.state(key) for key in others):
+            return False
+        return cancelled in self.client.options(self.database, settings.prop("status"))
+
+    def requested(self, reference: str) -> list[Ticket]:
+        """The one ticket `run --ticket` names, whatever its status — but cancelled.
+
+        Whatever its status, because naming a ticket is asking for it. Not a
+        cancelled one: that is a ticket somebody gave up on, and running it
+        because its link was still in a shell history would be undoing that.
+        """
         page_id = reference.strip()
         if "://" in page_id:
             page_id = page_id.split("?")[0].rstrip("/").rsplit("/", 1)[-1].rsplit("-", 1)[-1]
-        return Ticket(self.client.page(page_id.replace("-", "")))
+        ticket = Ticket(self.client.page(page_id.replace("-", "")))
+        settings = self.config.notion
+        if self.cancelled_column() and store.read(ticket.page, settings.prop("status")) == settings.state(
+            "cancelled"
+        ):
+            self.say(f"Requested ticket is cancelled — not run: {ticket.title}")
+            return []
+        self.say(f"Requested ticket: {ticket.title}")
+        return [ticket]
 
     def reconcile(self) -> None:
         """Carry across whatever changed on the other board. Only in `both` mode.
