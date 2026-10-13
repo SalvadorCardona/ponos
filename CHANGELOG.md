@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **An *MCP* tab in the console's Settings explains MCP and plugs Ponos in step by step.** It says
+  in a few sentences what an MCP is (the Notion one a session reads its ticket with, Ponos's own
+  that Claude talks to), then walks through it: pick Claude Code, Claude desktop or another client,
+  copy the command or the JSON block already filled in with this console's address (local or
+  public), and press *Test the connection* — it asks `/mcp` what a client would ask first, and a
+  failure names its probable cause and what to do (no public address, certificate, a proxy that
+  rewrites the path or the host, an address the console does not recognise as its own). Below,
+  the MCP servers Claude Code holds for the sessions, each with *connected*, *to sign in* or
+  *failing*, and how to add one. No key is ever shown: `ponos mcp token` stays a terminal command.
+
 - **A pull request red by its own fault is repaired by a session before it is blocked.** When
   the checks of a validated pull request are still red after the failed jobs were run again,
   and are not red on its base, a session is sent after them on the pull request's branch:

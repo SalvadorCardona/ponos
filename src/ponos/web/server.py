@@ -55,7 +55,7 @@ from .. import __version__
 from .. import config as config_module
 from .. import db, journal, legacy, openrouter, store, voice
 from ..config import Config, state_dir
-from . import attachments, mcp, oauth, setup
+from . import attachments, mcp, mcp_setup, oauth, setup
 from .api import Api
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -543,6 +543,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._attachment(match.group(1))
             if route == "/api/settings":
                 return self._json(self.api.settings())
+            if route == "/api/mcp":
+                return self._json(mcp_setup.overview(self._loopback(), self.api.config.web.url))
+            if route == "/api/mcp/servers":
+                return self._json(mcp_setup.servers())
             if route == "/api/settings/folder":
                 try:
                     return self._json(self.api.folder((query.get("path") or [""])[0]))
@@ -749,6 +753,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.ideas.undo(None if scope is None else str(scope)))
             if route == "/api/disk/clean":
                 return self._json(self.api.clean())
+            if route == "/api/mcp/test":
+                # The address tried is one of the two the tab offers, never one the page typed.
+                web = self.api.config.web
+                address = f"{web.url.rstrip('/')}/mcp" if web.url else ""
+                if payload.get("target") != "public":
+                    address = f"{self._loopback()}/mcp"
+                return self._json(mcp_setup.probe(address))
             if route == "/api/refresh":
                 self.api.resynchronise()
                 return self._json({"ok": True})
@@ -921,6 +932,13 @@ class Handler(BaseHTTPRequestHandler):
             address = self.server.server_address
             host = f"{address[0]}:{address[1]}"
         return f"{scheme}://{host}"
+
+    def _loopback(self) -> str:
+        """This console as a client on this machine reaches it: the port it listens on."""
+        host, port = self.server.server_address[:2]
+        if host in ("0.0.0.0", "::", "", "::1") or host.startswith("127."):
+            host = "127.0.0.1"
+        return f"http://[{host}]:{port}" if ":" in host else f"http://{host}:{port}"
 
     def _raw(self) -> bytes | None:
         """The body as it came — None when it is larger than any of ours."""

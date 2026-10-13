@@ -600,6 +600,35 @@ export interface Cleaned extends Disk {
   freed: number
 }
 
+/** The addresses the console's MCP server is reached at, and who holds a key — never a key. */
+export interface McpOverview {
+  local: string
+  /** Empty while `web.url` is not set. */
+  public: string
+  clients: { id: string; name: string; scope: string }[]
+}
+
+/** One MCP server Claude Code holds, as `claude mcp list` says it. */
+export interface McpServer {
+  name: string
+  target: string
+  state: "ok" | "auth" | "error"
+}
+
+export interface McpServers {
+  available: boolean
+  failed: boolean
+  servers: McpServer[]
+}
+
+/** The answer of the connection test: `code` says why it failed, the page says what to do. */
+export interface McpTest {
+  ok: boolean
+  code: string
+  status: number
+  seen?: string
+}
+
 export interface Saved {
   saved: string[]
   after: string[]

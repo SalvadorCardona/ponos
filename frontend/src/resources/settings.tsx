@@ -5,6 +5,7 @@ import {
   FolderGit2,
   Inbox,
   ListChecks,
+  Plug,
   Play,
   Search,
   Settings2,
@@ -23,6 +24,7 @@ import {
 } from "react-resource-view"
 
 import { PageHead } from "@/components/console/frame"
+import { McpPage } from "@/components/console/mcp-page"
 import { LanguagePicker } from "@/components/console/language-picker"
 import { SetupSummary } from "@/components/console/setup"
 import {
@@ -64,7 +66,7 @@ import { pairResources, type PairTable } from "./pairs"
 /* The configuration, declared once for react-resource-view.
  *
  * `config.toml` is one thing, so it is one record: the page is the `read` view
- * of a resource with a single item, and each of its six groups is a sub-page
+ * of a resource with a single item, and each of its six groups, and the MCP page, is a sub-page
  * of it — the tab you are on carried in the address, so a link to the
  * notification settings is a link you can send somebody.
  *
@@ -101,7 +103,13 @@ const ICONS: Record<string, IconType> = {
   models: Cpu,
   code: FolderGit2,
   communication: Bell,
+  mcp: Plug,
 }
+
+/* The one page the file does not describe: the MCP tab is about the console
+ * and Claude Code, not about a key of `config.toml`, so it is added here after
+ * the server's groups rather than described by them. */
+const MCP_TAB = "mcp"
 
 /* -- the general page's state ------------------------------------------------ */
 
@@ -400,7 +408,7 @@ function pageFor(group: SettingGroup): React.FC {
  * server says the file holds — never from a list kept here.
  */
 function tabs(): SubViewResourceInterface[] {
-  return (currentSettings()?.groups ?? []).map((group) => ({
+  const pages = (currentSettings()?.groups ?? []).map((group) => ({
     slug: group.key,
     // Drawn by the package, which translates both as it draws.
     name: group.title,
@@ -408,6 +416,17 @@ function tabs(): SubViewResourceInterface[] {
     icon: ICONS[group.key] ?? Settings2,
     viewComponent: pageFor(group),
   }))
+  if (!pages.length) return pages
+  return [
+    ...pages,
+    {
+      slug: MCP_TAB,
+      name: "MCP",
+      description: "What an MCP is, how to plug Ponos into Claude, and the ones the sessions use.",
+      icon: ICONS[MCP_TAB],
+      viewComponent: McpPage,
+    },
+  ]
 }
 
 /* -- the head of the page ---------------------------------------------------- */

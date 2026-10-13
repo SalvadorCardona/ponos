@@ -4,6 +4,9 @@ import type {
   ColumnKey,
   Decision,
   Cleaned,
+  McpOverview,
+  McpServers,
+  McpTest,
   Disk,
   Folder,
   Found,
@@ -280,6 +283,10 @@ export const api = {
   refresh: () => request<unknown>("/api/refresh", {}),
   disk: () => request<Disk>("/api/disk"),
   clean: () => request<Cleaned>("/api/disk/clean", {}),
+  mcp: () => request<McpOverview>("/api/mcp"),
+  /* Slow, and so its own call: Claude Code starts every server to see if it answers. */
+  mcpServers: () => request<McpServers>("/api/mcp/servers"),
+  testMcp: (target: "local" | "public") => request<McpTest>("/api/mcp/test", { target }),
   /* Nothing in the body: which version, and how it is installed, is the
    * server's to know. */
   upgrade: () => request<UpgradeProgress>("/api/update", {}),
