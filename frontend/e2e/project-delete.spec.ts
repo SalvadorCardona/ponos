@@ -41,6 +41,7 @@ test.describe("at 1440px", () => {
     await expect(dialog(page)).toContainText("2 tickets point at it")
     await expect(dialog(page)).toContainText("never deleted")
     await expect(confirm(page)).toBeDisabled()
+    await expect(dialog(page).getByLabel(/Type the project's name/)).toBeFocused()
 
     // Neither a wrong name nor Enter deletes anything.
     const typed = dialog(page).getByLabel(/Type the project's name/)
@@ -50,9 +51,12 @@ test.describe("at 1440px", () => {
     await expect(dialog(page)).toBeVisible()
     expect(await statusOf(page, "Old shop work, ready")).toBe("ready")
 
+    // The focus opened on the field, the one thing to do first; once the name
+    // is right, Enter deletes.
     await typed.fill("Old shop")
     await expect(confirm(page)).toBeEnabled()
-    await confirm(page).click()
+    await expect(confirm(page).locator("kbd")).toHaveText("↵ Enter")
+    await typed.press("Enter")
 
     await expect(dialog(page)).toBeHidden()
     await expect(page.getByText("Project “Old shop” deleted")).toBeVisible()

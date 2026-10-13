@@ -3,16 +3,7 @@ import { useBlocker, useLocation } from "@tanstack/react-router"
 import { BookOpen, Pencil, RefreshCw, Save } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
@@ -261,32 +252,20 @@ export function ContextBlock() {
         </EmptyState>
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={leaving.status === "blocked"}
         onOpenChange={(opened) => {
           if (!opened) leaving.reset?.()
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("Leave without saving?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("The changes made to the global context are not saved.")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("Keep editing")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                draft = null
-                leaving.proceed?.()
-              }}
-            >
-              {t("Leave")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={t("Leave without saving?")}
+        description={t("The changes made to the global context are not saved.")}
+        cancel={t("Keep editing")}
+        confirm={t("Leave")}
+        onConfirm={() => {
+          draft = null
+          leaving.proceed?.()
+        }}
+      />
     </section>
   )
 }

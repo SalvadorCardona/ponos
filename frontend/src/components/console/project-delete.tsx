@@ -2,16 +2,9 @@ import * as React from "react"
 import { MoreHorizontal, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
+import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,7 +62,7 @@ export function DeleteProjectDialog({
 
   const matches = typed.trim() === project.name
   const confirm = async () => {
-    if (!matches || busy) return
+    if (!matches || busy) return false
     setBusy(true)
     setRefused("")
     try {
@@ -87,88 +80,85 @@ export function DeleteProjectDialog({
       onDeleted()
     } catch (error) {
       setRefused(error instanceof Error ? error.message : String(error))
+      return false
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (busy ? undefined : onOpenChange(next))}>
-      <DialogContent data-delete-project>
-        <DialogHeader>
-          <DialogTitle>{t("Delete “{{name}}”?", { name: project.name })}</DialogTitle>
-          <DialogDescription>
-            {tickets === null
-              ? t("Ponos will stop following this project.")
-              : tickets === 0
-                ? t("Ponos will stop following this project. No ticket points at it.")
-                : counted(
-                    tickets,
-                    "Ponos will stop following this project. {{count}} ticket points at it.",
-                    "Ponos will stop following this project. {{count}} tickets point at it."
-                  )}
-          </DialogDescription>
-        </DialogHeader>
-
-        <ul className="text-muted-foreground list-disc space-y-1.5 pl-5 text-sm">
-          <li>{t("It disappears from the console and is no longer synchronised: the runner takes none of its tickets, and no more tokens are spent on it.")}</li>
-          <li>{t("Its page goes to the Notion trash, where it can be restored for 30 days.")}</li>
-          <li>
-            {trash
-              ? t("Its tickets go to the Notion trash too.")
-              : t("Its tickets stay on the board; those that are ready or in progress are blocked, with a comment saying why.")}
-          </li>
-          <li>{t("The GitHub repository and the folder on this machine are never deleted. Its throwaway worktrees are cleaned up.")}</li>
-          <li>{t("Its ideas are deleted; what it cost stays in the statistics.")}</li>
-        </ul>
-
-        {tickets ? (
-          <Label className="items-start gap-2.5 text-sm font-normal">
-            <Checkbox checked={trash} onCheckedChange={(next) => setTrash(next === true)} className="mt-0.5" />
-            <span>
-              {counted(
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(next) => (busy ? undefined : onOpenChange(next))}
+      contentProps={{ "data-delete-project": true } as React.ComponentProps<"div">}
+      title={t("Delete “{{name}}”?", { name: project.name })}
+      description={
+        tickets === null
+          ? t("Ponos will stop following this project.")
+          : tickets === 0
+            ? t("Ponos will stop following this project. No ticket points at it.")
+            : counted(
                 tickets,
-                "Also move its {{count}} ticket to the Notion trash",
-                "Also move its {{count}} tickets to the Notion trash"
-              )}
-            </span>
-          </Label>
-        ) : null}
+                "Ponos will stop following this project. {{count}} ticket points at it.",
+                "Ponos will stop following this project. {{count}} tickets point at it."
+              )
+      }
+      destructive
+      disabled={!matches}
+      confirm={
+        <>
+          <Trash2 />
+          {busy ? t("Deleting…") : t("Delete the project")}
+        </>
+      }
+      onConfirm={confirm}
+    >
+      <ul className="text-muted-foreground list-disc space-y-1.5 pl-5 text-sm">
+        <li>{t("It disappears from the console and is no longer synchronised: the runner takes none of its tickets, and no more tokens are spent on it.")}</li>
+        <li>{t("Its page goes to the Notion trash, where it can be restored for 30 days.")}</li>
+        <li>
+          {trash
+            ? t("Its tickets go to the Notion trash too.")
+            : t("Its tickets stay on the board; those that are ready or in progress are blocked, with a comment saying why.")}
+        </li>
+        <li>{t("The GitHub repository and the folder on this machine are never deleted. Its throwaway worktrees are cleaned up.")}</li>
+        <li>{t("Its ideas are deleted; what it cost stays in the statistics.")}</li>
+      </ul>
 
-        <div className="grid gap-2">
-          <Label htmlFor="delete-project-name" className="text-sm font-normal">
-            {t("Type the project's name to confirm:")} <strong className="font-semibold">{project.name}</strong>
-          </Label>
-          <Input
-            id="delete-project-name"
-            value={typed}
-            autoComplete="off"
-            spellCheck={false}
-            aria-invalid={Boolean(typed) && !matches}
-            onChange={(event) => setTyped(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void confirm()
-            }}
-          />
-        </div>
+      {tickets ? (
+        <Label className="items-start gap-2.5 text-sm font-normal">
+          <Checkbox checked={trash} onCheckedChange={(next) => setTrash(next === true)} className="mt-0.5" />
+          <span>
+            {counted(
+              tickets,
+              "Also move its {{count}} ticket to the Notion trash",
+              "Also move its {{count}} tickets to the Notion trash"
+            )}
+          </span>
+        </Label>
+      ) : null}
 
-        {refused ? (
-          <p role="alert" className="text-destructive text-sm">
-            {refused}
-          </p>
-        ) : null}
+      <div className="grid gap-2">
+        <Label htmlFor="delete-project-name" className="text-sm font-normal">
+          {t("Type the project's name to confirm:")} <strong className="font-semibold">{project.name}</strong>
+        </Label>
+        <Input
+          id="delete-project-name"
+          value={typed}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={Boolean(typed) && !matches}
+          onChange={(event) => setTyped(event.target.value)}
+        />
+      </div>
 
-        <DialogFooter>
-          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
-            {t("Cancel")}
-          </Button>
-          <Button variant="destructive" disabled={!matches || busy} onClick={() => void confirm()}>
-            <Trash2 />
-            {busy ? t("Deleting…") : t("Delete the project")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {refused ? (
+        <p role="alert" className="text-destructive text-sm">
+          {refused}
+        </p>
+      ) : null}
+
+    </ConfirmDialog>
   )
 }
 
