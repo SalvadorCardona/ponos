@@ -118,6 +118,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   asked in a comment and has finished is told to end `RESULT: ok`; one that says `blocked`
   without asking anything, its deliverable written, goes to review.
 
+### Changed
+
+- **The blocks chart is folded behind *Show more*.** On the dashboard and on a project's page,
+  the statistics keep to the four cards and the curves; *Blocks, by cause and week* opens under
+  them with a button, and the choice is kept in the browser, one for both pages.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added

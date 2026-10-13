@@ -2427,7 +2427,7 @@ otherwise: a ticket you dragged to *Done*, or one closed because you merged its 
 yourself. The *Closed* card says, under the pointer, how many closings each one dated. The spend is the
 history's too: the `Cost` column says what a ticket cost, not on which day. Under them, the
 **blocks, by cause and week**: one bar a week, stacked by family, and beside it every
-cause of the period with its count — see [Why a ticket stopped](#why-a-ticket-stopped). The page they used to have is gone, and its old address,
+cause of the period with its count — see [Why a ticket stopped](#why-a-ticket-stopped). It is folded behind a *Show more* button, on the dashboard and on a project's page alike, and stays as you left it in this browser. The page they used to have is gone, and its old address,
 `/?view=console/statistics/list`, leads to the dashboard.
 
 **Settings** is `config.toml` drawn as a page — the same file, the same keys, and every one
