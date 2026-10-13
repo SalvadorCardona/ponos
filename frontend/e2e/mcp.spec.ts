@@ -47,6 +47,9 @@ test("the copy button copies the command", async ({ page }) => {
     })
   })
   await open(page)
+  // The wizard's command first: the card of the servers has a copy button too,
+  // and is the first one on the page while the wizard is still arriving.
+  await expect(page.getByTestId("mcp-snippet").first()).toContainText("/mcp")
   await page.getByRole("button", { name: "Copy the command" }).first().click()
   await expect(page.getByText("Copied", { exact: true })).toBeVisible()
   const copied = await page.evaluate(() => (window as unknown as { copied: string }).copied)

@@ -161,6 +161,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   (greyed only while its field is empty). The *Unblock* button above the tabs goes while that tab
   is the one on show.
 
+- **The console moves to react-resource-view 0.15.** Its peers stay on 0.1 (react-data-form,
+  react-mini-i18n, resource-registry): 0.15 still asks for them. On a phone, the board's columns
+  keep their full height rather than scrolling inside a box, so the last cards stay clear of the
+  discussion's bubble.
 
 - ***Blocked* now comes right after *In progress* on the board.** A ticket waiting on your answer
   is a ticket in progress that stopped, so it is read beside it: the columns, the status filter and
