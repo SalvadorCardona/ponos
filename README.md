@@ -2853,6 +2853,13 @@ told `http://` addresses and refuses them. `ponos mcp` prints the address to pas
 token drawn with `ponos mcp token` keeps working — it is still there for a client that cannot
 sign in itself, as a header: `claude mcp add … --header "Authorization: Bearer <token>"`.
 
+**Not sure how?** The console's **Settings › MCP** tab explains what an MCP is, gives the
+command or the JSON block for Claude Code, Claude Desktop or another client with this console's
+address already in it, and has a *Test the connection* button that says what is wrong — and
+what to do about it — when a client could not connect. It also lists the MCP servers Claude Code
+holds for the sessions (Notion, GitHub…), each *connected*, *to sign in* or *failing*. It shows
+no key; `ponos mcp token` stays a terminal command.
+
 ### What Claude can do with it
 
 From claude.ai — on the web or on a phone — or from Claude Code, a conversation can see what

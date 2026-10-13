@@ -17151,6 +17151,68 @@ def the_statistics_count_the_stops_by_cause_and_by_week():
     assert found["causes"][0]["family"] == "question" and found["causes"][0]["label"]["fr"]
 
 
+@case
+def the_mcp_tab_reads_claude_mcp_list_without_its_keys_and_tests_the_401_a_live_server_gives():
+    """`claude mcp list` is the source of the servers, and what it prints may hold a key.
+
+    A URL keeps its host and path, a command its program; a server that wants
+    signing in is neither ok nor failing. The test asks the way a client does,
+    without a key, and each way the answer can be wrong is a code.
+    """
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    from ponos.web import mcp_setup
+
+    listed = mcp_setup.parse(
+        "Checking MCP server health...\n\n"
+        "notion: https://mcp.notion.com/mcp?key=SECRET (HTTP) - ✓ Connected\n"
+        "github: https://api.example.com/mcp - ⚠ Needs authentication\n"
+        "local: npx -y @x/server --token=SECRET - ✗ Failed to connect\n"
+    )
+    assert [(one["name"], one["state"]) for one in listed] == [
+        ("notion", "ok"), ("github", "auth"), ("local", "error")], listed
+    assert listed[0]["target"] == "https://mcp.notion.com/mcp" and listed[2]["target"] == "npx", listed
+    assert "SECRET" not in json.dumps(listed)
+
+    answers = {"/mcp": 401, "/gone/mcp": 404, "/moved/mcp": 421}
+    announced = {"resource": ""}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            status = answers.get(self.path, 404)
+            self.send_response(status)
+            if status == 401:
+                self.send_header("WWW-Authenticate", f'Bearer resource_metadata="http://{self.headers["Host"]}/meta"')
+            self.end_headers()
+
+        def do_GET(self):
+            body = json.dumps({"resource": announced["resource"] or f"http://{self.headers['Host']}/mcp"}).encode()
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        assert mcp_setup.probe(f"{base}/mcp")["ok"] is True
+        assert mcp_setup.probe(f"{base}/gone/mcp")["code"] == "not-found"
+        assert mcp_setup.probe(f"{base}/moved/mcp")["code"] == "misrouted"
+        announced["resource"] = "https://elsewhere.example/mcp"
+        mismatch = mcp_setup.probe(f"{base}/mcp")
+        assert mismatch["code"] == "address-mismatch" and mismatch["seen"] == announced["resource"], mismatch
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert mcp_setup.probe("")["code"] == "no-address"
+    assert mcp_setup.probe("http://127.0.0.1:1/mcp")["code"] == "unreachable"
+    overview = mcp_setup.overview("http://127.0.0.1:8787", "https://p.example/")
+    assert overview["local"] == "http://127.0.0.1:8787/mcp" and overview["public"] == "https://p.example/mcp"
+
+
 def main() -> int:
     # Claude Code's own store, pointed at an empty directory for the whole
     # suite. Everything here is pure, and "how much of this machine's
