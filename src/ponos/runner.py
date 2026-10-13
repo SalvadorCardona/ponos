@@ -36,7 +36,7 @@ from __future__ import annotations
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 
 from . import base, board, cleanup, credits, delivery, execution, preparation
-from . import recurrence, replies, reports, state
+from . import recurrence, replies, reports, state, unblocking
 from . import update as update_module
 from .projects import Project
 from .ticket import Ticket
@@ -51,6 +51,7 @@ class Runner(
     recurrence.Recurrence,
     replies.Replies,
     reports.Reports,
+    unblocking.Unblocking,
     base.Base,
 ):
     """One pass of the runner, over everything a pass is made of."""
@@ -126,7 +127,7 @@ class Runner(
                     self.say(f"Nothing new started until {credits.when(reserved)}.")
                 return delivered + parked
             if not tickets:
-                replies = self.converse()
+                replies = self.converse() + self.unblock()
                 if self.announce_idle and not replies and not delivered:
                     later = f", {held} waiting for their date" if held else ""
                     self.say(f"No ticket ready{later}.")
@@ -139,7 +140,7 @@ class Runner(
         for warning in self.workspace.warnings:
             self.say(f"  ! {warning}")
 
-        replies = [] if reference else self.converse()
+        replies = [] if reference else self.converse() + self.unblock()
         # `--limit` caps the tickets this pass takes off the board, not how
         # many run at once: that is `max_concurrent`, and a queue that refills
         # itself would otherwise run the whole column on a `--limit 1`.

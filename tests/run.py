@@ -1588,6 +1588,99 @@ def the_name_is_stripped_from_the_message_but_only_where_it_is_a_salutation():
     assert conversation.strip_mention(kept, spellings) == kept
 
 
+@case
+def an_unblocking_needs_a_decision_and_a_reason():
+    from ponos import unblocking
+
+    said = "Le ticket B est en Done.\nDECISION: unblock\nREASON: B, dont il dépendait,\nest terminé."
+    assert unblocking.decision(said) == ("unblock", "B, dont il dépendait, est terminé.")
+    assert unblocking.decision("Réflexion.\nDECISION: unblock\nDECISION: keep\nREASON: toujours en attente")[0] == "keep", (
+        "the last decision wins"
+    )
+    for unreadable in ("", "peut-être débloqué", "DECISION: unblock", "DECISION: maybe\nREASON: x"):
+        assert unblocking.decision(unreadable) == ("", ""), unreadable
+
+
+class _Unblocking(Runner):
+    """A runner that only has what `_examine` asks of it, and says what it did."""
+
+    moved: list
+    comments_written: list
+
+    def _project_of(self, ticket):
+        return projects.Project(name="", path=None)
+
+    def _body(self, ticket):
+        return "Dépend du ticket B."
+
+    def discussion(self, ticket):
+        return []
+
+    def _set(self, ticket, **values):
+        self.moved.append(values)
+
+    def _comment(self, ticket, text, discussion=""):
+        self.comments_written.append(text)
+
+    def comments(self, page_id):
+        return [notion.Comment(text) for text in self.comments_written[-1:]]
+
+    def _hold_credits(self, outcome):
+        pass
+
+    @property
+    def workspace(self):
+        return workspace.Workspace(tickets="db")
+
+
+def _unblocking(answer: str, already: list[str] | None = None):
+    runner = _bare_runner(None)
+    runner.__class__ = _Unblocking
+    runner.moved, runner.comments_written = [], list(already or [])
+    page = notion.Page(id="p-ticket", url="", title="Ticket A")
+    sessions: list[str] = []
+
+    def fake_run(prompt_text, **kwargs):
+        sessions.append(prompt_text)
+        return session.Outcome(
+            ok=True, blocked=False, session_id="s-1", summary="", log=Path("/tmp/none.jsonl"),
+            answer=answer,
+        )
+
+    original, session.run = session.run, fake_run
+    try:
+        result = runner._examine(ticket_module.Ticket(page), "- [Done] Ticket B (b)")
+    finally:
+        session.run = original
+    return runner, result, sessions
+
+
+@case
+def a_blocked_ticket_whose_cause_is_gone_goes_back_to_ready_with_the_reason():
+    runner, result, sessions = _unblocking("DECISION: unblock\nREASON: Le ticket B est en Done.")
+    assert runner.moved == [{"Status": runner.config.notion.state("ready")}], runner.moved
+    assert len(runner.comments_written) == 1 and "Le ticket B est en Done." in runner.comments_written[0]
+    assert (result["status"], result["reason"]) == ("unblocked", "Le ticket B est en Done.")
+    assert "[Done] Ticket B" in sessions[0], "the session reads the whole board"
+
+
+@case
+def a_blocked_ticket_that_is_still_blocked_stays_and_says_why_once():
+    runner, result, _ = _unblocking("DECISION: keep\nREASON: B n'est pas fini.")
+    assert runner.moved == [], "nothing moves"
+    assert "B n'est pas fini." in runner.comments_written[0]
+    assert result["status"] == "kept-blocked"
+    again, traced, _ = _unblocking("DECISION: keep\nREASON: B n'est pas fini.", runner.comments_written)
+    assert len(again.comments_written) == 1, "the same reason is not written twice"
+    assert traced["status"] == "kept-blocked", "but the decision is still traced"
+
+
+@case
+def a_session_that_does_not_conclude_never_unblocks_anything():
+    runner, result, _ = _unblocking("Je ne sais pas trop.")
+    assert runner.moved == [] and runner.comments_written == [] and result is None
+
+
 class _KnownCommentClient:
     """Comments that say who wrote them, as Notion's do."""
 

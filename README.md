@@ -1516,6 +1516,28 @@ was going to be read regardless.
 Turn the whole thing off with `reply = false` under `[runner]`, and a comment goes back to
 being only what it was: the thing that wakes a blocked ticket.
 
+### Looking again at what is blocked
+
+A ticket stays *Blocked* until someone remembers it — and the cause is often gone by then:
+the ticket it waited for is done, the missing information is on the page. With
+`unblock = true` under `[runner]`, the runner goes back over the column by itself.
+
+For each blocked ticket it starts a session that cannot write (`reply_permission_mode`),
+shows it the page, the discussion and every ticket of the board, and asks two things: why
+did it stop, and is that still true? The session ends on `DECISION: unblock` or
+`DECISION: keep`, with a `REASON:`. Only an `unblock` that gives its reason moves the ticket
+back to *Ready*; a session that does not conclude changes nothing.
+
+Every decision is traced. On the ticket, a comment says *No longer blocked* (with a
+`↩️ Back in the queue` report, like a ticket put back in the queue) or *Still blocked* and
+why — the latter only when the reason changed, not every time it is checked. In
+`ponos history`, the entry is `unblocked` or `kept-blocked`, with the reason.
+
+It is deliberately slow and small: a ticket is looked at once every
+`unblock_interval_seconds` (six hours by default), three tickets at most per pass, and never
+one edited in the last hour — a question asked just now is waiting for its answer. A ticket
+already answered in a comment is left to the usual way of waking.
+
 ### The statuses
 
 This is where your control over the system lives. The names are yours — map them under

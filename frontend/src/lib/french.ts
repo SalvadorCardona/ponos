@@ -1317,6 +1317,12 @@ export const FRENCH: Record<string, string> = {
   "Time limit per answer (minutes)": "Durée maximale par réponse (minutes)",
   "Somebody is waiting for it: keep it short.": "Quelqu'un l'attend : gardez-la courte.",
   "What an answer may do": "Ce qu'une réponse peut faire",
+  "Look again at blocked tickets": "Réexaminer les tickets bloqués",
+  "A session reads why each blocked ticket stopped and whether that still holds. Only a ticket whose cause is gone goes back to ready; the reason is written on it either way. It costs a session per ticket.":
+    "Une session lit pourquoi chaque ticket bloqué s'est arrêté et si cela tient toujours. Seul un ticket dont la cause a disparu repasse en prêt ; la raison est écrite dessus dans les deux cas. Cela coûte une session par ticket.",
+  "Look at a blocked ticket every": "Réexaminer un ticket bloqué toutes les",
+  "Look at a blocked ticket every (seconds)": "Réexaminer un ticket bloqué toutes les (secondes)",
+  "600 at the least.": "600 au minimum.",
   "“Read only” is the guardrail: an answer that quietly changed a repository is the last thing anybody expects.":
     "« Lecture seule » est le garde-fou : une réponse qui modifierait un dépôt en silence est bien la dernière chose qu'on attend.",
 

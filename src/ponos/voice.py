@@ -696,6 +696,12 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "I am picking it up again from the start.",
         "fr": "Je le reprends depuis le début.",
     },
+    # -- a blocked ticket looked at again --------------------------------------
+    "unblocked": {"en": "No longer blocked: {reason}", "fr": "Plus bloqué : {reason}"},
+    "kept-blocked": {
+        "en": "🔒 Still blocked: {reason}",
+        "fr": "🔒 Toujours bloqué : {reason}",
+    },
     # -- a branch a ticket already had ----------------------------------------
     # Facts only git has, said here rather than by `git.py`: the worktree it
     # hands back carries them bare, and the run says them in its own words.
