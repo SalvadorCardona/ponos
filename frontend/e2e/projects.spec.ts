@@ -210,6 +210,36 @@ test.describe("the statistics of a project", () => {
   })
 })
 
+test.describe("the blocks of a project", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test("are folded behind Show more on its page, as on the dashboard", async ({ page }) => {
+    // The e2e board has no ticket of this project: give the page figures to draw.
+    await page.route("**/api/statistics*", async (route) => {
+      const answer = await route.fetch()
+      const figures = await answer.json()
+      figures.totals = { ...figures.totals, created: 2, closed: 1 }
+      await route.fulfill({ response: answer, json: figures })
+    })
+    await open(page)
+    await card(page, "Website").click()
+    await onThePageOf(page, "Website")
+    const band = page.locator('[data-slot="statistics-band"]')
+    const panel = band.getByText("Blocks, by cause and week", { exact: true })
+    await expect(band.getByText("Created and closed", { exact: true })).toBeVisible()
+    await expect(panel).toHaveCount(0)
+
+    await band.getByRole("button", { name: "Show more", exact: true }).click()
+    await expect(panel.first()).toBeVisible()
+    await page.reload()
+    await expect(band.getByRole("button", { name: "Show less", exact: true })).toBeVisible()
+    await expect(panel.first()).toBeVisible()
+
+    await band.getByRole("button", { name: "Show less", exact: true }).click()
+    await expect(panel).toHaveCount(0)
+  })
+})
+
 test.describe("the page of a project", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 

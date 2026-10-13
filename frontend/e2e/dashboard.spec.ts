@@ -70,6 +70,22 @@ test("the band folds into one line, and stays folded", async ({ page }) => {
   await expect(band(page).getByText("Created and closed", { exact: true })).toBeHidden()
 })
 
+test("the blocks panel is folded behind Show more, and stays as it was left", async ({ page }) => {
+  await open(page)
+  const panel = band(page).getByText("Blocks, by cause and week", { exact: true })
+  await expect(band(page).getByText("Created and closed", { exact: true })).toBeVisible()
+  await expect(panel).toHaveCount(0)
+  await band(page).getByRole("button", { name: "Show more", exact: true }).click()
+  await expect(panel.first()).toBeVisible()
+  await expect(band(page).getByRole("button", { name: "Show less", exact: true })).toBeVisible()
+  await page.reload()
+  await expect(band(page).getByRole("button", { name: "Show less", exact: true })).toBeVisible()
+  await expect(panel.first()).toBeVisible()
+  await band(page).getByRole("button", { name: "Show less", exact: true }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(band(page).getByRole("button", { name: "Show more", exact: true })).toBeVisible()
+})
+
 test("the old address of the statistics leads to the dashboard", async ({ page }) => {
   await open(page, "/?view=console/statistics/list")
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toContain("console/tickets/list")

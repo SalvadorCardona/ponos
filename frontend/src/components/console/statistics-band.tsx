@@ -1,7 +1,8 @@
 import * as React from "react"
 import { format, subDays } from "date-fns"
-import { ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -104,6 +105,30 @@ function useFolded(key: string) {
     [key]
   )
   return [folded, change] as const
+}
+
+/* Whether the blocks panel is shown, one answer for the dashboard and the
+ * projects' pages: it is a lot of room for something read now and then, so it
+ * stays folded until somebody asks, and the answer is kept. */
+const BLOCKS_KEY = "ponos-statistics-blocks"
+
+function useBlocksShown() {
+  const [shown, setShown] = React.useState(() => {
+    try {
+      return localStorage.getItem(BLOCKS_KEY) === "shown"
+    } catch {
+      return false
+    }
+  })
+  const change = React.useCallback((next: boolean) => {
+    setShown(next)
+    try {
+      localStorage.setItem(BLOCKS_KEY, next ? "shown" : "hidden")
+    } catch {
+      // Storage off: the choice lasts as long as the tab.
+    }
+  }, [])
+  return [shown, change] as const
 }
 
 const locale = () => (currentLanguage() === "fr" ? "fr-FR" : "en-GB")
@@ -284,6 +309,7 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
           count: item.count,
         }))
   const widest = Math.max(1, ...rows.map((row) => row.count))
+  const [shown, setShown] = useBlocksShown()
   const nothing = !totals.created && !totals.closed && !totals.open
 
   return (
@@ -349,6 +375,21 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
           </Panel>
 
           {figures.blocks ? (
+            <div className="flex justify-center md:col-span-2 xl:col-span-3">
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
+                aria-expanded={shown}
+                onClick={() => setShown(!shown)}
+              >
+                {shown ? t("Show less") : t("Show more")}
+                <ChevronDown className={cn("transition-transform", shown && "rotate-180")} aria-hidden />
+              </Button>
+            </div>
+          ) : null}
+
+          {figures.blocks && shown ? (
             <Panel
               eyebrow={t("Blocks, by cause and week")}
               className="min-w-0 md:col-span-2 xl:col-span-3"

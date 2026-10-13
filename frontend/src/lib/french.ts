@@ -291,6 +291,8 @@ export const FRENCH: Record<string, string> = {
   "see the base's CI": "voir la CI de la base",
   Cause: "Cause",
   "Blocks, by cause and week": "Blocages, par cause et par semaine",
+  "Show more": "Voir plus",
+  "Show less": "Voir moins",
   "No ticket stopped in the period.": "Aucun ticket arrêté sur la période.",
   "week of {{day}}": "semaine du {{day}}",
   Merge: "Fusion",
