@@ -1251,6 +1251,14 @@ def command_doctor(args: argparse.Namespace) -> int:
         )
     else:
         print(f"  {DIM}runner.reply = false — a comment can wake a ticket, not start a talk{RESET}")
+    if configuration.runner.unblock:
+        ok("blocked tickets are looked at again — the ones whose cause is gone go back to ready")
+        print(
+            f"  {DIM}each ticket every {configuration.runner.unblock_interval_seconds}s, "
+            f"permission_mode = {configuration.runner.reply_permission_mode}{RESET}"
+        )
+    else:
+        print(f"  {DIM}runner.unblock = false — a blocked ticket stays blocked until you move it{RESET}")
 
     title("Model")
     ok(f"claude: {session.available() or 'missing'}")

@@ -227,6 +227,51 @@ exactly as you write it.
 {language}"""
 
 
+UNBLOCK = """\
+A ticket of a Notion board {scope} is in the Blocked column. You are deciding, \
+alone and with nobody to talk to, whether the reason it was blocked still holds.
+
+**You are reading, not working.** Change nothing: no file written, no command \
+that modifies, no commit. Your whole job is to read and to decide.
+
+# The blocked ticket — {title}
+
+{body}
+
+{comments}{context}{brief}{agent}# Context
+
+- {where}
+- Notion ticket: {url}
+
+# The board, a line per ticket — [status] title (id)
+
+{message}
+
+# What is expected
+
+1. Find why the ticket is blocked: the last report on it says so, in the \
+discussion above — a dependency on another ticket, information that was missing, \
+an action somebody else had to take, an access. If the discussion does not say, \
+the ticket does not say either: that is a reason to keep it.
+2. Check whether that cause still exists. A dependency is over when the ticket \
+it waits for is in Done on the board above (or its work is in the repository); \
+information is there when the ticket or an answer in the discussion now holds \
+it; an external action is done only when something you can read proves it. \
+Never take a cause for gone because time has passed.
+3. A ticket is blocked for a reason more often than not. Unblock it only when \
+you can name what changed and where you read it; when in doubt, keep it.
+4. End your answer with exactly these two lines, in English, whatever the \
+language of the ticket:
+
+DECISION: unblock   (or: DECISION: keep)
+REASON: one or two sentences — the cause of the blockage, and what proves it is \
+gone, or why it still stands. This sentence is written on the ticket, so write \
+it for the person who owns it, in the language of the ticket.
+
+No RESULT line and no other report.
+{language}"""
+
+
 FOLLOW_UP = """\
 A new message in the same thread, on the same ticket. Same rules: you are \
 talking, not working — answer it, change nothing, stay in its language, keep it \

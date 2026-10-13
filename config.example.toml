@@ -555,6 +555,16 @@ reply_scan = 20                  # pages looked at per pass
 reply_timeout_minutes = 10       # somebody is waiting for this one
 reply_permission_mode = "plan"   # it talks; it does not work
 
+# Look again at the Blocked column, ticket by ticket. A session reads why a
+# ticket stopped — a dependency on another ticket, missing information, an
+# action somebody else had to take — and whether that still holds. Only when it
+# can say what changed does the ticket go back to Ready; otherwise it stays
+# blocked. Either way the reason is written on the ticket as a comment and in
+# the history (`unblocked` / `kept-blocked`). It runs under reply_permission_mode,
+# so it cannot change anything. Off by default: it costs a session per ticket.
+unblock = false
+unblock_interval_seconds = 21600  # a ticket is looked at once in this long (600 at the least)
+
 # Let the schedules database make tickets. A pass reads it between the validated
 # column and the queue, so a ticket born at 09:00 is claimed by that very pass
 # rather than by the next one. See [notion.properties] above for what a row

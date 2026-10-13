@@ -345,6 +345,10 @@ class Runner:
     # `plan` is the guardrail, not the prompt: a conversation that quietly
     # edited a repository is the one thing nobody would expect of it.
     reply_permission_mode: str = "plan"
+    # Looking again at what is blocked, and moving back to ready what no longer
+    # is — see unblocking.py. Off by default: it spends a session per ticket.
+    unblock: bool = False
+    unblock_interval_seconds: int = 6 * 3600
     # What comes back on its own: the Schedules database, read in the same pass
     # that reads the board. One line to turn every schedule off at once, without
     # unticking a single row — see schedules.py.
@@ -1428,6 +1432,12 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
             runner_raw.get("reply_permission_mode", defaults.reply_permission_mode)
         ).strip()
         or defaults.reply_permission_mode,
+        unblock=bool(runner_raw.get("unblock", defaults.unblock)),
+        # A ticket is looked at once in this long, and a session is spent each
+        # time: ten minutes is the floor.
+        unblock_interval_seconds=max(
+            600, int(runner_raw.get("unblock_interval_seconds", defaults.unblock_interval_seconds))
+        ),
         schedule=bool(runner_raw.get("schedule", defaults.schedule)),
         auto_update=bool(runner_raw.get("auto_update", defaults.auto_update)),
         # Filtered rather than trusted: a typo here must not quietly put an

@@ -1076,6 +1076,15 @@ SECTIONS: tuple[Section, ...] = (
                   "One request each; the next ones are looked at the time after.",
                   minimum=1,
                   advanced=True),
+            Field("runner", "unblock", "bool", "Look again at blocked tickets",
+                  "A session reads why each blocked ticket stopped and whether that still "
+                  "holds. Only a ticket whose cause is gone goes back to ready; the reason "
+                  "is written on it either way. It costs a session per ticket."),
+            Field("runner", "unblock_interval_seconds", "int", "Look at a blocked ticket every",
+                  "600 at the least.",
+                  minimum=600,
+                  unit="seconds",
+                  advanced=True),
             Field("runner", "reply_timeout_minutes", "int", "Time limit per answer",
                   "Somebody is waiting for it: keep it short.",
                   minimum=1,
