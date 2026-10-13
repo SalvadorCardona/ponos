@@ -18,6 +18,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The ideas list reads at a glance, and its filters live in the address.** Each card puts its title
+  first, its status and type as badges, a few lines of description and who wrote it, small — and one
+  button in plain sight: *Turn into a ticket*, or *Open the ticket* once it is one. Keeping, throwing
+  away and making new again moved to the card's *…* menu, rewording to its pencil, and the title
+  opens the whole idea beside the list. The status, project and author filters are the same, now in
+  the address (`filter=…`), so a link or a reload opens the same list; *New idea* is at the top of
+  the list and on an empty one, and a table sits beside the cards.
 - **The projects list can be searched by name and narrowed to a type.** A search field and a *Type*
   menu (code or document) sit above the cards and the table; the words match a project's name or
   its type, whatever the case and the accents. Both live in the address (`filter=…`), so a link or

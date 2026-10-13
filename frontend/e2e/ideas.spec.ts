@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 /* The ideas, swiped one card at a time.
  *
@@ -25,6 +25,17 @@ async function open(page: Page, path = "/") {
 
 const dialog = (page: Page) => page.locator('[data-slot="ideas-dialog"]')
 const cards = (page: Page) => dialog(page).locator('[data-slot="ideas-card"]')
+const drawer = (page: Page) => page.locator('[data-slot="drawer-popup"]')
+/** One of the gestures a card keeps in its menu. Opened again when it closes
+ * under the click: a menu opened while the last one is still leaving is closed
+ * by the focus that one gives back to its button. */
+async function choose(page: Page, card: Locator, name: string) {
+  const item = page.getByRole("menuitem", { name, exact: true })
+  await expect(async () => {
+    if (!(await item.isVisible())) await card.locator('[data-slot="ideas-menu"]').click()
+    await item.click({ timeout: 1000 })
+  }).toPass()
+}
 const top = (page: Page) => dialog(page).locator('[data-slot="ideas-card"][data-depth="0"]')
 
 /** A card taken by the mouse and let go of `dx` pixels to the side. */
@@ -109,8 +120,8 @@ test.describe("at 1440px", () => {
     await expect(items.first()).toBeVisible()
     await expect(dialog(page).locator('li[data-status="ticket"]', { hasText: "Build the calendar module" })).toBeVisible()
     const thrown = dialog(page).locator('li[data-status="discarded"]').first()
-    const title = (await thrown.locator("p").first().textContent())!
-    await thrown.getByRole("button", { name: "Turn into a ticket" }).click()
+    const title = (await thrown.locator('[data-slot="ideas-title"]').textContent())!
+    await thrown.locator('[data-slot="ideas-ticket"]').click()
     await expect(dialog(page).locator('li[data-status="ticket"]', { hasText: title })).toBeVisible()
     await expect
       .poll(async () => (await board(page)).find((ticket) => ticket.title.endsWith(title))?.column)
@@ -158,8 +169,8 @@ test.describe("at 1440px", () => {
     await expect(tab.locator('[data-slot="ideas-item"][data-author="ponos"]').first()).toContainText("Ponos")
 
     await tab.getByRole("button", { name: "New idea", exact: true }).click()
-    const form = tab.locator('[data-slot="ideas-form"]')
-    await expect(form.getByRole("combobox", { name: "Project" })).toContainText("Website")
+    const form = drawer(page)
+    await expect(form.locator('[data-field="project"]')).toContainText("Website")
     await form.getByLabel("Title").fill("A page for the opening hours")
     await form.getByLabel("Description").fill("People keep asking.")
     await form.getByRole("button", { name: "Create" }).click()
@@ -168,24 +179,26 @@ test.describe("at 1440px", () => {
     await expect(mine.locator('[data-slot="ideas-author"]')).toContainText("Ada Lovelace")
     await expect(mine).toHaveAttribute("data-status", "proposed")
 
-    await mine.getByRole("button", { name: "Keep" }).click()
+    await choose(page, mine, "Keep")
     await expect(mine).toHaveAttribute("data-status", "kept")
-    await mine.getByRole("button", { name: "Throw away" }).click()
+    await choose(page, mine, "Throw away")
     await expect(mine).toHaveAttribute("data-status", "discarded")
     await filter("discarded").click()
     await expect(tab.locator('[data-slot="ideas-item"]', { hasText: "A page for the opening hours" })).toBeVisible()
     await expect(tab.locator('[data-slot="ideas-item"]:not([data-status="discarded"])')).toHaveCount(0)
 
-    await tab.getByRole("combobox", { name: "Written by" }).click()
+    await tab.locator('[data-slot="ideas-author-filter"]').click()
     await page.getByRole("option", { name: "Written by us" }).click()
     await expect(tab.locator('[data-slot="ideas-item"]')).toHaveCount(1)
     await expect(filter("all").locator('[data-slot="ideas-count"]')).toHaveText("1")
+    // The address is the project's: a list drawn inside it writes nothing there.
+    expect(new URL(page.url()).searchParams.get("filter")).toBeNull()
 
-    await mine.getByRole("button", { name: "Back to new" }).click()
+    await choose(page, mine, "Back to new")
     await filter("proposed").click()
-    await mine.getByRole("button", { name: "Edit" }).click()
-    await tab.locator('[data-slot="ideas-form"]').getByLabel("Title").fill("A page for the opening hours, in two languages")
-    await tab.locator('[data-slot="ideas-form"]').getByRole("button", { name: "Save" }).click()
+    await mine.getByRole("link", { name: "Edit" }).click()
+    await drawer(page).getByLabel("Title").fill("A page for the opening hours, in two languages")
+    await drawer(page).getByRole("button", { name: "Save" }).click()
     const edited = tab.locator('[data-slot="ideas-item"]', { hasText: "in two languages" })
     await expect(edited.locator('[data-slot="ideas-edited"]')).toContainText("Edited by Ada Lovelace")
     await edited.getByRole("button", { name: "Turn into a ticket" }).click()
