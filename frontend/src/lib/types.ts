@@ -675,6 +675,9 @@ export interface Statistics {
 
 export type IdeaStatus = "proposed" | "kept" | "discarded" | "ticket"
 
+/** What an idea is about — exactly one of them, or "" for one nobody sorted. */
+export type IdeaCategory = "" | "ux" | "feature" | "security" | "technical"
+
 /** Who wrote an idea, or last changed it: Ponos, or a person by the name and picture they had then. */
 export interface IdeaAuthor {
   kind: "ponos" | "human"
@@ -690,6 +693,7 @@ export interface Idea {
   /** The project it was proposed for; empty for the workspace's. */
   project: string
   kind: "ticket" | "project"
+  category: IdeaCategory
   title: string
   description: string
   where: string

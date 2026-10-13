@@ -5,7 +5,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
  * The ideas come from the same fake `claude` as the swipe's spec (see
  * `console.py`). What is checked is what somebody does with the page: reaching
  * it from the menu, finding the ideas Ponos asked for in it, the project's name
- * on its ideas, the three filters and the address that keeps them, the gestures
+ * on its ideas, the filters and the address that keeps them, the category an
+ * idea is sorted into, the gestures
  * of a card — the one in sight and the ones in its menu —, reading one and
  * writing one, and turning an idea into a ticket of the right project — and, at
  * the width of a phone, a single column inside the screen.
@@ -197,6 +198,29 @@ test.describe("at 1440px", () => {
     await expect(page.getByText("No idea matches these filters.")).toBeVisible()
     await page.getByRole("button", { name: "Clear the filters" }).click()
     await expect(cards(page).first()).toBeVisible()
+  })
+
+  test("an idea says its category, the filter keeps one category, and the form sorts one", async ({ page }) => {
+    await open(page)
+    await expect(cards(page).first()).toBeVisible()
+    await expect(page.locator('[data-slot="ideas-category"][data-category="security"]').first()).toHaveText("Security")
+    await page.locator('[data-slot="ideas-category-filter"]').click()
+    await page.getByRole("option", { name: "Security" }).click()
+    await expect.poll(() => filterOf(page)).toMatchObject({ category: "security" })
+    for (const card of await cards(page).all())
+      await expect(card.locator('[data-slot="ideas-category"]')).toHaveAttribute("data-category", "security")
+    const sorted = cards(page).first()
+    const title = (await sorted.locator('[data-slot="ideas-title"]').textContent())!
+    await sorted.locator('[data-slot="ideas-edit"]').click()
+    // The package's select: a combobox of its own, opened, then an option picked.
+    await drawer(page).getByRole("group").filter({ hasText: "Category" }).getByRole("combobox").click()
+    await page.getByRole("option", { name: "Technical", exact: true }).click()
+    await drawer(page).getByRole("button", { name: "Save" }).click()
+    await expect(cards(page).filter({ hasText: title })).toHaveCount(0)
+    await page.getByRole("button", { name: "Clear the search" }).first().click()
+    await expect(
+      cards(page).filter({ hasText: title }).locator('[data-slot="ideas-category"]')
+    ).toHaveAttribute("data-category", "technical")
   })
 
   test("an idea's title opens it whole, and New idea writes one", async ({ page }) => {

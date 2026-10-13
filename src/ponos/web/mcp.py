@@ -364,6 +364,13 @@ TOOLS: list[dict] = [
                     "description": "ticket (par défaut) : une tâche ; project : un nouveau projet "
                     "— seulement sans projet donné.",
                 },
+                "category": {
+                    "type": "string",
+                    "enum": list(ideas.CATEGORIES),
+                    "description": "ux : l'interface et l'expérience ; feature : une nouvelle "
+                    "fonctionnalité ; security : une faille ou un risque ; technical : refacto, "
+                    "performance, dette technique.",
+                },
             },
             ("title",),
         ),
@@ -814,6 +821,7 @@ def _idea(shown: dict) -> dict:
         "title": shown["title"],
         "description": shown["description"],
         "kind": shown["kind"],
+        "category": shown["category"],
         "status": shown["status"],
         "task": shown["ticket"],
         "created_at": shown["created_at"],
@@ -898,9 +906,16 @@ def apply_solution(
     return {"id": card["id"], "title": card["title"], **done}
 
 
-def create_idea(api: "Api", title: str, description: str = "", project: str = "", kind: str = "ticket") -> dict:
+def create_idea(
+    api: "Api",
+    title: str,
+    description: str = "",
+    project: str = "",
+    kind: str = "ticket",
+    category: str = "",
+) -> dict:
     scope = _project(api, project)["id"] if project else ""
-    return _idea(api.ideas.write(scope, kind, title, description))
+    return _idea(api.ideas.write(scope, kind, title, description, category))
 
 
 def set_idea_state(api: "Api", idea: int, state: str) -> dict:

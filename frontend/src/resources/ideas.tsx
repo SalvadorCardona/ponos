@@ -18,7 +18,14 @@ import {
 } from "react-resource-view"
 import { toast } from "sonner"
 
-import { IdeaCards, IdeaPage, IdeaRows, NoIdea, useStatusWords } from "@/components/console/idea-cards"
+import {
+  IdeaCards,
+  IdeaPage,
+  IdeaRows,
+  NoIdea,
+  useCategoryWords,
+  useStatusWords,
+} from "@/components/console/idea-cards"
 import { IdeasButton } from "@/components/console/ideas-deck"
 import { Pagination } from "@/components/console/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -26,7 +33,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api, why } from "@/lib/api"
 import { t } from "@/lib/i18n"
-import { AUTHORS, STATUSES, WORKSPACE, bare, counts, keeps, scopes } from "@/lib/idea-search"
+import { AUTHORS, CATEGORIES, STATUSES, WORKSPACE, bare, counts, keeps, scopes } from "@/lib/idea-search"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { Idea } from "@/lib/types"
 import { isAPage, projectsOnce, useProjects } from "@/resources/projects"
@@ -39,7 +46,9 @@ import { isAPage, projectsOnce, useProjects } from "@/resources/projects"
  * two layouts, a page that reads one, and the package's forms to write one or
  * reword it. The filters are the ones the pane had, now the package's own
  * filter bar, which writes them in the address: a list filtered on Website's
- * kept ideas is a link that opens on Website's kept ideas.
+ * kept ideas is a link that opens on Website's kept ideas. The category is one
+ * more of them, in the same shape: the reason ideas are sorted is to be able to
+ * look at the security ones alone.
  *
  * Two layouts, as the projects have. **Cards** to go through them, each with
  * the one gesture it is waiting for — turning it into a ticket, or opening the
@@ -70,6 +79,7 @@ export interface IdeaWrite {
   description?: string
   project?: string
   kind?: Idea["kind"]
+  category?: Idea["category"]
 }
 
 const item = (idea: Idea): IdeaItem => ({
@@ -274,15 +284,42 @@ const AuthorFilter: InputControllerComponentInterface = ({ formInput, onChange }
   </Choice>
 )
 
-/* The three filters, in the address as `status`, `project` and `author`; ""
+/* What an idea is about, in the same shape as the two others. */
+const CategoryFilter: InputControllerComponentInterface = ({ formInput, onChange }) => {
+  const words = useCategoryWords()
+  return (
+    <Choice>
+      <Select
+        value={String(formInput.value ?? "") || ANY}
+        onValueChange={(value) => onChange({ ...formInput, value: value === ANY ? "" : value })}
+      >
+        <SelectTrigger size="sm" className="h-8 w-auto text-xs" data-slot="ideas-category-filter" aria-label={t("Category")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{t("All categories")}</SelectItem>
+          {CATEGORIES.map((category) => (
+            <SelectItem key={category} value={category}>
+              {words[category]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Choice>
+  )
+}
+
+/* The filters, in the address as `status`, `category`, `project` and `author`; ""
  * is "all" for each, which is where the list rests. The labels are read from
  * the dictionary as the bar is drawn. */
 const statusFilter = { label: "Status", controller: StatusFilter }
+const categoryFilter = { label: "Category", controller: CategoryFilter }
 const authorFilter = { label: "Written by", controller: AuthorFilter }
 
 const formFilter: FormInterface = {
   inputs: {
     status: statusFilter,
+    category: categoryFilter,
     project: { label: "Project", controller: ProjectFilter },
     author: authorFilter,
   },
@@ -291,7 +328,7 @@ const formFilter: FormInterface = {
 /* Under a project, or in the swipe: the scope is the filter whoever draws the
  * list injects, and the package keeps an injected filter through a reset. */
 const scopedFormFilter: FormInterface = {
-  inputs: { status: statusFilter, author: authorFilter },
+  inputs: { status: statusFilter, category: categoryFilter, author: authorFilter },
 }
 
 /* -- the forms ------------------------------------------------------------- */
@@ -318,7 +355,25 @@ const description = {
   },
 }
 
-/* A new idea: its words, whom it is for — the project whose list it was
+/* One of the four, or none yet: an idea is sorted by hand as well as by Ponos,
+ * and one Ponos left unsorted is sorted when it is reworded. The options are
+ * read from the dictionary as the form is drawn. */
+const category = {
+  label: "Category",
+  controller: SelectInputController,
+  get description() {
+    return t("Technical is refactoring, performance and debt — not a new feature.")
+  },
+  getValueOptions: async () => [
+    { value: "", label: t("Not sorted") },
+    { value: "ux", label: t("UX/UI") },
+    { value: "feature", label: t("Feature") },
+    { value: "security", label: t("Security") },
+    { value: "technical", label: t("Technical") },
+  ],
+}
+
+/* A new idea: its words, what it is about, whom it is for — the project whose list it was
  * written from, unless changed — and, for the workspace, whether it is a
  * ticket or a whole new project. An idea of a project is a ticket of it, so
  * the type says so rather than hiding: the form has no way to follow a field. */
@@ -327,6 +382,7 @@ const createForm: FormInterface = {
   inputs: {
     title,
     description,
+    category,
     project: {
       label: "Project",
       controller: SelectInputController,
@@ -355,11 +411,11 @@ const createForm: FormInterface = {
   },
 }
 
-/* Rewording one: the title and the lines under it, nothing else. Whom it is for
+/* Rewording one: the title, the lines under it and its category. Whom it is for
  * is what it was proposed for, and the next batch is told about it as it is. */
 const editForm: FormInterface = {
   label: { submit: "Save" },
-  inputs: { title, description },
+  inputs: { title, description, category },
 }
 
 /* -- what sits around the list -------------------------------------------- */
@@ -423,6 +479,7 @@ const options: ResourceOptionInterface<IdeaItem, IdeaItem, IdeaWrite> = {
     const written = await api.editIdea(Number(patch.id), {
       title: String(patch.title ?? ""),
       description: String(patch.description ?? ""),
+      category: (patch.category ?? "") as Idea["category"],
     })
     await readAgain()
     return { data: item(written) }
@@ -434,6 +491,7 @@ const options: ResourceOptionInterface<IdeaItem, IdeaItem, IdeaWrite> = {
       description: String(fresh.description ?? ""),
       project,
       kind: project ? "ticket" : (fresh.kind ?? "ticket"),
+      category: fresh.category ?? "",
     })
     toast.success(t("Idea saved: {{title}}", { title: written.title }))
     await readAgain()
@@ -469,7 +527,7 @@ const options: ResourceOptionInterface<IdeaItem, IdeaItem, IdeaWrite> = {
       // Every card carries its own gestures (see `idea-cards.tsx`).
       behavior: { rowActions: [] },
       // The filters are the package's: they live in the address (`status`,
-      // `project`, `author`), and the rows are kept by `keeps`, as the list is read.
+      // `category`, `project`, `author`), and the rows are kept by `keeps`, as the list is read.
       formFilter,
       components: { top: IdeasTop, noResult: NoIdea, pagination: Pagination },
     },

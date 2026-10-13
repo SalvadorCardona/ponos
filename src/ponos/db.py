@@ -128,6 +128,11 @@ Migration 19 is the tickets whose session was picked up once more, only to
 write the report it stopped without — see `Execution._write_up`. Once a ticket,
 ever: a session that does not write it when asked is not asked again, on this
 run or on the next one, and the table is what remembers that across a restart.
+
+Migration 21 sorts an idea into one category — UX/UI, feature, security or
+technical, see ideas.py. A column with one value rather than a table of tags,
+because an idea is one of them and nothing else. Those written before it are
+left unsorted (""), not guessed at: nothing read then said which they were.
 """
 
 from __future__ import annotations
@@ -697,6 +702,10 @@ def _mends(connection: sqlite3.Connection) -> None:
     )
 
 
+def _ideas_have_a_category(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE ideas ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+
+
 # Appended to, never edited or renamed: a file remembers each of these by name,
 # and the version of a file is how many of them it has been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -725,6 +734,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _stops_have_a_cause,
     _write_ups,
     _mends,
+    _ideas_have_a_category,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

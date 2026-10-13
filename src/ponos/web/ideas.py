@@ -287,7 +287,7 @@ class Ideas:
     # -- writing by hand -------------------------------------------------------
 
     def create(self, payload: dict) -> dict:
-        """An idea somebody wrote: its title, its description, the project it is for."""
+        """An idea somebody wrote: its title, its description, its category, the project it is for."""
         project = ideas.bare(str(payload.get("project") or ""))
         if project and not any(
             ideas.bare(row["id"]) == project for row in self._api.all_projects()["projects"]
@@ -299,6 +299,7 @@ class Ideas:
             str(payload.get("title") or ""),
             str(payload.get("description") or ""),
             kind=str(payload.get("kind") or "ticket"),
+            category=str(payload.get("category") or ""),
             author=name,
             avatar=avatar,
         )
@@ -312,6 +313,7 @@ class Ideas:
             identifier,
             str(payload.get("title") or ""),
             str(payload.get("description") or ""),
+            category=None if "category" not in payload else str(payload["category"] or ""),
             editor=name,
             avatar=avatar,
         )
@@ -325,14 +327,20 @@ class Ideas:
                 self._person = who()
             return self._person
 
-    def write(self, project: str, kind: str, title: str, description: str = "") -> dict:
+    def write(
+        self, project: str, kind: str, title: str, description: str = "", category: str = ""
+    ) -> dict:
         """An idea an MCP client had, signed like one written in the console."""
         if kind not in ideas.KINDS:
             raise ValueError(f"an idea is a {' or a '.join(ideas.KINDS)} — not {kind}")
+        if category and category not in ideas.CATEGORIES:
+            raise ValueError(f"an idea is {', '.join(ideas.CATEGORIES)} — not {category}")
         if kind == "project" and ideas.scope_of(ideas.bare(project)) == "project":
             raise ValueError("an idea for a project is a ticket, never a project of its own")
         name, avatar = self.person()
-        idea = ideas.written(project, title, description, kind=kind, author=name, avatar=avatar)
+        idea = ideas.written(
+            project, title, description, kind=kind, category=category, author=name, avatar=avatar
+        )
         self._api.hub.publish("ideas", project=idea.project, written=idea.id)
         return idea.shown()
 
