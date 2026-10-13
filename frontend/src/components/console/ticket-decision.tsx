@@ -37,6 +37,7 @@ import {
   decisionTabOf,
   immediate,
   instructionOf,
+  itemsOf,
   labelOf,
   openedWith,
   plainRetry,
@@ -75,15 +76,21 @@ import { cn } from "@/lib/utils"
  */
 
 /** How a ticket shown on screen goes to one of its tabs: none around a card, which opens the window instead. */
-export const TicketTabContext = React.createContext<((tab: DecisionTab) => void) | null>(null)
+export const TicketTabContext = React.createContext<{
+  goTo: (tab: DecisionTab) => void
+  /** The tab on show, which the button has no use to offer a second time. */
+  shown?: string
+} | null>(null)
 
 /** The call to action of a card waiting on you: Unblock, or Decide. Nothing on any other card. */
 export function DecideButton({ ticket, className }: { ticket: Ticket; className?: string }) {
   const t = useT()
-  const goTo = React.useContext(TicketTabContext)
+  const tabs = React.useContext(TicketTabContext)
   const action = actionOf(ticket.column)
   const tab = decisionTabOf(ticket.column)
   if (!action || !tab) return null
+  // Already on that tab: the button would only point at where you are.
+  if (tabs?.shown === tab) return null
   const blocked = ticket.column === "blocked"
   const Icon = blocked ? MessageCircleQuestion : Scale
   return (
@@ -95,7 +102,7 @@ export function DecideButton({ ticket, className }: { ticket: Ticket; className?
         blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white",
         className
       )}
-      onClick={() => (goTo ? goTo(tab) : openInTheWindow(ticket.id, tab))}
+      onClick={() => (tabs ? tabs.goTo(tab) : openInTheWindow(ticket.id, tab))}
     >
       <Icon />
       {t(action)}
@@ -140,7 +147,7 @@ function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: ()
       </div>
     )
   return (
-    <div data-slot="ticket-decision" className="space-y-4 text-sm">
+    <div data-slot="ticket-decision" className="max-w-[75ch] space-y-8 text-base leading-relaxed">
       {decision.column === "review" ? <Delivered decision={decision} /> : <Stuck decision={decision} ticket={ticket} />}
       <Choices decision={decision} ticket={ticket} onDone={onDone} />
     </div>
@@ -149,9 +156,7 @@ function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: ()
 
 function Heading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-muted-foreground mb-1 text-[0.7rem] font-semibold tracking-wide uppercase">
-      {children}
-    </h3>
+    <h3 className="text-foreground mb-2 text-lg font-semibold">{children}</h3>
   )
 }
 
@@ -162,24 +167,45 @@ function Stuck({ decision, ticket }: { decision: Decision; ticket?: Ticket }) {
   const t = useT()
   const pullRequest = ticket?.pull_request ?? ""
   const ci = ticket?.block?.action === "base-ci" ? actionsOf(pullRequest) : ""
-  const asked = decision.question
   const reason = decision.reason?.trim()
-  const missing = asked?.ask && asked.ask !== reason ? asked.ask : ""
+  // The question the run asked is what you are here to answer: first, and large.
+  const asked = decision.question?.ask?.trim()
+  const done = itemsOf(decision.done)
   return (
-    <section data-slot="decision-reason" className="space-y-2">
-      <Heading>{t("Why it is stuck")}</Heading>
-      <Badge className="bg-tr-amber/15 text-tr-amber border-transparent">
-        {t(categoryOf(decision.category))}
-      </Badge>
-      <p className="leading-snug font-medium break-words">
-        {reason || (decision.reported ? t("The run did not say why.") : t("Set aside by hand: no run said why."))}
-      </p>
-      {decision.done || missing || decision.detail ? (
-        <div className="text-muted-foreground space-y-1 text-xs leading-relaxed break-words" data-slot="decision-explanation">
-          {decision.done ? <p>{t("Already done: {{done}}", { done: decision.done })}</p> : null}
-          {missing ? <p>{t("What is missing: {{missing}}", { missing })}</p> : null}
-          {decision.detail ? <p className="line-clamp-3">{decision.detail}</p> : null}
-        </div>
+    <>
+      {asked ? (
+        <section data-slot="decision-question" className="space-y-2">
+          <Heading>{t("The question")}</Heading>
+          <p className="text-xl leading-snug font-semibold break-words">{asked}</p>
+        </section>
+      ) : null}
+      <section data-slot="decision-reason" className="space-y-3">
+        <Heading>{t("Why it is stuck")}</Heading>
+        <Badge className="bg-tr-amber/15 text-tr-amber border-transparent">
+          {t(categoryOf(decision.category))}
+        </Badge>
+        <p className="font-medium break-words">
+          {reason || (decision.reported ? t("The run did not say why.") : t("Set aside by hand: no run said why."))}
+        </p>
+        {decision.detail ? (
+          <p className="text-muted-foreground line-clamp-3 break-words" data-slot="decision-explanation">
+            {decision.detail}
+          </p>
+        ) : null}
+      </section>
+      {done.length ? (
+        <section data-slot="decision-done">
+          <Heading>{t("Already done")}</Heading>
+          {done.length > 1 ? (
+            <ul className="list-disc space-y-1 pl-5 break-words">
+              {done.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="break-words">{done[0]}</p>
+          )}
+        </section>
       ) : null}
       {pullRequest || ci ? (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -202,7 +228,7 @@ function Stuck({ decision, ticket }: { decision: Decision; ticket?: Ticket }) {
           ) : null}
         </div>
       ) : null}
-    </section>
+    </>
   )
 }
 
@@ -325,7 +351,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
   return (
     <section data-slot="decision-choices">
       <Heading>{decision.column === "review" ? t("Your decision") : t("What would unblock it")}</Heading>
-      <ul className="space-y-1.5">
+      <ul className="space-y-2">
         {buttons.map((solution, index) => (
           <li key={`${solution.key}-${solution.number}`}>
             <Button
@@ -334,7 +360,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
               data-solution={solution.key}
               aria-expanded={immediate(solution) ? undefined : same(solution, chosen)}
               className={cn(
-                "h-auto min-h-10 w-full justify-start py-2 text-left whitespace-normal",
+                "h-auto min-h-11 w-full justify-start py-2 text-left text-base whitespace-normal",
                 away(solution) && "text-destructive hover:text-destructive"
               )}
               onClick={() => (same(solution, chosen) ? setChosen(null) : pick(solution))}
@@ -346,7 +372,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
                 {t(labelOf(solution))}
                 {/* Which point, for the ones sent back on a point of their own. */}
                 {solution.key === "caveat" && decision.caveats?.[solution.number - 1] ? (
-                  <span className="text-muted-foreground block text-xs">
+                  <span className="text-muted-foreground block text-sm">
                     {decision.caveats[solution.number - 1]}
                   </span>
                 ) : null}
@@ -389,15 +415,14 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
                       event.currentTarget.form?.requestSubmit()
                     }
                   }}
-                  className="text-sm"
+                  className="text-base md:text-base"
                 />
-                <div className="flex justify-end gap-1.5">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setChosen(null)}>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setChosen(null)}>
                     {t("Cancel")}
                   </Button>
                   <Button
                     type="submit"
-                    size="sm"
                     variant={away(solution) ? "destructive" : "default"}
                     disabled={busy || !sendable(solution, text, model)}
                   >
@@ -412,7 +437,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
       {written ? (
         <form
           data-slot="decision-instruction"
-          className="mt-3 space-y-1.5"
+          className="mt-8 space-y-2"
           onSubmit={(event) => {
             event.preventDefault()
             if (sendable(written, instruction)) void apply(written, instruction, "")
@@ -431,9 +456,9 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
                 event.currentTarget.form?.requestSubmit()
               }
             }}
-            className="text-sm"
+            className="text-base md:text-base"
           />
-          <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center justify-between gap-2">
             {/* "Make ready", kept for when nothing needs saying: the same
                 move the card made, quieter, under the choices that say why. */}
             {plain ? (
@@ -443,7 +468,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
                 size="sm"
                 disabled={busy}
                 data-slot="decision-plain-retry"
-                className="text-muted-foreground hover:text-foreground h-auto px-0"
+                className="text-muted-foreground hover:text-foreground h-auto px-0 text-sm"
                 onClick={() => {
                   onDone()
                   void move(ticket, "ready")
@@ -454,7 +479,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
             ) : (
               <span />
             )}
-            <Button type="submit" size="sm" disabled={busy || !sendable(written, instruction)}>
+            <Button type="submit" disabled={busy || !sendable(written, instruction)}>
               {t("Send and run again")}
             </Button>
           </div>

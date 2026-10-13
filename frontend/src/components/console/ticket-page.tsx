@@ -77,6 +77,9 @@ export function TicketPage() {
   // Unblock, pressed on the ticket itself: a tab to switch to, under it.
   const [asked, setAsked] = React.useState<{ tab: DecisionTab; at: number }>()
   const goTo = React.useCallback((tab: DecisionTab) => setAsked({ tab, at: Date.now() }), [])
+  // The tab on show, for the button above them to know it is already there.
+  const [shown, setShown] = React.useState<string>()
+  const tabs = React.useMemo(() => ({ goTo, shown }), [goTo, shown])
 
   // The page is the ticket's terminal too: opening it loads the discussion.
   React.useEffect(() => {
@@ -126,7 +129,7 @@ export function TicketPage() {
 
           {/* Priority, model and date are the grid's: the tags the card wears
               would say them a second time, one line above. */}
-          <TicketTabContext.Provider value={goTo}>
+          <TicketTabContext.Provider value={tabs}>
             <TicketActions ticket={ticket} className="-mx-1" />
           </TicketTabContext.Provider>
 
@@ -138,6 +141,7 @@ export function TicketPage() {
             brief={brief}
             talking={open?.id === ticket.id}
             asked={asked}
+            onTab={setShown}
           />
         </>
       ) : context.error ? (
@@ -380,12 +384,15 @@ function TicketTabs({
   brief,
   talking,
   asked,
+  onTab,
 }: {
   ticket: TicketDetail
   brief: ReturnType<typeof useBrief>
   talking: boolean
   /** A tab the ticket's own Unblock button asked for — the latest press. */
   asked?: { tab: DecisionTab; at: number }
+  /** Told which tab is on show. */
+  onTab: (tab: string) => void
 }) {
   const { talk, talkWaiting } = useConsole()
   const { sessions } = useSteps()
@@ -423,6 +430,7 @@ function TicketTabs({
   React.useEffect(() => {
     if (addressed) setTab(addressed)
   }, [addressed])
+  React.useEffect(() => onTab(tab), [tab, onTab])
   // The Unblock button above the tabs, pressed.
   React.useEffect(() => {
     if (asked) show(asked.tab, true)

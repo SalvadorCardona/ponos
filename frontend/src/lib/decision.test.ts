@@ -15,6 +15,7 @@ import {
   categoryOf,
   immediate,
   instructionOf,
+  itemsOf,
   labelOf,
   openedWith,
   plainRetry,
@@ -129,4 +130,11 @@ test("an answer's field asks for an answer, the others for what they need", () =
   assert.equal(promptOf(offer("answer", "text")), "Your answer")
   assert.equal(promptOf(offer("instruct", "text")), "The instruction the next session reads")
   assert.equal(promptOf(offer("model", "model")), "A note, if you want one")
+})
+
+test("what was done is split into its lines, without their bullets", () => {
+  assert.deepEqual(itemsOf(undefined), [])
+  assert.deepEqual(itemsOf("branch ready"), ["branch ready"])
+  assert.deepEqual(itemsOf("- one\n* two\n\n  three"), ["one", "two", "three"])
+  assert.deepEqual(itemsOf("PR opened; CI green"), ["PR opened", "CI green"])
 })

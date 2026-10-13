@@ -154,6 +154,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The Unblock tab reads at the size of the discussion.** The question the run asked comes first,
+  large; then why the ticket is stuck, and what is already done as its own list. Text is 16 px in
+  the normal colour instead of small grey, section titles are plain headings rather than tiny
+  capitals, lines stop at about 75 characters, and *Send and run again* is a full-size button
+  (greyed only while its field is empty). The *Unblock* button above the tabs goes while that tab
+  is the one on show.
+
+
 - ***Blocked* now comes right after *In progress* on the board.** A ticket waiting on your answer
   is a ticket in progress that stopped, so it is read beside it: the columns, the status filter and
   the MCP tools all follow the one order — ready, in progress, blocked, in review, validated,

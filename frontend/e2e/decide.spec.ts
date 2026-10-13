@@ -62,8 +62,10 @@ test.describe("on a desktop", () => {
     await expect(page.locator('[data-slot="decision-panel"]')).toHaveCount(0)
     await expect(panel(page)).toContainText("Missing access")
     await expect(panel(page)).toContainText("I have no SSH access to the server")
-    await expect(panel(page)).toContainText("Already done: branch `ticket/tailscale` ready")
-    await expect(panel(page)).toContainText("What is missing: Which way do you prefer?")
+    await expect(panel(page).locator('[data-slot="decision-done"]')).toContainText("branch `ticket/tailscale` ready")
+    await expect(panel(page).locator('[data-slot="decision-question"]')).toContainText("Which way do you prefer?")
+    // Already on the tab: the button above it would only point at where you are.
+    await expect(ticketWindow(page).locator(`[data-decide="${READ}"]`)).toHaveCount(0)
     const choices = panel(page).locator("[data-solution]")
     await expect(choices.first()).toHaveText(/Give me an SSH key/)
     await expect(panel(page).getByRole("button", { name: "It's done, run it again" })).toBeVisible()
