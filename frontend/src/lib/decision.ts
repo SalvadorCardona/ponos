@@ -160,3 +160,10 @@ export const CHECKS: Record<string, string> = {
   none: "No checks",
   unknown: "Checks unknown",
 }
+
+/** What a run says it did, as the lines it is made of: one per line, or per semicolon, without their bullets. */
+export const itemsOf = (text?: string): string[] =>
+  (text ?? "")
+    .split(/\n|;\s/)
+    .map((line) => line.replace(/^\s*(?:[-*•]\s+)?/, "").trim())
+    .filter(Boolean)
