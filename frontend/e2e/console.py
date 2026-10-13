@@ -211,6 +211,7 @@ if "proposing ideas" in prompt:
         {{"title": f"Build the {{nouns[n + 10 * (asked % 2)]}} module for {{teams[asked % 5]}}",
           "description": f"Because the {{nouns[n + 10 * (asked % 2)]}} is what people ask for.",
           "kind": "project" if n % 2 else "ticket", "where": "The web app.",
+          "category": ["ux", "feature", "security", "technical"][n % 4],
           "done": ["It works."], "out": ["Nothing else."]}}
         for n in range(10)
     ]

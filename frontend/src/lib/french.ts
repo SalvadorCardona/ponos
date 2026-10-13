@@ -1719,8 +1719,17 @@ export const FRENCH: Record<string, string> = {
   "Idea saved: {{title}}": "Idée enregistrée : {{title}}",
   "No idea yet.": "Aucune idée pour l'instant.",
   "No idea matches these filters.": "Aucune idée ne correspond à ces filtres.",
-  "Another status, author or project, and they will be back.":
-    "Un autre statut, auteur ou projet, et elles reviendront.",
+  "Another status, category, author or project, and they will be back.":
+    "Un autre statut, catégorie, auteur ou projet, et elles reviendront.",
+  Category: "Catégorie",
+  "All categories": "Toutes les catégories",
+  "UX/UI": "UX/UI",
+  Feature: "Fonctionnalité",
+  Security: "Sécurité",
+  Technical: "Technique",
+  "Not sorted": "Non classée",
+  "Technical is refactoring, performance and debt — not a new feature.":
+    "Technique, c’est la refacto, la performance et la dette — pas une nouvelle fonctionnalité.",
   "Write one, or ask Ponos for a batch.": "Écris-en une, ou demande une série à Ponos.",
   "Idea": "Idée",
   "For": "Pour",

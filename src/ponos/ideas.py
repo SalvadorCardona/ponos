@@ -38,6 +38,15 @@ proposing it again.
 says who wrote it — Ponos, or the person, by the name and the picture they
 had then — and who last changed it, and when.
 
+**One category, never a tag.** Each idea is also UX/UI, feature, security or
+technical — one of the four, never several: the point is to sort them, treat
+them apart and put the security ones first, and an idea that is two things at
+once is an idea that was not decided. Technical takes refactoring, performance
+and debt, so that "feature" stays what brings something new to whoever uses
+the project, rather than whatever is not something else. The model is asked to
+choose; an answer that does not is left unsorted rather than guessed, and
+somebody sorts it by hand.
+
 Nothing here touches the network: building the prompt, reading the answer and
 remembering the decisions are testable alone. Running the session and writing
 the board is `web/ideas.py`'s.
@@ -58,6 +67,9 @@ SCOPES = ("global", "project")
 KINDS = ("ticket", "project")
 STATUSES = ("proposed", "kept", "discarded", "ticket")
 ORIGINS = ("ponos", "manual")
+# "" is an idea nobody sorted yet: one from before categories, or one the
+# model left out.
+CATEGORIES = ("ux", "feature", "security", "technical")
 
 # One batch. Enough to swipe through in a minute, few enough that the model
 # still has something to say by the tenth.
@@ -108,6 +120,10 @@ per idea:
 - "title": what to do, in one line of {title_limit} characters at most;
 - "description": why it is worth doing, in {lines} short lines at most;
 - "kind": {kinds};
+- "category": one of "ux" (the interface and how it feels to use), "feature" \
+(something new that is worth something to whoever uses it), "security" (a flaw \
+or a risk), "technical" (refactoring, performance, technical debt) — exactly \
+one of them;
 - "where": where the work happens — the part of the project, the files, the \
 service — in one sentence;
 - "done": a list of two to four checks that say the work is finished;
@@ -139,7 +155,8 @@ class Idea:
     created when it was the idea of one: both stay after the decision is taken
     back, so that turning it into a ticket again does not write them twice.
     `author` is the name of who wrote it by hand, "" for Ponos; `edited_by`
-    the last person who changed it.
+    the last person who changed it. `category` is one of CATEGORIES, or ""
+    for an idea nobody sorted.
     """
 
     id: int
@@ -150,6 +167,7 @@ class Idea:
     title: str
     description: str
     detail: dict = field(default_factory=dict)
+    category: str = ""
     status: str = "proposed"
     ticket: str = ""
     created: str = ""
@@ -172,6 +190,7 @@ class Idea:
             "scope": self.scope,
             "project": self.project,
             "kind": self.kind,
+            "category": self.category,
             "title": self.title,
             "description": self.description,
             "where": str(self.detail.get("where") or ""),
@@ -288,6 +307,7 @@ def parse(answer: str, scope: str) -> list[dict]:
                 "title": title,
                 "description": _description(entry.get("description")),
                 "kind": kind,
+                "category": _category(entry.get("category")),
                 "detail": {
                     "where": _line(entry.get("where")),
                     "done": _list(entry.get("done")),
@@ -296,6 +316,12 @@ def parse(answer: str, scope: str) -> list[dict]:
             }
         )
     return found
+
+
+def _category(value: object) -> str:
+    """One of the four categories, or "" — never a guess at what was meant."""
+    said = _line(value).lower()
+    return said if said in CATEGORIES else ""
 
 
 def _array(answer: str) -> list:
@@ -429,7 +455,7 @@ def _now() -> str:
 _COLUMNS = (
     "id, batch, scope, project, kind, title, description, detail, status, ticket, created,"
     " cost_usd, created_at, decided_at, origin, author, author_avatar, edited_by,"
-    " edited_by_avatar, edited_at, changed_at"
+    " edited_by_avatar, edited_at, changed_at, category"
 )
 
 
@@ -460,6 +486,7 @@ def _idea(row: tuple) -> Idea:
         edited_by_avatar=row[18],
         edited_at=row[19],
         changed_at=row[20],
+        category=row[21],
     )
 
 
@@ -487,13 +514,14 @@ def record(
         ).lastrowid
         for idea in ideas:
             connection.execute(
-                "INSERT INTO ideas (batch, scope, project, kind, title, description, detail,"
-                " cost_usd, created_at, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO ideas (batch, scope, project, kind, category, title, description,"
+                " detail, cost_usd, created_at, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     batch,
                     scope,
                     project,
                     idea["kind"],
+                    _category(idea.get("category")),
                     idea["title"],
                     idea.get("description", ""),
                     json.dumps(idea.get("detail") or {}, ensure_ascii=False),
@@ -514,6 +542,7 @@ def written(
     description: str = "",
     *,
     kind: str = "ticket",
+    category: str = "",
     author: str = "",
     avatar: str = "",
 ) -> Idea:
@@ -532,26 +561,48 @@ def written(
     now = _now()
     with db.transaction() as connection:
         identifier = connection.execute(
-            "INSERT INTO ideas (scope, project, kind, title, description, origin, author,"
-            " author_avatar, created_at, changed_at) VALUES (?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?)",
-            (scope, project, kind, title, _written(description), author, avatar, now, now),
+            "INSERT INTO ideas (scope, project, kind, category, title, description, origin,"
+            " author, author_avatar, created_at, changed_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?)",
+            (
+                scope,
+                project,
+                kind,
+                _category(category),
+                title,
+                _written(description),
+                author,
+                avatar,
+                now,
+                now,
+            ),
         ).lastrowid
     return get(int(identifier))
 
 
 def edit(
-    identifier: int, title: str, description: str, *, editor: str = "", avatar: str = ""
+    identifier: int,
+    title: str,
+    description: str,
+    *,
+    category: str | None = None,
+    editor: str = "",
+    avatar: str = "",
 ) -> Idea:
-    """Reword an idea, and say who did and when. Its author stays its author."""
+    """Reword an idea, and say who did and when. Its author stays its author.
+
+    `category` None leaves it as it was; "" says it is not sorted after all.
+    """
     title = _line(title)[:TITLE_LIMIT].strip()
     if not title:
         raise ValueError("an idea needs a title")
-    get(identifier)
+    before = get(identifier)
+    sorted_as = before.category if category is None else _category(category)
     with db.transaction() as connection:
         connection.execute(
-            "UPDATE ideas SET title = ?, description = ?, edited_by = ?, edited_by_avatar = ?,"
-            " edited_at = ? WHERE id = ?",
-            (title, _written(description), editor, avatar, _now(), identifier),
+            "UPDATE ideas SET title = ?, description = ?, category = ?, edited_by = ?,"
+            " edited_by_avatar = ?, edited_at = ? WHERE id = ?",
+            (title, _written(description), sorted_as, editor, avatar, _now(), identifier),
         )
     return get(identifier)
 

@@ -22,7 +22,7 @@ import { projectHref } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
 import { IdeaOrigin } from "./idea-origin"
-import { Byline } from "./idea-cards"
+import { Byline, CategoryBadge } from "./idea-cards"
 import { Robot } from "./robot"
 import { ScopedIdeas } from "./scoped-ideas"
 
@@ -544,6 +544,7 @@ function Card({
         <Badge variant={idea.kind === "project" ? "default" : "secondary"} data-slot="ideas-kind">
           {idea.kind === "project" ? t("New project") : t("Ticket")}
         </Badge>
+        <CategoryBadge category={idea.category} />
         <IdeaOrigin project={idea.kind === "project" ? "" : idea.project} name={name} />
       </div>
       <h3 className="text-xl leading-snug font-semibold tracking-tight">{idea.title}</h3>

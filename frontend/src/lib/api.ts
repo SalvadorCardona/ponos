@@ -268,9 +268,14 @@ export const api = {
       `/api/ideas/all${everywhere ? "?scope=all" : project ? `?project=${encodeURIComponent(project)}` : ""}`
     ),
   /** An idea written by hand; an empty `project` is the workspace's. */
-  writeIdea: (values: { title: string; description: string; project: string; kind?: Idea["kind"] }) =>
-    request<Idea>("/api/ideas", values),
-  editIdea: (id: number, values: { title: string; description: string }) =>
+  writeIdea: (values: {
+    title: string
+    description: string
+    project: string
+    kind?: Idea["kind"]
+    category?: Idea["category"]
+  }) => request<Idea>("/api/ideas", values),
+  editIdea: (id: number, values: { title: string; description: string; category?: Idea["category"] }) =>
     request<Idea>(`/api/ideas/${id}`, values),
   /** Kept for later: nothing is written on the board. */
   keepIdea: (id: number) => request<Idea>(`/api/ideas/${id}/keep`, {}),

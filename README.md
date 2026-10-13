@@ -2526,6 +2526,13 @@ doing, and throwing one away only marks it so: nothing is ever deleted. The last
 taken back — an idea's ticket stays on the board as a draft, and is what it becomes again if it
 is turned into a ticket a second time.
 
+Each idea also has a category, one and only one: *UX/UI* (the interface and how it feels),
+*Feature* (something new worth something to whoever uses the project), *Security* (a flaw or
+a risk, to deal with first) or *Technical* (refactoring, performance, technical debt — so that
+*Feature* does not become whatever is not something else). Ponos is asked to choose one for each
+idea it proposes; one it left out, and those proposed before categories existed, stay
+unsorted until somebody picks one in the idea's form.
+
 Each idea says who wrote it: Ponos, with its mascot, or a person — ideas can be written by hand
 — by the name and picture of the GitHub account `gh` is signed in as (git's `user.name` when
 there is no `gh`). An idea reworded by hand also says who last changed it, and when.
@@ -2538,20 +2545,21 @@ The *All ideas* tab lists every idea of the scope, thrown ones included. On a ph
 fills the screen.
 
 A project's page has an *Ideas* tab, beside *Tickets* and *Brief* (`&tab=ideas`): every idea of
-the project with a count per status, and filters by status and by author (Ponos or us). Each
-card puts its title first, then where it stands and what it is (a ticket, or a new project),
+the project with a count per status, and filters by status, by category and by author (Ponos or
+us). Each card puts its title first, then where it stands, its category and what it is (a ticket,
+or a new project),
 a few lines of its description, and who wrote it and when, small. It has one gesture in plain
 sight — *Turn into a ticket* (*Create the project* for the idea of one), or *Open the ticket* once
 it is one — and the others a click away: the pencil rewords it, and the *…* menu keeps it,
 throws it away or makes it new again. Its title opens it whole, beside the list, with what it
 should touch, *Done when* and *Out of scope*. *New idea* opens a short form — title,
-description, project (the page's own, already picked) — and the idea is stored as written by
+description, category, project (the page's own, already picked) — and the idea is stored as written by
 hand; *Find me ideas for this project* is there too. The deck's *All ideas* tab is the same list,
 the workspace's when opened from the dashboard. Cards or a table, whichever you pick.
 
 The *Ideas* entry of the menu is that same list for every scope at once: each card also says
 whom it is for — the project's icon and name, or *Workspace* — and a filter by project sits
-beside the filter by status. The three filters live in the address (`filter=…`), so a link or a
+beside the filter by status. The filters live in the address (`filter=…`), so a link or a
 reload opens the same list. *New idea* sits at the top of the list, and on an empty one. *Ponos,
 find me ideas* asks for a batch for the project picked in that filter, and the swipe it opens
 stays the quick way to sort them. The console reads the list through `GET

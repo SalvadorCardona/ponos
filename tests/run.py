@@ -14257,6 +14257,34 @@ def an_idea_answer_is_read_whatever_wraps_it():
 
 
 @case
+def an_idea_is_sorted_into_one_category_or_left_unsorted():
+    """UX/UI, feature, security or technical — one of the four, or "" rather than a guess."""
+    assert '"category"' in ideas.prompt(project="Usine"), "the model is asked to choose"
+    answer = json.dumps(
+        [
+            {"title": "Un thème sombre", "category": " UX "},
+            {"title": "Échapper le HTML", "category": "security"},
+            {"title": "Deux catégories", "category": ["feature", "technical"]},
+            {"title": "Une catégorie inventée", "category": "marketing"},
+        ]
+    )
+    assert [idea["category"] for idea in ideas.parse(answer, "project")] == [
+        "ux", "security", "", ""
+    ]
+    with _state_home():
+        _, stored = ideas.record("p", "haiku", None, ideas.parse(answer, "project"))
+        assert [idea.shown()["category"] for idea in stored] == ["ux", "security", "", ""]
+        written = ideas.written("p", "Un cache", category="technical")
+        assert written.category == "technical"
+        assert ideas.written("p", "Autre", category="tout").category == ""
+        assert ideas.edit(written.id, "Un cache, enfin", "").category == "technical", (
+            "rewording it keeps its category"
+        )
+        assert ideas.edit(written.id, "Un cache", "", category="feature").category == "feature"
+        assert ideas.edit(written.id, "Un cache", "", category="").category == ""
+
+
+@case
 def ideas_for_a_project_are_found_in_one_call_and_never_proposed_twice():
     """Ten in one light session, given the brief, the README and the tickets.
 
@@ -14462,8 +14490,9 @@ def an_idea_written_by_hand_is_signed_and_never_proposed_again():
                 pass
             else:
                 raise AssertionError(f"refused: {wrong}")
-        workspace = api.ideas.create({"title": "Un site", "kind": "project"})
+        workspace = api.ideas.create({"title": "Un site", "kind": "project", "category": "feature"})
         assert workspace["scope"] == "global" and workspace["kind"] == "project"
+        assert workspace["category"] == "feature" and written["category"] == ""
 
         fake_run, asked = _proposing([[_idea("Une carte des usines !"), _idea("Un mode sombre")]])
         original, session.run = session.run, fake_run
@@ -14477,8 +14506,11 @@ def an_idea_written_by_hand_is_signed_and_never_proposed_again():
         assert ponos["origin"] == "ponos" and ponos["author"]["kind"] == "ponos"
 
         api.ideas._person = ("Quelqu'un", "")
-        edited = api.ideas.edit(ponos["id"], {"title": "Un mode sombre, partout", "description": "Oui."})
+        edited = api.ideas.edit(
+            ponos["id"], {"title": "Un mode sombre, partout", "description": "Oui.", "category": "ux"}
+        )
         assert edited["title"] == "Un mode sombre, partout" and edited["author"]["kind"] == "ponos"
+        assert edited["category"] == "ux"
         assert edited["edited"]["name"] == "Quelqu'un" and edited["edited"]["at"]
 
         db.close()
@@ -16608,8 +16640,13 @@ def an_mcp_client_sorts_ideas_without_deleting_any():
         idea = _mcp_call(api, grant, "create_idea", title="Un mode sombre", project="Usine")["structuredContent"]
         assert idea["status"] == "proposed" and idea["kind"] == "ticket"
         assert _mcp_call(api, grant, "create_idea", title="Un club", project="Usine", kind="project")["isError"]
+        sorted_one = _mcp_call(
+            api, grant, "create_idea", title="Un audit des jetons", project="Usine", category="security"
+        )["structuredContent"]
+        assert sorted_one["category"] == "security" and idea["category"] == ""
+        assert _mcp_call(api, grant, "create_idea", title="Un tag", project="Usine", category="marketing")["isError"]
         listed = _mcp_call(api, grant, "list_ideas", project="Usine")["structuredContent"]["ideas"]
-        assert [item["title"] for item in listed] == ["Un mode sombre"]
+        assert [item["title"] for item in listed] == ["Un mode sombre", "Un audit des jetons"]
         assert _mcp_call(api, grant, "list_ideas")["structuredContent"]["ideas"] == [], "the workspace's are apart"
 
         thrown = _mcp_call(api, grant, "set_idea_state", idea=idea["id"], state="discard")["structuredContent"]

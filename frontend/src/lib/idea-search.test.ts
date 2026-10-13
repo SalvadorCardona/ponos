@@ -8,18 +8,19 @@ import { test } from "node:test"
 import { counts, filtering, keeps, scopeOf, scopes } from "./idea-search.ts"
 
 const WEBSITE = "0000000000000000000000000000cafe"
-const idea = (title: string, status: string, author: string, project = "", kind = "ticket") => ({
+const idea = (title: string, status: string, author: string, project = "", kind = "ticket", category = "") => ({
   title,
   status,
   kind,
+  category,
   project,
   author: { kind: author },
 })
 const IDEAS = [
-  idea("calendar", "proposed", "ponos"),
-  idea("invoice", "kept", "ponos", "", "project"),
-  idea("hours", "proposed", "human"),
-  idea("sitemap", "discarded", "ponos", WEBSITE),
+  idea("calendar", "proposed", "ponos", "", "ticket", "feature"),
+  idea("invoice", "kept", "ponos", "", "project", "feature"),
+  idea("hours", "proposed", "human", "", "ticket", "ux"),
+  idea("sitemap", "discarded", "ponos", WEBSITE, "ticket", "technical"),
   idea("quotation", "ticket", "ponos", "00000000-0000-0000-0000-00000000cafe"),
 ]
 const titles = (filter: object) => IDEAS.filter((one) => keeps(one, filter)).map((one) => one.title)
@@ -34,6 +35,14 @@ test("the status keeps the ideas in that status", () => {
   assert.deepEqual(titles({ status: "proposed" }), ["calendar", "hours"])
   assert.deepEqual(titles({ status: "ticket" }), ["quotation"])
   assert.equal(filtering({ status: "kept" }), true)
+})
+
+test("the category keeps the ideas sorted into it, and none of the unsorted ones", () => {
+  assert.deepEqual(titles({ category: "feature" }), ["calendar", "invoice"])
+  assert.deepEqual(titles({ category: "feature", status: "kept" }), ["invoice"])
+  assert.deepEqual(titles({ category: "security" }), [])
+  assert.equal(filtering({ category: "ux" }), true)
+  assert.equal(counts(IDEAS, { category: "feature" }).proposed, 1)
 })
 
 test("the author keeps Ponos's ideas, or ours", () => {

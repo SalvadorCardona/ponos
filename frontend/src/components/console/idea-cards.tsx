@@ -22,7 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
-import type { Idea, IdeaAuthor, IdeaStatus } from "@/lib/types"
+import type { Idea, IdeaAuthor, IdeaCategory, IdeaStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { SCOPED_IDEAS, ideaOf, ideasChanged, useReadAgainOnChange, type IdeaItem } from "@/resources/ideas"
 import { projectHref } from "@/resources/projects"
@@ -36,7 +36,8 @@ import { ago } from "./ticket-bits"
 /* One idea, as the list of the ideas draws it — a card, a row of the table, or
  * the page it opens on.
  *
- * Read in this order: what the idea is (its title, then where it stands),
+ * Read in this order: what the idea is (its title, then where it stands and
+ * what it is about),
  * why (a few lines of it), then who and when, small. And one gesture in plain
  * sight, the one the idea is waiting for: turning it into a ticket — or, once
  * it is one, opening that ticket. Keeping it for later, throwing it away and
@@ -81,6 +82,42 @@ function StatusBadge({ status }: { status: IdeaStatus }) {
     <Badge variant="outline" className="text-muted-foreground gap-1.5 rounded-full font-normal">
       <span className={cn("size-1.5 rounded-full", TONE[status])} aria-hidden />
       <span data-slot="ideas-status">{words.one[status]}</span>
+    </Badge>
+  )
+}
+
+/** What each category is called, on a card and on its filter. */
+export function useCategoryWords(): Record<Exclude<IdeaCategory, "">, string> {
+  const t = useT()
+  return {
+    ux: t("UX/UI"),
+    feature: t("Feature"),
+    security: t("Security"),
+    technical: t("Technical"),
+  }
+}
+
+/* A tint each, so a list is sorted at a glance — security the loudest, since
+ * it is the one to deal with first. */
+const CATEGORY_TONE: Record<Exclude<IdeaCategory, "">, string> = {
+  ux: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  feature: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  security: "border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  technical: "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300",
+}
+
+/** The category an idea was sorted into; nothing for one nobody sorted. */
+export function CategoryBadge({ category }: { category: IdeaCategory }) {
+  const words = useCategoryWords()
+  if (!category) return null
+  return (
+    <Badge
+      variant="outline"
+      className={cn("rounded-full font-normal", CATEGORY_TONE[category])}
+      data-slot="ideas-category"
+      data-category={category}
+    >
+      {words[category]}
     </Badge>
   )
 }
@@ -276,6 +313,7 @@ function IdeaCard({ idea, named }: { idea: Idea; named: boolean }) {
 
       <div className="flex flex-wrap items-center gap-1.5">
         <StatusBadge status={idea.status} />
+        <CategoryBadge category={idea.category} />
         <KindBadge kind={idea.kind} />
       </div>
 
@@ -325,7 +363,7 @@ export function IdeaCards({ rows = [] }: ListComponentPropsInterface) {
 
 /** The columns of a row, shared by the heading and every row so they line up. */
 const COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_10.5rem_minmax(0,1.4fr)_15.5rem]"
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_7.5rem_10.5rem_minmax(0,1.4fr)_15.5rem]"
 
 function IdeaRow({ idea, named }: { idea: Idea; named: boolean }) {
   const { busy, run, secondary } = useGestures(idea)
@@ -341,10 +379,14 @@ function IdeaRow({ idea, named }: { idea: Idea; named: boolean }) {
         <TitleLink idea={idea} className="block truncate font-medium" />
         <span className="flex min-w-0 items-center gap-1.5 md:hidden">
           <StatusBadge status={idea.status} />
+          <CategoryBadge category={idea.category} />
         </span>
       </span>
       <span className="hidden min-w-0 md:block">
         {named ? <IdeaOrigin project={idea.kind === "project" ? "" : idea.project} /> : <KindBadge kind={idea.kind} />}
+      </span>
+      <span className="hidden md:block">
+        <CategoryBadge category={idea.category} />
       </span>
       <span className="hidden md:block">
         <StatusBadge status={idea.status} />
@@ -372,6 +414,7 @@ export function IdeaRows({ rows = [] }: ListComponentPropsInterface) {
         <div className={cn(COLUMNS, "text-muted-foreground border-b py-2 text-xs font-medium")} aria-hidden>
           <span>{t("Idea")}</span>
           <span className="hidden md:block">{named ? t("For") : t("Type")}</span>
+          <span className="hidden md:block">{t("Category")}</span>
           <span className="hidden md:block">{t("Status")}</span>
           <span className="hidden md:block">{t("Written by")}</span>
           <span />
@@ -411,6 +454,7 @@ function IdeaWhole({ idea }: { idea: Idea }) {
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge status={idea.status} />
+          <CategoryBadge category={idea.category} />
           <KindBadge kind={idea.kind} />
         </div>
         <h2 className="text-lg leading-snug font-semibold">{idea.title}</h2>
@@ -491,7 +535,7 @@ export function NoIdea() {
           </Button>
         }
       >
-        {t("Another status, author or project, and they will be back.")}
+        {t("Another status, category, author or project, and they will be back.")}
       </EmptyState>
     )
   return (
