@@ -47,6 +47,19 @@ test.describe("at 1440px", () => {
     await expect(origin(page, "Workspace").first()).toBeVisible()
   })
 
+  test("the page's buttons look like the dashboard's", async ({ page }) => {
+    const look = (selector: string) =>
+      page.locator(selector).first().evaluate((el) => {
+        const css = getComputedStyle(el)
+        return [css.backgroundColor, css.borderTopColor, css.color, css.height].join("|")
+      })
+    await open(page, "/")
+    const dashboard = await look('[data-slot="ideas-button"]')
+    await open(page)
+    expect(await look('[data-slot="ideas-button"]')).toBe(dashboard)
+    expect(await look('[data-slot="ideas-new"]')).toBe(dashboard)
+  })
+
   test("a project's ideas carry its name, and the filters narrow the list", async ({ page }) => {
     await open(page, PROJECT)
     await page.getByRole("button", { name: "Find me ideas for this project" }).click()

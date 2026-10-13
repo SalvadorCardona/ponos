@@ -19,7 +19,7 @@ import { ticketHref } from "@/resources/tickets"
 
 import { EmptyState } from "./empty-state"
 import { IdeaOrigin } from "./idea-origin"
-import { IdeasButton } from "./ideas-deck"
+import { IdeasButton, ponosActionLook } from "./ideas-deck"
 import { Robot } from "./robot"
 import { Chip, ago } from "./ticket-bits"
 
@@ -152,7 +152,7 @@ export function IdeaList({
     <div className={cn("flex flex-col gap-4", className)} data-slot="ideas-list">
       <div className="flex flex-wrap items-center gap-2">
         {!writing ? (
-          <Button size="sm" data-slot="ideas-new" onClick={() => setWriting(true)}>
+          <Button size="sm" variant="outline" className={ponosActionLook} data-slot="ideas-new" onClick={() => setWriting(true)}>
             <Plus />
             {t("New idea")}
           </Button>
