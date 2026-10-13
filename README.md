@@ -2362,7 +2362,9 @@ runner just opened is one click away, not a URL to read out loud into another ta
 [projects database](#the-projects-database) of your board, the `[projects]` table of your
 configuration, and where the repository turned out to be on this disk. One name on a card
 that says which of the three it came from, how many tickets point at it, and what it
-declares — so "no repository could be found" has somewhere to be answered.
+declares — so "no repository could be found" has somewhere to be answered. A search field
+finds a project by a part of its name (or its type) and a *Type* menu keeps the code projects or
+the documents; both are kept in the address, so a shared link or a reload opens the same list.
 
 It is drawn in **two layouts**, and the tab you are on is in the address. *Cards* is for a
 workspace you half remember: a project is recognised by its name and its shape rather than

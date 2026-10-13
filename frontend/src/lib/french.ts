@@ -427,6 +427,11 @@ export const FRENCH: Record<string, string> = {
   "Other words, or fewer filters, and they will be back.":
     "D'autres mots, ou moins de filtres, et ils reviendront.",
   "Clear the filters": "Effacer les filtres",
+  "No project matches": "Aucun projet ne correspond",
+  "Other words, or another type, and they will be back.":
+    "D'autres mots, ou un autre type, et ils reviendront.",
+  "Search a project": "Chercher un projet",
+  "All types": "Tous les types",
 
   /* -- a ticket's terminal -------------------------------------------------- */
   Discussion: "Discussion",
