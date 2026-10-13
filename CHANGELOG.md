@@ -142,6 +142,8 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 - **The blocks chart is folded behind *Show more*.** On the dashboard and on a project's page,
   the statistics keep to the four cards and the curves; *Blocks, by cause and week* opens under
   them with a button, and the choice is kept in the browser, one for both pages.
+- **The Ideas page's buttons look like the dashboard's.** *Ponos, find me ideas* and *New idea*
+  take the dashboard's tinted outline button, one look shared by every page.
 
 ## [0.1.0] - 2026-10-12
 

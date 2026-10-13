@@ -53,6 +53,11 @@ type Phase = "loading" | "finding" | "ready" | "failed"
 /** The flight of a card that has been decided, in ms: long enough to be seen. */
 const FLIGHT = 220
 
+/** The dashboard's look for a button that starts something with Ponos: the one
+ * every page shares, so that none of them has a style of its own. */
+export const ponosActionLook =
+  "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-primary/20 bg-primary/5 h-8 gap-1.5"
+
 export function IdeasButton({
   project = "",
   name = "",
@@ -88,12 +93,11 @@ export function IdeasButton({
   const button = (
     <Button
       size="sm"
-      variant={inline ? "outline" : "default"}
+      variant="outline"
       className={cn(
         "group/ideas",
-        inline
-          ? "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-primary/20 bg-primary/5 h-8 gap-1.5 pr-1.5 pl-1 @min-[66rem]:pr-3"
-          : "h-auto gap-2 py-1 pr-3 pl-1.5",
+        ponosActionLook,
+        inline ? "pr-1.5 pl-1 @min-[66rem]:pr-3" : "pr-3 pl-1",
         className
       )}
       data-slot={project ? "project-ideas-button" : "ideas-button"}
@@ -103,8 +107,8 @@ export function IdeasButton({
       onFocus={() => wake(true)}
       onBlur={() => wake(false)}
     >
-      <span className={cn("relative inline-flex shrink-0", !inline && "-my-1")}>
-        <Robot state={eager ? "thinking" : "idle"} size={inline ? 24 : 36} />
+      <span className="relative inline-flex shrink-0">
+        <Robot state={eager ? "thinking" : "idle"} size={24} />
         <Sparkles
           aria-hidden="true"
           className="absolute -top-0.5 -right-1 size-3 opacity-0 group-hover/ideas:opacity-100 group-focus-visible/ideas:opacity-100 motion-safe:group-hover/ideas:animate-pulse motion-safe:group-focus-visible/ideas:animate-pulse"
