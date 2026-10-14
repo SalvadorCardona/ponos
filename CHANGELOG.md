@@ -33,6 +33,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   with the average cost and duration of each. The automatic model choice reads it too: Docs and
   Chore start one level lower, Sécurité one level higher (`runner.auto_model_subtype_*`, in the
   Settings' model table), never past the four levels.
+- **Every idea has a relevance score, from 0 to 100, in colour.** A circle at the top of each card —
+  in the list, the table, the pile and the idea's page — says its number in green (70 and up),
+  orange (40 to 69) or red (under 40), and why in its tooltip; *Not scored* is grey. Ponos scores the
+  ideas it proposes by a grid written in the prompt (impact 40, fit with the brief 25, effort against
+  gain 20, originality 15); an idea written by hand is scored behind the form by the light model
+  (`runner.classify_model`), and says *…* until it is. *Score the unscored ideas*, on the *Ideas*
+  page, scores the ones from before, after saying how many and the most it may cost. The lists sort
+  *Most relevant first* — the new ideas do by default — and filter by colour. The score is in
+  `ponos.db` (migration `ideas_have_a_score`) and in what `list_ideas` answers over MCP.
+
 - **A bell in the console's header for what asks for your attention.** A small badge counts what you
   have not seen; a click opens a dropdown over the board — newest first, an icon for the kind, the
   ticket's title, its project, how long ago — and a click on one opens that ticket's card and marks it

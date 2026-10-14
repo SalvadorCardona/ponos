@@ -14768,6 +14768,9 @@ def _ideas_api(board: files.Board) -> web_api.Api:
     api._outbox = web_board.Outbox(journal=lambda report: None)
     api.watch = _Nudged()
     api.ideas = web_ideas.Ideas(api)
+    # Never a session of the real `claude` behind a test's back: a test that
+    # wants an idea scored runs what was put aside itself.
+    api.ideas.later = lambda work: None
     return api
 
 
@@ -14850,6 +14853,181 @@ def an_idea_is_sorted_into_one_category_or_left_unsorted():
         )
         assert ideas.edit(written.id, "Un cache", "", category="feature").category == "feature"
         assert ideas.edit(written.id, "Un cache", "", category="").category == ""
+
+
+@case
+def an_idea_comes_with_a_score_bounded_by_the_grid_or_none_at_all():
+    """Out of 100, by the grid written in the prompt; bounded, and "not scored" for anything else."""
+    asked = ideas.prompt(project="Usine")
+    for line in ('"score"', '"score_reason"', "up to 40", "up to 25", "up to 20", "up to 15"):
+        assert line in asked, line
+    answer = json.dumps(
+        [
+            {"title": "Noté", "score": 85, "score_reason": "  Beaucoup   d'impact. "},
+            {"title": "Trop haut", "score": 150},
+            {"title": "Trop bas", "score": -5},
+            {"title": "En texte", "score": "72"},
+            {"title": "Arrondi", "score": 69.6},
+            {"title": "Pas un nombre", "score": "high"},
+            {"title": "Un booléen", "score": True},
+            {"title": "Une liste", "score": [80]},
+            {"title": "Sans score"},
+        ]
+    )
+    found = ideas.parse(answer, "project")
+    assert [idea["score"] for idea in found] == [85, 100, 0, 72, 70, None, None, None, None]
+    assert found[0]["detail"]["score_reason"] == "Beaucoup d'impact."
+    assert found[-1]["detail"]["score_reason"] == ""
+    with _state_home():
+        _, stored = ideas.record("p", "haiku", None, found)
+        shown = [idea.shown() for idea in stored]
+        assert [one["score"] for one in shown] == [85, 100, 0, 72, 70, None, None, None, None]
+        assert shown[0]["score_reason"] == "Beaucoup d'impact." and shown[0]["tone"] == "green"
+        assert shown[-1]["tone"] == "" and shown[-1]["scoring"] is False, "not scored, and not being"
+        assert [idea.title for idea in ideas.unscored("p")] == [
+            "Pas un nombre", "Un booléen", "Une liste", "Sans score"
+        ]
+        ideas.decide(stored[-1].id, "discarded")
+        assert len(ideas.unscored("p")) == 3, "a thrown idea is not worth paying a score for"
+
+    scores = ideas.parse_scores(
+        'Voilà : [{"id": 3, "score": 120, "score_reason": "Oui."}, {"id": "4", "score": "x"},'
+        ' {"id": 9, "score": 50}, {"id": 5, "score": 41}]',
+        [3, 4, 5],
+    )
+    assert scores == {3: (100, "Oui."), 5: (41, "")}, "only those asked for, and only numbers"
+
+
+@case
+def a_score_is_green_orange_or_red_by_the_same_two_thresholds_on_both_sides():
+    """39 is red, 40 and 69 orange, 70 green — and the console reads the same numbers."""
+    assert [ideas.tone(score) for score in (0, 39, 40, 69, 70, 100)] == [
+        "red", "red", "orange", "orange", "green", "green"
+    ]
+    assert ideas.tone(None) == ""
+    search = (FRONTEND / "src/lib/idea-search.ts").read_text(encoding="utf-8")
+    assert f"export const GREEN = {ideas.GREEN}\n" in search, "the page and the server disagree on green"
+    assert f"export const ORANGE = {ideas.ORANGE}\n" in search, "the page and the server disagree on orange"
+
+
+@case
+def the_ideas_from_before_scores_are_not_scored():
+    """The migration adds a score to every idea, NULL — not a zero."""
+    with _state_home():
+        location = db.path()
+        before = db.MIGRATIONS.index(db._ideas_have_a_score)
+        raw = db.open_at(location, db.MIGRATIONS[:before])
+        raw.execute(
+            "INSERT INTO ideas (scope, project, kind, title, status, created_at)"
+            " VALUES ('project', 'p', 'ticket', 'Ancienne', 'proposed', '2026-10-01')"
+        )
+        raw.close()
+        db.close()
+        old = ideas.every("p")[0]
+        assert old.score is None and old.shown()["tone"] == ""
+        assert ideas.scored(old.id, 55, "Moyen.").shown()["score"] == 55
+        with db.transaction(immediate=False) as connection:
+            assert connection.execute("SELECT score FROM ideas").fetchone() == (55,)
+
+
+@case
+def an_idea_written_by_hand_is_scored_behind_the_answer_that_saved_it():
+    """Saved, it says "…"; the light model scores it by the grid; a failed answer leaves it not scored."""
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        board.replace_markdown(project, "Un jeu d'usine en navigateur.")
+        api = _ideas_api(board)
+        api.ideas._person = ("Salva", "")
+        put_aside: list = []
+        api.ideas.later = put_aside.append
+        ideas.written(project, "Un mode sombre")
+        written = api.ideas.create({"project": project, "title": "Une carte des usines", "description": "Pour voir."})
+        assert written["score"] is None and written["scoring"] is True, "the pill says …"
+        assert len(put_aside) == 1, "scored behind the answer, not before it"
+
+        asked: list[dict] = []
+
+        def fake_run(text, **rest):
+            asked.append({"prompt": text, **rest})
+            return session.Outcome(
+                ok=True, blocked=False, session_id="s-score", summary="", log=Path("/dev/null"),
+                cost_usd=0.001,
+                answer=json.dumps([{"id": written["id"], "score": 82, "score_reason": "Utile et petit."}]),
+            )
+
+        original, session.run = session.run, fake_run
+        try:
+            put_aside.pop()()
+        finally:
+            session.run = original
+        assert len(asked) == 1 and asked[0]["model"] == "haiku", "the light model, classify_model's"
+        assert asked[0]["max_budget_usd"] == ideas.SCORE_CEILING_USD
+        call = asked[0]["prompt"]
+        assert "up to 40" in call and f"{written['id']}. Une carte des usines\nPour voir." in call
+        assert "Un jeu d'usine en navigateur." in call, "scored against the brief"
+        assert "- Un mode sombre" in call, "and against the other ideas"
+        scored = ideas.get(written["id"]).shown()
+        assert (scored["score"], scored["tone"], scored["scoring"]) == (82, "green", False)
+        assert scored["score_reason"] == "Utile et petit."
+
+        mcp_one = api.ideas.write(project, "ticket", "Un tutoriel")
+        assert mcp_one["scoring"] is True, "an idea an MCP client wrote is scored the same way"
+        original, session.run = session.run, lambda text, **rest: session.Outcome(
+            ok=True, blocked=False, session_id="s", summary="", log=Path("/dev/null"), answer="Je ne sais pas."
+        )
+        try:
+            put_aside.pop()()
+        finally:
+            session.run = original
+        failed = ideas.get(mcp_one["id"]).shown()
+        assert failed["score"] is None and failed["scoring"] is False, "not scored, and said so"
+
+
+@case
+def the_ideas_with_no_score_are_scored_in_batches_under_a_ceiling_said_first():
+    """A ceiling before it starts, twenty to a call, a scope per call — and one pass at a time."""
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        api = _ideas_api(board)
+        for number in range(25):
+            ideas.written(project, f"Idée du projet {number}")
+        ideas.written("", "Idée de l'espace")
+        told = api.ideas.unscored(None)
+        assert (told["count"], told["calls"]) == (26, 3), "two calls for the project, one for the workspace"
+        assert told["ceiling_usd"] == round(3 * ideas.SCORE_CEILING_USD, 2) and told["model"] == "haiku"
+        assert api.ideas.unscored("")["count"] == 1
+
+        put_aside: list = []
+        api.ideas.later = put_aside.append
+        started = api.ideas.score_unscored(None)
+        assert started["running"] is True and started["count"] == 26
+        try:
+            api.ideas.score_unscored(None)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("a second pass waits for the first")
+
+        sizes: list[int] = []
+
+        def fake_run(text, **rest):
+            numbers = [int(found) for found in re.findall(r"^(\d+)\. ", text, re.M)]
+            sizes.append(len(numbers))
+            return session.Outcome(
+                ok=True, blocked=False, session_id="s", summary="", log=Path("/dev/null"),
+                answer=json.dumps([{"id": number, "score": 30 + number, "score_reason": "."} for number in numbers]),
+            )
+
+        original, session.run = session.run, fake_run
+        try:
+            put_aside.pop()()
+        finally:
+            session.run = original
+        assert sorted(sizes) == [1, 5, 20], sizes
+        assert api.ideas.unscored(None) == {
+            "count": 0, "calls": 0, "ceiling_usd": 0, "model": "haiku", "running": False
+        }
+        assert all(idea.score is not None for idea in ideas.every(None))
 
 
 @case

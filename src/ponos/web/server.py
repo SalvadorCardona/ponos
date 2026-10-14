@@ -533,6 +533,13 @@ class Handler(BaseHTTPRequestHandler):
                         None if query.get("scope") == ["all"] else (query.get("project") or [""])[0]
                     )
                 )
+            if route == "/api/ideas/unscored":
+                # What scoring the ideas with none would take: said before it is started.
+                return self._json(
+                    self.api.ideas.unscored(
+                        None if query.get("scope") == ["all"] else (query.get("project") or [""])[0]
+                    )
+                )
             if route == "/api/history":
                 return self._json(self.api.history())
             if route == "/api/disk":
@@ -755,6 +762,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.ideas.generate(str(payload.get("project") or "")))
             if route == "/api/ideas":
                 return self._json(self.api.ideas.create(payload))
+            if route == "/api/ideas/score":
+                # No `project` at all is every scope's; "" the workspace's.
+                scope = payload.get("project")
+                return self._json(self.api.ideas.score_unscored(None if scope is None else str(scope)))
             if match := re.fullmatch(r"/api/ideas/(\d+)", route):
                 return self._json(self.api.ideas.edit(int(match.group(1)), payload))
             if match := re.fullmatch(r"/api/ideas/(\d+)/(keep|discard|ticket|reopen)", route):

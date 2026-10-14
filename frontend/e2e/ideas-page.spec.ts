@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
  * `console.py`). What is checked is what somebody does with the page: reaching
  * it from the menu, finding the ideas Ponos asked for in it, the project's name
  * on its ideas, the filters and the address that keeps them, the category an
- * idea is sorted into, the gestures
+ * idea is sorted into, its score and the order by relevance, the gestures
  * of a card — the one in sight and the ones in its menu —, reading one and
  * writing one, and turning an idea into a ticket of the right project — and, at
  * the width of a phone, a single column inside the screen.
@@ -141,7 +141,8 @@ test.describe("at 1440px", () => {
     await page.getByRole("option", { name: "Website" }).click()
     await status(page, "proposed").click()
     const title = (await cards(page).first().locator('[data-slot="ideas-title"]').textContent())!
-    await cards(page).first().getByRole("button", { name: "Turn into a ticket" }).click()
+    // By its title: the list may still be settling into its order.
+    await cards(page).filter({ hasText: title }).getByRole("button", { name: "Turn into a ticket" }).click()
     await expect(page.getByText(`Ticket created: ${title}`)).toBeVisible()
     await status(page, "ticket").click()
     await expect(cards(page).filter({ hasText: title }).getByRole("link", { name: "Open the ticket" })).toBeVisible()
@@ -204,10 +205,11 @@ test.describe("at 1440px", () => {
     await page.locator('[data-slot="ideas-category-filter"]').click()
     await page.getByRole("option", { name: "Security" }).click()
     await expect.poll(() => filterOf(page)).toMatchObject({ category: "security" })
-    for (const card of await cards(page).all())
-      await expect(card.locator('[data-slot="ideas-category"]')).toHaveAttribute("data-category", "security")
-    const sorted = cards(page).first()
-    const title = (await sorted.locator('[data-slot="ideas-title"]').textContent())!
+    await expect(cards(page).filter({ hasNot: page.locator('[data-category="security"]') })).toHaveCount(0)
+    // One that can still be reworded: an idea turned into a ticket cannot.
+    const editable = cards(page).filter({ has: page.locator('[data-slot="ideas-edit"]') }).first()
+    const title = (await editable.locator('[data-slot="ideas-title"]').textContent())!
+    const sorted = cards(page).filter({ hasText: title })
     await sorted.locator('[data-slot="ideas-edit"]').click()
     // The package's select: a combobox of its own, opened, then an option picked.
     await drawer(page).getByRole("group").filter({ hasText: "Category" }).getByRole("combobox").click()
@@ -220,12 +222,49 @@ test.describe("at 1440px", () => {
     ).toHaveAttribute("data-category", "technical")
   })
 
+  test("a card shows its score in its colour, and the most relevant come first", async ({ page }) => {
+    await open(page)
+    await expect(cards(page).first()).toBeVisible()
+    const pill = (tone: string) => page.locator(`[data-slot="ideas-score"][data-tone="${tone}"]`).first()
+    await expect(pill("green")).toHaveText(/^\d+$/)
+    expect(Number(await pill("green").textContent())).toBeGreaterThanOrEqual(70)
+    await expect(pill("red")).toHaveText(/^\d+$/)
+    expect(Number(await pill("red").textContent())).toBeLessThan(40)
+    await expect(pill("unscored")).toHaveText("Not scored")
+    const colour = (tone: string) => pill(tone).evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(await colour("green")).not.toBe(await colour("red"))
+    await pill("green").hover()
+    await expect(page.locator('[data-slot="ideas-score-reason"]').first()).toContainText(
+      "Worth it for the people who asked."
+    )
+
+    await page.locator('[data-slot="ideas-order"]').click()
+    await page.getByRole("option", { name: "Most relevant first" }).click()
+    await expect.poll(() => filterOf(page)).toMatchObject({ order: "relevance" })
+    await expect(cards(page).first().locator('[data-slot="ideas-score"]')).toHaveAttribute("data-tone", "green")
+    const said = await cards(page).locator('[data-slot="ideas-score"]').allTextContents()
+    const scores = said.map((text) => (/^\d+$/.test(text) ? Number(text) : -1))
+    expect(scores).toEqual([...scores].sort((a, b) => b - a))
+
+    // The new ideas rest on relevance, with nothing in the address to say so.
+    await page.getByRole("button", { name: "Clear the search" }).first().click()
+    await status(page, "proposed").click()
+    await expect(page.locator('[data-slot="ideas-order"]')).toContainText("Most relevant first")
+    await expect(cards(page).first().locator('[data-slot="ideas-score"]')).toHaveAttribute("data-tone", "green")
+    expect(filterOf(page).order).toBeUndefined()
+
+    await page.locator('[data-slot="ideas-score-filter"]').click()
+    await page.getByRole("option", { name: "Red (under 40)" }).click()
+    await expect.poll(() => filterOf(page)).toMatchObject({ score: "red" })
+    await expect(cards(page).first().locator('[data-slot="ideas-score"]')).toHaveAttribute("data-tone", "red")
+    await expect(cards(page).locator('[data-slot="ideas-score"]:not([data-tone="red"])')).toHaveCount(0)
+  })
+
   test("an idea's title opens it whole, and New idea writes one", async ({ page }) => {
     await open(page)
     await status(page, "proposed").click()
-    const first = cards(page).first()
-    const title = (await first.locator('[data-slot="ideas-title"]').textContent())!
-    await first.locator('[data-slot="ideas-title"]').click()
+    const title = (await cards(page).first().locator('[data-slot="ideas-title"]').textContent())!
+    await cards(page).filter({ hasText: title }).locator('[data-slot="ideas-title"]').click()
     const whole = drawer(page).locator('[data-slot="ideas-page"]')
     await expect(whole.getByRole("heading", { name: title })).toBeVisible()
     await expect(whole.getByRole("button", { name: "Turn into a ticket" })).toBeVisible()
@@ -237,6 +276,9 @@ test.describe("at 1440px", () => {
     await drawer(page).getByRole("button", { name: "Create" }).click()
     await expect(page.getByText("Idea saved: A shop for the mugs")).toBeVisible()
     const mine = cards(page).filter({ hasText: "A shop for the mugs" })
+    // Scored behind the form by the light model: "…", then its number.
+    await expect(mine.locator('[data-slot="ideas-score"]')).toHaveText("75", { timeout: 15_000 })
+    await expect(mine.locator('[data-slot="ideas-score"]')).toHaveAttribute("data-tone", "green")
     await expect(mine).toHaveAttribute("data-author", "human")
     await expect(mine.locator('[data-slot="idea-origin"]')).toHaveText("Workspace")
   })
