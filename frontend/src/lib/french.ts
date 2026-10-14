@@ -1191,21 +1191,16 @@ export const FRENCH: Record<string, string> = {
   "Same as Code": "Comme Code",
   "One level higher": "Un niveau plus haut",
   "Bug tickets start": "Les tickets Bug partent",
-  "Feature tickets start": "Les tickets Fonctionnalité partent",
-  "Improvement tickets start": "Les tickets Amélioration partent",
-  "Chore tickets start": "Les tickets Maintenance partent",
+  "Feature tickets start": "Les tickets Feature partent",
+  "Improvement tickets start": "Les tickets Improvement partent",
+  "Chore tickets start": "Les tickets Chore partent",
   "Refactor tickets start": "Les tickets Refactor partent",
-  "Performance tickets start": "Les tickets Performance partent",
+  "Perf tickets start": "Les tickets Perf partent",
   "Docs tickets start": "Les tickets Docs partent",
-  "Security tickets start": "Les tickets Sécurité partent",
-  "🐞 Bug": "🐞 Bug",
-  "✨ Feature": "✨ Fonctionnalité",
-  "⬆️ Improvement": "⬆️ Amélioration",
-  "🧹 Chore": "🧹 Maintenance",
-  "♻️ Refactor": "♻️ Refactor",
-  "⚡ Performance": "⚡ Performance",
-  "📝 Docs": "📝 Docs",
-  "🔒 Security": "🔒 Sécurité",
+  "Security tickets start": "Les tickets Security partent",
+  // The sub-type's own word in these phrases, and its column head in the
+  // table (« ✨ Feature »), stay in English: sub-types are not translated, see
+  // SUBTYPES in subtypes.py.
   "Code, by sub-type": "Code, par sous-type",
   "Where each sub-type of a code ticket starts, from Code's level":
     "Où part chaque sous-type d'un ticket Code, depuis le niveau de Code",
@@ -1833,13 +1828,11 @@ export const FRENCH: Record<string, string> = {
   "the light model": "le modèle léger",
   "Score them": "Les noter",
   "The ideas could not be scored": "Les idées n'ont pas pu être notées",
-  "UX/UI": "UX/UI",
-  Feature: "Fonctionnalité",
-  Security: "Sécurité",
-  Technical: "Technique",
   "Not sorted": "Non classée",
-  "Technical is refactoring, performance and debt — not a new feature.":
-    "Technique, c’est la refacto, la performance et la dette — pas une nouvelle fonctionnalité.",
+  // The categories themselves (UX/UI, Feature, Security, Tech) are not here:
+  // they are the developers' words, untranslated — see CATEGORY_WORDS.
+  "Tech is refactoring, performance and debt — not a new feature.":
+    "Tech, c’est la refacto, la performance et la dette — pas une nouvelle fonctionnalité.",
   "Write one, or ask Ponos for a batch.": "Écris-en une, ou demande une série à Ponos.",
   "Idea": "Idée",
   "For": "Pour",

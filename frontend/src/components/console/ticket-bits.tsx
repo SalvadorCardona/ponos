@@ -305,7 +305,6 @@ export const subtypeColor = (key: string): string => `var(--subtype-${key}, curr
  * name, the border in its colour. Discreet on purpose — it is read after the
  * title, not before it. Nothing for a ticket without one. */
 export function TicketSubtype({ subtype }: { subtype?: string }) {
-  useT()
   const known = subtypeOf(subtype)
   if (!known) return null
   return (
@@ -325,7 +324,7 @@ export function TicketSubtype({ subtype }: { subtype?: string }) {
         <span aria-hidden className="text-[0.8rem] leading-none">
           {known.icon}
         </span>
-        {blockSaid(known.label)}
+        {known.label}
       </span>
     </Chip>
   )

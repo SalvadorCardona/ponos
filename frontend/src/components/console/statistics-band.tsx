@@ -550,7 +550,7 @@ function SubtypesChart({ subtypes }: { subtypes: NonNullable<Statistics["subtype
   const t = useT()
   if (!subtypes.total)
     return <p className="text-muted-foreground text-sm">{t("No code ticket with a sub-type closed in the period.")}</p>
-  const labelOf = new Map(subtypes.subtypes.map((one) => [one.key, `${one.icon} ${blockSaid(one.label)}`]))
+  const labelOf = new Map(subtypes.subtypes.map((one) => [one.key, `${one.icon} ${one.label}`]))
   const weeks = subtypes.weeks.map((week) => {
     const stack = subtypes.subtypes.map((one) => ({ key: one.key, count: week.counts[one.key] ?? 0 }))
     const total = stack.reduce((sum, part) => sum + part.count, 0)

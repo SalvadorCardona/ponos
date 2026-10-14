@@ -51,9 +51,10 @@ SHIFTS = {"lower": -1, "same": 0, "higher": 1}
 @dataclass(frozen=True)
 class Subtype:
     key: str
-    # The board's option, and the console's words in either language.
+    # The board's option, and the console's word — in every language, since
+    # the sub-types are not translated: see `SUBTYPES`.
     option: str
-    label: dict[str, str]
+    label: str
     icon: str
     # A Notion colour: the select's, and the card's.
     colour: str
@@ -63,7 +64,7 @@ class Subtype:
     changelog: str
     # Where the level of the model goes from Code's: one of `SHIFTS`.
     shift: str
-    # What it is recognised by, folded: the option, the labels, and these —
+    # What it is recognised by, folded: the option, the label, and these —
     # the prefixes the titles were written with.
     words: tuple[str, ...] = ()
     # What the session is told of it, on top of the prefix and the section.
@@ -71,7 +72,7 @@ class Subtype:
 
     def names(self) -> tuple[str, ...]:
         return tuple(
-            dict.fromkeys(fold(name) for name in (self.key, self.option, *self.label.values(), *self.words))
+            dict.fromkeys(fold(name) for name in (self.key, self.option, self.label, *self.words))
         )
 
     def as_dict(self) -> dict[str, object]:
@@ -79,7 +80,7 @@ class Subtype:
         return {
             "key": self.key,
             "option": self.option,
-            "label": dict(self.label),
+            "label": self.label,
             "icon": self.icon,
             "colour": self.colour,
             "commit": self.commit,
@@ -87,9 +88,15 @@ class Subtype:
         }
 
 
+# The label is the developers' word, and the console shows it as it is in
+# every language: « Feature », « Security », not « Fonctionnalité » nor
+# « Sécurité ». It is the word of the tickets, the pull requests and the commits
+# — translated, it reads wrong and matches none of them. A language added to the
+# console leaves it alone; the French words it used to be are kept in `words`,
+# so that a title or an answer written with them is still understood.
 SUBTYPES = (
     Subtype(
-        "bug", "Bug", {"en": "Bug", "fr": "Bug"}, "🐞", "red", "fix", "Fixed", "same",
+        "bug", "Bug", "Bug", "🐞", "red", "fix", "Fixed", "same",
         ("fix", "bugfix", "hotfix", "bogue"),
         rule=(
             "Before you fix it, write a test that reproduces the bug and fails "
@@ -98,15 +105,15 @@ SUBTYPES = (
         ),
     ),
     Subtype(
-        "feature", "Feature", {"en": "Feature", "fr": "Fonctionnalité"}, "✨", "green",
-        "feat", "Added", "same", ("feat", "nouveaute"),
+        "feature", "Feature", "Feature", "✨", "green",
+        "feat", "Added", "same", ("feat", "nouveaute", "fonctionnalite"),
     ),
     Subtype(
-        "improvement", "Amélioration", {"en": "Improvement", "fr": "Amélioration"}, "⬆️",
+        "improvement", "Amélioration", "Improvement", "⬆️",
         "blue", "feat", "Changed", "same", ("enhancement", "evolution"),
     ),
     Subtype(
-        "chore", "Chore", {"en": "Chore", "fr": "Maintenance"}, "🧹", "gray", "chore",
+        "chore", "Chore", "Chore", "🧹", "gray", "chore",
         "", "lower", ("ops", "maintenance", "deps", "ci"),
         rule=(
             "No CHANGELOG entry, unless the CHANGELOG has a Maintenance section: "
@@ -114,7 +121,7 @@ SUBTYPES = (
         ),
     ),
     Subtype(
-        "refactor", "Refactor", {"en": "Refactor", "fr": "Refactor"}, "♻️", "purple",
+        "refactor", "Refactor", "Refactor", "♻️", "purple",
         "refactor", "Changed", "same", ("refacto", "refactoring", "refonte"),
         rule=(
             "The behaviour does not change: the tests that pass before pass after. "
@@ -122,16 +129,16 @@ SUBTYPES = (
         ),
     ),
     Subtype(
-        "perf", "Perf", {"en": "Performance", "fr": "Performance"}, "⚡", "yellow", "perf",
+        "perf", "Perf", "Perf", "⚡", "yellow", "perf",
         "Changed", "same", ("performance", "perfs", "optim", "optimisation", "optimization"),
         rule="Measure before and after, and give both figures in the report.",
     ),
     Subtype(
-        "docs", "Docs", {"en": "Docs", "fr": "Docs"}, "📝", "brown", "docs", "", "lower",
+        "docs", "Docs", "Docs", "📝", "brown", "docs", "", "lower",
         ("doc", "documentation"),
     ),
     Subtype(
-        "security", "Sécurité", {"en": "Security", "fr": "Sécurité"}, "🔒", "orange", "fix",
+        "security", "Sécurité", "Security", "🔒", "orange", "fix",
         "Security", "higher", ("secu", "vuln", "vulnerability"),
     ),
 )
@@ -207,9 +214,9 @@ def section(key: str) -> str:
         f"under **{subtype.changelog}**" if subtype.changelog else "nowhere: no entry"
     )
     lines = [
-        f"# Kind of change — {subtype.label['en']}",
+        f"# Kind of change — {subtype.label}",
         "",
-        f"This ticket is a {subtype.label['en'].lower()} ({subtype.key}).",
+        f"This ticket is a {subtype.label.lower()} ({subtype.key}).",
         "",
         f"- The title of your commit starts with `{subtype.commit}: ` (conventional "
         "commits), and so will the pull request opened from it.",

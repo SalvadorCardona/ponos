@@ -390,13 +390,13 @@ export function TicketSearch({
   const choices = board.choices ?? {}
   const facets: Record<Facet, Option[]> = {
     type: offered(tickets, (ticket) => ticket.type, choices.type),
-    // In the table's order, each behind its icon, in the console's words.
+    // In the table's order, each behind its icon, in the developers' word.
     subtype: offered(
       tickets,
       (ticket) => ticket.subtype ?? "",
       (board.subtypes ?? []).map((subtype) => ({
         value: subtype.key,
-        label: `${subtype.icon} ${blockSaid(subtype.label)}`,
+        label: `${subtype.icon} ${subtype.label}`,
       }))
     ),
     status: board.columns

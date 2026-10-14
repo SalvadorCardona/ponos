@@ -649,7 +649,8 @@ function ModelGrid({ section, inputs }: { section: SettingSection; inputs: Map<s
                 </th>
                 {subtypes.map((subtype) => (
                   <th key={subtype.name} scope="col" className="px-1 pb-2 text-center font-medium">
-                    {t(subtype.short ?? subtype.label)}
+                    {/* The sub-type's own word, untranslated: see SUBTYPES in subtypes.py. */}
+                    {subtype.short ?? t(subtype.label)}
                     {keys ? <code className="block font-mono text-[10px] font-normal">{subtype.name}</code> : null}
                   </th>
                 ))}
@@ -676,7 +677,7 @@ function ModelGrid({ section, inputs }: { section: SettingSection; inputs: Map<s
                           name={inputName(subtype.name)}
                           className="accent-primary size-4 cursor-pointer align-middle"
                           checked={moves === shift}
-                          aria-label={`${t(subtype.short ?? subtype.label)} — ${t(subtype.options?.[shift] ?? shift)}`}
+                          aria-label={`${subtype.short ?? t(subtype.label)} — ${t(subtype.options?.[shift] ?? shift)}`}
                           onChange={() =>
                             onChange({
                               ...input,

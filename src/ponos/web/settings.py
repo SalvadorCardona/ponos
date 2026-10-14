@@ -810,10 +810,10 @@ SECTIONS: tuple[Section, ...] = (
             # column here without a line more.
             *(
                 Field("runner", f"auto_model_subtype_{subtype.key}", "choice",
-                      f"{subtype.label['en']} tickets start",
+                      f"{subtype.label} tickets start",
                       "Where a code ticket of this sub-type starts, from the level of Code.",
                       choices=tuple(subtypes.SHIFTS), options=SHIFT_OPTIONS, grid="subtype",
-                      short=f"{subtype.icon} {subtype.label['en']}")
+                      short=f"{subtype.icon} {subtype.label}")
                 for subtype in subtypes.SUBTYPES
             ),
         ),

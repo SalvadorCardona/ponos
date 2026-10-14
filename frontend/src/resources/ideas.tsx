@@ -23,7 +23,7 @@ import {
   IdeaPage,
   IdeaRows,
   NoIdea,
-  useCategoryWords,
+  CATEGORY_WORDS,
   useStatusWords,
   useToneWords,
 } from "@/components/console/idea-cards"
@@ -34,7 +34,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api, why } from "@/lib/api"
-import { counted, t } from "@/lib/i18n"
+import { counted, t, useT } from "@/lib/i18n"
 import {
   AUTHORS,
   CATEGORIES,
@@ -304,7 +304,7 @@ const AuthorFilter: InputControllerComponentInterface = ({ formInput, onChange }
 
 /* What an idea is about, in the same shape as the two others. */
 const CategoryFilter: InputControllerComponentInterface = ({ formInput, onChange }) => {
-  const words = useCategoryWords()
+  useT()
   return (
     <Choice>
       <Select
@@ -318,7 +318,7 @@ const CategoryFilter: InputControllerComponentInterface = ({ formInput, onChange
           <SelectItem value={ANY}>{t("All categories")}</SelectItem>
           {CATEGORIES.map((category) => (
             <SelectItem key={category} value={category}>
-              {words[category]}
+              {CATEGORY_WORDS[category]}
             </SelectItem>
           ))}
         </SelectContent>
@@ -436,14 +436,11 @@ const category = {
   label: "Category",
   controller: SelectInputController,
   get description() {
-    return t("Technical is refactoring, performance and debt — not a new feature.")
+    return t("Tech is refactoring, performance and debt — not a new feature.")
   },
   getValueOptions: async () => [
     { value: "", label: t("Not sorted") },
-    { value: "ux", label: t("UX/UI") },
-    { value: "feature", label: t("Feature") },
-    { value: "security", label: t("Security") },
-    { value: "technical", label: t("Technical") },
+    ...CATEGORIES.map((value) => ({ value, label: CATEGORY_WORDS[value] })),
   ],
 }
 
