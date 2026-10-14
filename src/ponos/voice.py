@@ -236,9 +236,27 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "C'est faux ? Change la colonne {property} — un type choisi à la main "
         "n'est jamais écrasé.",
     },
+    # A code ticket's sub-type, when the runner filled it — see subtypes.py.
+    # Notes of the report: the column says the sub-type, these say who chose it.
+    "subtype-prefix": {
+        "en": "Sub-type {subtype}, read from the title's prefix.",
+        "fr": "Sous-type {subtype}, lu dans le préfixe du titre.",
+    },
+    "subtype-guessed": {
+        "en": "Sub-type {subtype}, deduced from the ticket ({level} confidence): {reason}",
+        "fr": "Sous-type {subtype}, déduit du ticket (confiance {level}) : {reason}",
+    },
+    "subtype-doubt": {
+        "en": "Sub-type {subtype} by default: the runner could not tell which one it "
+        "was. Change the {property} column if it is another.",
+        "fr": "Sous-type {subtype} par défaut : le runner n'a pas su dire lequel c'était. "
+        "Change la colonne {property} si c'en est un autre.",
+    },
     # Why a model was chosen, one signal each, joined into one sentence — see
     # models.py for the rules they name.
     "model-type": {"en": "{kind} ticket", "fr": "ticket {kind}"},
+    "model-subtype-lower": {"en": "{subtype}: one level lower", "fr": "{subtype} : un niveau plus bas"},
+    "model-subtype-higher": {"en": "{subtype}: one level higher", "fr": "{subtype} : un niveau plus haut"},
     "model-small": {
         "en": "small targeted change ({words})",
         "fr": "petite modification ciblée ({words})",

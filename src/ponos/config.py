@@ -29,7 +29,7 @@ from pathlib import Path
 
 # The two vocabularies of `[storage]`, kept where the interface is declared —
 # `store.py` imports nothing from here, so this direction is the safe one.
-from . import disk, models
+from . import disk, models, subtypes
 from .store import CONFLICTS, MODES
 
 PLACEHOLDER = "ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -394,6 +394,10 @@ class Runner:
     auto_model_writing: str = "light"
     auto_model_external: str = "standard"
     auto_model_publication: str = "standard"
+    # …and how a code ticket's sub-type moves that start: `lower`, `same` or
+    # `higher`, by sub-type — see subtypes.py. A sub-type the file says nothing
+    # about moves it by the table's own default.
+    auto_model_subtypes: dict[str, str] = field(default_factory=dict)
     # A ticket chosen for and failed comes back one level up, once.
     auto_model_escalate: bool = True
     # Fable at all. Off, nothing the runner starts runs on it — a level, an
@@ -415,7 +419,12 @@ class Runner:
                 kind: getattr(self, f"auto_model_{kind}")
                 for kind in ("code", "writing", "external", "publication")
             },
+            shifts={key: subtypes.shift(key, self.auto_model_subtypes) for key in subtypes.KEYS},
         )
+
+    def subtype_shift(self, key: str) -> str:
+        """How the file has a sub-type move the start: `lower`, `same` or `higher`."""
+        return self.auto_model_subtypes.get(key) or subtypes.BY_KEY[key].shift
 
     def interface_language(self) -> str:
         """The language the console opens in, as the file says it — or nothing.
@@ -759,6 +768,10 @@ _DEFAULT_PROPERTIES = {
     # Publication — which decides the road it takes. Optional, and empty is an
     # answer too: the runner works it out before running the ticket.
     "type": "Type",
+    # What kind of change a code ticket is — Bug, Feature, Amélioration… — as a
+    # select, ignored on the other types. Empty, the runner fills it before the
+    # ticket runs: from the title's prefix, or by asking. See subtypes.py.
+    "subtype": "Sous-type",
     # Why a blocked or failed ticket stopped: a code of blocks.py, as a select a
     # Notion view filters on. Written when it stops, emptied when it leaves.
     "block": "Blocage",
@@ -1501,6 +1514,13 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
                 else getattr(defaults, f"auto_model_{kind}")
             )
             for kind in ("code", "writing", "external", "publication")
+        },
+        # Filtered like the types: a word that is none of the three is the
+        # sub-type's own default, not a level nothing answers.
+        auto_model_subtypes={
+            key: str(runner_raw.get(f"auto_model_subtype_{key}", "")).strip().lower()
+            for key in subtypes.KEYS
+            if str(runner_raw.get(f"auto_model_subtype_{key}", "")).strip().lower() in subtypes.SHIFTS
         },
         auto_model_escalate=bool(
             runner_raw.get("auto_model_escalate", defaults.auto_model_escalate)

@@ -76,6 +76,11 @@ COLUMNS: dict[str, tuple[tuple[str, ...], str]] = {
         ("select",),
         "the state of a pull request's checks is not on the board, so no Notion view can filter on it",
     ),
+    "subtype": (
+        ("select",),
+        "a code ticket's sub-type is not kept, so its commit, its pull request and its "
+        "CHANGELOG entry go by its title's prefix alone",
+    ),
 }
 
 

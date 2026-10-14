@@ -23,6 +23,10 @@ closed that evening, not the next morning.
 The series are computed here rather than in the browser because this is where
 the tests are: the page only draws what it is handed.
 
+The sub-types are the board's: every code ticket closed in the period, by its
+sub-type (subtypes.py) and by the week it closed in, and what one of each cost
+and lasted on average — all its sessions counted, as for the average above.
+
 The blocks are the history's too: every line that ended blocked or failed,
 counted by the cause it carries (blocks.py) and by the week it fell in.
 
@@ -39,7 +43,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import date, datetime, timedelta, tzinfo
 
-from .. import blocks
+from .. import blocks, subtypes
 
 # The runner's history lines that are a ticket reaching `done`. A plain "done"
 # status is not one: a session that opened a pull request reports "done" and
@@ -197,6 +201,16 @@ def figures(
     average = round(sum(cost_of[key] for key in shut) / len(shut), 2) if shut else None
 
     stops = blocked(history, first, last, zone)
+    seconds_of: Counter[str] = Counter()
+    for entry in history:
+        seconds_of[str(entry.get("id", "")).replace("-", "")] += float(entry.get("seconds") or 0)
+    kinds_of_work = subtyped(
+        [(ticket, closed) for ticket, _, closed in known.values() if closed and first <= closed <= last],
+        cost_of,
+        seconds_of,
+        first,
+        last,
+    )
 
     born = [ticket for ticket, created, _ in known.values() if created and first <= created <= last]
     statuses = Counter(str(ticket.get("column") or "draft") for ticket in born)
@@ -216,6 +230,63 @@ def figures(
         "dated": {"history": from_history, "edited": from_edit},
         "average": average,
         "blocks": stops,
+        "subtypes": kinds_of_work,
+    }
+
+
+def subtyped(
+    closed: list[tuple[dict, date]],
+    cost_of: Counter[str],
+    seconds_of: Counter[str],
+    first: date,
+    last: date,
+) -> dict:
+    """The tickets closed in a period, by sub-type and by week, and what each kind took.
+
+    A ticket's duration is its sessions' (the history's seconds), and the
+    board's own Duration when the history has none — a ticket closed before
+    the runner kept it. An average is over the tickets that say something:
+    `None` when none of them does, rather than a zero nobody spent.
+    """
+    weeks: dict[date, Counter[str]] = {}
+    monday = first - timedelta(days=first.weekday())
+    while monday <= last:
+        weeks[monday] = Counter()
+        monday += timedelta(days=7)
+    count: Counter[str] = Counter()
+    costs: dict[str, list[float]] = {}
+    minutes: dict[str, list[float]] = {}
+    for ticket, day in closed:
+        key = str(ticket.get("subtype") or "")
+        if key not in subtypes.BY_KEY:
+            continue
+        weeks[day - timedelta(days=day.weekday())][key] += 1
+        count[key] += 1
+        identifier = str(ticket.get("id", ""))
+        if cost_of[identifier]:
+            costs.setdefault(key, []).append(cost_of[identifier])
+        lasted = seconds_of[identifier] / 60 or float(ticket.get("duration") or 0)
+        if lasted:
+            minutes.setdefault(key, []).append(lasted)
+
+    def mean(values: list[float] | None, digits: int) -> float | None:
+        return round(sum(values) / len(values), digits) if values else None
+
+    return {
+        "total": sum(count.values()),
+        "weeks": [
+            {"week": week.isoformat(), "counts": dict(counts)} for week, counts in weeks.items()
+        ],
+        "subtypes": [
+            {
+                **subtypes.BY_KEY[key].as_dict(),
+                "count": count[key],
+                "cost": mean(costs.get(key), 2),
+                "duration": mean(minutes.get(key), 1),
+            }
+            for key in subtypes.KEYS
+            if count[key]
+        ],
     }
 
 

@@ -42,6 +42,9 @@ asked for — the most frequent way a finished ticket used to end up waiting for
 somebody. The other type has a deliverable that is the report itself, so it is
 taken, and the comment that says which type the ticket was run as says that it
 was a choice between two; see `settle`.
+
+The same answer carries a code ticket's sub-type — a bug, a feature, upkeep —
+so that a ticket with neither costs one session and not two: see subtypes.py.
 """
 
 from __future__ import annotations
@@ -50,6 +53,7 @@ import json
 import re
 from dataclasses import dataclass, replace
 
+from . import subtypes
 from .config import CONFIDENCES
 from .projects import Project
 
@@ -112,7 +116,13 @@ Answer with one JSON object and nothing else — no preamble, no code fence:
 
 {{"type": "code|writing|external|publication", "reason": "one sentence, in the \
 language the ticket is written in", "confidence": "low|medium|high", \
-"alternative": "the other type you hesitated with, or an empty string"}}
+"alternative": "the other type you hesitated with, or an empty string", \
+"subtype": "{subtypes}, or an empty string when the type is not code", \
+"subtype_confidence": "low|medium|high"}}
+
+A code ticket also has a sub-type, which says what kind of change it is:
+
+{choices}
 """
 
 
@@ -157,6 +167,8 @@ def prompt(
         title=title.strip() or "(untitled)",
         body=body.strip() or "(no description: everything is in the title)",
         comments=said,
+        subtypes="|".join(subtypes.KEYS),
+        choices=subtypes.CHOICES,
     )
 
 

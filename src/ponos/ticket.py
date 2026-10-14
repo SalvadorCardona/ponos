@@ -68,6 +68,8 @@ class Job:
     # one. Both empty for a ticket run the way every ticket used to be.
     kind: str = ""
     reference: Path | None = None
+    # What kind of change a code ticket is — see subtypes.py — "" for none.
+    subtype: str = ""
     # Whether `session_id` names a conversation Claude Code already has, to be
     # carried on rather than opened. Only ever true for a ticket that came back
     # ticked as waiting for credit — see `prepare`.

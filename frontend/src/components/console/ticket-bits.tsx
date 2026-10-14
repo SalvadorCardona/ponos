@@ -26,11 +26,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { DecideButton } from "@/components/console/ticket-decision"
 import { moveWithToast as move } from "@/hooks/use-console"
-import { titleOf, useBoard } from "@/lib/board-store"
+import { currentBoard, titleOf, useBoard } from "@/lib/board-store"
 import { actionsOf } from "@/lib/decision"
 import { currentLanguage, t, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
-import type { Block, BlockFamily, Ci, CiState, Ticket } from "@/lib/types"
+import type { Block, BlockFamily, Ci, CiState, Subtype, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /* What a ticket wears wherever it is drawn — on its card, at the top of its
@@ -293,16 +293,57 @@ export function TicketCi({ ci, detailed = false }: { ci?: Ci | null; detailed?: 
   )
 }
 
+/** A sub-type as the board sends it, from its key — undefined for none, or one it does not know. */
+export function subtypeOf(key?: string): Subtype | undefined {
+  return key ? currentBoard()?.subtypes?.find((subtype) => subtype.key === key) : undefined
+}
+
+/** The colour of a sub-type — on its icon and in its bars, never on its words. */
+export const subtypeColor = (key: string): string => `var(--subtype-${key}, currentColor)`
+
+/* What kind of change a code ticket is, as a small badge: its icon and its
+ * name, the border in its colour. Discreet on purpose — it is read after the
+ * title, not before it. Nothing for a ticket without one. */
+export function TicketSubtype({ subtype }: { subtype?: string }) {
+  useT()
+  const known = subtypeOf(subtype)
+  if (!known) return null
+  return (
+    <Chip
+      className="text-foreground"
+      style={{
+        borderColor: `color-mix(in oklab, ${subtypeColor(known.key)} 45%, transparent)`,
+        background: `color-mix(in oklab, ${subtypeColor(known.key)} 8%, transparent)`,
+      }}
+    >
+      <span
+        data-slot="ticket-subtype"
+        data-subtype={known.key}
+        className="inline-flex items-center gap-1"
+        title={`${known.commit}:${known.changelog ? ` · CHANGELOG ${known.changelog}` : ""}`}
+      >
+        <span aria-hidden className="text-[0.8rem] leading-none">
+          {known.icon}
+        </span>
+        {blockSaid(known.label)}
+      </span>
+    </Chip>
+  )
+}
+
 /** A tag: one word about a ticket, drawn small enough that five of them still read as one row. */
 export function Chip({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
 }) {
   return (
     <span
+      style={style}
       className={cn(
         "text-muted-foreground inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[0.7rem] whitespace-nowrap",
         className
@@ -369,10 +410,11 @@ export function TicketSync({ ticket }: { ticket: Ticket }) {
 
 /** What is said *about* a ticket rather than in it: how urgent, on which model, when. */
 export function TicketTags({ ticket, lead }: { ticket: Ticket; lead?: React.ReactNode }) {
-  if (!lead && !ticket.priority && !ticket.model && !ticket.scheduled) return null
+  if (!lead && !ticket.priority && !ticket.model && !ticket.scheduled && !subtypeOf(ticket.subtype)) return null
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {lead}
+      <TicketSubtype subtype={ticket.subtype} />
       {ticket.priority ? <Chip>{ticket.priority}</Chip> : null}
       {ticket.model ? (
         <Chip className="min-w-0 max-w-full">

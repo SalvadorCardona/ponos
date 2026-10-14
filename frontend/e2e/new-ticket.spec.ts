@@ -20,9 +20,13 @@ async function open(page: Page) {
 }
 
 /* The package's select is a combobox of its own, not a <select>: opened, then
- * an option picked from the list it draws. */
+ * an option picked from the list it draws. Found by the label its group opens
+ * with: "Type" is also in "Sub-type". */
 const choiceField = (dialog: ReturnType<Page["getByRole"]>, field: string) =>
-  dialog.getByRole("group").filter({ hasText: field }).getByRole("combobox")
+  dialog
+    .getByRole("group")
+    .filter({ hasText: new RegExp(`^${field}`) })
+    .getByRole("combobox")
 
 async function choose(page: Page, dialog: ReturnType<Page["getByRole"]>, field: string, option: string) {
   await choiceField(dialog, field).click()
@@ -42,6 +46,7 @@ test("a new ticket carries its priority, type and model, and Ctrl+Enter creates 
   await choose(page, dialog, "Priority", "High")
   await choose(page, dialog, "Type", "Writing")
   await choose(page, dialog, "Model", "haiku")
+  await choose(page, dialog, "Sub-type", "🐞 Bug")
   await dialog.getByLabel("Title").fill("Announce it")
   await dialog.getByLabel("Title").press("Control+Enter")
 
@@ -51,6 +56,7 @@ test("a new ticket carries its priority, type and model, and Ctrl+Enter creates 
     priority: "High",
     type: "writing",
     model: "haiku",
+    subtype: "bug",
     ready: true,
   })
   await expect(dialog).toBeHidden()
@@ -67,7 +73,7 @@ test("left alone, the three say nothing and the type is the runner's to deduce",
   await dialog.getByLabel("Title").fill("Plain")
   await dialog.getByRole("button", { name: "Create" }).click()
   await expect.poll(() => sent.length).toBe(1)
-  expect(sent[0]).toMatchObject({ priority: "", type: "", model: "" })
+  expect(sent[0]).toMatchObject({ priority: "", type: "", model: "", subtype: "" })
 })
 
 test("Ctrl+Enter from the brief creates the ticket with the last words typed", async ({ page }) => {

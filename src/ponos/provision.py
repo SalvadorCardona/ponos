@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import blocks, ci, notion
+from . import blocks, ci, notion, subtypes
 from .config import PRIORITIES, Notion
 from .schedules import CADENCES
 
@@ -215,6 +215,11 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
         ),
         # The checks of the pull request while the ticket is in review.
         settings.prop("ci"): _select(list(ci.LABELS.values()), _CI_COLOURS),
+        # What kind of change a code ticket is, in the colours of its card.
+        settings.prop("subtype"): _select(
+            [subtype.option for subtype in subtypes.SUBTYPES],
+            {subtype.option: subtype.colour for subtype in subtypes.SUBTYPES},
+        ),
     }
     # Single-property relations: the ticket points at its project, and the
     # projects database is not given a back-reference it would never read.

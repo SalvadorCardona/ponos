@@ -312,6 +312,14 @@ export const FRENCH: Record<string, string> = {
   "Show less": "Voir moins",
   "No ticket stopped in the period.": "Aucun ticket arrêté sur la période.",
   "week of {{day}}": "semaine du {{day}}",
+  // A code ticket's sub-type (subtypes.py): its badge, its filter, its field and its statistics.
+  "sub-type": "sous-type",
+  "What kind of change a code ticket is: the prefix of its commit and its CHANGELOG section. Empty, the runner deduces it.":
+    "La nature du changement d'un ticket Code : le préfixe de son commit et sa section du CHANGELOG. Vide, le runner la déduit.",
+  "Done, by sub-type and week": "Terminés, par sous-type et par semaine",
+  "No code ticket with a sub-type closed in the period.": "Aucun ticket Code avec un sous-type terminé sur la période.",
+  "Average cost": "Coût moyen",
+  "Average duration": "Durée moyenne",
   Merge: "Fusion",
   Infrastructure: "Infrastructure",
   Question: "Question",
@@ -1158,6 +1166,32 @@ export const FRENCH: Record<string, string> = {
   "Writing tickets start at": "Les tickets Rédaction partent de",
   "External action tickets start at": "Les tickets Action externe partent de",
   "Publication tickets start at": "Les tickets Publication partent de",
+  "Where a code ticket of this sub-type starts, from the level of Code.":
+    "Où part un ticket Code de ce sous-type, depuis le niveau de Code.",
+  "One level lower": "Un niveau plus bas",
+  "Same as Code": "Comme Code",
+  "One level higher": "Un niveau plus haut",
+  "Bug tickets start": "Les tickets Bug partent",
+  "Feature tickets start": "Les tickets Fonctionnalité partent",
+  "Improvement tickets start": "Les tickets Amélioration partent",
+  "Chore tickets start": "Les tickets Maintenance partent",
+  "Refactor tickets start": "Les tickets Refactor partent",
+  "Performance tickets start": "Les tickets Performance partent",
+  "Docs tickets start": "Les tickets Docs partent",
+  "Security tickets start": "Les tickets Sécurité partent",
+  "🐞 Bug": "🐞 Bug",
+  "✨ Feature": "✨ Fonctionnalité",
+  "⬆️ Improvement": "⬆️ Amélioration",
+  "🧹 Chore": "🧹 Maintenance",
+  "♻️ Refactor": "♻️ Refactor",
+  "⚡ Performance": "⚡ Performance",
+  "📝 Docs": "📝 Docs",
+  "🔒 Security": "🔒 Sécurité",
+  "Code, by sub-type": "Code, par sous-type",
+  "Where each sub-type of a code ticket starts, from Code's level":
+    "Où part chaque sous-type d'un ticket Code, depuis le niveau de Code",
+  "A code ticket starts at Code's level, moved by its sub-type — never past the lightest or the heaviest level, and Fable only when it is allowed.":
+    "Un ticket Code part du niveau de Code, déplacé par son sous-type — jamais au-delà du niveau le plus léger ni du plus lourd, et Fable seulement s'il est autorisé.",
   "Light work": "Travail léger",
   "Standard work": "Travail standard",
   "Heavy work": "Travail lourd",
@@ -1488,6 +1522,9 @@ export const FRENCH: Record<string, string> = {
     "Écrite par le runner : pourquoi un ticket arrêté s'est arrêté, sous forme de code.",
   "Written by the runner: the state of the pull request's checks while it is in review.":
     "Écrite par le runner : l'état des checks de la pull request tant qu'elle est en relecture.",
+  "Sub-type": "Sous-type",
+  "Bug, Feature, Amélioration… on a code ticket; empty, it is deduced.":
+    "Bug, Feature, Amélioration… sur un ticket Code ; vide, il est déduit.",
   Agent: "Agent",
   "Relation to the Agents database: who handles the ticket.":
     "Relation vers la base Agents : qui traite le ticket.",

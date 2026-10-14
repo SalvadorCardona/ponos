@@ -18,6 +18,20 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A code ticket says what kind of change it is: Bug, Feature, Amélioration, Chore, Refactor,
+  Perf, Docs or Sécurité.** A `Sous-type` select on the board (`ponos init` adds it, `ponos doctor`
+  asks for it), ignored on the other types. Empty, the runner fills it before the ticket runs: from
+  the title's prefix (`[Bug]`, `[Feature]`, `[Ops]` for a Chore…) without asking anybody, otherwise in
+  the same light session that tells the type — an *Amélioration* when in doubt, said in the report,
+  never a block. A value already there is never rewritten. The session is told the prefix of its
+  commit (`fix:`, `feat:`, `chore:`…) and the CHANGELOG section it writes under, and a Bug is asked
+  for a test that reproduces it before the fix; the pull request takes the same prefix in place of
+  the title's tag. `ponos subtypes --backfill` fills the code tickets already on the board from their
+  prefix alone. The console shows a badge of it on the card (an icon and a colour each), filters the
+  board by it, offers it in *New ticket*, and counts the code tickets done by sub-type and by week,
+  with the average cost and duration of each. The automatic model choice reads it too: Docs and
+  Chore start one level lower, Sécurité one level higher (`runner.auto_model_subtype_*`, in the
+  Settings' model table), never past the four levels.
 - **A bell in the console's header for what asks for your attention.** A small badge counts what you
   have not seen; a click opens a dropdown over the board — newest first, an icon for the kind, the
   ticket's title, its project, how long ago — and a click on one opens that ticket's card and marks it

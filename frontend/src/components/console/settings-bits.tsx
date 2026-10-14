@@ -548,6 +548,8 @@ function ModelGrid({ section, inputs }: { section: SettingSection; inputs: Map<s
   const levels = section.fields.filter((field) => field.grid === "level")
   const types = section.fields.filter((field) => field.grid === "type")
   const order = types[0]?.choices ?? []
+  const subtypes = section.fields.filter((field) => field.grid === "subtype")
+  const shifts = subtypes[0]?.choices ?? []
 
   return (
     <div className="mt-2 border-t pt-4" data-testid="model-grid">
@@ -633,6 +635,67 @@ function ModelGrid({ section, inputs }: { section: SettingSection; inputs: Map<s
       <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
         {t("Each column is a type of ticket: the dot is the level it starts at, before its size and wording move it. An empty model is the nearest level's.")}
       </p>
+      {/* Code, by its sub-types: where each starts from Code's own level —
+          the same dots, one table further down, since it is the same choice
+          made finer. A sub-type added to subtypes.py is a column here. */}
+      {subtypes.length ? (
+        <div className="mt-4 overflow-x-auto" data-testid="model-grid-subtypes">
+          <table className="w-full min-w-[40rem] border-collapse text-sm">
+            <caption className="sr-only">{t("Where each sub-type of a code ticket starts, from Code's level")}</caption>
+            <thead>
+              <tr className="text-muted-foreground text-xs">
+                <th scope="col" className="pb-2 text-left font-medium">
+                  {t("Code, by sub-type")}
+                </th>
+                {subtypes.map((subtype) => (
+                  <th key={subtype.name} scope="col" className="px-1 pb-2 text-center font-medium">
+                    {t(subtype.short ?? subtype.label)}
+                    {keys ? <code className="block font-mono text-[10px] font-normal">{subtype.name}</code> : null}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shifts.map((shift) => (
+                <tr key={shift} className="border-t">
+                  <th scope="row" className="py-2 pr-3 text-left font-semibold">
+                    {t(subtypes[0]?.options?.[shift] ?? shift)}
+                  </th>
+                  {subtypes.map((subtype) => {
+                    const input = inputs.get(inputName(subtype.name))
+                    if (!input) return <td key={subtype.name} />
+                    const moves = input.value === UNSET ? subtype.fallback : input.value
+                    return (
+                      <td
+                        key={subtype.name}
+                        data-field={inputName(subtype.name)}
+                        className="px-1 py-2 text-center transition-colors duration-700 data-found:bg-primary/10"
+                      >
+                        <input
+                          type="radio"
+                          name={inputName(subtype.name)}
+                          className="accent-primary size-4 cursor-pointer align-middle"
+                          checked={moves === shift}
+                          aria-label={`${t(subtype.short ?? subtype.label)} — ${t(subtype.options?.[shift] ?? shift)}`}
+                          onChange={() =>
+                            onChange({
+                              ...input,
+                              value: !subtype.value && shift === subtype.fallback ? UNSET : shift,
+                            })
+                          }
+                        />
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+            {t("A code ticket starts at Code's level, moved by its sub-type — never past the lightest or the heaviest level, and Fable only when it is allowed.")}
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }

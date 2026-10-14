@@ -26,7 +26,7 @@ from typing import Any
 from .. import blocks, ci
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, decisions, git, images, question, session, state, store, sync
-from .. import journal, models, notifications, project_settings, systemd, voice
+from .. import journal, models, notifications, project_settings, subtypes, systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -266,6 +266,9 @@ class Api:
             "cancel": self._cancels(),
             "columns": columns,
             "choices": self._choices(),
+            # The sub-types, whole: the card's icon and colour, the console's
+            # words in both languages — read off subtypes.py, never written twice.
+            "subtypes": [subtype.as_dict() for subtype in subtypes.SUBTYPES],
             # What a ticket with no model of its own runs on — empty, the CLI's.
             "model": self.config.runner.model,
         }
@@ -301,6 +304,12 @@ class Api:
         if settings.prop("type") in schema:
             choices["type"] = [
                 {"value": key, "label": self.runner.kind_name(key)} for key in kinds_module.KINDS
+            ]
+        if settings.prop("subtype") in schema:
+            # The board's option as the label: what the card is found by when
+            # the filter folds it — the console says it in its own words.
+            choices["subtype"] = [
+                {"value": subtype.key, "label": subtype.option} for subtype in subtypes.SUBTYPES
             ]
         return choices
 
@@ -360,6 +369,9 @@ class Api:
             "kind": (project or {}).get("kind", ""),
             # The ticket's type as the board spells it — `kind` is the project's.
             "type": str(store.read(page, settings.prop("type")) or ""),
+            # A code ticket's sub-type, as its key — `bug`, `docs` — or "" for
+            # none, and for every ticket of another type: the column is ignored there.
+            "subtype": _subtype(page, settings),
             "priority": str(store.read(page, settings.prop("priority")) or ""),
             "model": str(store.read(page, settings.prop("model")) or ""),
             "model_label": models.label(str(store.read(page, settings.prop("model")) or "")),
@@ -1113,6 +1125,7 @@ class Api:
         priority: str = "",
         kind: str = "",
         model: str = "",
+        subtype: str = "",
     ) -> dict:
         title = title.strip()
         if not title:
@@ -1120,6 +1133,9 @@ class Api:
         kind = kind.strip()
         if kind and kind not in kinds_module.KINDS:
             raise ValueError(f"unknown type “{kind}”")
+        subtype = subtype.strip()
+        if subtype and subtype not in subtypes.KEYS:
+            raise ValueError(f"unknown sub-type “{subtype}”")
         settings = self.config.notion
         values: dict[str, Any] = {}
         # Ready means "start it now"; anything else means the ticket is being
@@ -1140,6 +1156,10 @@ class Api:
             values[settings.prop("priority")] = priority.strip()
         if kind:
             values[settings.prop("type")] = self.runner.kind_name(kind)
+        # Ignored on a ticket of another type, as on the board — but written:
+        # a type left empty may well turn out to be code.
+        if subtype and kind in ("", "code"):
+            values[settings.prop("subtype")] = subtypes.option(subtype)
         if model.strip():
             values[settings.prop("model")] = model.strip()
         page_id = self.runner.client.create_row(self.runner.database, title, values)
@@ -1698,6 +1718,21 @@ def _causes(tickets: list[dict]) -> None:
         elif ticket.get("block") is None:
             codes = state.causes() if codes is None else codes
             ticket["block"] = blocks.describe(codes.get(str(ticket.get("id", "")), ""))
+
+
+def _subtype(page: store.Page, settings) -> str:
+    """A ticket's sub-type, from its column — or, on a code ticket, its title's prefix.
+
+    The prefix is what the runner would have written, and what an old ticket
+    never got: a done one is left unwritten by `ponos subtypes --backfill`,
+    since an edit would move its closing date. Read here, it is counted all
+    the same. Nothing for a ticket of another type, whatever it says.
+    """
+    kind = settings.kind_of(str(store.read(page, settings.prop("type")) or ""))
+    if kind not in ("code", ""):
+        return ""
+    written = subtypes.of(store.read(page, settings.prop("subtype")))
+    return written or (subtypes.from_prefix(page.title) if kind == "code" else "")
 
 
 def _checks(tickets: list[dict]) -> None:

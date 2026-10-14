@@ -92,7 +92,12 @@ test("the models are one table, and a change waits under a bar that sticks", asy
   await open(page, "/?view=console/settings/read/config/models")
   await settingsPage(page)
   const grid = page.getByTestId("model-grid")
-  await expect(grid.getByRole("radio")).toHaveCount(16)
+  // Four levels by four types, and three shifts by eight sub-types under them.
+  await expect(grid.getByRole("radio")).toHaveCount(16 + 24)
+  const subtypes = page.getByTestId("model-grid-subtypes")
+  await expect(subtypes.getByRole("radio", { name: "🔒 Security — One level higher" })).toBeChecked()
+  await expect(subtypes.getByRole("radio", { name: "📝 Docs — One level lower" })).toBeChecked()
+  await expect(subtypes.getByRole("radio", { name: "🐞 Bug — Same as Code" })).toBeChecked()
   const bar = page.getByTestId("settings-bar")
   await expect(bar.getByRole("status")).toHaveText("No changes")
   await grid.getByRole("radio", { name: "Code — Heavy work" }).check()

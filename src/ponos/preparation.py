@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import shutil
 
-from . import agents, git, journal, kinds, models, naming, session, state, store
+from . import agents, git, journal, kinds, models, naming, session, state, store, subtypes
 from . import voice as voice_module
 from .base import Base
 from .config import state_dir
@@ -88,13 +88,15 @@ class Preparation(Base):
 
         # After the name, which the classification reads, and before the branch
         # is drawn, which the type decides whether there is one at all.
-        kind = self._kind(ticket, body, project)
+        kind, answer = self._kind(ticket, body, project)
         if kind is None:
             return None
         reference = None
         worked = kinds.worked_in(project, kind)
         if worked is not project:
             reference, project = project.path, worked
+        # Only on the road of a code ticket: the column is ignored on the others.
+        subtype, note = self._subtype(ticket, body, answer) if project.is_code else ("", "")
 
         stem = f"{slugify(project.name, 24)}-{short}"
         if project.is_code:
@@ -137,7 +139,10 @@ class Preparation(Base):
             comments=self.discussion(ticket),
             kind=kind,
             reference=reference,
+            subtype=subtype,
         )
+        if note:
+            job.notes.append(note)
         written = job.model or agent.model
         if written and self.config.runner.allowed(written) != written:
             # Written by somebody, so said on the ticket: a Model that is not
@@ -222,6 +227,7 @@ class Preparation(Base):
                 else None
             ),
             escalate=settings.auto_model_escalate,
+            subtype=job.subtype,
         )
         if not choice.model:
             return
@@ -232,6 +238,8 @@ class Preparation(Base):
             if "kind" in values:
                 # As the board spells it: “ticket Rédaction”, not “ticket writing”.
                 values = {**values, "kind": self.kind_name(values["kind"])}
+            if "subtype" in values:
+                values = {**values, "subtype": subtypes.option(values["subtype"])}
             parts.append(said.say(key, **values))
         reason = ", ".join(parts)
         self.say(f"    · model {choice.model} ({choice.level}) — {reason}")
@@ -303,7 +311,7 @@ class Preparation(Base):
         ticket.page.title = title
         self.say(f"  · named “{title}” — the ticket had none of its own")
 
-    def _kind(self, ticket: Ticket, body: str, project: Project) -> str | None:
+    def _kind(self, ticket: Ticket, body: str, project: Project) -> tuple[str | None, str]:
         """The type this ticket runs as — "" for the old road, None to stop here.
 
         A type somebody wrote is taken as written, always: the classification
@@ -311,24 +319,110 @@ class Preparation(Base):
         later pass undoes. An option that is none of the four is not rewritten
         either — it is somebody's own column — and the ticket runs by what its
         project holds, as every ticket did before there were types.
+
+        Beside it, what the classifying session answered, "" when none ran: the
+        same answer says a code ticket's sub-type — see `_subtype`.
         """
         column = self.type_column()
         if not column:
-            return ""
+            return "", ""
         written = str(store.read(ticket.page, column) or "").strip()
         if written:
             kind = self.config.notion.kind_of(written)
             if not kind:
                 self.say(f"    · type “{written}” is none of the four — run by what its project holds")
-            return kind
+            return kind, ""
         if not self.config.runner.classify:
-            return ""
+            return "", ""
         if self.dry_run:
             self.say("    (dry run) no type — it would be classified before it runs")
-            return ""
+            return "", ""
         return self._classify(ticket, body, project)
 
-    def _classify(self, ticket: Ticket, body: str, project: Project) -> str | None:
+    def _subtype(self, ticket: Ticket, body: str, answer: str = "") -> tuple[str, str]:
+        """A code ticket's sub-type, and the note its report carries about it.
+
+        Written by somebody, taken as written — never rewritten, like a type.
+        Empty, the title's prefix says it when it has one, and that costs
+        nothing; otherwise the classification that just ran for the type said
+        it too, or a session of its own is asked. Either way a doubt is settled
+        as `subtypes.DOUBT` and said in the report, without stopping anything:
+        see subtypes.py. A board without the column reads the prefix and asks
+        nobody — there would be nowhere to keep the answer.
+        """
+        column = self.subtype_column()
+        if column:
+            written = str(store.read(ticket.page, column) or "").strip()
+            if written:
+                key = subtypes.of(written)
+                if not key:
+                    self.say(f"    · sub-type “{written}” is none of the {len(subtypes.KEYS)} — left out")
+                return key, ""
+        key = subtypes.from_prefix(ticket.title)
+        if key:
+            self.say(f"    · sub-type {key}, from the title's prefix")
+            self._write_subtype(ticket, column, key)
+            return key, ""
+        if not column or not self.config.runner.classify:
+            return "", ""
+        if self.dry_run:
+            self.say("    (dry run) no sub-type — it would be deduced before it runs")
+            return "", ""
+        if not answer:
+            answer = self._ask_subtype(ticket, body)
+        said = self.voice
+        guess = subtypes.parse(answer)
+        key, doubted = subtypes.settle(guess, self.config.runner.classify_confidence)
+        if answer:
+            # No answer at all is a session that did not run, not a doubt about
+            # the ticket: nothing is written, and the next attempt asks again.
+            self._write_subtype(ticket, column, key)
+        self.say(
+            f"    · sub-type {key}"
+            + (" — in doubt" if doubted else f" ({guess.confidence}) — {guess.reason}")
+        )
+        if doubted:
+            return key, said.say(
+                "subtype-doubt", subtype=subtypes.option(key), property=column
+            )
+        return key, said.say(
+            "subtype-guessed",
+            subtype=subtypes.option(key),
+            level=said.say(f"confidence-{guess.confidence}"),
+            reason=guess.reason,
+        )
+
+    def _write_subtype(self, ticket: Ticket, column: str, key: str) -> None:
+        if not column or self.dry_run:
+            return
+        try:
+            self.client.update(self.database, ticket.page.id, {column: subtypes.option(key)})
+        except store.StoreError as error:
+            self.say(f"  ! the sub-type could not be written: {voice_module.line(error)}")
+
+    def _ask_subtype(self, ticket: Ticket, body: str) -> str:
+        """What a short session says the sub-type is — "" when it said nothing."""
+        short = short_id(ticket.id)
+        workdir = state_dir() / "scratch" / f"subtype-{short}"
+        try:
+            workdir.mkdir(parents=True, exist_ok=True)
+            outcome = session.run(
+                subtypes.prompt(ticket.title, body),
+                cwd=workdir,
+                log=state.log_file(f"{short}-subtype"),
+                model=self.config.runner.allowed(self.config.runner.classify_model),
+                permission_mode=self.config.runner.reply_permission_mode,
+                timeout_minutes=kinds.TIMEOUT_MINUTES,
+                environment=self.environment,
+            )
+            return outcome.answer if outcome.ok else ""
+        except (OSError, ValueError) as error:
+            self.say(f"  ! the sub-type could not be deduced: {voice_module.line(error)}")
+            return ""
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    def _classify(self, ticket: Ticket, body: str, project: Project) -> tuple[str | None, str]:
         """Work out a ticket's type, write it on the page, and say why.
 
         The type goes into the column and the reason into a comment, so that the
@@ -365,7 +459,7 @@ class Preparation(Base):
                 # It stays in ready, untouched, for the pass that has credit.
                 self._hold_credits(outcome)
                 self.say("    · out of credit before it could be classified — left in ready")
-                return None
+                return None, ""
             answer = outcome.answer if outcome.ok else ""
         except (OSError, ValueError) as error:
             self.say(f"  ! the ticket could not be classified: {voice_module.line(error)}")
@@ -401,7 +495,7 @@ class Preparation(Base):
                 blocked=True,
                 question=question,
             )
-            return None
+            return None, ""
 
         name = self.kind_name(guess.kind)
         try:
@@ -426,4 +520,4 @@ class Preparation(Base):
                 said.say("classified-fix", property=column),
             ),
         )
-        return guess.kind
+        return guess.kind, answer

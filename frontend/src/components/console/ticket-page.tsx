@@ -39,6 +39,7 @@ import {
   TicketBlock,
   TicketCi,
   TicketLinks,
+  TicketSubtype,
   ago,
   capital,
   lasted,
@@ -254,6 +255,12 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
       <Fact label={t("project")}>{ticket.project || t("no project — a document")}</Fact>
       {/* As the board spells it: Code, Writing, External action, Publication. */}
       <Fact label={t("type")}>{ticket.type || none}</Fact>
+      {/* A code ticket's sub-type, as the card wears it. */}
+      {ticket.subtype ? (
+        <Fact label={t("sub-type")}>
+          <TicketSubtype subtype={ticket.subtype} />
+        </Fact>
+      ) : null}
       <Fact label={t("priority")}>{ticket.priority || none}</Fact>
       {/* The column empty is not "no model": it is the one the session
           announced, or the runner's, or Claude Code's own. The server says
