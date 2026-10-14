@@ -266,8 +266,8 @@ class Api:
             "cancel": self._cancels(),
             "columns": columns,
             "choices": self._choices(),
-            # The sub-types, whole: the card's icon and colour, the console's
-            # words in both languages — read off subtypes.py, never written twice.
+            # The sub-types, whole: the card's icon and colour, and its word —
+            # one, untranslated — read off subtypes.py, never written twice.
             "subtypes": [subtype.as_dict() for subtype in subtypes.SUBTYPES],
             # What a ticket with no model of its own runs on — empty, the CLI's.
             "model": self.config.runner.model,

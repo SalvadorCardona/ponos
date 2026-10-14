@@ -85,15 +85,15 @@ function StatusBadge({ status }: { status: IdeaStatus }) {
   )
 }
 
-/** What each category is called, on a card and on its filter. */
-export function useCategoryWords(): Record<Exclude<IdeaCategory, "">, string> {
-  const t = useT()
-  return {
-    ux: t("UX/UI"),
-    feature: t("Feature"),
-    security: t("Security"),
-    technical: t("Technical"),
-  }
+/* What each category is called, on a card, on its filter and in the form: the
+ * developers' words, the same in every language — like a ticket's sub-type
+ * (subtypes.py), they are the words of the tickets and the commits, and read
+ * wrong translated. Not to be put through `t()`, nor into french.ts. */
+export const CATEGORY_WORDS: Record<Exclude<IdeaCategory, "">, string> = {
+  ux: "UX/UI",
+  feature: "Feature",
+  security: "Security",
+  technical: "Tech",
 }
 
 /* A tint each, so a list is sorted at a glance — security the loudest, since
@@ -107,7 +107,6 @@ const CATEGORY_TONE: Record<Exclude<IdeaCategory, "">, string> = {
 
 /** The category an idea was sorted into; nothing for one nobody sorted. */
 export function CategoryBadge({ category }: { category: IdeaCategory }) {
-  const words = useCategoryWords()
   if (!category) return null
   return (
     <Badge
@@ -116,7 +115,7 @@ export function CategoryBadge({ category }: { category: IdeaCategory }) {
       data-slot="ideas-category"
       data-category={category}
     >
-      {words[category]}
+      {CATEGORY_WORDS[category]}
     </Badge>
   )
 }

@@ -213,7 +213,7 @@ test.describe("at 1440px", () => {
     await sorted.locator('[data-slot="ideas-edit"]').click()
     // The package's select: a combobox of its own, opened, then an option picked.
     await drawer(page).getByRole("group").filter({ hasText: "Category" }).getByRole("combobox").click()
-    await page.getByRole("option", { name: "Technical", exact: true }).click()
+    await page.getByRole("option", { name: "Tech", exact: true }).click()
     await drawer(page).getByRole("button", { name: "Save" }).click()
     await expect(cards(page).filter({ hasText: title })).toHaveCount(0)
     await page.getByRole("button", { name: "Clear the search" }).first().click()

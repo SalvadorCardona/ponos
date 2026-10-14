@@ -6828,6 +6828,29 @@ def a_sub_type_somebody_wrote_is_never_overwritten():
 
 
 @case
+def a_sub_type_is_the_developers_word_in_every_language():
+    """« ✨ Feature » in French too, not « Fonctionnalité »: one label, no entry in french.ts.
+
+    The French words it used to be shown as are still understood, in a title or
+    an answer — only what the console shows changed, not what is read.
+    """
+    dictionary = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
+    assert [subtype.label for subtype in subtypes.SUBTYPES] == [
+        "Bug", "Feature", "Improvement", "Chore", "Refactor", "Perf", "Docs", "Security",
+    ]
+    for subtype in subtypes.SUBTYPES:
+        assert subtype.as_dict()["label"] == subtype.label, subtype.key
+        assert f'"{subtype.icon} {subtype.label}":' not in dictionary, subtype.key
+    for word, key in (
+        ("Fonctionnalité", "feature"), ("Amélioration", "improvement"), ("Maintenance", "chore"),
+        ("Performance", "perf"), ("Sécurité", "security"),
+    ):
+        assert subtypes.of(word) == key, word
+    ideas = (FRONTEND / "src/components/console/idea-cards.tsx").read_text(encoding="utf-8")
+    assert 'technical: "Tech"' in ideas and 't("Technical")' not in ideas
+
+
+@case
 def the_commit_the_pull_request_and_the_changelog_follow_the_sub_type():
     for key, commit, section in (
         ("bug", "fix", "Fixed"), ("feature", "feat", "Added"), ("improvement", "feat", "Changed"),
@@ -13699,6 +13722,10 @@ def the_console_says_the_configuration_in_french_too():
     `frontend/src/lib/french.ts` by those very words — so a sentence reworded
     on this side and not on that one would quietly go back to English on a
     console somebody set to French.
+
+    All but one: the head of a sub-type's column in the model table, « ✨
+    Feature », is the sub-type's own word, and a sub-type is never translated
+    (see `SUBTYPES` in subtypes.py) — so it must have no entry at all.
     """
     dictionary = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
     said = [words for group in web_settings.GROUPS for words in (group.title, group.blurb)]
@@ -13706,8 +13733,12 @@ def the_console_says_the_configuration_in_french_too():
     for section in web_settings.SECTIONS:
         said += [section.title, section.blurb]
         for field in section.fields:
-            said += [field.label, field.help, field.after, field.unit, field.placeholder, field.short]
+            said += [field.label, field.help, field.after, field.unit, field.placeholder]
             said += [label for _, label in field.options]
+            if field.grid == "subtype":
+                assert f'"{field.short}":' not in dictionary, f"“{field.short}” is translated"
+            else:
+                said.append(field.short)
     for sentence in said:
         # As a key, not anywhere in the file: "Check the board every" is
         # in "Check the board every (seconds)", which translates nothing of it.

@@ -72,7 +72,9 @@ export interface Subtype {
   key: string
   /** How the board writes it: « Amélioration », « Sécurité ». */
   option: string
-  label: { en: string; fr: string }
+  /** The developers' word — « Feature », « Security » — shown as it is in
+   * every language: a sub-type is never translated, see `SUBTYPES` in subtypes.py. */
+  label: string
   icon: string
   /** The prefix of its commits: `fix`, `feat`… */
   commit: string

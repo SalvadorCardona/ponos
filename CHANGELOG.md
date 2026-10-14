@@ -216,6 +216,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A ticket's sub-type and an idea's category keep the developers' word, in every language.** The
+  console in French says « ✨ Feature », « 🔒 Security », « ⬆️ Improvement », « 🧹 Chore » — not
+  *Fonctionnalité*, *Sécurité*, *Amélioration*, *Maintenance* — on the card, the ticket page, the
+  board's filter, the new ticket form, the statistics and the model table of the Settings; an idea is
+  sorted into UX/UI, Feature, Security or Tech. They are the words of the tickets, the pull requests
+  and the commits. Icons, colours, filters and what the board stores do not change.
 - **The chat names each step, and each step opens on its own.** Under the avatar, the line says what
   Ponos is on — « Lit src/ui/hud.ts », « Lance pnpm test » — instead of « lance une commande… », with
   the full text on hover. *Voir les étapes* lists one line per step with its state (spinner, done,

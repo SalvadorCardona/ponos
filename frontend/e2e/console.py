@@ -96,7 +96,7 @@ STARTING = ("000000000000000000000000000057a1", "Warm up the engine", "qwen/qwen
 # Code tickets with a sub-type, written as the board writes it: the card wears
 # its badge, and the search filters on it.
 SUBTYPED = {
-    "00000000000000000000000000c1c102": "Perf",
+    "00000000000000000000000000c1c102": "Sécurité",
     "00000000000000000000000000c1c103": "Bug",
 }
 STUCK = (

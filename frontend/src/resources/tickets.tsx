@@ -28,7 +28,6 @@ import {
 import { ComboboxInputController } from "@/components/console/combobox"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
-  blockSaid,
   columnTitle,
   SEED,
   TicketActions,
@@ -279,11 +278,11 @@ function choiceInput(key: "priority" | "type" | "model" | "subtype", empty: stri
     hidden: () => !currentBoard()?.choices?.[key]?.length,
     getValueOptions: async () => [
       { value: "", label: empty },
-      // A sub-type behind its icon and in the console's words, as the card says it.
+      // A sub-type behind its icon and in the developers' word, as the card says it.
       ...(key === "subtype"
         ? (currentBoard()?.subtypes ?? []).map((subtype) => ({
             value: subtype.key,
-            label: `${subtype.icon} ${blockSaid(subtype.label)}`,
+            label: `${subtype.icon} ${subtype.label}`,
           }))
         : (currentBoard()?.choices?.[key] ?? [])),
     ],
