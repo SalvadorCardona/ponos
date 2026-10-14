@@ -1,14 +1,11 @@
 import * as React from "react"
-import { PaperclipIcon, PlusIcon, SquarePenIcon } from "lucide-react"
-import { ActionList } from "react-data-form"
-import { generateLinkByResource, useNavigate } from "react-resource-view"
+import { PaperclipIcon, SquarePenIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useConsole, type Entry } from "@/hooks/use-console"
 import { api } from "@/lib/api"
 import { currentLanguage, useT } from "@/lib/i18n"
-import { tickets } from "@/resources/tickets"
 
 import { Composer, type ComposerHandle } from "./composer"
 import { Flow } from "./text"
@@ -36,7 +33,6 @@ const carriesFiles = (event: React.DragEvent) => event.dataTransfer.types.includ
 export function ConsolePane() {
   const { transcript, busy, stopping, submit, resetChat, stopChat, runner } = useConsole()
   const t = useT()
-  const navigate = useNavigate()
   const composer = React.useRef<ComposerHandle>(null)
   const [dragging, setDragging] = React.useState(false)
   const chat = runner?.chat
@@ -56,9 +52,6 @@ export function ConsolePane() {
     stoppedHere.current = false
     composer.current?.focus()
   }, [busy])
-
-  const newTicket = () =>
-    void navigate({ to: generateLinkByResource({ resource: tickets, resourceAction: ActionList.create }) })
 
   return (
     <div
@@ -87,13 +80,10 @@ export function ConsolePane() {
     >
       {/* Only what can be done from here: the drawer already says where it
           is. Room at the right for the drawer's own close and its full-screen
-          switch, which float over this corner. A new ticket lands in Ready by
-          default — the form's own switch sends it to the drafts instead. */}
+          switch, which float over this corner. Creating a ticket is the
+          board's job; here Ponos makes one when asked. */}
       <div className="flex items-center gap-2 border-b py-2 pr-12 pl-3.5 sm:pr-20">
-        <Button size="sm" onClick={newTicket}>
-          <PlusIcon />
-          {t("New ticket")}
-        </Button>
+        <span className="text-muted-foreground text-sm font-medium">Ponos</span>
         <span className="flex-1" />
         <Tooltip>
           <TooltipTrigger asChild>
