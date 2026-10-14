@@ -216,6 +216,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The chat names each step, and each step opens on its own.** Under the avatar, the line says what
+  Ponos is on — « Lit src/ui/hud.ts », « Lance pnpm test » — instead of « lance une commande… », with
+  the full text on hover. *Voir les étapes* lists one line per step with its state (spinner, done,
+  error); each line is a button that opens the command or parameters, all closed by default except a
+  failed step, which opens by itself. Long output is cut with *Voir plus*, in monospace, and nothing
+  is drawn until a step is opened. What a reader opened stays open as new steps arrive. The detail
+  stays in the console: nothing more goes to the Notion ticket.
 - **A blocked card shows Unblock and nothing else to say it is blocked.** The orange « Question for
   you » pill that sat above the button, with the same colour and the same icon, is gone. The button
   takes the icon of the cause, and its tooltip gives the cause's name, then its line of help; the

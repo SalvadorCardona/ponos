@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { counted, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import { clock } from "@/lib/composer"
-import { doing, tally } from "@/lib/thinking"
+import { doing, named, tally } from "@/lib/thinking"
 import type { Step } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -54,7 +54,14 @@ export function Thinking({
     cost ? money(cost, 4) : "",
   ].filter(Boolean)
 
-  const line = stopping ? { key: "stopping…" } : doing(steps)
+  // What it is on, by name: the last step, unless that is the agent talking or
+  // a failure, which have their own words.
+  const last = steps[steps.length - 1]
+  const line = stopping
+    ? { key: "stopping…" }
+    : last && !last.said && last.label !== "Error"
+      ? named(last)
+      : doing(steps)
 
   return (
     <div data-slot="thinking" data-done={done || undefined} className="flex flex-col gap-1.5">
@@ -69,6 +76,7 @@ export function Thinking({
                 replacing the old one under the reader's eyes. */}
             <p
               key={line.key + JSON.stringify(line.params ?? {})}
+              title={t(line.key, line.params)}
               className="motion-safe:animate-in motion-safe:fade-in truncate text-sm duration-300"
             >
               {t(line.key, line.params)}
@@ -79,12 +87,12 @@ export function Thinking({
           </div>
         </div>
       )}
-      {count.steps || done ? <Fold steps={steps} summary={summary} errors={count.errors} /> : null}
+      {count.steps || done ? <Fold steps={steps} done={done} summary={summary} errors={count.errors} /> : null}
     </div>
   )
 }
 
-function Fold({ steps, summary, errors }: { steps: Step[]; summary: string[]; errors: number }) {
+function Fold({ steps, done, summary, errors }: { steps: Step[]; done: boolean; summary: string[]; errors: number }) {
   const t = useT()
   const [open, setOpen] = React.useState(false)
   const any = steps.some((step) => !step.said)
@@ -113,7 +121,7 @@ function Fold({ steps, summary, errors }: { steps: Step[]; summary: string[]; er
         ) : null}
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-1.5">
-        <Steps steps={steps} />
+        <Steps steps={steps} done={done} />
       </CollapsibleContent>
     </Collapsible>
   )
