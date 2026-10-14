@@ -26,15 +26,9 @@ async function open(page: Page, path = "/") {
 const dialog = (page: Page) => page.locator('[data-slot="ideas-dialog"]')
 const cards = (page: Page) => dialog(page).locator('[data-slot="ideas-card"]')
 const drawer = (page: Page) => page.locator('[data-slot="drawer-popup"]')
-/** One of the gestures a card keeps in its menu. Opened again when it closes
- * under the click: a menu opened while the last one is still leaving is closed
- * by the focus that one gives back to its button. */
-async function choose(page: Page, card: Locator, name: string) {
-  const item = page.getByRole("menuitem", { name, exact: true })
-  await expect(async () => {
-    if (!(await item.isVisible())) await card.locator('[data-slot="ideas-menu"]').click()
-    await item.click({ timeout: 1000 })
-  }).toPass()
+/** One of the gestures a card has in its foot, by the name the button carries. */
+async function choose(_page: Page, card: Locator, name: string) {
+  await card.getByRole("button", { name, exact: true }).click()
 }
 const top = (page: Page) => dialog(page).locator('[data-slot="ideas-card"][data-depth="0"]')
 

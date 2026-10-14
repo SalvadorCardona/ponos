@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ExternalLink, Lightbulb, MoreHorizontal, Pencil, Plus, SearchX, X } from "lucide-react"
+import { Bookmark, ExternalLink, Lightbulb, Pencil, Plus, RotateCcw, SearchX, X } from "lucide-react"
 import { ActionList } from "react-data-form"
 import {
   Link,
@@ -13,12 +13,6 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
@@ -41,8 +35,9 @@ import { ago } from "./ticket-bits"
  * why (a few lines of it), then who and when, small. And one gesture in plain
  * sight, the one the idea is waiting for: turning it into a ticket — or, once
  * it is one, opening that ticket. Keeping it for later, throwing it away and
- * making it new again are a click further, in the menu of the card; rewording
- * it is the pencil beside it, which opens the package's form.
+ * making it new again sit beside it in the foot of the card, one click each
+ * (a toast offers to take it back); rewording it is the pencil at the top,
+ * which opens the package's form.
  *
  * The gestures are not the package's: they are the endpoints an idea has
  * (`/keep`, `/discard`, `/reopen`, `/ticket`), and after one of them the list is
@@ -143,7 +138,7 @@ type Gesture = "keep" | "discard" | "reopen" | "ticket"
 function useGestures(idea: Idea) {
   const t = useT()
   const [busy, setBusy] = React.useState(false)
-  const run = async (gesture: Gesture) => {
+  const run = async (gesture: Gesture, undoing = false) => {
     const call = {
       keep: api.keepIdea,
       discard: api.discardIdea,
@@ -159,6 +154,21 @@ function useGestures(idea: Idea) {
             ? t("Project created: {{title}}", { title: idea.title })
             : t("Ticket created: {{title}}", { title: idea.title })
         )
+      if (gesture !== "ticket" && !undoing) {
+        // The gesture that puts the idea back where it stood — none from a ticket.
+        const back = { proposed: "reopen", kept: "keep", discarded: "discard" }[idea.status as "proposed" | "kept" | "discarded"] as
+          | Gesture
+          | undefined
+        toast(
+          {
+            keep: t("Idea kept: {{title}}", { title: idea.title }),
+            discard: t("Idea thrown away: {{title}}", { title: idea.title }),
+            reopen: t("Idea back to new: {{title}}", { title: idea.title }),
+            ticket: "",
+          }[gesture],
+          back ? { action: { label: t("Undo"), onClick: () => void run(back, true) } } : undefined
+        )
+      }
       ideasChanged(done)
     } catch (error) {
       toast.error(t("The decision could not be saved"), { description: why(error) })
@@ -168,8 +178,8 @@ function useGestures(idea: Idea) {
   }
   // A ticket is on the board: it is made new again before anything else is decided.
   const offered: { gesture: Gesture; label: string; shown: boolean }[] = [
-    { gesture: "keep", label: t("Keep"), shown: idea.status === "proposed" || idea.status === "discarded" },
     { gesture: "discard", label: t("Throw away"), shown: idea.status === "proposed" || idea.status === "kept" },
+    { gesture: "keep", label: t("Keep"), shown: idea.status === "proposed" || idea.status === "discarded" },
     { gesture: "reopen", label: t("Back to new"), shown: idea.status !== "proposed" },
   ]
   const secondary = offered.filter((one) => one.shown)
@@ -216,47 +226,39 @@ function EditButton({ idea }: { idea: Idea }) {
   )
 }
 
-/** The “…”: keep it, throw it away, make it new again. */
-function MoreMenu({
-  idea,
+/** The gestures beside the main one, one click each: icon alone where the foot is too narrow for a word. */
+function Gestures({
   busy,
   choices,
   onRun,
 }: {
-  idea: Idea
   busy: boolean
   choices: { gesture: Gesture; label: string }[]
   onRun: (gesture: Gesture) => void
 }) {
-  const t = useT()
-  if (!choices.length) return null
+  const ICON = { keep: Bookmark, discard: X, reopen: RotateCcw, ticket: Plus }
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-slot="ideas-menu"
-          className="text-muted-foreground"
-          aria-label={t("More actions on “{{name}}”", { name: idea.title })}
-          title={t("More actions")}
-        >
-          <MoreHorizontal />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {choices.map((choice) => (
-          <DropdownMenuItem
+    <>
+      {choices.map((choice) => {
+        const Icon = ICON[choice.gesture]
+        return (
+          <Button
             key={choice.gesture}
+            size="sm"
+            variant="outline"
             data-slot={`ideas-${choice.gesture}`}
             disabled={busy}
-            onSelect={() => onRun(choice.gesture)}
+            aria-label={choice.label}
+            title={choice.label}
+            className={cn("@max-sm:size-8 @max-sm:px-0", choice.gesture === "discard" && "text-muted-foreground")}
+            onClick={() => onRun(choice.gesture)}
           >
-            {choice.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <Icon />
+            <span className="@max-sm:sr-only">{choice.label}</span>
+          </Button>
+        )
+      })}
+    </>
   )
 }
 
@@ -307,7 +309,6 @@ function IdeaCard({ idea, named }: { idea: Idea; named: boolean }) {
         </h3>
         <div className="-mt-1 -mr-1.5 flex shrink-0 items-center">
           <EditButton idea={idea} />
-          <MoreMenu idea={idea} busy={busy} choices={secondary} onRun={(gesture) => void run(gesture)} />
         </div>
       </div>
 
@@ -333,8 +334,9 @@ function IdeaCard({ idea, named }: { idea: Idea; named: boolean }) {
         </p>
       ) : null}
 
-      <div className="mt-auto flex justify-end border-t pt-3">
-        <MainAction idea={idea} busy={busy} onTicket={() => void run("ticket")} />
+      <div className="@container mt-auto flex items-center gap-2 border-t pt-3" data-slot="ideas-foot">
+        <Gestures busy={busy} choices={secondary} onRun={(gesture) => void run(gesture)} />
+        <MainAction idea={idea} busy={busy} onTicket={() => void run("ticket")} className="ml-auto" />
       </div>
     </li>
   )
@@ -394,10 +396,10 @@ function IdeaRow({ idea, named }: { idea: Idea; named: boolean }) {
       <span className="hidden min-w-0 md:block">
         <Byline author={idea.author} when={idea.created_at} />
       </span>
-      <span className="flex items-center justify-end gap-0.5">
+      <span className="@container flex items-center justify-end gap-1">
+        <Gestures busy={busy} choices={secondary} onRun={(gesture) => void run(gesture)} />
         <MainAction idea={idea} busy={busy} onTicket={() => void run("ticket")} className="h-7 px-2 text-xs" />
         <EditButton idea={idea} />
-        <MoreMenu idea={idea} busy={busy} choices={secondary} onRun={(gesture) => void run(gesture)} />
       </span>
     </li>
   )
