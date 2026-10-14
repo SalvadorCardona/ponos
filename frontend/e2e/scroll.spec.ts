@@ -24,9 +24,17 @@ async function openLongTicket(page: Page) {
   await expect(page.getByText("Part 40")).toBeAttached()
 }
 
+/* Polled, not read once: the page is drawn in two goes — the board, then the
+ * statistics under the runner's strip — and a card visible is not the page
+ * complete. The board gets there first now that opening a ticket no longer
+ * draws it again. */
 async function taller(page: Page) {
-  const [height, screen] = await page.evaluate(() => [document.documentElement.scrollHeight, window.innerHeight])
-  expect(height, "the page is not taller than the screen: nothing to test").toBeGreaterThan(screen * 2)
+  const screen = await page.evaluate(() => window.innerHeight)
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollHeight), {
+      message: "the page is not taller than the screen: nothing to test",
+    })
+    .toBeGreaterThan(screen * 2)
 }
 
 async function wheel(page: Page) {

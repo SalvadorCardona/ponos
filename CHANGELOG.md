@@ -130,6 +130,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A ticket opens and closes in a blink on a full board.** On a board of 446 tickets, opening a card
+  took about 400 ms and closing it 550 ms, because the whole board was drawn again each time — the
+  open ticket was held by a component every card sat under — and because the window, by setting
+  `pointer-events` on the page, made the browser compute the style of every card again. Now only the
+  window is drawn, and the cards scrolled out of view are skipped by the browser: opening takes about
+  80 ms and closing starts at once (the rest is the window fading out). The board no longer waits
+  on a redraw to show its first tickets, either.
 - **A branch's code can no longer break `ponos.db` for main.** The local database remembers
   each migration by its name, not only how many it went through: a file migrated by a branch
   whose migrations were in another order is finished by main without applying one twice —

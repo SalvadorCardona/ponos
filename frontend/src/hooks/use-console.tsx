@@ -142,6 +142,24 @@ const StepsContext = React.createContext<StepsValue | null>(null)
  * read, and nothing but the line that says it has to redraw for it. */
 const SyncContext = React.createContext<SyncEvent | null>(null)
 
+/* A card moved, and said so. Outside the provider's value on purpose: a card
+ * reads the console's context for nothing else, and a context that changes
+ * whenever a ticket is opened drew every card again with it. */
+export async function moveWithToast(target: Ticket, column: ColumnKey) {
+  const name =
+    (column === "draft" ? t("Draft") : "") ||
+    currentBoard()?.columns.find((item) => item.key === column)?.name ||
+    column
+  try {
+    if (await moveTicket(target.id, column))
+      toast.success(t("“{{title}}” moved to {{column}}", { title: titleOf(target), column: name }))
+  } catch (error) {
+    toast.error(t("could not move “{{title}}”", { title: titleOf(target) }), {
+      description: why(error),
+    })
+  }
+}
+
 export function useConsole(): ConsoleValue {
   const value = React.useContext(Context)
   if (!value) throw new Error("useConsole outside its provider")
@@ -582,20 +600,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   /* A gesture on a card. The card moves now, goes back if the write fails, and
    * says where it went — a ticket put on hold lands in a column that is often
    * off the screen, and a card that simply vanished reads as a card lost. */
-  const move = React.useCallback(async (target: Ticket, column: ColumnKey) => {
-    const name =
-      (column === "draft" ? t("Draft") : "") ||
-      currentBoard()?.columns.find((item) => item.key === column)?.name ||
-      column
-    try {
-      if (await moveTicket(target.id, column))
-        toast.success(t("“{{title}}” moved to {{column}}", { title: titleOf(target), column: name }))
-    } catch (error) {
-      toast.error(t("could not move “{{title}}”", { title: titleOf(target) }), {
-        description: why(error),
-      })
-    }
-  }, [])
+  const move = moveWithToast
 
   const createTicket = React.useCallback(
     async (fresh: { title: string; body: string; project: string; ready: boolean }) => {

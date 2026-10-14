@@ -20,8 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DecideButton } from "@/components/console/ticket-decision"
-import { useConsole } from "@/hooks/use-console"
-import { titleOf } from "@/lib/board-store"
+import { moveWithToast as move } from "@/hooks/use-console"
+import { titleOf, useBoard } from "@/lib/board-store"
 import { actionsOf } from "@/lib/decision"
 import { currentLanguage, t, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
@@ -394,7 +394,7 @@ export function TicketActions({
   /** Where answering opens — the ticket's page, on its discussion. None where the discussion already is. */
   answer?: { href: string; onClick?: React.MouseEventHandler<HTMLAnchorElement> }
 }) {
-  const { move, board } = useConsole()
+  const board = useBoard()
   const t = useT()
   const [asked, setAsked] = React.useState(false)
   // A ticket the runner has in hand is not one you move: drawing an empty row

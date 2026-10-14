@@ -95,15 +95,19 @@ function useTitle(params: ViewResourceContextParams, ticketShort?: string) {
   }, [here])
 }
 
-function Console() {
-  const { params, moved } = useRoute()
+/* The address says which ticket is open — or the window over the board, which
+ * leaves the address on the board; the board says what it is, so the
+ * discussion loads while the page is still being read.
+ *
+ * A component of its own, drawing nothing: opening a ticket changes the
+ * console's `ticket`, and a `Console` that read it drew the whole page again —
+ * every card of the board — on opening, on closing and when the stream moved
+ * the board. Here only this is drawn again. */
+function OpenTicket({ params }: { params: ViewResourceContextParams }) {
   const board = useBoard()
   const { ticket, openTicket, closeTicket } = useConsole()
   const windowed = useTicketWindow()
 
-  // The address says which ticket is open — or the window over the board,
-  // which leaves the address on the board; the board says what it is, so the
-  // discussion loads while the page is still being read.
   const ticketId =
     (params.resourceId ?? TICKETS) === TICKETS &&
     params.resourceAction === ActionList.read &&
@@ -120,11 +124,17 @@ function Console() {
   }, [ticketId, board, openTicket, closeTicket])
 
   useTitle(params, ticket?.short)
+  return null
+}
+
+function Console() {
+  const { params, moved } = useRoute()
 
   if (moved) return <Navigate to={moved} replace />
 
   return (
     <>
+      <OpenTicket params={params} />
       <React.Suspense fallback={null}>
         <ScopeProvider scopeName={SCOPE} configScope={scopes}>
           <Page params={params} />
