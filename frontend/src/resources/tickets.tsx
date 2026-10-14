@@ -451,6 +451,15 @@ const rowForm: FormInterface = {
  * The title and the summary do, anywhere if they must: a path, a URL or a
  * branch name has no space to break at, and unbroken it set the width of the
  * whole column, which then ran under the ones beside it.
+ *
+ * `content-visibility: auto` is for the windows: a modal sets `pointer-events`
+ * on the body, which is inherited, so every element of the page has its style
+ * computed again — on opening and again on closing. With two hundred cards
+ * that was 150 ms each time (`scripts/measure-console.mjs`, 446 tickets); the
+ * cards a column has scrolled out of view are not computed at all. The frame
+ * is the column's and the grip's, outside the card, so the paint containment
+ * clips nothing. The height it falls back on is a typical card's; the browser
+ * remembers the real one once a card has been seen.
  */
 function TicketCard({ row }: RowComponentPropsInterface) {
   const ticket = row?.data as TicketItem | undefined
@@ -463,7 +472,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   const Waiting = (ticket.block && FAMILY_ICON[ticket.block.family]) || MessageCircleQuestion
 
   return (
-    <div className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3">
+    <div className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3 [contain-intrinsic-size:auto_9rem] [content-visibility:auto]">
       <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
         <TicketRobot column={ticket.column} size={20} className="-my-1 shrink-0" />
         <Link to={href} onClick={open} className="shrink-0 font-medium tracking-wide hover:underline">
@@ -541,12 +550,15 @@ function TicketCard({ row }: RowComponentPropsInterface) {
 function BoardTop() {
   const { fetchData, isLoading, resourceAction, parentResource } = useCurrentViewResourceContext()
   const embedded = Boolean(parentResource) && resourceAction === ActionList.list
+  // Asked of the store, not read once: nothing above this draws again when the
+  // first board arrives.
+  const held = React.useSyncExternalStore(subscribeBoard, () => currentBoard() !== null)
   return embedded ? (
     <EmbeddedTop />
   ) : (
     <DashboardTop
       fetchData={fetchData}
-      loading={isLoading && !currentBoard()}
+      loading={isLoading && !held}
       listing={resourceAction === ActionList.list}
     />
   )
