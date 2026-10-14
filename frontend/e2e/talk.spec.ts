@@ -30,11 +30,12 @@ test("a ticket waiting on you is marked on the board", async ({ page }) => {
 test("a stopped card says why, and Unblock opens on the question's answer", async ({ page }) => {
   await open(page, "/")
   const id = ASKING.split("/").pop()
-  const card = page.locator('[data-slot="ticket-block"][data-code="session.question"]')
+  // A blocked card keeps the cause's help in its Unblock button's tooltip only.
+  const card = page.locator(`[data-ticket-card="${id}"]`)
   await expect(card).toHaveCount(1)
-  await expect(card).toContainText("answer on the ticket and it carries on")
   const unblock = page.locator(`[data-decide="${id}"]`)
   await expect(unblock).toHaveText("Unblock")
+  await expect(unblock).toHaveAttribute("title", /answer on the ticket and it carries on/)
   // The search offers the cause, and keeps the card by it.
   await page.getByRole("button", { name: "Cause" }).click()
   await page.getByRole("menuitemcheckbox", { name: /Question for you/ }).click()
@@ -44,8 +45,9 @@ test("a stopped card says why, and Unblock opens on the question's answer", asyn
   // The window opens on its Unblock tab: the question, and the field to answer it already open.
   // The board is wider than the window once Done and Cancelled both hold a
   // card: the strip scrolls smoothly, so the button is brought in, and clicked
-  // once it has stopped moving rather than mid-scroll.
-  await unblock.scrollIntoViewIfNeeded()
+  // once it has stopped moving rather than mid-scroll. Brought to the middle:
+  // scrolled just enough to show its edge, the strip snaps back to its first column.
+  await unblock.evaluate((button) => button.scrollIntoView({ block: "center", inline: "center" }))
   await expect
     .poll(() =>
       unblock.evaluate(async (button) => {

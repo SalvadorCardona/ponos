@@ -184,7 +184,11 @@ test.describe("on a phone", () => {
 
   test("Unblock opens the ticket's window on its tab, the choices a thumb wide", async ({ page }) => {
     await open(page)
-    await page.locator(`[data-decide="${READ}"]`).tap()
+    // Brought to the middle of the screen first: left at its edge, the button
+    // sits under the bottom bar, or on a card not yet drawn (content-visibility).
+    const unblock = page.locator(`[data-decide="${READ}"]`)
+    await unblock.evaluate((button) => button.scrollIntoView({ block: "center" }))
+    await unblock.tap()
     await expect(page.getByRole("dialog")).toHaveCount(1)
     await expect(tab(page)).toHaveAttribute("aria-selected", "true")
     await expect(panel(page)).toContainText("Missing access")
