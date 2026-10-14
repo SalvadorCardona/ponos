@@ -14984,6 +14984,92 @@ def an_idea_written_by_hand_is_scored_behind_the_answer_that_saved_it():
 
 
 @case
+def a_scoring_that_fails_says_why_on_the_idea_instead_of_staying_silent():
+    """Over budget, unreadable, or too big to start: the cause stays on the idea, and the pass tells the page."""
+    with _state_home(), _board() as board:
+        project = board.create_row("projects", "Usine", {})
+        api = _ideas_api(board)
+        put_aside: list = []
+        api.ideas.later = put_aside.append
+        published: list = []
+        original_publish = api.hub.publish
+        api.hub.publish = lambda topic, **rest: published.append((topic, rest))
+        first = ideas.written(project, "Une carte des usines")
+        second = ideas.written(project, "Un tutoriel")
+        assert ideas.SCORE_CEILING_USD >= 0.5, "a call costs 0.12 to 0.14 dollars: 0.10 stopped every one"
+
+        def outcome(**rest):
+            return session.Outcome(
+                ok=False, blocked=True, session_id="s", summary="", log=Path("/dev/null"), **rest
+            )
+
+        original, session.run = session.run, lambda text, **rest: outcome(over_budget=True, cost_usd=0.1356)
+        try:
+            api.ideas.score_unscored(project)
+            put_aside.pop()()
+        finally:
+            session.run = original
+        shown = ideas.get(first.id).shown()
+        assert shown["score"] is None and shown["scoring"] is False
+        assert "may spend" in shown["score_error"], shown["score_error"]
+        assert ("ideas", {"project": project, "failed": shown["score_error"]}) in published
+
+        original, session.run = session.run, lambda text, **rest: outcome(error="credit balance too low")
+        try:
+            api.ideas.score([second.id])
+        finally:
+            session.run = original
+        assert ideas.get(second.id).shown()["score_error"] == "credit balance too low"
+
+        original, session.run = session.run, lambda text, **rest: session.Outcome(
+            ok=True, blocked=False, session_id="s", summary="", log=Path("/dev/null"), answer="Je ne sais pas."
+        )
+        try:
+            api.ideas.score([second.id])
+        finally:
+            session.run = original
+        assert "could not be read" in ideas.get(second.id).shown()["score_error"]
+
+        def crash(text, **rest):
+            raise OSError("no claude")
+
+        original, session.run = session.run, crash
+        try:
+            api.ideas.score([second.id])
+        finally:
+            session.run = original
+        assert "no claude" in ideas.get(second.id).shown()["score_error"], "an exception is kept, not swallowed"
+
+        original, session.run = session.run, lambda text, **rest: session.Outcome(
+            ok=True, blocked=False, session_id="s", summary="", log=Path("/dev/null"),
+            answer=json.dumps([{"id": second.id, "score": 60, "score_reason": "Bien."}]),
+        )
+        try:
+            api.ideas.score([second.id])
+        finally:
+            session.run = original
+        done = ideas.get(second.id).shown()
+        assert (done["score"], done["score_error"]) == (60, ""), "a score clears the error"
+        api.hub.publish = original_publish
+
+
+@case
+def a_scoring_prompt_of_the_real_size_fits_under_the_ceiling_and_a_huge_one_is_not_started():
+    """The estimate is checked before the session starts: a call that would be stopped is not paid for."""
+    big = [
+        ideas.Idea(id=n, batch=None, scope="global", project="", kind="ticket",
+                   title=f"Idée {n} " + "x" * 80, description="d" * 600)
+        for n in range(ideas.SCORE_BATCH)
+    ]
+    prompt = ideas.score_prompt(
+        big, brief="b" * 10000, context="c" * 10000,
+        tickets=[("t" * 90, "ready")] * 100, known=["k" * 90] * 400,
+    )
+    assert ideas.score_estimate(prompt) < ideas.SCORE_CEILING_USD, "even at its limits, a prompt is under the ceiling"
+    assert ideas.score_estimate("x" * 400000) > ideas.SCORE_CEILING_USD
+
+
+@case
 def the_ideas_with_no_score_are_scored_in_batches_under_a_ceiling_said_first():
     """A ceiling before it starts, twenty to a call, a scope per call — and one pass at a time."""
     with _state_home(), _board() as board:

@@ -1796,6 +1796,7 @@ export const FRENCH: Record<string, string> = {
   "Orange (40 to 69)": "Orange (de 40 à 69)",
   "Red (under 40)": "Rouge (moins de 40)",
   "Not scored": "Non noté",
+  "Not scored — try again": "Non noté — réessayer",
   "Being scored…": "En cours de notation…",
   "Relevance {{score}} out of 100": "Pertinence {{score}} sur 100",
   "Order": "Ordre",

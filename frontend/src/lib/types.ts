@@ -740,6 +740,8 @@ export interface Idea {
   score: number | null
   /** The line that says why it has that score. */
   score_reason: string
+  /** Why the last attempt to score it gave nothing; empty when none failed. */
+  score_error: string
   /** Whether the light model is scoring it now: the pill says "…". */
   scoring: boolean
   title: string

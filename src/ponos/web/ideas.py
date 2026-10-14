@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 import threading
 import uuid
 from collections.abc import Callable
@@ -62,6 +63,10 @@ SCORING = "scoring"
 
 def _thread(work: Callable[[], None]) -> None:
     threading.Thread(target=work, name="ponos-idea-scores", daemon=True).start()
+
+
+class ScoreFailed(Exception):
+    """A scoring call that gave no score, and the reason in a sentence — kept on the ideas it was for."""
 
 
 class Ideas:
@@ -182,6 +187,11 @@ class Ideas:
             language=LANGUAGES.get(api.runner.voice.language, "English"),
         )
 
+        estimate = ideas.score_estimate(asked)
+        if estimate > ideas.SCORE_CEILING_USD:
+            raise ScoreFailed(
+                f"The prompt would cost about ${estimate:.2f}, over the ${ideas.SCORE_CEILING_USD:.2f} a call may spend"
+            )
         short = (project or "global")[:8]
         workdir = state_dir() / "scratch" / f"ideas-{short}-{uuid.uuid4().hex[:6]}"
         try:
@@ -294,20 +304,25 @@ class Ideas:
             raise
 
         def work() -> None:
+            failures: list[str] = []
             try:
-                self.score([idea.id for idea in waiting])
+                self.score([idea.id for idea in waiting], failures)
             finally:
                 done()
+                if failures:
+                    self._api.hub.publish("ideas", project=project or "", failed=failures[0])
 
         self.later(work)
         return started
 
-    def score(self, identifiers: list[int]) -> dict[int, int]:
+    def score(self, identifiers: list[int], failures: list[str] | None = None) -> dict[int, int]:
         """Score these ideas on the light model, a scope and twenty at a time.
 
         What a call left without a score is no longer said to be scored — it
         is not scored, and can be asked for again. Never raises: nobody is
         waiting on it but the list, which reads the outcome when it is told to.
+        Why a call failed stays on its ideas (`detail["score_error"]`), goes to
+        the console's journal, and is added to `failures` for whoever asked.
         """
         found: dict[int, int] = {}
         chosen: list[ideas.Idea] = []
@@ -319,14 +334,21 @@ class Ideas:
         for project, group in _by_scope(chosen).items():
             for start in range(0, len(group), ideas.SCORE_BATCH):
                 chunk = group[start : start + ideas.SCORE_BATCH]
+                error = ""
                 try:
                     scores = self._score(project, chunk)
-                except Exception:  # noqa: BLE001 — a score is never worth a crash
-                    scores = {}
+                except ScoreFailed as failure:
+                    scores, error = {}, str(failure)
+                except Exception as failure:  # noqa: BLE001 — a score is never worth a crash
+                    scores, error = {}, f"{type(failure).__name__}: {failure}"
+                if error:
+                    print(f"ideas: scoring {len(chunk)} ideas of {project or 'the workspace'} failed: {error}", file=sys.stderr)
+                    if failures is not None:
+                        failures.append(error)
                 for idea in chunk:
                     score, reason = scores.get(idea.id, (None, ""))
                     try:
-                        ideas.scored(idea.id, score, reason)
+                        ideas.scored(idea.id, score, reason, error or ("The answer had no score for this idea" if score is None else ""))
                     except LookupError:
                         continue
                     if score is not None:
@@ -347,6 +369,11 @@ class Ideas:
             known=ideas.known(project),
             language=LANGUAGES.get(api.runner.voice.language, "English"),
         )
+        estimate = ideas.score_estimate(asked)
+        if estimate > ideas.SCORE_CEILING_USD:
+            raise ScoreFailed(
+                f"The prompt would cost about ${estimate:.2f}, over the ${ideas.SCORE_CEILING_USD:.2f} a call may spend"
+            )
         short = (project or "global")[:8]
         workdir = state_dir() / "scratch" / f"scores-{short}-{uuid.uuid4().hex[:6]}"
         try:
@@ -363,9 +390,18 @@ class Ideas:
             )
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
-        if not outcome.ok:
-            return {}
-        return ideas.parse_scores(outcome.answer, [idea.id for idea in chunk])
+        if outcome.over_budget:
+            raise ScoreFailed(
+                f"Stopped at the ${ideas.SCORE_CEILING_USD:.2f} a call may spend (${outcome.cost_usd:.2f} spent)"
+            )
+        if outcome.exhausted:
+            raise ScoreFailed("The credits are spent")
+        if outcome.stopped or not outcome.ok:
+            raise ScoreFailed(outcome.error or outcome.summary or "The session did not end well")
+        found = ideas.parse_scores(outcome.answer, [idea.id for idea in chunk])
+        if not found:
+            raise ScoreFailed("The answer could not be read as scores")
+        return found
 
     def _score_later(self, idea: ideas.Idea) -> None:
         """Score one idea written by hand, behind the answer that saved it."""

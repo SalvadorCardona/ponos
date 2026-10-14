@@ -142,7 +142,7 @@ export function useToneWords(): Record<Tone, string> {
 }
 
 /** The score: its number in a circle of its colour, why in the tooltip — "…" while it is being given. */
-export function ScoreBadge({ idea, className }: { idea: Pick<Idea, "score" | "score_reason" | "scoring">; className?: string }) {
+export function ScoreBadge({ idea, className }: { idea: Pick<Idea, "score" | "score_reason" | "score_error" | "scoring">; className?: string }) {
   const t = useT()
   const tone = toneOf(idea.score)
   const scored = tone !== "unscored"
@@ -150,7 +150,9 @@ export function ScoreBadge({ idea, className }: { idea: Pick<Idea, "score" | "sc
     ? t("Relevance {{score}} out of 100", { score: String(idea.score) })
     : idea.scoring
       ? t("Being scored…")
-      : t("Not scored")
+      : idea.score_error
+        ? t("Not scored — try again")
+        : t("Not scored")
   const pill = (
     <span
       data-slot="ideas-score"
@@ -164,7 +166,7 @@ export function ScoreBadge({ idea, className }: { idea: Pick<Idea, "score" | "sc
         className
       )}
     >
-      {scored ? idea.score : idea.scoring ? "…" : t("Not scored")}
+      {scored ? idea.score : idea.scoring ? "…" : label}
     </span>
   )
   return (
@@ -173,6 +175,7 @@ export function ScoreBadge({ idea, className }: { idea: Pick<Idea, "score" | "sc
       <TooltipContent className="max-w-64" data-slot="ideas-score-reason">
         <span className="font-medium">{label}</span>
         {scored && idea.score_reason ? <span className="block">{idea.score_reason}</span> : null}
+        {!scored && !idea.scoring && idea.score_error ? <span className="block">{idea.score_error}</span> : null}
       </TooltipContent>
     </Tooltip>
   )
