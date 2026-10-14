@@ -63,6 +63,21 @@ export interface Ticket {
   block?: Block | null
   /** In review with a pull request that has checks only: where they stand — see `ci.py`. */
   ci?: Ci | null
+  /** A code ticket's sub-type, by its key — `bug`, `docs` — or empty: see `subtypes.py`. */
+  subtype?: string
+}
+
+/** One sub-type of a code ticket, whole, as the board sends the table of them. */
+export interface Subtype {
+  key: string
+  /** How the board writes it: « Amélioration », « Sécurité ». */
+  option: string
+  label: { en: string; fr: string }
+  icon: string
+  /** The prefix of its commits: `fix`, `feat`… */
+  commit: string
+  /** Its CHANGELOG section, empty for none. */
+  changelog: string
 }
 
 export type CiState = "pending" | "passed" | "failed"
@@ -114,7 +129,9 @@ export interface Board {
   columns: { key: ColumnKey; name: string }[]
   /** What a new ticket may be given beside its title, for the columns this
    * board has: a column it lacks is not a key here. */
-  choices?: Partial<Record<"priority" | "type" | "model", { value: string; label: string }[]>>
+  choices?: Partial<Record<"priority" | "type" | "model" | "subtype", { value: string; label: string }[]>>
+  /** The sub-types of a code ticket, in the order they are offered. */
+  subtypes?: Subtype[]
   /** What a ticket with no model of its own runs on: `runner.model`, empty for Claude Code's own. */
   model?: string
   /** Which board the stream sent, for the changes that follow it. */
@@ -541,8 +558,8 @@ export interface SettingField {
   placeholder?: string
   /** The variable the runner reads this from instead of the file, when it is set. */
   environment?: string
-  /** A cell of the model table: the model of a `level`, or where a `type` starts. */
-  grid?: "" | "level" | "type"
+  /** A cell of the model table: the model of a `level`, where a `type` starts, or how a `subtype` moves it. */
+  grid?: "" | "level" | "type" | "subtype"
   /** The word heading its row or its column in that table. */
   short?: string
 }
@@ -687,6 +704,12 @@ export interface Statistics {
     total: number
     weeks: { week: string; counts: Record<string, number> }[]
     causes: (Block & { count: number })[]
+  }
+  /** The code tickets closed in the period: by week and by sub-type, with what one of each took. */
+  subtypes?: {
+    total: number
+    weeks: { week: string; counts: Record<string, number> }[]
+    subtypes: (Subtype & { count: number; cost: number | null; duration: number | null })[]
   }
 }
 

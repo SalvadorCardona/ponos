@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .. import config as config_module
-from .. import models, voice
+from .. import models, subtypes, voice
 from ..config import CONFIDENCES, EVENTS, MERGE_METHODS, UPDATE_CHANNELS, Config
 from ..store import CONFLICTS, MODES
 
@@ -55,6 +55,13 @@ PROVIDER_OPTIONS = (
     ("cli", "Claude Code CLI — your subscription (claude login)"),
     ("api_key", "Anthropic API key — billed by the token"),
     ("openrouter", "OpenRouter — the key of the OpenRouter section"),
+)
+
+# How a code ticket's sub-type moves the level its type starts it at.
+SHIFT_OPTIONS = (
+    ("lower", "One level lower"),
+    ("same", "Same as Code"),
+    ("higher", "One level higher"),
 )
 
 # The four levels a model is chosen among, said as what they are for.
@@ -101,8 +108,9 @@ class Field:
     # say so when it is set. A secret's own variable is `config.SECRETS`'.
     environment: str = ""
     # A cell of the model table rather than a line of its own: `level` is the
-    # model a level runs on, `type` the level a type of ticket starts at, and
-    # `short` the word heading its row or its column. See `Section.layout`.
+    # model a level runs on, `type` the level a type of ticket starts at,
+    # `subtype` how a code ticket's sub-type moves that start, and `short` the
+    # word heading its row or its column. See `Section.layout`.
     grid: str = ""
     short: str = ""
 
@@ -498,6 +506,7 @@ SECTIONS: tuple[Section, ...] = (
                 "type": ("Type", "Code, Writing, External action or Publication; empty, it is guessed."),
                 "block": ("Block cause", "Written by the runner: why a stopped ticket stopped, as a code."),
                 "ci": ("CI", "Written by the runner: the state of the pull request's checks while it is in review."),
+                "subtype": ("Sub-type", "Bug, Feature, Amélioration… on a code ticket; empty, it is deduced."),
                 "cadence": ("Schedule: cadence", "Hourly, Daily, Weekly or Monthly."),
                 "at": ("Schedule: time", "The hour, written 09:00."),
                 "day": ("Schedule: day", "Monday… or 1 to 31."),
@@ -796,6 +805,16 @@ SECTIONS: tuple[Section, ...] = (
                     ("external", "External action", "External action tickets start at"),
                     ("publication", "Publication", "Publication tickets start at"),
                 )
+            ),
+            # One per sub-type, read off the table: a sub-type added there is a
+            # column here without a line more.
+            *(
+                Field("runner", f"auto_model_subtype_{subtype.key}", "choice",
+                      f"{subtype.label['en']} tickets start",
+                      "Where a code ticket of this sub-type starts, from the level of Code.",
+                      choices=tuple(subtypes.SHIFTS), options=SHIFT_OPTIONS, grid="subtype",
+                      short=f"{subtype.icon} {subtype.label['en']}")
+                for subtype in subtypes.SUBTYPES
             ),
         ),
     ),
@@ -1129,6 +1148,8 @@ def _fallback(config: Config, entry: Field) -> object:
         return config_module.defaults("pages")[entry.key]
     if entry.table == "notion.types":
         return config_module.defaults("types")[entry.key]
+    if entry.key.startswith("auto_model_subtype_"):
+        return config.runner.subtype_shift(entry.key.removeprefix("auto_model_subtype_"))
     holder = {
         "notion": config.notion,
         "runner": config.runner,

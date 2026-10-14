@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import generated, git, journal, progress, resources, session, state, store
+from . import generated, git, journal, progress, resources, session, state, store, subtypes
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
@@ -136,7 +136,14 @@ class Execution(Base):
             return {"ticket": job.ticket.title, "id": job.ticket.id, "status": "dry-run"}
         return self._execute_code(job) if job.project.is_code else self._execute_document(job)
 
-    def _run_session(self, job: Job, template: str) -> session.Outcome:
+    def _run_session(self, job: Job, template: str, subtype: bool = False) -> session.Outcome:
+        """The session of a job, on that template.
+
+        `subtype` is for the template a code ticket is worked on, and no other:
+        a conflict resolved or a CI repaired is not where a CHANGELOG entry or
+        a test reproducing a bug are asked for.
+        """
+        section = subtypes.section(job.subtype) if subtype else ""
         text = prompt_module.build(
             template,
             project=job.project.name,
@@ -154,7 +161,7 @@ class Execution(Base):
             language=self.voice.instruction(),
             allowed=self.config.permissions.allowed,
             ask=self.config.permissions.ask,
-            kind="" if job.project.is_code else prompt_module.kind(job.kind, job.reference or ""),
+            kind=section if job.project.is_code else prompt_module.kind(job.kind, job.reference or ""),
             # A branch picked up from an earlier attempt: the session is told,
             # because a worktree that opens on somebody's half-done work and
             # reads as empty is how the same thing gets written twice.
@@ -480,7 +487,7 @@ class Execution(Base):
 
         try:
             outcome = self._run_session(
-                job, prompt_module.template(self.config.runner.prompt_file)
+                job, prompt_module.template(self.config.runner.prompt_file), subtype=True
             )
         except (OSError, FileNotFoundError) as error:
             git.remove_worktree(project.path, job.workdir)
@@ -622,8 +629,14 @@ class Execution(Base):
                     outcome.summary, ticket.url, outcome.session_id, commits
                 )
                 try:
+                    # Prefixed the conventional way when the sub-type is known:
+                    # squashed, the title is the commit that lands on the base.
                     pull_request = git.open_pull_request(
-                        job.workdir, ticket.title, body, job.base, accounts=self.config.github
+                        job.workdir,
+                        subtypes.titled(job.subtype, ticket.title),
+                        body,
+                        job.base,
+                        accounts=self.config.github,
                     )
                 except git.GitError as error:
                     self.say(f"    ! pull request not opened: {error}")

@@ -566,6 +566,7 @@ for reading rather than for filling in.
 | `runner.auto_model` | `true` | choose the model of a ticket whose `Model` is empty, from its type, size, wording and priority — `false` gives every one `runner.model`. See [The model of a ticket](#the-model-of-a-ticket) |
 | `runner.auto_model_light` … `auto_model_heaviest` | `"haiku"`, `"sonnet"`, `"opus"`, `"fable"` | the model of each of the four levels; an empty one borrows the nearest |
 | `runner.auto_model_code` … `auto_model_publication` | `"standard"`, Writing `"light"` | the level each type starts from: `light`, `standard`, `heavy` or `heaviest` |
+| `runner.auto_model_subtype_bug` … `auto_model_subtype_security` | Docs and Chore `"lower"`, Sécurité `"higher"`, the others `"same"` | how a code ticket's sub-type moves the level Code starts from: `lower`, `same` or `higher` |
 | `runner.auto_model_escalate` | `true` | a ticket whose chosen model failed runs one level up next time, once |
 | `runner.use_fable` | `false` | allow Claude Fable at all; off, every session the runner starts — chosen, escalated, written on a ticket or its agent, the console's chat — runs on `opus` instead |
 | `runner.classify_confidence` | `"medium"` | `low`, `medium` or `high` — the least confidence a guess is acted on with; below it, the ticket is blocked with the question |
@@ -915,6 +916,7 @@ tickets are made up:
 | `Type` | select | *optional* — `Code`, `Writing`, `External action`, `Publication`: **the road the ticket takes**. Empty, the runner works it out before running it — see [The type of a ticket](#the-type-of-a-ticket) |
 | `Blocage` | select | *optional* — filled by the runner when a ticket stops: **why**, as a code (`merge.checks-failed`, `session.question`, `worktree.residue`…), emptied when it leaves *Blocked* or *Failed* — see [Why a ticket stopped](#why-a-ticket-stopped) |
 | `CI` | select | *optional* — written by the runner while the ticket is in *In review*: the state of its pull request's checks (`en cours`, `réussi`, `erreur`), empty for a repository without CI — see [CI on the card](#ci-on-the-card) |
+| `Sous-type` | select | *optional* — on a **Code** ticket, what kind of change it is: `Bug`, `Feature`, `Amélioration`, `Chore`, `Refactor`, `Perf`, `Docs`, `Sécurité`. Decides the prefix of its commit and pull request and its CHANGELOG section; ignored on the other types. Empty, the runner fills it — see [The sub-type of a code ticket](#the-sub-type-of-a-code-ticket) |
 
 `Waiting for credit` is an attribute rather than an eighth column, and on purpose: nothing
 happened to a ticket nothing was started for, so nothing on the board should say it moved.
@@ -1051,6 +1053,65 @@ a post about a repository's release is still prepared in its page and never in a
 board without a *Validated* column has no such gesture: the prepared content lands in
 *Review* (or *Done*) and publishing it is yours.
 
+### The sub-type of a code ticket
+
+A **Code** ticket also says what kind of change it is, in its `Sous-type` column — a select
+with eight options, which `ponos init` adds and `ponos doctor` asks for:
+
+| Sub-type | For | Commit / PR | CHANGELOG |
+| --- | --- | --- | --- |
+| 🐞 `Bug` | something does not work as it should | `fix:` | *Fixed* |
+| ✨ `Feature` | a capability that did not exist | `feat:` | *Added* |
+| ⬆️ `Amélioration` | making better what exists — UX, UI, wording, ergonomics | `feat:` | *Changed* |
+| 🧹 `Chore` | upkeep: dependencies, CI, configuration, tooling, cleaning up | `chore:` | none, or *Maintenance* where the CHANGELOG has one |
+| ♻️ `Refactor` | restructuring the code without changing what it does | `refactor:` | *Changed*, if anybody can tell |
+| ⚡ `Perf` | performance | `perf:` | *Changed* |
+| 📝 `Docs` | documentation, README, a documentation site | `docs:` | none |
+| 🔒 `Sécurité` | a hole, a secret, permissions | `fix:` | *Security* |
+
+It goes into the session's prompt, which is what makes a commit start with `fix:` and its
+entry land under *Fixed*; the pull request the runner opens takes the same prefix, in place
+of the tag in the title (`[Bug] The button…` becomes `fix: The button…`), so a squash merge
+puts a conventional commit on the base. A **Bug** asks for one thing more: a test that
+reproduces it, failing, before the fix. The column is ignored on the other types, and
+English spellings (`Improvement`, `Security`) are read as well.
+
+**Empty is a request**, as for the type, answered the cheap way first:
+
+- **a prefix in the title says it**, without asking anybody: `[Bug]`, `[Feature]`,
+  `[Amélioration]`, `[Perf]`, `[Docs]`, `[Refactor]`, `[Sécurité]`, and `[Ops]` for a
+  *Chore* — wherever it sits (`Ponos — [Feature] …`), and the first one that is a sub-type
+  (`[UX] [Bug] …` is a bug: `[UX]` is a domain, not a change);
+- otherwise **the classification says it** — the same short session that tells a ticket's
+  type, on the same light model, answers both at once; on a ticket whose type you wrote, a
+  session of its own asks only the sub-type;
+- **in doubt, it is an *Amélioration***, and the ticket's report says the runner was not
+  sure. Not a question: a wrong sub-type costs a word in a commit, not a post published.
+
+The runner writes what it chose into the column, and **never rewrites a value that is
+there** — yours, or its own from an earlier attempt. A board without the column reads the
+prefix alone and asks no session, having nowhere to keep the answer.
+
+**The tickets already on the board** are filled once, from their prefix and nothing else:
+
+```sh
+ponos subtypes                       # the code tickets, by sub-type
+ponos subtypes --backfill --dry-run  # what a prefix would fill
+ponos subtypes --backfill            # fill them
+ponos subtypes --backfill --all      # the done and cancelled ones too
+```
+
+Never a session: a guess is not a fact about the past, and a ticket without a sub-type
+prefix stays empty. Done and cancelled tickets are left alone unless `--all` says so,
+because writing on one is editing it, and a done ticket the runner did not close itself
+is dated by its last edit in the statistics: a year of closings would all land today. The
+console does not need them written — a code ticket with an empty column is read by its
+prefix, so the old ones wear their badge and are counted all the same.
+
+On the console, a code ticket wears a small badge of its sub-type — its icon, in its colour
+—, the search bar filters by it, *New ticket* offers it, and the statistics count the code
+tickets closed by sub-type and by week, with what one of each cost and lasted on average.
+
 ### The model of a ticket
 
 A ticket with no `Model` used to run on `runner.model` — in practice the heaviest model
@@ -1067,6 +1128,10 @@ twice, and say exactly why. Four levels, each answered by a model of the configu
 - **the type** sets where it starts (`runner.auto_model_code` and the three others):
   *standard* for Code, External action and Publication, *light* for Writing — a board
   without types starts a ticket on a repository at *standard*, any other at *light*;
+- **the sub-type** of a code ticket moves that start: *Docs* and *Chore* one level lower,
+  *Sécurité* one level higher, the others where Code starts (`runner.auto_model_subtype_docs`
+  and the seven others: `lower`, `same` or `higher`, also in the Settings' model table) —
+  never past the lightest or the heaviest level, and Fable still only when it is allowed;
 - **the size** moves it: one of ordinary size is at least *standard*, and a long one
   (600 words, or 25 list items) goes up a level;
 - **a small change drops to *light***: one that only asks to remove, rename or reword
@@ -2221,7 +2286,7 @@ looks for every word typed, in any order, case and accents set aside, in the tit
 runner's line on the card (the RESULT a run ended with), the pull request's address — so
 `#201` finds it — the project and the runner; a short id finds its ticket from four
 characters, and a pasted branch, worktree or Notion address finds the one ticket it names.
-Beside it, filters that combine with the words and with each other: *Type*, *Status*,
+Beside it, filters that combine with the words and with each other: *Type*, *Sub-type*, *Status*,
 *Priority*, *Model*, *Project* (not on a project's page), *Period* (created or changed
 today, in the last 7 or 30 days) and *Other* — with a pull request, waiting for credits,
 a move not yet synchronised, a cost above $1, $5 or $20. Each list offers only what the
@@ -2492,7 +2557,9 @@ otherwise: a ticket you dragged to *Done*, or one closed because you merged its 
 yourself. The *Closed* card says, under the pointer, how many closings each one dated. The spend is the
 history's too: the `Cost` column says what a ticket cost, not on which day. Under them, the
 **blocks, by cause and week**: one bar a week, stacked by family, and beside it every
-cause of the period with its count — see [Why a ticket stopped](#why-a-ticket-stopped). It is folded behind a *Show more* button, on the dashboard and on a project's page alike, and stays as you left it in this browser. The page they used to have is gone, and its old address,
+cause of the period with its count — see [Why a ticket stopped](#why-a-ticket-stopped) —, and the
+**code tickets done, by sub-type and week**, with the average cost and duration of each sub-type —
+see [The sub-type of a code ticket](#the-sub-type-of-a-code-ticket). Both are folded behind a *Show more* button, on the dashboard and on a project's page alike, and stays as you left it in this browser. The page they used to have is gone, and its old address,
 `/?view=console/statistics/list`, leads to the dashboard.
 
 **Settings** is `config.toml` drawn as a page — the same file, the same keys, and every one
@@ -2999,6 +3066,7 @@ ponos logs -f      # follow the running session
 ponos status       # timer, console, current run, recent tickets
 ponos history      # what has been handled, with the pull requests
 ponos projects     # Notion project → local repository mapping
+ponos subtypes     # the code tickets by sub-type (--backfill fills the empty ones from their prefix)
 ponos schedules    # what comes back on its own, and when it next does
 ponos schedules --run <name>  # make its ticket now, without waiting for the hour
 ponos sync         # reconcile the Notion board and the Markdown one

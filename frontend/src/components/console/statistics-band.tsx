@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { Eyebrow, Panel } from "./frame"
 import { LineChart } from "./line-chart"
 import { Robot } from "./robot"
-import { FAMILY_ICON, blockSaid, capital, columnTitle, familyColor } from "./ticket-bits"
+import { FAMILY_ICON, blockSaid, capital, columnTitle, familyColor, lasted, subtypeColor } from "./ticket-bits"
 
 /* What the runner got through, over a period — at the top of the dashboard.
  *
@@ -374,7 +374,7 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
             <Bars rows={rows} most={widest} />
           </Panel>
 
-          {figures.blocks ? (
+          {figures.blocks || figures.subtypes ? (
             <div className="flex justify-center md:col-span-2 xl:col-span-3">
               <Button
                 variant="ghost"
@@ -396,6 +396,16 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
               bodyClassName="pb-3"
             >
               <BlocksChart blocks={figures.blocks} />
+            </Panel>
+          ) : null}
+
+          {figures.subtypes && shown ? (
+            <Panel
+              eyebrow={t("Done, by sub-type and week")}
+              className="min-w-0 md:col-span-2 xl:col-span-3"
+              bodyClassName="pb-3"
+            >
+              <SubtypesChart subtypes={figures.subtypes} />
             </Panel>
           ) : null}
         </div>
@@ -528,6 +538,112 @@ function BlocksChart({ blocks }: { blocks: NonNullable<Statistics["blocks"]> }) 
           )
         })}
       </ul>
+    </div>
+  )
+}
+
+/* The code tickets closed, week after week, stacked by sub-type
+ * (`subtypes` in `web/statistics.py`) — eight colours at most, each with its
+ * icon in the legend — and beside it the table a person reads: how many of
+ * each, and what one of them cost and lasted on average. */
+function SubtypesChart({ subtypes }: { subtypes: NonNullable<Statistics["subtypes"]> }) {
+  const t = useT()
+  if (!subtypes.total)
+    return <p className="text-muted-foreground text-sm">{t("No code ticket with a sub-type closed in the period.")}</p>
+  const labelOf = new Map(subtypes.subtypes.map((one) => [one.key, `${one.icon} ${blockSaid(one.label)}`]))
+  const weeks = subtypes.weeks.map((week) => {
+    const stack = subtypes.subtypes.map((one) => ({ key: one.key, count: week.counts[one.key] ?? 0 }))
+    const total = stack.reduce((sum, part) => sum + part.count, 0)
+    const said = stack
+      .filter((part) => part.count)
+      .map((part) => `${labelOf.get(part.key) ?? part.key} — ${number(part.count)}`)
+    return { week: week.week, stack, total, said }
+  })
+  const most = Math.max(1, ...weeks.map((week) => week.total))
+  const every = Math.max(1, Math.ceil(weeks.length / 12))
+  const weekOf = (week: string) =>
+    t("week of {{day}}", {
+      day: date(week).toLocaleDateString(locale(), { day: "numeric", month: "short" }),
+    })
+
+  return (
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <figure className="flex min-w-0 flex-col gap-2" aria-label={t("Done, by sub-type and week")}>
+        <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {subtypes.subtypes.map((one) => (
+            <li key={one.key} className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm" style={{ background: subtypeColor(one.key) }} />
+              {labelOf.get(one.key)}
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-end gap-[2px]" style={{ height: BLOCK_CHART }}>
+          {weeks.map((week) => (
+            <div
+              key={week.week}
+              className="hover:bg-muted/60 flex h-full min-w-0 flex-1 flex-col justify-end rounded-sm"
+              title={[`${weekOf(week.week)} — ${number(week.total)}`, ...week.said].join("\n")}
+              data-slot="subtypes-week"
+            >
+              <div className="flex flex-col-reverse gap-[2px]" style={{ height: `${(week.total / most) * 100}%` }}>
+                {week.stack
+                  .filter((part) => part.count)
+                  .map((part, index, parts) => (
+                    <span
+                      key={part.key}
+                      className={cn("block min-h-[2px] w-full", index === parts.length - 1 && "rounded-t")}
+                      style={{ flexGrow: part.count, background: subtypeColor(part.key) }}
+                    />
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-muted-foreground flex gap-[2px] font-mono text-[0.65rem]">
+          {weeks.map((week, index) => (
+            <span key={week.week} className="min-w-0 flex-1 truncate text-center">
+              {index % every === 0
+                ? date(week.week).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" })
+                : ""}
+            </span>
+          ))}
+        </div>
+      </figure>
+
+      <table className="w-full min-w-0 self-start text-sm" data-slot="subtypes-table">
+        <thead>
+          <tr className="text-muted-foreground text-xs">
+            <th scope="col" className="pb-1.5 text-left font-medium">
+              {t("Sub-type")}
+            </th>
+            <th scope="col" className="pb-1.5 text-right font-medium">
+              {t("Done")}
+            </th>
+            <th scope="col" className="pb-1.5 text-right font-medium">
+              {t("Average cost")}
+            </th>
+            <th scope="col" className="pb-1.5 text-right font-medium">
+              {t("Average duration")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {subtypes.subtypes.map((one) => (
+            <tr key={one.key} className="border-t" data-subtype={one.key}>
+              <th scope="row" className="py-1.5 text-left font-normal">
+                {labelOf.get(one.key)}
+              </th>
+              <td className="py-1.5 text-right font-mono text-xs font-semibold tabular-nums">{number(one.count)}</td>
+              <td className="py-1.5 text-right font-mono text-xs tabular-nums">
+                {one.cost === null ? "—" : dollars(one.cost)}
+              </td>
+              <td className="py-1.5 text-right font-mono text-xs tabular-nums">
+                {one.duration === null ? "—" : lasted(one.duration)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

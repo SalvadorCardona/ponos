@@ -692,6 +692,7 @@ class Handler(BaseHTTPRequestHandler):
                         str(payload.get("priority", "")),
                         str(payload.get("type", "")),
                         str(payload.get("model", "")),
+                        str(payload.get("subtype", "")),
                     )
                 )
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/status", route):

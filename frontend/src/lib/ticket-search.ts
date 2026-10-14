@@ -34,6 +34,8 @@ export interface TicketQuery {
   project: string[]
   /** Why a stopped ticket stopped, by its code in `blocks.py`: `merge.refused`… */
   block: string[]
+  /** A code ticket's sub-type, by its key in `subtypes.py`: `bug`, `docs`… */
+  subtype: string[]
   only: Flag[]
   /** At least this many dollars spent; 0 is any. */
   cost: number
@@ -48,6 +50,7 @@ export const EMPTY: TicketQuery = {
   model: [],
   project: [],
   block: [],
+  subtype: [],
   only: [],
   cost: 0,
   since: "",
@@ -59,7 +62,7 @@ export const PERIODS: Exclude<Period, "">[] = ["today", "7d", "30d"]
 export const COSTS = [1, 5, 20]
 
 /** The lists a query filters by, in the order the bar draws them. */
-export const FACETS = ["type", "status", "priority", "model", "project", "block"] as const
+export const FACETS = ["type", "subtype", "status", "priority", "model", "project", "block"] as const
 export type Facet = (typeof FACETS)[number]
 
 /** The little the search reads of a ticket: `Ticket` has it, and so does a test. */
@@ -82,6 +85,8 @@ export interface Searchable {
   sync?: string
   /** On a stopped ticket, its cause. */
   block?: { code: string } | null
+  /** On a code ticket, its sub-type's key. */
+  subtype?: string
 }
 
 /** One of the board's choices, the way `Board.choices` says it. */
@@ -200,6 +205,7 @@ export function matchesQuery(ticket: Searchable, query: TicketQuery, context: Co
   if (!among(ticket.model, query.model, choices.model)) return false
   if (query.project.length && !query.project.includes(ticket.project)) return false
   if (query.block.length && !query.block.includes(ticket.block?.code ?? "")) return false
+  if (query.subtype.length && !query.subtype.includes(ticket.subtype ?? "")) return false
   if (!query.only.every((flag) => flagged(ticket, flag))) return false
   if (query.cost > 0 && !((ticket.cost ?? 0) >= query.cost)) return false
   if (query.since) {
@@ -268,6 +274,7 @@ export function readQuery(search: string): TicketQuery {
     model: [],
     project: [],
     block: [],
+    subtype: [],
     only: [],
   }
   for (const { key, raw } of parts(search)) {

@@ -180,6 +180,16 @@ waiting = "Waiting for credit"
 # without the column runs every ticket by what its project holds, as before.
 type = "Type"
 
+# select: what kind of change a code ticket is — Bug, Feature, Amélioration,
+# Chore, Refactor, Perf, Docs or Sécurité — ignored on the other types. It sets
+# the prefix of the commit and the pull request (fix:, feat:…) and the CHANGELOG
+# section. Empty, the runner fills it before the ticket runs: from the title's
+# prefix ([Bug], [Ops]…) without asking anybody, else with the classification's
+# light model, and an Amélioration when in doubt. Never rewritten once written.
+# ponos init adds it; `ponos subtypes --backfill` fills the code tickets already
+# on the board from their prefix. Optional: without it, the prefix alone counts.
+subtype = "Sous-type"
+
 # select: why a blocked or failed ticket stopped, as a code from the catalogue
 # (merge.checks-failed, session.question, worktree.residue…) — filled when it
 # stops, emptied when it leaves. What a Notion view filters and groups blocks
@@ -670,6 +680,13 @@ auto_model_code = "standard"
 auto_model_writing = "light"
 auto_model_external = "standard"      # never lower: the lightest model in a browser
 auto_model_publication = "standard"   # clicks the wrong button
+# How a code ticket's sub-type moves the level Code starts at: lower, same or
+# higher, within the four levels. Unset: Docs and Chore one lower, Sécurité one
+# higher, the others where Code starts.
+# auto_model_subtype_docs = "lower"
+# auto_model_subtype_chore = "lower"
+# auto_model_subtype_security = "higher"
+# auto_model_subtype_bug = "same"      # and feature, improvement, refactor, perf
 # A ticket whose chosen model failed runs one level up when it comes back —
 # once, and its comment says so. The next attempt keeps that model.
 auto_model_escalate = true

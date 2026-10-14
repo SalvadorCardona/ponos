@@ -27,6 +27,11 @@ publishes it is yours. Both are added to a prompt file of your own as well, at
 its end when it has no `{kind}` to put them in: a template written before the
 types existed must not become the road by which a post goes out unread.
 
+A code ticket's sub-type — see subtypes.py — goes in the same place of the
+first template: the prefix its commit and its pull request start with, the
+section of the CHANGELOG it goes under, and, for a bug, a test that reproduces
+it before it is fixed.
+
 A fourth one publishes what a ticket already holds, once a human has validated
 it, and its rule is the third of the family: **it publishes, it does not
 produce.** What goes out is what was read and accepted, unimproved — a session
@@ -73,7 +78,7 @@ nobody to talk to: no one can answer a question while the session runs.
 - You are in a dedicated git worktree, on branch `{branch}`, created from \
 `{base}`. Your working copy is shared with no one.
 {resumed}- Notion ticket: {url}
-
+{kind}
 # What is expected
 
 1. Read the repository before writing: its conventions, its CLAUDE.md or \

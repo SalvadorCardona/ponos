@@ -23,12 +23,12 @@ from . import db, journal, kinds, legacy, models, resources, store, voice
 from . import project_settings, provision
 from . import provider as provider_module
 from . import schedules as schedules_module
-from . import session, state, systemd
+from . import session, state, subtypes, systemd
 from . import update as update_module
 from . import workspace as workspace_module
 from .projects import Resolver
 from .runner import Runner
-from .ticket import short_id
+from .ticket import Ticket, short_id
 
 BOLD, DIM, GREEN, RED, YELLOW, RESET = "", "", "", "", "", ""
 if sys.stdout.isatty():
@@ -265,6 +265,45 @@ def _when(moment: datetime, now: datetime) -> str:
         return f"{moment.strftime('%Y-%m-%d %H:%M')} — overdue"
     near = f"in {hours:.0f} h" if hours < 48 else f"in {delay.days} days"
     return f"{moment.strftime('%Y-%m-%d %H:%M')} — {near}"
+
+
+def command_subtypes(args: argparse.Namespace) -> int:
+    """The sub-types of the code tickets, and — with --backfill — the ones a prefix says.
+
+    See `Board.backfill_subtypes`: the title's prefix alone, never a session.
+    """
+    configuration = load_config()
+    runner = Runner(configuration, quiet=True)
+    column = runner.subtype_column()
+    if not column:
+        bad(f"no “{configuration.notion.prop('subtype')}” column on the board — ponos init adds it")
+        return 1
+    if args.backfill:
+        try:
+            filled = runner.backfill_subtypes(write=not args.dry_run, closed=args.all)
+        except store.StoreError as error:
+            bad(f"the board refused: {error}")
+            return 1
+        verb = "would be filled" if args.dry_run else "filled"
+        title(f"{len(filled)} code ticket(s) {verb} from their prefix")
+        for page, key in filled:
+            print(f"  {subtypes.BY_KEY[key].icon} {subtypes.option(key):<13} {page.title}")
+        return 0
+    counts: dict[str, int] = {}
+    for page in runner.client.query(runner.database):
+        if runner.kind(Ticket(page)) == "code":
+            key = subtypes.of(store.read(page, column))
+            counts[key] = counts.get(key, 0) + 1
+    title("Code tickets, by sub-type")
+    for subtype in subtypes.SUBTYPES:
+        print(f"  {subtype.icon} {subtype.option:<13} {counts.get(subtype.key, 0)}")
+    print(f"  {DIM}  {'(none)':<13} {counts.get('', 0)}{RESET}")
+    if counts.get(""):
+        print(
+            f"  {DIM}ponos subtypes --backfill fills the open ones whose title has a prefix; "
+            f"--all the done ones too, which dates their closing today in the statistics{RESET}"
+        )
+    return 0
 
 
 def command_schedules(args: argparse.Namespace) -> int:
@@ -2043,6 +2082,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true", help="with --run: even if the last one is still open"
     )
     scheduling.set_defaults(function=command_schedules)
+
+    typing = subparsers.add_parser("subtypes", help="the sub-types of the code tickets")
+    typing.add_argument(
+        "--backfill", action="store_true", help="fill the empty ones from the title's prefix"
+    )
+    typing.add_argument("--dry-run", action="store_true", help="with --backfill: write nothing")
+    typing.add_argument(
+        "--all",
+        action="store_true",
+        help="with --backfill: done and cancelled tickets too — their closing date in the "
+        "statistics becomes today",
+    )
+    typing.set_defaults(function=command_subtypes)
 
     projects = subparsers.add_parser("projects", help="check the project → repository mapping")
     projects.set_defaults(function=command_projects)

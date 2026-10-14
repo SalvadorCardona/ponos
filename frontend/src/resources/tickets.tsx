@@ -166,6 +166,7 @@ export interface TicketWrite {
   priority?: string
   type?: string
   model?: string
+  subtype?: string
 }
 
 const item = (ticket: Ticket | TicketDetail): TicketItem => ({
@@ -269,9 +270,9 @@ function ReadyNote() {
  * dropped on its way in — and always optional. The options are the board's
  * (see `Api._choices`): read from the board the console already holds, which
  * is there before a dialog over it can open. */
-function choiceInput(key: "priority" | "type" | "model", empty: string, description: string) {
+function choiceInput(key: "priority" | "type" | "model" | "subtype", empty: string, description: string) {
   return {
-    label: key === "type" ? "Type" : key === "priority" ? "Priority" : "Model",
+    label: { type: "Type", priority: "Priority", model: "Model", subtype: "Sub-type" }[key],
     get description() {
       return t(description)
     },
@@ -279,7 +280,13 @@ function choiceInput(key: "priority" | "type" | "model", empty: string, descript
     hidden: () => !currentBoard()?.choices?.[key]?.length,
     getValueOptions: async () => [
       { value: "", label: empty },
-      ...(currentBoard()?.choices?.[key] ?? []),
+      // A sub-type behind its icon and in the console's words, as the card says it.
+      ...(key === "subtype"
+        ? (currentBoard()?.subtypes ?? []).map((subtype) => ({
+            value: subtype.key,
+            label: `${subtype.icon} ${blockSaid(subtype.label)}`,
+          }))
+        : (currentBoard()?.choices?.[key] ?? [])),
     ],
   }
 }
@@ -366,6 +373,11 @@ const createForm: FormInterface = {
       "type",
       "deduced by the runner",
       "The road the ticket takes. Empty, the runner deduces it before the ticket runs."
+    ),
+    subtype: choiceInput(
+      "subtype",
+      "deduced by the runner",
+      "What kind of change a code ticket is: the prefix of its commit and its CHANGELOG section. Empty, the runner deduces it."
     ),
     model: choiceInput("model", "the runner's model", "Empty, the model the runner is set to."),
     ready: {
@@ -973,6 +985,7 @@ export async function createTicket(fresh: TicketWrite): Promise<TicketItem> {
     priority: String(fresh.priority ?? ""),
     type: String(fresh.type ?? ""),
     model: String(fresh.model ?? ""),
+    subtype: String(fresh.subtype ?? ""),
   })
   const projects = await api.projects().catch(() => ({ projects: [] }))
   const project = projects.projects.find((candidate) => candidate.id === fresh.project)
@@ -991,6 +1004,7 @@ export async function createTicket(fresh: TicketWrite): Promise<TicketItem> {
     kind: project?.kind ?? "",
     // The key was sent; the card says it as the board spells it.
     type: currentBoard()?.choices?.type?.find((choice) => choice.value === fresh.type)?.label ?? "",
+    subtype: String(fresh.subtype ?? ""),
     priority: String(fresh.priority ?? ""),
     model: String(fresh.model ?? ""),
     progress: "",

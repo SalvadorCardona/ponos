@@ -23,7 +23,7 @@ import time
 from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
 
-from . import conversation, git, kinds, state, store
+from . import conversation, git, kinds, state, store, subtypes
 from . import voice as voice_module
 from .base import Base
 from .config import PRIORITIES
@@ -231,6 +231,56 @@ class Board(Base):
             return name if name in self.client.schema(self.database) else ""
         except store.StoreError:
             return ""
+
+    def subtype_column(self) -> str:
+        """The column a code ticket's sub-type is read from, or "" without one.
+
+        Asked of the schema like `type_column`: a board built before sub-types
+        reads them off the title's prefix alone, and never asks a session for a
+        value it has nowhere to keep.
+        """
+        name = self.config.notion.prop("subtype")
+        try:
+            return name if name in self.client.schema(self.database) else ""
+        except store.StoreError:
+            return ""
+
+    def backfill_subtypes(
+        self, write: bool = True, closed: bool = False
+    ) -> list[tuple[store.Page, str]]:
+        """The code tickets whose empty sub-type their title's prefix says.
+
+        The prefix and nothing else — a session per old ticket would cost more
+        than the column is worth, and a guess is not a fact about the past. A
+        value already there is never touched, nor a ticket whose type is not
+        Code. `write` off, nothing is written: it says what would be.
+
+        Done and cancelled tickets only when `closed` says so: writing on one
+        is editing it, and a done ticket the runner did not close itself is
+        dated by its last edit in the statistics (web/statistics.py) — a year
+        of closings would all land today. The console reads their prefix
+        instead, so they are counted all the same.
+        """
+        column = self.subtype_column()
+        if not column:
+            return []
+        settings = self.config.notion
+        ended = {settings.state("done"), settings.state("cancelled")}
+        filled: list[tuple[store.Page, str]] = []
+        for page in self.client.query(self.database):
+            if self.kind(Ticket(page)) != "code":
+                continue
+            if not closed and str(store.read(page, settings.prop("status")) or "") in ended:
+                continue
+            if str(store.read(page, column) or "").strip():
+                continue
+            key = subtypes.from_prefix(page.title)
+            if not key:
+                continue
+            if write:
+                self.client.update(self.database, page.id, {column: subtypes.option(key)})
+            filled.append((page, key))
+        return filled
 
     def kind(self, ticket: Ticket) -> str:
         """The type written on the ticket, as one of `kinds.KINDS`, or "".

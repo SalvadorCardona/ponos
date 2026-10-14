@@ -143,6 +143,21 @@ test("a stopped ticket is found by the cause it stopped on, and the address keep
   assert.equal(active(given), 1)
 })
 
+test("a code ticket is found by its sub-type, and the address keeps it", () => {
+  const bug = ticket({ subtype: "bug" })
+  const docs = ticket({ subtype: "docs" })
+  const none = ticket({})
+  assert.equal(keeps(bug, { subtype: ["bug"] }), true)
+  assert.equal(keeps(docs, { subtype: ["bug", "docs"] }), true)
+  assert.equal(keeps(docs, { subtype: ["bug"] }), false)
+  assert.equal(keeps(none, { subtype: ["bug"] }), false)
+  assert.equal(keeps(none, {}), true)
+  const given = query({ subtype: ["bug", "security"] })
+  assert.equal(writeQuery("", given), "?subtype=bug,security")
+  assert.deepEqual(readQuery(writeQuery("", given)), given)
+  assert.equal(active(given), 1)
+})
+
 test("what is on, counted", () => {
   assert.equal(isEmpty(EMPTY), true)
   assert.equal(isEmpty(query({ text: "  " })), true)

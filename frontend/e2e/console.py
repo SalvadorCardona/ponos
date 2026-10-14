@@ -93,6 +93,12 @@ NAMES = {
 # A card in progress that no session has written a step for yet, on a model
 # whose name is longer than the card is wide.
 STARTING = ("000000000000000000000000000057a1", "Warm up the engine", "qwen/qwen-2.5-coder-32b-instruct")
+# Code tickets with a sub-type, written as the board writes it: the card wears
+# its badge, and the search filters on it.
+SUBTYPED = {
+    "00000000000000000000000000c1c102": "Perf",
+    "00000000000000000000000000c1c103": "Bug",
+}
 STUCK = (
     "🙋 Stuck — branch `ticket/tailscale` ready\n"
     "Missing access: I have no SSH access to the server\n"
@@ -172,6 +178,8 @@ def board(root: Path, doomed: bool = False) -> None:
     )
     for id, title in NAMES.items():
         page = {"id": id, "title": title, "Status": "In review", "Pull Request": pull_request(id)}
+        if id in SUBTYPED:
+            page.update({"Type": "Code", "Sous-type": SUBTYPED[id]})
         (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
             files.render(page, "A short brief."), encoding="utf-8"
         )

@@ -16,6 +16,9 @@ put up with:
 - **the type** gives the starting point, one level per type, set in the
   configuration (`auto_model_code`…): a text starts lighter than a change to a
   repository;
+- **the sub-type** of a code ticket moves that start (`auto_model_subtype_docs`…):
+  documentation and upkeep one level lower, a security fix one level higher —
+  within the four levels, and Fable still only when it is allowed;
 - **the size** moves it: a short request stays where it is, one of ordinary
   size is at least standard, a long one — or one with many steps — goes up one;
   and a request that only asks to remove, rename or reword something, said in
@@ -106,6 +109,8 @@ class Grid:
 
     models: dict[str, str] = field(default_factory=dict)
     starts: dict[str, str] = field(default_factory=dict)
+    # How many levels each sub-type of a code ticket moves its start: -1, 0, 1.
+    shifts: dict[str, int] = field(default_factory=dict)
 
     def model(self, level: str) -> str:
         """The model of a level — or of the nearest one that names one.
@@ -256,11 +261,13 @@ def choose(
     grid: Grid,
     earlier: Earlier | None = None,
     escalate: bool = True,
+    subtype: str = "",
 ) -> Choice:
     """The model this ticket runs on — see the module's docstring for the rules.
 
     `kind` is the ticket's type, empty for a board without one: it then starts
-    where its project puts it, a repository's level or a text's.
+    where its project puts it, a repository's level or a text's. `subtype` is a
+    code ticket's, and is read on a code ticket only.
     """
     if earlier and earlier.model and (earlier.escalated or earlier.status == "waiting"):
         # Already climbed once: it stays there. Stopped by the quota: the
@@ -281,6 +288,10 @@ def choose(
     started = kind or ("code" if code else "writing")
     level = grid.start(started)
     signals: list[tuple[str, dict]] = [("model-type", {"kind": started})]
+    moved = grid.shifts.get(subtype, 0) if started == "code" else 0
+    if moved:
+        level = min(max(level + moved, 0), len(LEVELS) - 1)
+        signals.append(("model-subtype-" + ("lower" if moved < 0 else "higher"), {"subtype": subtype}))
 
     short = words <= SHORT_WORDS and steps <= SHORT_STEPS
     long = words >= LONG_WORDS or steps >= LONG_STEPS

@@ -201,6 +201,8 @@ export const api = {
     priority?: string
     type?: string
     model?: string
+    /** A sub-type's key — `bug`, `docs` — and only on a code ticket. */
+    subtype?: string
   }) => request<{ id: string; title: string }>("/api/tickets", ticket),
   /** `from` is the status the card showed: Notion saying anything else by the
    * time the write goes out is somebody else's move, not overwritten. */

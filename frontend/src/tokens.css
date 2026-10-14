@@ -88,6 +88,17 @@
   --family-infrastructure: #1baf7a;
   --family-question: #eda100;
   --family-access: #e87ba4;
+
+  /* The sub-types of a code ticket (subtypes.py), on the icon of their badge
+     and in the bars of the statistics. */
+  --subtype-bug: #c8332a;
+  --subtype-feature: #15803d;
+  --subtype-improvement: #2a78d6;
+  --subtype-chore: #6b7280;
+  --subtype-refactor: #7c3aed;
+  --subtype-perf: #c98500;
+  --subtype-docs: #8b6b4a;
+  --subtype-security: #eb6834;
 }
 
 .dark {
@@ -137,6 +148,15 @@
   --family-infrastructure: #199e70;
   --family-question: #c98500;
   --family-access: #d55181;
+
+  --subtype-bug: #f2685f;
+  --subtype-feature: #4ade80;
+  --subtype-improvement: #3987e5;
+  --subtype-chore: #9ca3af;
+  --subtype-refactor: #9b7bff;
+  --subtype-perf: #e5a94e;
+  --subtype-docs: #b8946c;
+  --subtype-security: #f28a55;
 }
 
 /* The two faces the product speaks in: a geometric grotesque for everything
