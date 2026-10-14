@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronLeft, ChevronRight, LayoutGrid, MessageCircleQuestion } from "lucide-react"
+import { ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react"
 import {
   ActionList,
   BooleanInputController,
@@ -28,7 +28,6 @@ import {
 import { ComboboxInputController } from "@/components/console/combobox"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
-  FAMILY_ICON,
   blockSaid,
   columnTitle,
   SEED,
@@ -481,29 +480,6 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   if (!ticket) return null
   const href = generateLinkByResource({ resource, resourceAction: ActionList.read, id: ticket.id })
   const open = opensInTheWindow(ticket.id)
-  const Waiting = (ticket.block && FAMILY_ICON[ticket.block.family]) || MessageCircleQuestion
-
-  // Waiting on you: a run that asks a question lands in the blocked column,
-  // and so does a ticket held by hand — both wait for a word from you. The
-  // board reads no discussion, so the column is what it goes by; the page it
-  // opens is on the discussion. Where the cause is known the mark says it,
-  // rather than a second badge under it. It sits with the chips, so it is
-  // never alone on a line.
-  const waiting =
-    ticket.column === "blocked" ? (
-      <Link
-        to={href}
-        onClick={open}
-        data-slot="ticket-waiting"
-        title={ticket.block?.code}
-        className="bg-tr-amber/15 text-tr-amber inline-flex min-w-0 items-center gap-1 rounded-xl px-1.5 py-0.5 text-[0.7rem] leading-tight font-semibold whitespace-nowrap hover:underline"
-      >
-        <Waiting className="size-3 shrink-0" />
-        <span className="min-w-0 truncate">
-          {ticket.block ? blockSaid(ticket.block.label) : t("waiting for you")}
-        </span>
-      </Link>
-    ) : null
 
   return (
     <div
@@ -523,10 +499,10 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         <Marked text={ticket.title} words={words} />
       </Link>
 
-      <TicketTags ticket={ticket} lead={waiting} />
+      <TicketTags ticket={ticket} />
       <TicketSync ticket={ticket} />
       <TicketHeld ticket={ticket} />
-      {/* A blocked card says why in its button's tooltip, and its badge above. */}
+      {/* A blocked card says why in its Unblock button's tooltip. */}
       {ticket.column !== "blocked" ? <TicketBlock block={ticket.block} /> : null}
       <TicketCi ci={ticket.ci} />
 
