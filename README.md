@@ -1098,10 +1098,15 @@ prefix alone and asks no session, having nowhere to keep the answer.
 ponos subtypes                       # the code tickets, by sub-type
 ponos subtypes --backfill --dry-run  # what a prefix would fill
 ponos subtypes --backfill            # fill them
+ponos subtypes --backfill --all      # the done and cancelled ones too
 ```
 
-Done ones included — the statistics count what was done — and never a session: a guess is
-not a fact about the past. A ticket without a sub-type prefix stays empty.
+Never a session: a guess is not a fact about the past, and a ticket without a sub-type
+prefix stays empty. Done and cancelled tickets are left alone unless `--all` says so,
+because writing on one is editing it, and a done ticket the runner did not close itself
+is dated by its last edit in the statistics: a year of closings would all land today. The
+console does not need them written — a code ticket with an empty column is read by its
+prefix, so the old ones wear their badge and are counted all the same.
 
 On the console, a code ticket wears a small badge of its sub-type — its icon, in its colour
 —, the search bar filters by it, *New ticket* offers it, and the statistics count the code

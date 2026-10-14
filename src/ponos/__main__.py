@@ -299,7 +299,10 @@ def command_subtypes(args: argparse.Namespace) -> int:
         print(f"  {subtype.icon} {subtype.option:<13} {counts.get(subtype.key, 0)}")
     print(f"  {DIM}  {'(none)':<13} {counts.get('', 0)}{RESET}")
     if counts.get(""):
-        print(f"  {DIM}ponos subtypes --backfill fills the ones whose title has a prefix{RESET}")
+        print(
+            f"  {DIM}ponos subtypes --backfill fills the open ones whose title has a prefix; "
+            f"--all the done ones too, which dates their closing today in the statistics{RESET}"
+        )
     return 0
 
 

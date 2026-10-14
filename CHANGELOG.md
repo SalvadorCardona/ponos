@@ -27,7 +27,8 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   commit (`fix:`, `feat:`, `chore:`…) and the CHANGELOG section it writes under, and a Bug is asked
   for a test that reproduces it before the fix; the pull request takes the same prefix in place of
   the title's tag. `ponos subtypes --backfill` fills the code tickets already on the board from their
-  prefix alone. The console shows a badge of it on the card (an icon and a colour each), filters the
+  prefix alone — the done ones only with `--all`, since an edit moves their closing date; the console
+  reads the prefix of a code ticket whose column is empty, so they are counted anyway. The console shows a badge of it on the card (an icon and a colour each), filters the
   board by it, offers it in *New ticket*, and counts the code tickets done by sub-type and by week,
   with the average cost and duration of each. The automatic model choice reads it too: Docs and
   Chore start one level lower, Sécurité one level higher (`runner.auto_model_subtype_*`, in the
