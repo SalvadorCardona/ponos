@@ -36,15 +36,9 @@ const filterOf = (page: Page) => {
   return JSON.parse(said)
 }
 
-/** One of the gestures a card keeps in its menu. Opened again when it closes
- * under the click: a menu opened while the last one is still leaving is closed
- * by the focus that one gives back to its button. */
-async function choose(page: Page, card: Locator, name: string) {
-  const item = page.getByRole("menuitem", { name, exact: true })
-  await expect(async () => {
-    if (!(await item.isVisible())) await card.locator('[data-slot="ideas-menu"]').click()
-    await item.click({ timeout: 1000 })
-  }).toPass()
+/** One of the gestures a card has in its foot, by the name the button carries. */
+async function choose(_page: Page, card: Locator, name: string) {
+  await card.getByRole("button", { name, exact: true }).click()
 }
 
 /** Ask for a batch from the page's button, sort nothing, and close the swipe. */
@@ -119,9 +113,12 @@ test.describe("at 1440px", () => {
     const title = (await cards(page).first().locator('[data-slot="ideas-title"]').textContent())!
     const mine = () => cards(page).filter({ hasText: title })
 
-    // One gesture in sight, the others in the menu.
+    // Every gesture in sight, none in a menu.
     await expect(mine().getByRole("button", { name: "Turn into a ticket" })).toBeVisible()
-    await expect(mine().getByRole("button", { name: "Keep", exact: true })).toHaveCount(0)
+    await expect(mine().getByRole("button", { name: "Keep", exact: true })).toBeVisible()
+    await expect(mine().getByRole("button", { name: "Throw away", exact: true })).toBeVisible()
+    await expect(mine().getByRole("button", { name: "Back to new", exact: true })).toHaveCount(0)
+    await expect(mine().locator('[data-slot="ideas-menu"]')).toHaveCount(0)
 
     await choose(page, mine(), "Keep")
     await status(page, "kept").click()
