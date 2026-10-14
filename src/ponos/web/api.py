@@ -882,6 +882,8 @@ class Api:
         projects = self._projects
         return {
             "enabled": self.config.runner.schedule,
+            # The zone the hours are said in, for the calendar to lay them out in.
+            "timezone": schedules_module.timezone_name(),
             "database": database,
             "page": self.config.notion.page("schedules"),
             # Which board: "a row in the database" is Notion's sentence, and a

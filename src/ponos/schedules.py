@@ -24,9 +24,11 @@ readings of a Notion date that drift apart is the sort of bug nobody finds.
 from __future__ import annotations
 
 import calendar
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import store
 from .config import Notion
@@ -82,6 +84,27 @@ def scheduled_for(value: object) -> datetime | None:
     except ValueError:
         return None
     return moment.astimezone() if moment.tzinfo is None else moment
+
+
+def timezone_name() -> str:
+    """The IANA name of this machine's timezone, or "" when it cannot be told.
+
+    Every hour a schedule says is a wall-clock hour *here*: 09:00 is nine in
+    Paris whatever the browser reading the calendar sits in, and it stays nine
+    when the clocks change. The console draws its calendar from the cadence, so
+    it needs the zone by name — an offset would be right on one side of the
+    change and an hour off on the other.
+    """
+    named = os.environ.get("TZ", "").lstrip(":")
+    if not named:
+        # Where the system keeps it: /etc/localtime points into the zoneinfo tree.
+        target = os.path.realpath("/etc/localtime")
+        named = target.split("zoneinfo/", 1)[1] if "zoneinfo/" in target else ""
+    try:
+        ZoneInfo(named)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        return ""
+    return named
 
 
 def read(page: store.Page, settings: Notion) -> Schedule:

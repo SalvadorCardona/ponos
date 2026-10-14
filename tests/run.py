@@ -2632,6 +2632,90 @@ def notion_truncates_a_datetime_to_the_minute():
     assert stored is not None and (stored.hour, stored.minute, stored.second) == (14, 48, 0)
 
 
+@contextmanager
+def _paris():
+    """The machine in Paris for a moment: what a schedule's hours are said in."""
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "Europe/Paris"
+    time.tzset()
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = before
+        time.tzset()
+
+
+def _walk(cadence: str, at: str, day: str, start: str, count: int) -> list[str]:
+    """`count` occurrences in a row, each computed from the one before — the calendar's walk."""
+    found: list[str] = []
+    after = datetime.fromisoformat(start).astimezone()
+    for _ in range(count):
+        after = schedules.next_occurrence(cadence, at, day, after=after)
+        found.append(after.strftime("%Y-%m-%d %H:%M %Z"))
+    return found
+
+
+@case
+def a_schedule_keeps_its_wall_clock_hour_across_the_change_to_winter_time():
+    """The clocks go back on 25 October 2026: nine in the morning stays nine."""
+    with _paris():
+        assert schedules.timezone_name() == "Europe/Paris"
+        assert _walk("Daily", "09:00", "", "2026-10-23T12:00:00+02:00", 4) == [
+            "2026-10-24 09:00 CEST",
+            "2026-10-25 09:00 CET",
+            "2026-10-26 09:00 CET",
+            "2026-10-27 09:00 CET",
+        ]
+        # An hour that does not exist (02:30 on 29 March) lands after the jump.
+        assert _walk("Daily", "02:30", "", "2026-03-28T12:00:00+01:00", 2) == [
+            "2026-03-29 03:30 CEST",
+            "2026-03-30 02:30 CEST",
+        ]
+        # An hourly one reads the wall clock too: the repeated 02:30 is not a launch of its own.
+        assert _walk("Hourly", "00:30", "", "2026-10-25T00:00:00+02:00", 5) == [
+            "2026-10-25 00:30 CEST",
+            "2026-10-25 01:30 CEST",
+            "2026-10-25 02:30 CEST",
+            "2026-10-25 03:30 CET",
+            "2026-10-25 04:30 CET",
+        ]
+
+
+@case
+def weekly_and_monthly_schedules_walk_their_day_in_a_row():
+    with _paris():
+        assert _walk("Weekly", "09:00", "Monday", "2026-10-14T12:00:00+02:00", 3) == [
+            "2026-10-19 09:00 CEST",
+            "2026-10-26 09:00 CET",
+            "2026-11-02 09:00 CET",
+        ]
+        assert _walk("Monthly", "07:00", "31", "2027-01-01T00:00:00+01:00", 3) == [
+            "2027-01-31 07:00 CET",
+            "2027-02-28 07:00 CET",
+            "2027-03-31 07:00 CEST",
+        ]
+
+
+@case
+def a_paused_or_unreadable_schedule_has_no_upcoming_moment():
+    """The calendar draws from `upcoming`: a schedule that is off is a schedule nothing is due from."""
+    now = datetime.fromisoformat("2026-10-14T21:00:00+02:00")
+    page = store.Page(id="a" * 32, title="Whisper Desk", properties={}, url="")
+    due = schedules.Schedule(
+        page=page, name="Whisper Desk", cadence="Daily", at="09:00", day="", active=True,
+        next=datetime.fromisoformat("2026-10-09T09:00:00+02:00"), last=None,
+        last_ticket="", project="", model="", priority="",
+    )
+    assert schedules.upcoming(due, now) == now, "due: it fires on the next pass, never in the past"
+    due.active = False
+    assert schedules.upcoming(due, now) is None
+    due.active, due.problem = True, "no cadence the runner knows"
+    assert schedules.upcoming(due, now) is None
+
+
 @case
 def a_date_range_schedules_on_its_end():
     """Notion dates may be ranges; the runner reads the moment work is due."""
@@ -13794,7 +13878,7 @@ def a_schedule_is_a_resource_drawn_in_the_package_s_own_layouts():
     assert "createViewResource" in declared, "the schedules are a hand-rolled pane again"
     assert "tableViewOptionFactory" in declared, "the table layout is gone"
     assert "calendarViewOptionFactory" in declared, "the calendar layout is gone"
-    assert 'dateKey: "next"' in declared, "the calendar no longer lays them out by their next run"
+    assert 'dateKey: "when"' in declared, "the calendar no longer lays out the launches by when they land"
     assert "api.saveSchedule" in declared, "nothing writes a schedule back"
     assert "api.createSchedule" in declared, "nothing writes a new schedule"
     # The columns a pass writes back are how the runner knows an occurrence has
