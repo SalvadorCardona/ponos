@@ -371,7 +371,13 @@ export function TicketTags({ ticket }: { ticket: Ticket }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {ticket.priority ? <Chip>{ticket.priority}</Chip> : null}
-      {ticket.model ? <Chip>{ticket.model_label || ticket.model}</Chip> : null}
+      {ticket.model ? (
+        <Chip className="min-w-0 max-w-full">
+          <span className="truncate" data-slot="ticket-model" title={ticket.model_label || ticket.model}>
+            {ticket.model_label || ticket.model}
+          </span>
+        </Chip>
+      ) : null}
       {ticket.scheduled ? <Chip>⏱ {when(ticket.scheduled)}</Chip> : null}
     </div>
   )
