@@ -224,9 +224,10 @@ TOOLS: list[dict] = [
         "description": "Liste les idées que Ponos a proposées (ou qu'on lui a données) pour un "
         "projet, ou pour l'espace de travail entier quand aucun projet n'est donné. Chaque idée a "
         "un identifiant numérique, un titre, une description, un genre (« ticket » : une tâche à "
-        "faire ; « project » : un nouveau projet) et un état : proposed (en attente d'une "
+        "faire ; « project » : un nouveau projet), un état : proposed (en attente d'une "
         "décision), kept (gardée pour plus tard), ticket (devenue une tâche en brouillon), "
-        "discarded (jetée).",
+        "discarded (jetée) — et un score de pertinence de 0 à 100 avec la ligne qui le justifie "
+        "(null : pas encore notée ; 70 et plus : vert, de 40 à 69 : orange, moins de 40 : rouge).",
         "inputSchema": _schema(
             {
                 "project": PROJECT_FILTER,
@@ -349,7 +350,8 @@ TOOLS: list[dict] = [
         "scope": WRITE,
         "description": "Ajoute une idée aux idées proposées, pour un projet ou pour l'espace de "
         "travail entier : elle n'est pas encore une tâche, elle attend d'être gardée ou jetée "
-        "(set_idea_state). Pour une tâche à faire tout de suite, utiliser create_task.",
+        "(set_idea_state). Ponos lui donne ensuite son score de pertinence, en arrière-plan. Pour "
+        "une tâche à faire tout de suite, utiliser create_task.",
         "inputSchema": _schema(
             {
                 "title": {"type": "string", "description": "Ce qu'il faudrait faire, en une ligne."},
@@ -822,6 +824,8 @@ def _idea(shown: dict) -> dict:
         "description": shown["description"],
         "kind": shown["kind"],
         "category": shown["category"],
+        "score": shown["score"],
+        "score_reason": shown["score_reason"],
         "status": shown["status"],
         "task": shown["ticket"],
         "created_at": shown["created_at"],

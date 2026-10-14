@@ -736,6 +736,12 @@ export interface Idea {
   project: string
   kind: "ticket" | "project"
   category: IdeaCategory
+  /** Relevance out of 100; null for an idea not scored (yet). */
+  score: number | null
+  /** The line that says why it has that score. */
+  score_reason: string
+  /** Whether the light model is scoring it now: the pill says "…". */
+  scoring: boolean
   title: string
   description: string
   where: string
@@ -771,6 +777,17 @@ export interface Ideas {
   ideas: Idea[]
   decided: Idea[]
   undo: Idea | null
+}
+
+/** The ideas with no score, and what scoring them may cost at most. */
+export interface Unscored {
+  count: number
+  /** One call a scope and twenty ideas, each of them capped. */
+  calls: number
+  ceiling_usd: number
+  model: string
+  /** Whether a pass is scoring them now. */
+  running: boolean
 }
 
 /** What asking for a batch brought back. */

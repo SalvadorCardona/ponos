@@ -14,8 +14,10 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, why } from "@/lib/api"
 import { useT } from "@/lib/i18n"
+import { toneOf, type Tone } from "@/lib/idea-search"
 import type { Idea, IdeaAuthor, IdeaCategory, IdeaStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { SCOPED_IDEAS, ideaOf, ideasChanged, useReadAgainOnChange, type IdeaItem } from "@/resources/ideas"
@@ -37,7 +39,9 @@ import { ago } from "./ticket-bits"
  * it is one, opening that ticket. Keeping it for later, throwing it away and
  * making it new again sit beside it in the foot of the card, one click each
  * (a toast offers to take it back); rewording it is the pencil at the top,
- * which opens the package's form.
+ * which opens the package's form. Its score sits first, a number in a
+ * coloured circle: the number is always written, so the colour is never all
+ * it says.
  *
  * The gestures are not the package's: they are the endpoints an idea has
  * (`/keep`, `/discard`, `/reopen`, `/ticket`), and after one of them the list is
@@ -114,6 +118,63 @@ export function CategoryBadge({ category }: { category: IdeaCategory }) {
     >
       {words[category]}
     </Badge>
+  )
+}
+
+/* The colour of a score, in the tints the categories use: readable on a light
+ * card and on a dark one. Not scored is grey, and says so in words. */
+const SCORE_TONE: Record<Tone, string> = {
+  green: "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  orange: "border-amber-500/45 bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  red: "border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  unscored: "border-border bg-muted text-muted-foreground",
+}
+
+/** What a colour is called, on the pill's label and on its filter. */
+export function useToneWords(): Record<Tone, string> {
+  const t = useT()
+  return {
+    green: t("Green (70 and up)"),
+    orange: t("Orange (40 to 69)"),
+    red: t("Red (under 40)"),
+    unscored: t("Not scored"),
+  }
+}
+
+/** The score: its number in a circle of its colour, why in the tooltip — "…" while it is being given. */
+export function ScoreBadge({ idea, className }: { idea: Pick<Idea, "score" | "score_reason" | "scoring">; className?: string }) {
+  const t = useT()
+  const tone = toneOf(idea.score)
+  const scored = tone !== "unscored"
+  const label = scored
+    ? t("Relevance {{score}} out of 100", { score: String(idea.score) })
+    : idea.scoring
+      ? t("Being scored…")
+      : t("Not scored")
+  const pill = (
+    <span
+      data-slot="ideas-score"
+      data-tone={idea.scoring && !scored ? "scoring" : tone}
+      aria-label={label}
+      tabIndex={0}
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums",
+        scored || idea.scoring ? "min-w-7 px-1" : "px-2 font-normal",
+        SCORE_TONE[tone],
+        className
+      )}
+    >
+      {scored ? idea.score : idea.scoring ? "…" : t("Not scored")}
+    </span>
+  )
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{pill}</TooltipTrigger>
+      <TooltipContent className="max-w-64" data-slot="ideas-score-reason">
+        <span className="font-medium">{label}</span>
+        {scored && idea.score_reason ? <span className="block">{idea.score_reason}</span> : null}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -304,6 +365,7 @@ function IdeaCard({ idea, named }: { idea: Idea; named: boolean }) {
       )}
     >
       <div className="flex min-w-0 items-start gap-2">
+        <ScoreBadge idea={idea} className="-mt-0.5" />
         <h3 className="min-w-0 flex-1 text-[0.95rem] leading-snug font-semibold">
           <TitleLink idea={idea} className="line-clamp-2" />
         </h3>
@@ -377,11 +439,14 @@ function IdeaRow({ idea, named }: { idea: Idea; named: boolean }) {
       data-author={idea.author.kind}
       className={cn(COLUMNS, "hover:bg-accent/40 border-b py-2.5 text-sm last:border-b-0")}
     >
-      <span className="flex min-w-0 flex-col gap-0.5">
+      <span className="flex min-w-0 items-center gap-2.5">
+        <ScoreBadge idea={idea} />
+        <span className="flex min-w-0 flex-col gap-0.5">
         <TitleLink idea={idea} className="block truncate font-medium" />
         <span className="flex min-w-0 items-center gap-1.5 md:hidden">
           <StatusBadge status={idea.status} />
           <CategoryBadge category={idea.category} />
+        </span>
         </span>
       </span>
       <span className="hidden min-w-0 md:block">
@@ -455,6 +520,7 @@ function IdeaWhole({ idea }: { idea: Idea }) {
     <article data-slot="ideas-page" className="flex max-w-2xl flex-col gap-5 pb-6">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
+          <ScoreBadge idea={idea} />
           <StatusBadge status={idea.status} />
           <CategoryBadge category={idea.category} />
           <KindBadge kind={idea.kind} />
@@ -467,6 +533,14 @@ function IdeaWhole({ idea }: { idea: Idea }) {
       </div>
       {idea.description ? (
         <p className="text-sm leading-relaxed whitespace-pre-line">{idea.description}</p>
+      ) : null}
+      {idea.score !== null && idea.score_reason ? (
+        <section className="flex flex-col gap-1" data-slot="ideas-page-score">
+          <h3 className="text-muted-foreground text-xs font-medium">
+            {t("Relevance {{score}} out of 100", { score: String(idea.score) })}
+          </h3>
+          <p className="text-sm">{idea.score_reason}</p>
+        </section>
       ) : null}
       {idea.where ? (
         <section className="flex flex-col gap-1">
@@ -537,7 +611,7 @@ export function NoIdea() {
           </Button>
         }
       >
-        {t("Another status, category, author or project, and they will be back.")}
+        {t("Another status, category, score, author or project, and they will be back.")}
       </EmptyState>
     )
   return (

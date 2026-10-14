@@ -12,6 +12,7 @@ import type {
   Folder,
   Found,
   Idea,
+  Unscored,
   IdeaList,
   Ideas,
   LogEntry,
@@ -286,6 +287,15 @@ export const api = {
   /** A draft ticket — or, for the idea of a project, the project and its first ticket. */
   ticketIdea: (id: number) => request<Idea>(`/api/ideas/${id}/ticket`, {}),
   reopenIdea: (id: number) => request<Idea>(`/api/ideas/${id}/reopen`, {}),
+  /** How many ideas have no score, and what scoring them may cost at most — said before it starts.
+   * `project` null is every scope's, "" the workspace's. */
+  unscoredIdeas: (project: string | null = null) =>
+    request<Unscored>(
+      `/api/ideas/unscored${project === null ? "?scope=all" : project ? `?project=${encodeURIComponent(project)}` : ""}`
+    ),
+  /** Scores them, behind the answer: the list is told as each batch is done. */
+  scoreIdeas: (project: string | null = null) =>
+    request<Unscored>("/api/ideas/score", project === null ? {} : { project }),
   /** Takes back the last decision of one scope. */
   undoIdea: (project = "") => request<{ idea: Idea; was: string }>("/api/ideas/undo", { project }),
   refresh: () => request<unknown>("/api/refresh", {}),

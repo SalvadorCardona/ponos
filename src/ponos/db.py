@@ -133,6 +133,13 @@ Migration 21 sorts an idea into one category — UX/UI, feature, security or
 technical, see ideas.py. A column with one value rather than a table of tags,
 because an idea is one of them and nothing else. Those written before it are
 left unsorted (""), not guessed at: nothing read then said which they were.
+
+Migration 24 gives an idea its score, out of 100 — see ideas.py. A column of
+its own rather than a key of `detail`, because the list is sorted and filtered
+on it; NULL is "not scored", which is what every idea from before it is, and
+stays until somebody asks for it to be scored. The line that says why is
+read, never sorted on, so it goes into `detail` with the rest of what an idea
+says.
 """
 
 from __future__ import annotations
@@ -706,6 +713,10 @@ def _ideas_have_a_category(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE ideas ADD COLUMN category TEXT NOT NULL DEFAULT ''")
 
 
+def _ideas_have_a_score(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE ideas ADD COLUMN score INTEGER")
+
+
 def _notifications(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
@@ -768,6 +779,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _ideas_have_a_category,
     _notifications,
     _ci,
+    _ideas_have_a_score,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

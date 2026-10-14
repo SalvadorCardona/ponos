@@ -282,11 +282,21 @@ if "proposing ideas" in prompt:
           "description": f"Because the {{nouns[n + 10 * (asked % 2)]}} is what people ask for.",
           "kind": "project" if n % 2 else "ticket", "where": "The web app.",
           "category": ["ux", "feature", "security", "technical"][n % 4],
+          "score": [35, 88, 52, 71, 12, 64, 95, 40, 69, None][n],
+          "score_reason": "Worth it for the people who asked.",
           "done": ["It works."], "out": ["Nothing else."]}}
         for n in range(10)
     ]
     time.sleep(1)
     say({{"type": "result", "result": json.dumps(batch), "session_id": session, "total_cost_usd": 0.01, "num_turns": 1}})
+    sys.exit(0)
+
+if "You are scoring ideas" in prompt:
+    # An idea written by hand, scored by the light model: 75 each, green.
+    import re
+    numbers = [int(found) for found in re.findall(r"^(\\d+)\\. ", prompt.split("# Ideas to score", 1)[1], re.M)]
+    scores = [{{"id": number, "score": 75, "score_reason": "Small and asked for."}} for number in numbers]
+    say({{"type": "result", "result": json.dumps(scores), "session_id": session, "total_cost_usd": 0.001, "num_turns": 1}})
     sys.exit(0)
 
 def use(name, **given):

@@ -2645,6 +2645,21 @@ a risk, to deal with first) or *Technical* (refactoring, performance, technical 
 idea it proposes; one it left out, and those proposed before categories existed, stay
 unsorted until somebody picks one in the idea's form.
 
+Each idea also has a relevance score, from 0 to 100, in a coloured circle at the top of its card
+and of its card in the pile: **green** from 70, **orange** from 40 to 69, **red** under 40 — the
+number is always written, so the colour is never all it says. Ponos gives it with the idea, by a
+grid written in the prompt: impact for whoever uses the project or for the business (40 points),
+fit with the brief and the context (25), gain against effort (20) and originality, against the
+tickets and the ideas it is shown (15) — and one line that says why, in the tooltip, on the pile's
+card and in the idea's page. A score that is missing or not a number is *Not scored*, in grey,
+never a zero. An idea written by hand (*New idea*, or `create_idea` over MCP) is scored once it is
+saved, behind the form, by `runner.classify_model` (`haiku`) with the same grid; its circle says
+*…* until then. The ideas from before scores, and those whose scoring failed, are scored from
+*Score the unscored ideas* on the *Ideas* page: it says first how many there are, on which model,
+in how many calls (twenty ideas to a call, one scope per call) and the most it may cost — each call
+is stopped at $0.10 — then scores them in the background, the list filling in as each call ends.
+The two thresholds are `GREEN` and `ORANGE`, in `ideas.py` and in `frontend/src/lib/idea-search.ts`.
+
 Each idea says who wrote it: Ponos, with its mascot, or a person — ideas can be written by hand
 — by the name and picture of the GitHub account `gh` is signed in as (git's `user.name` when
 there is no `gh`). An idea reworded by hand also says who last changed it, and when.
@@ -2657,8 +2672,10 @@ The *All ideas* tab lists every idea of the scope, thrown ones included. On a ph
 fills the screen.
 
 A project's page has an *Ideas* tab, beside *Tickets* and *Brief* (`&tab=ideas`): every idea of
-the project with a count per status, and filters by status, by category and by author (Ponos or
-us). Each card puts its title first, then where it stands, its category and what it is (a ticket,
+the project with a count per status, and filters by status, by category, by score colour (green,
+orange, red or not scored) and by author (Ponos or us), and an order: *Most relevant first* (the
+highest score first, those not scored last — where the new ideas rest) or *Newest first* (where
+every other list rests). Each card puts its score and its title first, then where it stands, its category and what it is (a ticket,
 or a new project),
 a few lines of its description, and who wrote it and when, small. It has one gesture in plain
 sight — *Turn into a ticket* (*Create the project* for the idea of one), or *Open the ticket* once
@@ -2678,11 +2695,16 @@ stays the quick way to sort them. The console reads the list through `GET
 /api/ideas/all?scope=all`.
 
 Ideas live in the local database, `ponos.db`, with what each batch cost, who wrote them, and
-when their status last changed — they survive restarts and updates. The console asks for them
+when their status last changed, and their score (migration `ideas_have_a_score`: a `score`
+column, NULL for not scored; the reason is kept in the idea's detail) — they survive restarts and
+updates. The console asks for them
 through `GET /api/ideas[?project=…]` (the pile, and the last fifty decisions), `GET
 /api/ideas/all[?project=…]` (every idea, and the count per status), `POST /api/ideas` (one written
 by hand), `POST /api/ideas/<id>` (reworded), `POST /api/ideas/generate`, `POST
-/api/ideas/<id>/keep`, `…/discard`, `…/ticket`, `…/reopen` and `POST /api/ideas/undo`.
+/api/ideas/<id>/keep`, `…/discard`, `…/ticket`, `…/reopen`, `POST /api/ideas/undo`, `GET
+/api/ideas/unscored[?scope=all|project=…]` (how many have no score, and the ceiling) and `POST
+/api/ideas/score` (score them). Every idea it reads carries `score`, `score_reason`, `tone` and
+`scoring`.
 
 ### The console's own code
 
@@ -3021,7 +3043,7 @@ back is a task, a project, an idea, an amount — never a page or a property.
 | `list_tasks` | Tâches | read | the tasks, filtered by project, by status, or `waiting_for_you` (the blocked ones) |
 | `get_task` | Détail d'une tâche | read | one task: its brief, the last turns of its discussion and the question it waits on, the pull request, the cost, the session, the last runs |
 | `runner_status` | Runner et dépenses | read | the timer, the sessions in flight, the tasks running, what was spent today, over the period and project by project |
-| `list_ideas` | Idées | read | the ideas of a project, or of the workspace, by state |
+| `list_ideas` | Idées | read | the ideas of a project, or of the workspace, by state, each with its score and why |
 | `create_task` | Créer une tâche | write | a task, *draft* or *ready*, with its description, project, type and priority — through the console's *New ticket*, so the same rules as any other |
 | `answer_question` | Répondre à une tâche bloquée | write | an answer under a blocked task's question, as the console's discussion writes it; `ready: true` also moves it back to *ready* |
 | `list_solutions` | Solutions d'une tâche en attente | read | why a blocked task stopped (its kind, its reason, what is done) or what a task in review delivered (sentence, pull request, checks, points to check), and the choices the console's Unblock and Decide tabs offer |

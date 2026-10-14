@@ -47,6 +47,17 @@ the project, rather than whatever is not something else. The model is asked to
 choose; an answer that does not is left unsorted rather than guessed, and
 somebody sorts it by hand.
 
+**A score, out of a hundred, by a grid that is written down.** Ten ideas are
+read one at a time; a number on each says which to read first. The model gives
+it with the idea, by the grid of `RUBRIC` — impact, fit with the brief, effort
+against gain, and whether it is new — and one line that says why, so the number
+can be argued with. It is bounded here, and anything that is not a number is
+"not scored" rather than a zero: a zero is a judgement, a missing score is the
+absence of one. An idea written by hand has nobody to score it as it is written:
+the light model does, with the same grid, once it is saved — and until then it
+says so. Green from `GREEN`, orange from `ORANGE`, red under it: the console
+reads the same two numbers from `idea-search.ts`, and a test holds them equal.
+
 Nothing here touches the network: building the prompt, reading the answer and
 remembering the decisions are testable alone. Running the session and writing
 the board is `web/ideas.py`'s.
@@ -70,6 +81,22 @@ ORIGINS = ("ponos", "manual")
 # "" is an idea nobody sorted yet: one from before categories, or one the
 # model left out.
 CATEGORIES = ("ux", "feature", "security", "technical")
+
+# Where a score turns green, and orange; under ORANGE it is red. The same two
+# numbers as `frontend/src/lib/idea-search.ts`.
+GREEN = 70
+ORANGE = 40
+TONES = ("green", "orange", "red")
+
+# Scoring ideas already there: this many to a call, on the light model, and no
+# call allowed to cost more than this — what the console says before it starts
+# is the number of calls times this.
+SCORE_BATCH = 20
+SCORE_CEILING_USD = 0.10
+SCORE_TIMEOUT_MINUTES = 3
+# How long an idea waiting for its score says so: past this, the session that
+# was scoring it is gone, and it is not scored.
+SCORING_FOR_MINUTES = 10
 
 # One batch. Enough to swipe through in a minute, few enough that the model
 # still has something to say by the tenth.
@@ -102,6 +129,15 @@ CONTEXT_LIMIT = 2000
 TICKETS_SHOWN = 40
 KNOWN_SHOWN = 200
 
+# The grid a score is given by, out of 100 — for an idea proposed and for one
+# written by hand alike.
+RUBRIC = """\
+Score each idea from 0 to 100 by this grid, and add up the four:
+- impact for whoever uses the project, or for the business it serves: up to 40;
+- fit with the brief and the context of the project: up to 25;
+- gain against the effort it takes: up to 20;
+- originality — no repeat of a ticket or an idea listed below: up to 15."""
+
 PROMPT = """\
 You are proposing ideas to somebody who will read them one at a time and keep \
 or throw away each one. Do not carry any of them out, do not open anything: \
@@ -127,7 +163,11 @@ one of them;
 - "where": where the work happens — the part of the project, the files, the \
 service — in one sentence;
 - "done": a list of two to four checks that say the work is finished;
-- "out": a list of one to three things this idea does not include.
+- "out": a list of one to three things this idea does not include;
+- "score": a whole number from 0 to 100, by the grid below;
+- "score_reason": one line that says why it has that score.
+
+{rubric}
 
 {language}
 {sections}"""
@@ -156,7 +196,9 @@ class Idea:
     back, so that turning it into a ticket again does not write them twice.
     `author` is the name of who wrote it by hand, "" for Ponos; `edited_by`
     the last person who changed it. `category` is one of CATEGORIES, or ""
-    for an idea nobody sorted.
+    for an idea nobody sorted. `score` is out of 100, None for one not scored;
+    its reason is `detail["score_reason"]`, and `detail["scoring"]` the moment
+    a session started scoring it, while one is.
     """
 
     id: int
@@ -181,6 +223,18 @@ class Idea:
     edited_by_avatar: str = ""
     edited_at: str | None = None
     changed_at: str | None = None
+    score: int | None = None
+
+    def scoring(self) -> bool:
+        """Whether a session is scoring it now — one that started recently enough to still be."""
+        started = str(self.detail.get("scoring") or "")
+        if not started or self.score is not None:
+            return False
+        try:
+            since = datetime.now(timezone.utc) - datetime.fromisoformat(started)
+        except ValueError:
+            return False
+        return since.total_seconds() < SCORING_FOR_MINUTES * 60
 
     def shown(self) -> dict:
         """The idea as the console reads it."""
@@ -191,6 +245,10 @@ class Idea:
             "project": self.project,
             "kind": self.kind,
             "category": self.category,
+            "score": self.score,
+            "score_reason": str(self.detail.get("score_reason") or ""),
+            "tone": tone(self.score),
+            "scoring": self.scoring(),
             "title": self.title,
             "description": self.description,
             "where": str(self.detail.get("where") or ""),
@@ -271,7 +329,75 @@ def prompt(
         title_limit=TITLE_LIMIT,
         lines=DESCRIPTION_LINES,
         kinds=_KINDS_PROJECT if project else _KINDS_GLOBAL,
+        rubric=RUBRIC,
         language=f"Write every title and description in {language}.",
+        sections="".join(f"\n{section}" for section in sections),
+    )
+
+
+SCORE_PROMPT = """\
+You are scoring ideas somebody will read one at a time, to decide which are \
+worth turning into a piece of work. Do not carry any of them out, do not open \
+anything: read what is below and score.
+
+{scope}
+
+{rubric}
+
+Answer with a JSON array and nothing else — no preamble, no fence. One object \
+per idea, in any order:
+
+- "id": the idea's number, as written under "Ideas to score";
+- "score": a whole number from 0 to 100;
+- "score_reason": one line that says why it has that score.
+
+Write every reason in {language}.
+
+# Ideas to score
+
+{ideas}
+{sections}"""
+
+
+def score_prompt(
+    candidates: list["Idea"],
+    *,
+    project: str = "",
+    brief: str = "",
+    tickets: list[tuple[str, str]] | None = None,
+    context: str = "",
+    known: list[str] | None = None,
+    language: str = "English",
+) -> str:
+    """What the light model is asked to score ideas already stored.
+
+    The same grid as a batch is scored by, given the same things to compare
+    with: the brief, the tickets and every other idea of the scope — an idea
+    is not scored as original against itself, so it is left out of them.
+    """
+    listed = "\n\n".join(
+        f"{idea.id}. {idea.title}" + (f"\n{idea.description.strip()}" if idea.description.strip() else "")
+        for idea in candidates
+    )
+    own = {idea.title for idea in candidates}
+    sections: list[str] = []
+    if context.strip():
+        sections.append(_section("Who the ideas are for", context.strip()[:CONTEXT_LIMIT]))
+    if brief.strip():
+        sections.append(_section("The project's brief", brief.strip()[:BRIEF_LIMIT]))
+    if tickets:
+        lines = [f"- {title} ({column})" if column else f"- {title}" for title, column in tickets]
+        sections.append(_section("Tickets", "\n".join(lines[:TICKETS_SHOWN])))
+    others = [title for title in known or [] if title not in own]
+    if others:
+        sections.append(
+            _section("Other ideas", "\n".join(f"- {title}" for title in others[:KNOWN_SHOWN]))
+        )
+    return SCORE_PROMPT.format(
+        scope=_PROJECT.format(name=project) if project else _GLOBAL,
+        rubric=RUBRIC,
+        language=language,
+        ideas=listed,
         sections="".join(f"\n{section}" for section in sections),
     )
 
@@ -308,14 +434,63 @@ def parse(answer: str, scope: str) -> list[dict]:
                 "description": _description(entry.get("description")),
                 "kind": kind,
                 "category": _category(entry.get("category")),
+                "score": score_of(entry.get("score")),
                 "detail": {
                     "where": _line(entry.get("where")),
                     "done": _list(entry.get("done")),
                     "out": _list(entry.get("out")),
+                    "score_reason": _line(entry.get("score_reason"))[:DESCRIPTION_LIMIT],
                 },
             }
         )
     return found
+
+
+def parse_scores(answer: str, identifiers: list[int]) -> dict[int, tuple[int, str]]:
+    """The scores the light model gave, by idea — those it was asked for, and valid, only."""
+    asked = set(identifiers)
+    scores: dict[int, tuple[int, str]] = {}
+    for entry in _array(answer or ""):
+        if not isinstance(entry, dict):
+            continue
+        try:
+            identifier = int(str(entry.get("id")).strip().rstrip("."))
+        except ValueError:
+            continue
+        score = score_of(entry.get("score"))
+        if identifier in asked and score is not None:
+            scores[identifier] = (score, _line(entry.get("score_reason"))[:DESCRIPTION_LIMIT])
+    return scores
+
+
+def score_of(value: object) -> int | None:
+    """A score from 0 to 100, bounded — or None for whatever is not a number.
+
+    `True` is not 1, and "high" is not a score: either is "not scored".
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        try:
+            value = float(value.strip().removesuffix("/100").strip())
+        except ValueError:
+            return None
+    if not isinstance(value, (int, float)) or value != value:
+        return None
+    if value in (float("inf"), float("-inf")):
+        value = 100 if value > 0 else 0
+    return max(0, min(100, round(value)))
+
+
+def tone(score: int | None) -> str:
+    """Green, orange or red by the two thresholds — "" for an idea not scored."""
+    if score is None:
+        return ""
+    if score >= GREEN:
+        return "green"
+    if score >= ORANGE:
+        return "orange"
+    return "red"
 
 
 def _category(value: object) -> str:
@@ -455,7 +630,7 @@ def _now() -> str:
 _COLUMNS = (
     "id, batch, scope, project, kind, title, description, detail, status, ticket, created,"
     " cost_usd, created_at, decided_at, origin, author, author_avatar, edited_by,"
-    " edited_by_avatar, edited_at, changed_at, category"
+    " edited_by_avatar, edited_at, changed_at, category, score"
 )
 
 
@@ -487,6 +662,7 @@ def _idea(row: tuple) -> Idea:
         edited_at=row[19],
         changed_at=row[20],
         category=row[21],
+        score=row[22],
     )
 
 
@@ -514,14 +690,16 @@ def record(
         ).lastrowid
         for idea in ideas:
             connection.execute(
-                "INSERT INTO ideas (batch, scope, project, kind, category, title, description,"
-                " detail, cost_usd, created_at, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO ideas (batch, scope, project, kind, category, score, title,"
+                " description, detail, cost_usd, created_at, changed_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     batch,
                     scope,
                     project,
                     idea["kind"],
                     _category(idea.get("category")),
+                    score_of(idea.get("score")),
                     idea["title"],
                     idea.get("description", ""),
                     json.dumps(idea.get("detail") or {}, ensure_ascii=False),
@@ -610,6 +788,63 @@ def edit(
 def _written(text: str) -> str:
     lines = [line.rstrip() for line in str(text or "").strip().splitlines()]
     return "\n".join(lines)[:WRITTEN_LIMIT].strip()
+
+
+def scoring(identifier: int) -> None:
+    """Say an idea is being scored: the console shows "…" rather than "not scored"."""
+    _detail(identifier, scoring=_now())
+
+
+def scored(identifier: int, score: int | None, reason: str = "") -> Idea:
+    """Write an idea's score and why — or, with None, that the session gave none."""
+    if score is None:
+        _detail(identifier, scoring=None)
+        return get(identifier)
+    _detail(identifier, scoring=None, score_reason=_line(reason)[:DESCRIPTION_LIMIT])
+    with db.transaction() as connection:
+        connection.execute("UPDATE ideas SET score = ? WHERE id = ?", (score_of(score), identifier))
+    return get(identifier)
+
+
+def _detail(identifier: int, **changes: object) -> None:
+    """Change a few keys of an idea's detail, and drop those set to None."""
+    with db.transaction() as connection:
+        row = connection.execute("SELECT detail FROM ideas WHERE id = ?", (identifier,)).fetchone()
+        if row is None:
+            raise LookupError(f"no idea {identifier}")
+        try:
+            detail = json.loads(row[0] or "{}")
+        except ValueError:
+            detail = {}
+        if not isinstance(detail, dict):
+            detail = {}
+        for key, value in changes.items():
+            if value is None:
+                detail.pop(key, None)
+            else:
+                detail[key] = value
+        connection.execute(
+            "UPDATE ideas SET detail = ? WHERE id = ?",
+            (json.dumps(detail, ensure_ascii=False), identifier),
+        )
+
+
+# What is worth scoring: a decision on an idea thrown away or turned into a
+# ticket is already taken, and a score would only be paid for.
+UNSCORED_STATUSES = ("proposed", "kept")
+
+
+def unscored(project: str | None = None) -> list[Idea]:
+    """The ideas still waiting or kept that have no score — of one scope, or of every one."""
+    marks = ", ".join("?" for _ in UNSCORED_STATUSES)
+    query = f"SELECT {_COLUMNS} FROM ideas WHERE score IS NULL AND status IN ({marks})"
+    values: tuple = UNSCORED_STATUSES
+    if project is not None:
+        query += " AND project = ?"
+        values = (*values, bare(project))
+    with db.transaction(immediate=False) as connection:
+        rows = connection.execute(query + " ORDER BY id", values).fetchall()
+    return [_idea(row) for row in rows]
 
 
 def listed(project: str, statuses: tuple[str, ...] = ("proposed",)) -> list[Idea]:

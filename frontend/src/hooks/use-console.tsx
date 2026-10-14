@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { api, why } from "@/lib/api"
 import { applyChanges, currentBoard, moveTicket, publishBoard, titleOf } from "@/lib/board-store"
 import { t } from "@/lib/i18n"
+import { ideasScored } from "@/lib/ideas-store"
 import { publishBell } from "@/lib/notifications-store"
 import type {
   Attached,
@@ -379,6 +380,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
     // The bell: the runner wrote it, the server read it, this page only draws it.
     notifications: (event: Bell) => publishBell(event),
+
+    // Scores the light model wrote behind the page: the lists of ideas read again.
+    ideas: (event: { scored?: number; scoring?: number }) => {
+      if (event?.scored || event?.scoring) ideasScored()
+    },
 
     step: (event: StepEvent) => {
       const line: Step = { label: event.label, detail: event.detail, said: event.said }

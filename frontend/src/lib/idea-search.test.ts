@@ -5,7 +5,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { counts, filtering, keeps, scopeOf, scopes } from "./idea-search.ts"
+import { counts, filtering, keeps, orderOf, ordered, scopeOf, scopes, toneOf } from "./idea-search.ts"
 
 const WEBSITE = "0000000000000000000000000000cafe"
 const idea = (title: string, status: string, author: string, project = "", kind = "ticket", category = "") => ({
@@ -73,4 +73,43 @@ test("the counts follow the other filters, not the status", () => {
 
 test("the projects offered are those an idea is for, once each", () => {
   assert.deepEqual(scopes(IDEAS), [WEBSITE])
+})
+
+test("a score is red under 40, orange from 40 to 69, green from 70", () => {
+  assert.deepEqual([0, 39, 40, 69, 70, 100].map(toneOf), ["red", "red", "orange", "orange", "green", "green"])
+  assert.equal(toneOf(null), "unscored")
+  assert.equal(toneOf(undefined), "unscored")
+})
+
+const scored = [
+  { ...idea("newest", "proposed", "ponos"), score: 45 },
+  { ...idea("unscored", "proposed", "human"), score: null },
+  { ...idea("green", "proposed", "ponos"), score: 88 },
+  { ...idea("red", "kept", "ponos"), score: 12 },
+  { ...idea("green too", "proposed", "ponos"), score: 88 },
+]
+
+test("the colour keeps the ideas of that colour, and not scored is one of them", () => {
+  const kept = (score: string) => scored.filter((one) => keeps(one, { score })).map((one) => one.title)
+  assert.deepEqual(kept("green"), ["green", "green too"])
+  assert.deepEqual(kept("orange"), ["newest"])
+  assert.deepEqual(kept("red"), ["red"])
+  assert.deepEqual(kept("unscored"), ["unscored"])
+  assert.equal(filtering({ score: "green" }), true)
+})
+
+test("by relevance the green come first, the unscored last, and equals stay newest first", () => {
+  assert.deepEqual(
+    ordered(scored, { order: "relevance" }).map((one) => one.title),
+    ["green", "green too", "newest", "red", "unscored"]
+  )
+  assert.deepEqual(ordered(scored, { order: "newest" }).map((one) => one.title), scored.map((one) => one.title))
+})
+
+test("the new ideas rest on relevance, every other list on the newest first", () => {
+  assert.equal(orderOf({ status: "proposed" }), "relevance")
+  assert.equal(orderOf({}), "newest")
+  assert.equal(orderOf({ status: "kept" }), "newest")
+  assert.equal(orderOf({ status: "proposed", order: "newest" }), "newest")
+  assert.equal(orderOf({ order: "relevance" }), "relevance")
 })

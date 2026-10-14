@@ -9,7 +9,33 @@
  * The counts beside the statuses are counted on what the other filters
  * keep, and not on the status itself: "Kept 3" says how many a click on it
  * would show.
+ *
+ * The score is one more filter, by its colour, and one order: the most relevant
+ * first, the ideas not scored after every scored one. That order is where the
+ * new ideas rest, since they are read to decide which to take; every other list
+ * rests on the newest first, the order the server gives.
  */
+
+/* Where a score turns green, and orange; under ORANGE it is red. The same two
+ * numbers as `ideas.py` on the server — a test holds them equal. */
+export const GREEN = 70
+export const ORANGE = 40
+
+/** A score's colour, and "unscored" for an idea with none. */
+export const TONES = ["green", "orange", "red", "unscored"] as const
+export type Tone = (typeof TONES)[number]
+
+/** Green, orange or red by the two thresholds — "unscored" for an idea with no score. */
+export function toneOf(score: number | null | undefined): Tone {
+  if (score === null || score === undefined || Number.isNaN(score)) return "unscored"
+  if (score >= GREEN) return "green"
+  if (score >= ORANGE) return "orange"
+  return "red"
+}
+
+/** How the list is ordered: the most relevant first, or the newest first. */
+export const ORDERS = ["relevance", "newest"] as const
+export type Order = (typeof ORDERS)[number]
 
 export const STATUSES = ["proposed", "kept", "discarded", "ticket"] as const
 export type Status = (typeof STATUSES)[number]
@@ -24,12 +50,15 @@ export const AUTHORS = ["ponos", "human"] as const
 /** The project filter's value for the ideas of the workspace. */
 export const WORKSPACE = "workspace"
 
-/** What the list is asked for: one status, one category, one author, one scope ("" for all of each). */
+/** What the list is asked for: one status, one category, one author, one scope, one colour ("" for all of
+ * each) — and an order, "" for the one the status rests on. */
 export interface IdeaFilter {
   status?: unknown
   category?: unknown
   author?: unknown
   project?: unknown
+  score?: unknown
+  order?: unknown
 }
 
 /** One idea, as the filters read it. */
@@ -39,6 +68,8 @@ export interface Filterable {
   category: string
   project: string
   author: { kind: string }
+  /** Out of 100; none, or null, for an idea not scored. */
+  score?: number | null
 }
 
 const said = (value: unknown) => String(value ?? "").trim()
@@ -49,13 +80,17 @@ export const scopeOf = (idea: Filterable) => (idea.kind === "project" ? "" : bar
 
 /** Whether a filter other than the status is on: the status alone is not a search that found nothing. */
 export function filtering(filter: IdeaFilter = {}): boolean {
-  return Boolean(said(filter.status) || said(filter.category) || said(filter.author) || said(filter.project))
+  return Boolean(
+    said(filter.status) || said(filter.category) || said(filter.author) || said(filter.project) || said(filter.score)
+  )
 }
 
-/** Whether an idea is kept by the category, the author and the scope, whatever its status. */
+/** Whether an idea is kept by the category, the author, the colour and the scope, whatever its status. */
 export function around(idea: Filterable, filter: IdeaFilter = {}): boolean {
   const category = said(filter.category)
   if (category && idea.category !== category) return false
+  const score = said(filter.score)
+  if (score && toneOf(idea.score) !== score) return false
   const author = said(filter.author)
   if (author && idea.author.kind !== author) return false
   const project = said(filter.project)
@@ -80,4 +115,22 @@ export function counts(ideas: Filterable[], filter: IdeaFilter = {}): Record<Sta
 /** The projects an idea is for, once each — the options of the project filter. */
 export function scopes(ideas: Filterable[]): string[] {
   return [...new Set(ideas.map(scopeOf).filter(Boolean))]
+}
+
+/** The order a list is in: the one chosen, or the most relevant first for the new ideas and the newest otherwise. */
+export function orderOf(filter: IdeaFilter = {}): Order {
+  const chosen = said(filter.order)
+  if ((ORDERS as readonly string[]).includes(chosen)) return chosen as Order
+  return said(filter.status) === "proposed" ? "relevance" : "newest"
+}
+
+/** The ideas in the list's order. The server's is the newest first; by relevance, the highest score first,
+ * those not scored last, and the newest first among equals. */
+export function ordered<T extends Filterable>(ideas: T[], filter: IdeaFilter = {}): T[] {
+  if (orderOf(filter) === "newest") return ideas
+  const rank = (idea: T) => (typeof idea.score === "number" ? idea.score : -1)
+  return ideas
+    .map((idea, position) => ({ idea, position }))
+    .sort((a, b) => rank(b.idea) - rank(a.idea) || a.position - b.position)
+    .map((one) => one.idea)
 }

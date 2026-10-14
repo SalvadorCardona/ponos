@@ -17,6 +17,13 @@ An idea written or reworded by hand is signed by whoever `gh` is signed in as
 from, which is the closest thing to a person a console behind one password
 knows — or by git's `user.name` where there is no `gh`. Asked once per
 process: it does not change while the console runs.
+
+An idea written by hand is scored behind the answer that saved it: the light
+model takes seconds, and the form has closed long before. The ideas already
+there, from before scores, are scored on request, a scope at a time and twenty
+to a call, each call capped at what `ideas.SCORE_CEILING_USD` allows — so the
+sum said before it starts is a ceiling, not a guess. One such pass at a time:
+the second click would pay for scores the first is already writing.
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ import shutil
 import subprocess
 import threading
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -47,6 +55,14 @@ WHO_TIMEOUT = 5
 # Language names as the prompt says them — see `voice.understood`.
 LANGUAGES = {"en": "English", "fr": "French"}
 
+# What `_busy` holds while ideas already there are being scored: no scope has
+# this id, since a page id is hexadecimal.
+SCORING = "scoring"
+
+
+def _thread(work: Callable[[], None]) -> None:
+    threading.Thread(target=work, name="ponos-idea-scores", daemon=True).start()
+
 
 class Ideas:
     def __init__(self, api: "Api") -> None:
@@ -54,6 +70,9 @@ class Ideas:
         self._lock = threading.Lock()
         self._busy: set[str] = set()
         self._person: tuple[str, str] | None = None
+        # How work that should not hold up an answer is run: a thread of its
+        # own here, and in place in a test, which wants to read what it wrote.
+        self.later: Callable[[Callable[[], None]], None] = _thread
 
     # -- reading --------------------------------------------------------------
 
@@ -114,10 +133,11 @@ class Ideas:
             with self._lock:
                 self._busy.discard(project)
 
-    def _generate(self, project: str) -> dict:
+    def _about(self, project: str, *, readme: bool = True) -> tuple[str, str, str, list[str], str]:
+        """What a scope is: its name, its brief and its README for a project;
+        the names of every project and the workspace's context for the workspace."""
         api = self._api
-        configuration = api.config
-        name, brief, readme = "", "", ""
+        name, brief, text = "", "", ""
         names: list[str] = []
         context = ""
         if project:
@@ -130,17 +150,24 @@ class Ideas:
                 raise LookupError(f"no project with id {project}")
             name = row["name"]
             brief = api.runner.resolver.brief(api.runner.client, project)
-            readme = _readme(
-                api.runner.resolver.locate(
-                    name, row.get("configured") or row.get("path") or "", row.get("repository") or ""
+            if readme:
+                text = _readme(
+                    api.runner.resolver.locate(
+                        name, row.get("configured") or row.get("path") or "", row.get("repository") or ""
+                    )
                 )
-            )
         else:
             names = sorted((row["name"] for row in api.projects().values()), key=str.lower)
             try:
                 context = api.runner.workspace.context
             except store.StoreError:
                 context = ""
+        return name, brief, text, names, context
+
+    def _generate(self, project: str) -> dict:
+        api = self._api
+        configuration = api.config
+        name, brief, readme, names, context = self._about(project)
         tickets = self._tickets(name if project else "")
         known = ideas.known(project)
         model = configuration.runner.allowed(configuration.runner.ideas_model)
@@ -218,6 +245,132 @@ class Ideas:
             )
             for ticket in chosen[: ideas.TICKETS_SHOWN]
         ]
+
+    # -- scoring --------------------------------------------------------------
+
+    def unscored(self, project: str | None = None) -> dict:
+        """How many ideas have no score yet, and what scoring them may cost at most.
+
+        With None, those of every scope — the Ideas page's.
+        """
+        waiting = ideas.unscored(project)
+        calls = sum(
+            -(-len(group) // ideas.SCORE_BATCH) for group in _by_scope(waiting).values()
+        )
+        configuration = self._api.config
+        with self._lock:
+            busy = SCORING in self._busy
+        return {
+            "count": len(waiting),
+            "calls": calls,
+            "ceiling_usd": round(calls * ideas.SCORE_CEILING_USD, 2),
+            "model": configuration.runner.allowed(configuration.runner.classify_model),
+            "running": busy,
+        }
+
+    def score_unscored(self, project: str | None = None) -> dict:
+        """Score every idea that has none, behind the answer: say what was started.
+
+        Raises RuntimeError when a pass is already scoring — the server's 409.
+        """
+        with self._lock:
+            if SCORING in self._busy:
+                raise RuntimeError("ideas are already being scored")
+            self._busy.add(SCORING)
+
+        def done() -> None:
+            with self._lock:
+                self._busy.discard(SCORING)
+
+        try:
+            waiting = ideas.unscored(project)
+            for idea in waiting:
+                ideas.scoring(idea.id)
+            if waiting:
+                self._api.hub.publish("ideas", project=project or "", scoring=len(waiting))
+            started = self.unscored(project)
+        except Exception:
+            done()
+            raise
+
+        def work() -> None:
+            try:
+                self.score([idea.id for idea in waiting])
+            finally:
+                done()
+
+        self.later(work)
+        return started
+
+    def score(self, identifiers: list[int]) -> dict[int, int]:
+        """Score these ideas on the light model, a scope and twenty at a time.
+
+        What a call left without a score is no longer said to be scored — it
+        is not scored, and can be asked for again. Never raises: nobody is
+        waiting on it but the list, which reads the outcome when it is told to.
+        """
+        found: dict[int, int] = {}
+        chosen: list[ideas.Idea] = []
+        for identifier in identifiers:
+            try:
+                chosen.append(ideas.get(identifier))
+            except LookupError:
+                continue
+        for project, group in _by_scope(chosen).items():
+            for start in range(0, len(group), ideas.SCORE_BATCH):
+                chunk = group[start : start + ideas.SCORE_BATCH]
+                try:
+                    scores = self._score(project, chunk)
+                except Exception:  # noqa: BLE001 — a score is never worth a crash
+                    scores = {}
+                for idea in chunk:
+                    score, reason = scores.get(idea.id, (None, ""))
+                    try:
+                        ideas.scored(idea.id, score, reason)
+                    except LookupError:
+                        continue
+                    if score is not None:
+                        found[idea.id] = score
+                self._api.hub.publish("ideas", project=project, scored=len(chunk))
+        return found
+
+    def _score(self, project: str, chunk: list[ideas.Idea]) -> dict[int, tuple[int, str]]:
+        api = self._api
+        configuration = api.config
+        name, brief, _, _, context = self._about(project, readme=False)
+        asked = ideas.score_prompt(
+            chunk,
+            project=name,
+            brief=brief,
+            tickets=self._tickets(name if project else ""),
+            context=context,
+            known=ideas.known(project),
+            language=LANGUAGES.get(api.runner.voice.language, "English"),
+        )
+        short = (project or "global")[:8]
+        workdir = state_dir() / "scratch" / f"scores-{short}-{uuid.uuid4().hex[:6]}"
+        try:
+            workdir.mkdir(parents=True, exist_ok=True)
+            outcome = session.run(
+                asked,
+                cwd=workdir,
+                log=state.log_file(f"scores-{short}"),
+                model=configuration.runner.allowed(configuration.runner.classify_model),
+                permission_mode=configuration.runner.reply_permission_mode,
+                timeout_minutes=ideas.SCORE_TIMEOUT_MINUTES,
+                max_budget_usd=ideas.SCORE_CEILING_USD,
+                environment=provider.environment(configuration),
+            )
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+        if not outcome.ok:
+            return {}
+        return ideas.parse_scores(outcome.answer, [idea.id for idea in chunk])
+
+    def _score_later(self, idea: ideas.Idea) -> None:
+        """Score one idea written by hand, behind the answer that saved it."""
+        ideas.scoring(idea.id)
+        self.later(lambda: self.score([idea.id]))
 
     # -- deciding -------------------------------------------------------------
 
@@ -303,8 +456,9 @@ class Ideas:
             author=name,
             avatar=avatar,
         )
+        self._score_later(idea)
         self._api.hub.publish("ideas", project=project, written=idea.id)
-        return idea.shown()
+        return ideas.get(idea.id).shown()
 
     def edit(self, identifier: int, payload: dict) -> dict:
         """Reword an idea, signed by whoever did."""
@@ -341,8 +495,9 @@ class Ideas:
         idea = ideas.written(
             project, title, description, kind=kind, category=category, author=name, avatar=avatar
         )
+        self._score_later(idea)
         self._api.hub.publish("ideas", project=idea.project, written=idea.id)
-        return idea.shown()
+        return ideas.get(idea.id).shown()
 
     def undo(self, project: str | None = None) -> dict:
         """Take the last decision back — in one scope, or the last of all when None.
@@ -358,6 +513,14 @@ class Ideas:
         back = ideas.decide(last.id, "proposed")
         self._api.hub.publish("ideas", project=last.project, undone=last.id)
         return {"idea": back.shown(), "was": last.status}
+
+
+def _by_scope(found: list[ideas.Idea]) -> dict[str, list[ideas.Idea]]:
+    """Ideas grouped by the scope they are for, each one scored against its own."""
+    groups: dict[str, list[ideas.Idea]] = {}
+    for idea in found:
+        groups.setdefault(idea.project, []).append(idea)
+    return groups
 
 
 def _readme(location: Path | None) -> str:

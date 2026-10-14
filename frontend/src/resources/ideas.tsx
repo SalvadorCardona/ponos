@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Lightbulb } from "lucide-react"
+import { Gauge, Lightbulb } from "lucide-react"
 import {
   ActionList,
   SelectInputController,
@@ -25,17 +25,34 @@ import {
   NoIdea,
   useCategoryWords,
   useStatusWords,
+  useToneWords,
 } from "@/components/console/idea-cards"
+import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { IdeasButton } from "@/components/console/ideas-deck"
 import { Pagination } from "@/components/console/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api, why } from "@/lib/api"
-import { t } from "@/lib/i18n"
-import { AUTHORS, CATEGORIES, STATUSES, WORKSPACE, bare, counts, keeps, scopes } from "@/lib/idea-search"
+import { counted, t } from "@/lib/i18n"
+import {
+  AUTHORS,
+  CATEGORIES,
+  ORDERS,
+  STATUSES,
+  TONES,
+  WORKSPACE,
+  bare,
+  counts,
+  keeps,
+  orderOf,
+  ordered,
+  scopes,
+} from "@/lib/idea-search"
+import { onIdeasScored } from "@/lib/ideas-store"
+import { money, number } from "@/lib/numbers"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
-import type { Idea } from "@/lib/types"
+import type { Idea, Unscored } from "@/lib/types"
 import { isAPage, projectsOnce, useProjects } from "@/resources/projects"
 
 /* The ideas, declared once for react-resource-view.
@@ -48,7 +65,8 @@ import { isAPage, projectsOnce, useProjects } from "@/resources/projects"
  * filter bar, which writes them in the address: a list filtered on Website's
  * kept ideas is a link that opens on Website's kept ideas. The category is one
  * more of them, in the same shape: the reason ideas are sorted is to be able to
- * look at the security ones alone.
+ * look at the security ones alone. And the score, by its colour, with the order
+ * beside it: the new ideas rest on the most relevant first (see `orderOf`).
  *
  * Two layouts, as the projects have. **Cards** to go through them, each with
  * the one gesture it is waiting for — turning it into a ticket, or opening the
@@ -309,26 +327,82 @@ const CategoryFilter: InputControllerComponentInterface = ({ formInput, onChange
   )
 }
 
-/* The filters, in the address as `status`, `category`, `project` and `author`; ""
+/* The colour of the score, in the same shape: green, orange, red, or not scored. */
+const ScoreFilter: InputControllerComponentInterface = ({ formInput, onChange }) => {
+  const words = useToneWords()
+  return (
+    <Choice>
+      <Select
+        value={String(formInput.value ?? "") || ANY}
+        onValueChange={(value) => onChange({ ...formInput, value: value === ANY ? "" : value })}
+      >
+        <SelectTrigger size="sm" className="h-8 w-auto text-xs" data-slot="ideas-score-filter" aria-label={t("Score")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{t("All scores")}</SelectItem>
+          {TONES.map((tone) => (
+            <SelectItem key={tone} value={tone}>
+              {words[tone]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Choice>
+  )
+}
+
+/* The order: "" is the one the status rests on, and the select shows which
+ * that is; choosing it again puts "" back, so the address says only a choice. */
+const OrderFilter: InputControllerComponentInterface = ({ formInput, onChange }) => {
+  const { filter } = useCurrentViewResourceContext()
+  const resting = orderOf({ status: filter?.status })
+  const shown = orderOf({ status: filter?.status, order: formInput.value })
+  return (
+    <Choice>
+      <Select
+        value={shown}
+        onValueChange={(value) => onChange({ ...formInput, value: value === resting ? "" : value })}
+      >
+        <SelectTrigger size="sm" className="h-8 w-auto text-xs" data-slot="ideas-order" aria-label={t("Order")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ORDERS.map((order) => (
+            <SelectItem key={order} value={order}>
+              {order === "relevance" ? t("Most relevant first") : t("Newest first")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Choice>
+  )
+}
+
+/* The filters, in the address as `status`, `category`, `score`, `project`, `author` and `order`; ""
  * is "all" for each, which is where the list rests. The labels are read from
  * the dictionary as the bar is drawn. */
 const statusFilter = { label: "Status", controller: StatusFilter }
 const categoryFilter = { label: "Category", controller: CategoryFilter }
 const authorFilter = { label: "Written by", controller: AuthorFilter }
+const scoreFilter = { label: "Score", controller: ScoreFilter }
+const orderFilter = { label: "Order", controller: OrderFilter }
 
 const formFilter: FormInterface = {
   inputs: {
     status: statusFilter,
     category: categoryFilter,
+    score: scoreFilter,
     project: { label: "Project", controller: ProjectFilter },
     author: authorFilter,
+    order: orderFilter,
   },
 }
 
 /* Under a project, or in the swipe: the scope is the filter whoever draws the
  * list injects, and the package keeps an injected filter through a reset. */
 const scopedFormFilter: FormInterface = {
-  inputs: { status: statusFilter, category: categoryFilter, author: authorFilter },
+  inputs: { status: statusFilter, category: categoryFilter, score: scoreFilter, author: authorFilter, order: orderFilter },
 }
 
 /* -- the forms ------------------------------------------------------------- */
@@ -420,6 +494,58 @@ const editForm: FormInterface = {
 
 /* -- what sits around the list -------------------------------------------- */
 
+/* Scoring the ideas that have none — those from before scores, those whose
+ * session failed: how many, and the most it may cost, said before it starts.
+ * Nothing at all while every idea has its score. */
+function ScoreUnscored() {
+  const { ideas: known } = useIdeas()
+  const [told, setTold] = React.useState<Unscored | null>(null)
+  const [open, setOpen] = React.useState(false)
+  React.useEffect(() => {
+    let alive = true
+    api
+      .unscoredIdeas(null)
+      .then((fresh) => alive && setTold(fresh))
+      .catch(() => alive && setTold(null))
+    return () => {
+      alive = false
+    }
+  }, [known])
+  if (!told || (!told.count && !told.running)) return null
+  const start = async () => {
+    try {
+      setTold(await api.scoreIdeas(null))
+      toast.success(t("Scoring the ideas…"))
+    } catch (error) {
+      toast.error(t("The ideas could not be scored"), { description: why(error) })
+      return false
+    }
+  }
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <Button size="sm" variant="outline" data-slot="ideas-score-all" disabled={told.running}>
+          <Gauge />
+          {told.running
+            ? t("Scoring the ideas…")
+            : t("Score the unscored ideas ({{count}})", { count: number(told.count) })}
+        </Button>
+      }
+      title={t("Score the unscored ideas?")}
+      description={t("{{ideas}} to score with {{model}} in {{calls}}: {{ceiling}} at most, each call stopped at its share.", {
+        ideas: counted(told.count, "{{count}} idea", "{{count}} ideas"),
+        model: told.model || t("the light model"),
+        calls: counted(told.calls, "{{count}} call", "{{count}} calls"),
+        ceiling: money(told.ceiling_usd),
+      })}
+      confirm={t("Score them")}
+      onConfirm={start}
+    />
+  )
+}
+
 /** The swipe, for the project the filter is on — or the workspace's — and why nothing was read, where nothing was. */
 function IdeasTop() {
   const { filter, fetchData } = useCurrentViewResourceContext()
@@ -431,8 +557,9 @@ function IdeasTop() {
   const name = projects?.projects.find((one) => bare(one.id) === project)?.name
   return (
     <div className="mb-2 flex flex-col gap-2">
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <IdeasButton project={project} name={name} onClose={() => void fetchData?.()} />
+        <ScoreUnscored />
       </div>
       {problem ? (
         <Alert variant="destructive">
@@ -464,7 +591,10 @@ const options: ResourceOptionInterface<IdeaItem, IdeaItem, IdeaWrite> = {
     return {
       data: createResourceCollection({
         id: "/api/ideas",
-        items: every.filter((idea) => keeps(idea, filter)).map(item),
+        items: ordered(
+          every.filter((idea) => keeps(idea, filter)),
+          filter
+        ).map(item),
       }),
     } as never
   },
@@ -569,6 +699,7 @@ export const scopedIdeas = createViewResource<IdeaItem, IdeaItem, IdeaWrite>(SCO
 })
 
 for (const resource of [ideas, scopedIdeas]) resource.onChange.subscribe(readEveryList)
+onIdeasScored(readEveryList)
 
 /** Where the ideas are listed, in the layout they were last worked in. */
 export const ideasHref = () =>

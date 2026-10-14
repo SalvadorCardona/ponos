@@ -22,7 +22,7 @@ import { projectHref } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
 import { IdeaOrigin } from "./idea-origin"
-import { Byline, CategoryBadge } from "./idea-cards"
+import { Byline, CategoryBadge, ScoreBadge } from "./idea-cards"
 import { Robot } from "./robot"
 import { ScopedIdeas } from "./scoped-ideas"
 
@@ -541,6 +541,7 @@ function Card({
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
+        <ScoreBadge idea={idea} />
         <Badge variant={idea.kind === "project" ? "default" : "secondary"} data-slot="ideas-kind">
           {idea.kind === "project" ? t("New project") : t("Ticket")}
         </Badge>
@@ -551,6 +552,11 @@ function Card({
       <p className="text-muted-foreground line-clamp-6 text-sm leading-relaxed">
         {idea.description}
       </p>
+      {idea.score !== null && idea.score_reason ? (
+        <p className="text-muted-foreground line-clamp-2 text-xs italic" data-slot="ideas-card-score-reason">
+          {idea.score_reason}
+        </p>
+      ) : null}
       <div className="mt-auto">
         <Byline author={idea.author} when={idea.created_at} />
       </div>
