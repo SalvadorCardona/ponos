@@ -76,6 +76,20 @@ WAITING = {
     "00000000000000000000000000b10c05": ("Renew the certificate", "Blocked", "blocked"),
     "00000000000000000000000000de1c01": ("Add the share button", "In review", "review"),
 }
+# Pull requests in review, and what the runner last read of their checks: one
+# red, one running, one green, and one that has no check at all — drawn with
+# nothing. The first is the review ticket above.
+CHECKED = {
+    "00000000000000000000000000de1c01": ("failed", ["pass", "fail", "pending"]),
+    "00000000000000000000000000c1c102": ("pending", ["pass", "pending"]),
+    "00000000000000000000000000c1c103": ("passed", ["pass", "skipping"]),
+    "00000000000000000000000000c1c104": ("", []),
+}
+NAMES = {
+    "00000000000000000000000000c1c102": "Speed up the search",
+    "00000000000000000000000000c1c103": "Fix the footer",
+    "00000000000000000000000000c1c104": "Rename the options",
+}
 STUCK = (
     "🙋 Stuck — branch `ticket/tailscale` ready\n"
     "Missing access: I have no SSH access to the server\n"
@@ -97,6 +111,34 @@ WRITING = ("0000000000000000000000000000f00d", "Journal", "📝")
 # page — each with a ticket ready and one done, which a deletion must tell apart.
 # Written only for the console given `doomed`: the other tests count projects.
 DOOMED = {"0000000000000000000000000000d001": "Old shop", "0000000000000000000000000000d002": "Old blog"}
+
+
+def pull_request(id: str) -> str:
+    return f"https://github.com/example/site/pull/{int(id[-3:], 16)}"
+
+
+def checks_of() -> None:
+    """What the runner last read of each pull request's checks, in the local state."""
+    import time
+
+    from ponos import db, state
+
+    for id, (verdict, buckets) in CHECKED.items():
+        state.keep_ci(
+            id,
+            {
+                "url": pull_request(id),
+                "head": "abc123",
+                "state": verdict,
+                "checks": [
+                    {"name": f"job-{number}", "bucket": bucket, "link": f"https://github.com/example/site/actions/runs/{number}"}
+                    for number, bucket in enumerate(buckets)
+                ],
+                "since": time.time(),
+                "asked": time.time(),
+            },
+        )
+    db.close()
 
 
 def board(root: Path, doomed: bool = False) -> None:
@@ -123,8 +165,15 @@ def board(root: Path, doomed: bool = False) -> None:
     (comments / f"{ASKING}.md").write_text(
         files.render(question, "🙋 Question\nWhich header, the dashboard's or the site's?"), encoding="utf-8"
     )
+    for id, title in NAMES.items():
+        page = {"id": id, "title": title, "Status": "In review", "Pull Request": pull_request(id)}
+        (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
+            files.render(page, "A short brief."), encoding="utf-8"
+        )
     for id, (title, status, column) in WAITING.items():
         page = {"id": id, "title": title, "Status": status}
+        if id in CHECKED:
+            page["Pull Request"] = pull_request(id)
         (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
             files.render(page, "A short brief."), encoding="utf-8"
         )
@@ -337,6 +386,7 @@ def main() -> None:
     )
     journal_of(ASKING)
     bell_of()
+    checks_of()
     os.execvp(sys.executable, [sys.executable, "-m", "ponos", "serve", "--port", port])
 
 

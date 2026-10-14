@@ -57,6 +57,21 @@ export interface Ticket {
   held?: { reason: string; detail: string }
   /** On a blocked or failed card only: why it stopped — see `blocks.py`. */
   block?: Block | null
+  /** In review with a pull request that has checks only: where they stand — see `ci.py`. */
+  ci?: Ci | null
+}
+
+export type CiState = "pending" | "passed" | "failed"
+
+/** A pull request's checks as the runner last read them: stored, never fetched with the board. */
+export interface Ci {
+  state: CiState
+  /** The board's word for it (« en cours », « réussi », « erreur »). */
+  label: string
+  /** `gh pr checks` buckets: pass, fail, pending, skipping, cancel. */
+  checks: { name: string; bucket: string; link: string }[]
+  /** GitHub's page listing the checks. */
+  link: string
 }
 
 /** The families a cause belongs to, each drawn with its icon. */

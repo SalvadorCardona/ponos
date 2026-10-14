@@ -1,7 +1,10 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  CircleCheck,
+  CircleX,
   ExternalLink,
+  LoaderCircle,
   GitMerge,
   KeyRound,
   type LucideIcon,
@@ -25,7 +28,7 @@ import { titleOf, useBoard } from "@/lib/board-store"
 import { actionsOf } from "@/lib/decision"
 import { currentLanguage, t, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
-import type { Block, BlockFamily, Ticket } from "@/lib/types"
+import type { Block, BlockFamily, Ci, CiState, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /* What a ticket wears wherever it is drawn — on its card, at the top of its
@@ -208,6 +211,82 @@ export function TicketBlock({ block }: { block?: Block | null }) {
         </Chip>
       </div>
       <p className="text-muted-foreground text-xs leading-relaxed break-words">{blockSaid(block.help)}</p>
+    </div>
+  )
+}
+
+const CI_STATE: Record<CiState, { icon: LucideIcon; color: string; spin?: boolean }> = {
+  pending: { icon: LoaderCircle, color: "text-tr-amber", spin: true },
+  passed: { icon: CircleCheck, color: "text-tr-green" },
+  failed: { icon: CircleX, color: "text-tr-red" },
+}
+
+const CI_WORDS = (): Record<CiState, string> => ({
+  pending: t("CI running"),
+  passed: t("CI passed"),
+  failed: t("CI failed"),
+})
+
+const BUCKET: Record<string, CiState> = {
+  pass: "passed",
+  skipping: "passed",
+  fail: "failed",
+  cancel: "failed",
+}
+
+/* Where a review's checks stand, as an icon and a colour: on the card it is
+ * the whole of it, and the detail adds each check and the link to GitHub's
+ * page. Nothing for a pull request without checks — `ci` is null then. */
+export function TicketCi({ ci, detailed = false }: { ci?: Ci | null; detailed?: boolean }) {
+  useT()
+  if (!ci) return null
+  const { icon: Icon, color, spin } = CI_STATE[ci.state]
+  const badge = (
+    <Chip className="text-foreground font-medium">
+      <Icon className={cn("size-3", color, spin && "animate-spin")} />
+      <span>{CI_WORDS()[ci.state]}</span>
+    </Chip>
+  )
+  if (!detailed) {
+    return (
+      <div className="flex" data-slot="ticket-ci" data-state={ci.state}>
+        {badge}
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-1.5" data-slot="ticket-ci" data-state={ci.state}>
+      <div className="flex flex-wrap items-center gap-2">
+        {badge}
+        <a
+          href={ci.link}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground inline-flex items-center gap-1 text-xs hover:underline"
+        >
+          {t("Checks on GitHub")}
+          <ExternalLink className="size-3" />
+        </a>
+      </div>
+      <ul className="flex flex-col gap-0.5 text-xs">
+        {ci.checks.map((check) => {
+          const state = BUCKET[check.bucket] ?? "pending"
+          const { icon: CheckIcon, color, spin } = CI_STATE[state]
+          const name = <span className="min-w-0 truncate">{check.name}</span>
+          return (
+            <li key={`${check.name}-${check.link}`} className="flex items-center gap-1.5" data-state={state}>
+              <CheckIcon className={cn("size-3 shrink-0", color, spin && "animate-spin")} />
+              {check.link ? (
+                <a href={check.link} target="_blank" rel="noreferrer noopener" className="min-w-0 hover:underline">
+                  {name}
+                </a>
+              ) : (
+                name
+              )}
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

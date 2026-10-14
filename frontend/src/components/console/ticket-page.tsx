@@ -37,6 +37,7 @@ import {
   columnTitle,
   TicketActions,
   TicketBlock,
+  TicketCi,
   TicketLinks,
   ago,
   capital,
@@ -124,6 +125,13 @@ export function TicketPage() {
           {ticket.block ? (
             <div className="mb-3">
               <TicketBlock block={ticket.block} />
+            </div>
+          ) : null}
+
+          {/* Where the pull request's checks stand, and each one. */}
+          {ticket.ci ? (
+            <div className="mb-3">
+              <TicketCi ci={ticket.ci} detailed />
             </div>
           ) : null}
 

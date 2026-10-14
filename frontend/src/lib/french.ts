@@ -457,6 +457,10 @@ export const FRENCH: Record<string, string> = {
   Discussion: "Discussion",
   "a question is waiting for you": "une question vous attend",
   "waiting for you": "vous attend",
+  "CI running": "CI en cours",
+  "CI passed": "CI réussie",
+  "CI failed": "CI en erreur",
+  "Checks on GitHub": "Checks sur GitHub",
   "Nothing has been said on this ticket yet.": "Rien n'a encore été dit sur ce ticket.",
   "reading the discussion…": "lecture de la discussion…",
   "an answer to its question runs it again": "une réponse à sa question le relance",
@@ -1480,6 +1484,8 @@ export const FRENCH: Record<string, string> = {
   "Block cause": "Cause du blocage",
   "Written by the runner: why a stopped ticket stopped, as a code.":
     "Écrite par le runner : pourquoi un ticket arrêté s'est arrêté, sous forme de code.",
+  "Written by the runner: the state of the pull request's checks while it is in review.":
+    "Écrite par le runner : l'état des checks de la pull request tant qu'elle est en relecture.",
   Agent: "Agent",
   "Relation to the Agents database: who handles the ticket.":
     "Relation vers la base Agents : qui traite le ticket.",
