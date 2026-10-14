@@ -7,6 +7,7 @@ import {
   GitPullRequest,
   MessageCircleQuestion,
   Scale,
+  type LucideIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -87,11 +88,14 @@ export function DecideButton({
   ticket,
   className,
   title,
+  icon,
 }: {
   ticket: Ticket
   className?: string
-  /** The tooltip: on a blocked card, the cause's line of help, which the card no longer shows. */
+  /** The tooltip: on a blocked card, the cause's label and its line of help, which the card no longer shows. */
   title?: string
+  /** The mark of the cause on a blocked card, in place of the generic question mark. */
+  icon?: LucideIcon
 }) {
   const t = useT()
   const tabs = React.useContext(TicketTabContext)
@@ -101,7 +105,7 @@ export function DecideButton({
   // Already on that tab: the button would only point at where you are.
   if (tabs?.shown === tab) return null
   const blocked = ticket.column === "blocked"
-  const Icon = blocked ? MessageCircleQuestion : Scale
+  const Icon = blocked ? (icon ?? MessageCircleQuestion) : Scale
   return (
     <Button
       size="sm"

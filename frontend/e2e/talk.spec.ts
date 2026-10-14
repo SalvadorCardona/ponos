@@ -18,13 +18,16 @@ async function open(page: Page, path: string) {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test("a ticket waiting on you is marked on the board", async ({ page }) => {
+test("a ticket waiting on you is marked on the board by its Unblock button alone", async ({ page }) => {
   await open(page, "/")
   // Its own card, and not "the one card that waits": gestures.spec.ts sets a
   // Ready ticket aside, which is Blocked too for as long as that test runs.
-  const card = page.locator(`[data-slot="ticket-waiting"][href$="${ASKING.split("/").pop()}"]`)
+  const id = ASKING.split("/").pop()
+  const card = page.locator(`[data-ticket-card="${id}"]`)
   await expect(card).toHaveCount(1)
-  await expect(card).toHaveText("Question for you")
+  await expect(card.locator('[data-slot="ticket-waiting"]')).toHaveCount(0)
+  // The cause is in the button's tooltip, label first.
+  await expect(card.locator(`[data-decide="${id}"]`)).toHaveAttribute("title", /^Question for you\n/)
 })
 
 test("a stopped card says why, and Unblock opens on the question's answer", async ({ page }) => {

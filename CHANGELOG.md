@@ -209,6 +209,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A blocked card shows Unblock and nothing else to say it is blocked.** The orange « Question for
+  you » pill that sat above the button, with the same colour and the same icon, is gone. The button
+  takes the icon of the cause, and its tooltip gives the cause's name, then its line of help; the
+  Unblock window is unchanged.
 - **A card waiting on an answer shows only its Unblock button.** The line that explained the stop
   is gone from the card; it now sits in the button's tooltip, and the badge above still says what
   it is waiting for.

@@ -199,8 +199,8 @@ export function blockSaid(words: { en: string; fr: string }): string {
 
 /* The cause on a stopped card: a badge with its label, and the line of help
  * under it. The gesture it proposes is with the others, in `TicketActions`.
- * A blocked card keeps only its badge, and the help moves to the tooltip of
- * its Unblock button: the button says what to do, the line said it again. */
+ * A blocked card keeps neither: the label and the help move to the tooltip of
+ * its Unblock button, whose icon is the cause's — the button says what to do. */
 export function TicketBlock({ block }: { block?: Block | null }) {
   if (!block) return null
   const Icon = FAMILY_ICON[block.family] ?? ServerCrash
@@ -565,7 +565,15 @@ export function TicketActions({
   if (ticket.column === "blocked")
     return (
       <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
-        <DecideButton ticket={ticket} title={ticket.block ? blockSaid(ticket.block.help) : undefined} />
+        <DecideButton
+          ticket={ticket}
+          icon={ticket.block ? FAMILY_ICON[ticket.block.family] : undefined}
+          title={
+            ticket.block
+              ? [blockSaid(ticket.block.label), blockSaid(ticket.block.help)].filter(Boolean).join("\n")
+              : undefined
+          }
+        />
       </div>
     )
   const named = (key: string) =>
