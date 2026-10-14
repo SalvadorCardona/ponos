@@ -756,6 +756,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(
                     self.api.create_schedule(str(payload.get("name", "")), payload)
                 )
+            if match := re.fullmatch(r"/api/schedules/([0-9a-fA-F-]{32,36})/launch", route):
+                return self._json(self.api.launch_schedule(match.group(1)))
             if match := re.fullmatch(r"/api/schedules/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.save_schedule(match.group(1), payload))
             if route == "/api/ideas/generate":

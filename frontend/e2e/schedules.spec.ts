@@ -71,3 +71,47 @@ test("the window's button leads to the schedule's page", async ({ page }) => {
   await expect(page).toHaveURL(/schedules\/update\/[0-9a-f]+/)
   await expect(page.getByRole("dialog")).not.toBeAttached()
 })
+
+/* The play button, with the launch answered by the test rather than the board:
+ * a real ticket would be one more card for every other spec to count. What is
+ * checked here is the page's half — the button, its guard, the toast. */
+async function launchAnswers(page: Page, answer: { status: number; body: unknown }) {
+  const calls: string[] = []
+  await page.route("**/api/schedules/*/launch", async (route) => {
+    calls.push(route.request().url())
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    await route.fulfill({ status: answer.status, json: answer.body })
+  })
+  return calls
+}
+
+test("a paused schedule is launched from its row, once however many times it is clicked", async ({ page }) => {
+  const calls = await launchAnswers(page, { status: 200, body: { ticket: "abc", title: "Test email — 2026-10-14" } })
+  await open(page)
+  const button = row(page, "Test email").getByRole("button", { name: "Lancer maintenant" })
+  await button.dblclick()
+  await expect(button).toBeDisabled()
+  await expect(page.getByText("Ticket créé")).toBeVisible()
+  await expect(page.getByText("Test email — 2026-10-14")).toBeVisible()
+  await expect(button).toBeEnabled()
+  expect(calls).toHaveLength(1)
+  // Still paused: launching a schedule does not turn it on.
+  await expect(row(page, "Test email")).toContainText("en pause")
+})
+
+test("a launch that fails says why", async ({ page }) => {
+  await launchAnswers(page, { status: 502, body: { error: "the board: refused" } })
+  await open(page)
+  await row(page, "Test email").getByRole("button", { name: "Lancer maintenant" }).click()
+  await expect(page.getByText("La récurrence n'a pas pu être lancée")).toBeVisible()
+  await expect(page.getByText("the board: refused")).toBeVisible()
+})
+
+test("the opened schedule has the button in its header", async ({ page }) => {
+  const calls = await launchAnswers(page, { status: 200, body: { ticket: "abc", title: "Test email — 2026-10-14" } })
+  await open(page)
+  await row(page, "Test email").getByRole("link", { name: "Test email" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Lancer maintenant" }).click()
+  await expect(page.getByText("Ticket créé")).toBeVisible()
+  expect(calls).toHaveLength(1)
+})

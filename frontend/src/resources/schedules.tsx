@@ -1,5 +1,6 @@
 import * as React from "react"
-import { CalendarClock, CalendarOff, ExternalLink } from "lucide-react"
+import { CalendarClock, CalendarOff, ExternalLink, Loader2, Play } from "lucide-react"
+import { toast } from "sonner"
 import {
   ActionList,
   MomentInputController,
@@ -16,6 +17,8 @@ import {
   generateLinkByResource,
   Link,
   tableViewOptionFactory,
+  useCurrentViewResourceContext,
+  useNavigate,
   type RowInterface,
 } from "react-resource-view"
 
@@ -24,12 +27,15 @@ import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { Pagination } from "@/components/console/pagination"
 import { ScheduleWindow, opensScheduleInTheWindow } from "@/components/console/schedule-window"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, why } from "@/lib/api"
 import { t } from "@/lib/i18n"
 import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
+import { useRoute } from "@/lib/router"
 import type { Schedule, Schedules } from "@/lib/types"
 import { projectsOnce, useProjects } from "@/resources/projects"
+import { ticketHref } from "@/resources/tickets"
 
 /* What comes back on its own, declared once for react-resource-view.
  *
@@ -133,6 +139,99 @@ async function load(): Promise<Schedules> {
     publish({ drawn: null, problem: why(error) })
     throw error
   }
+}
+
+/* -- running one now -------------------------------------------------------- */
+
+/* The schedules being launched, held outside the buttons: the row's and the
+ * window's are two buttons for one schedule, and a second click on either —
+ * or on the other — is the double click that must not make a second ticket.
+ * The server refuses it too; this is what lets the button say so first. */
+const launching = new Set<string>()
+const launchListeners = new Set<() => void>()
+let launchingNow: ReadonlySet<string> = new Set()
+
+function setLaunching(id: string, on: boolean) {
+  if (on) launching.add(id)
+  else launching.delete(id)
+  launchingNow = new Set(launching)
+  launchListeners.forEach((listener) => listener())
+}
+
+function useLaunching(id: string) {
+  const all = React.useSyncExternalStore(
+    (listener) => {
+      launchListeners.add(listener)
+      return () => {
+        launchListeners.delete(listener)
+      }
+    },
+    () => launchingNow
+  )
+  return all.has(id)
+}
+
+/** The play button: the schedule's occurrence made now, `Next` left where it was. */
+function LaunchButton({ id, className }: { id: string; className?: string }) {
+  const busy = useLaunching(id)
+  const navigate = useNavigate()
+  const label = t("Run now")
+  const launch = async (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (launching.has(id)) return
+    setLaunching(id, true)
+    try {
+      const made = await api.launchSchedule(id)
+      toast.success(t("Ticket created"), {
+        description: made.title,
+        action: { label: t("Open the ticket"), onClick: () => void navigate({ to: ticketHref(made.ticket) }) },
+      })
+      // Only `Last` moved: the list is read again so that it says so.
+      const fresh = await load().catch(() => null)
+      const found = fresh?.schedules.find((schedule) => schedule.id === id)
+      if (found) schedules.onChange.publish({ data: item(found), action: ActionList.update })
+    } catch (error) {
+      toast.error(t("The schedule could not be run"), { description: why(error) })
+    } finally {
+      setLaunching(id, false)
+    }
+  }
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className={className}
+      disabled={busy}
+      onClick={launch}
+      title={label}
+      aria-label={label}
+      data-launch
+    >
+      {busy ? <Loader2 className="animate-spin" /> : <Play />}
+    </Button>
+  )
+}
+
+/* The row's own: the cell is handed the row it belongs to, as the name's is. */
+const RunNow: InputControllerComponentInterface = () => {
+  const { form } = useFormContext()
+  const id = String((form?.data as { id?: string } | undefined)?.id ?? "")
+  return id ? <LaunchButton id={id} /> : null
+}
+
+/* On the schedule's own page the button is the top of the form; in the window
+ * it is in the header instead, so it is not drawn twice. */
+function LaunchOnThePage() {
+  const context = useCurrentViewResourceContext()
+  const { params } = useRoute()
+  const id = String(context.id ?? "")
+  const here = params.resourceAction === ActionList.update && String(params.id ?? "") === id
+  return id && here ? (
+    <div className="mb-4 flex justify-end">
+      <LaunchButton id={id} />
+    </div>
+  ) : null
 }
 
 /* -- the forms ------------------------------------------------------------- */
@@ -362,6 +461,8 @@ const rowForm: FormInterface = {
     last: { label: "Last", readonly: true, controller: MomentInputController },
     project: { label: "Project", readonly: true, controller: ProjectName },
     problem: { label: "Problem", readonly: true },
+    // Last, after the dates and the problem: an action at the right of the row.
+    launch: { label: "", readonly: true, controller: RunNow },
   },
 }
 
@@ -377,6 +478,7 @@ function SchedulesTop() {
       <ScheduleWindow
         titleOf={(id) => drawn?.schedules.find((schedule) => schedule.id === id)?.name ?? ""}
         hrefOf={scheduleHref}
+        actionsOf={(id) => <LaunchButton id={id} />}
       />
     </>
   )
@@ -597,6 +699,7 @@ export const schedules = createViewResource<ScheduleItem, ScheduleItem, Schedule
       name: "A ticket that comes back",
       form: editForm,
       behavior: { openIn: "drawer" },
+      components: { top: LaunchOnThePage },
     },
   },
 })

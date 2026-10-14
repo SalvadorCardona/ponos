@@ -18,6 +18,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A schedule can be run now: a ▶ « Lancer maintenant » button on each row of the table and in the
+  header of an opened schedule.** The runner writes the ticket into the ready column exactly as it
+  would at the due moment, a toast says « Ticket créé » with a link to it, and `Last` is updated —
+  `Next` is not touched, so the planned occurrence still happens. It works on a paused schedule too,
+  without turning it on, and the button spins while it runs so a double click makes one ticket. A
+  failure is shown in the toast.
 - **A code ticket says what kind of change it is: Bug, Feature, Amélioration, Chore, Refactor,
   Perf, Docs or Sécurité.** A `Sous-type` select on the board (`ponos init` adds it, `ponos doctor`
   asks for it), ignored on the other types. Empty, the runner fills it before the ticket runs: from

@@ -17,6 +17,7 @@ export function RecordWindow({
   title,
   fallbackTitle,
   href,
+  actions,
   children,
 }: {
   open: boolean
@@ -28,6 +29,8 @@ export function RecordWindow({
   fallbackTitle: string
   /** The record's full page; no button without one. */
   href?: string
+  /** What the record can be made to do, drawn before its page button. */
+  actions?: React.ReactNode
   children: React.ReactNode
 }) {
   const t = useT()
@@ -49,6 +52,7 @@ export function RecordWindow({
               {title || fallbackTitle}
             </DialogTitle>
           </div>
+          {actions}
           {href ? (
             <Link
               to={href}

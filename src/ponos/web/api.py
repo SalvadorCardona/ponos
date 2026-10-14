@@ -18,6 +18,7 @@ edited — see `Api._brief`.
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -93,6 +94,9 @@ class Api:
         self._reader = board_module.Reader()
         self._synced: dict = {}
         self._briefs: dict[str, tuple[str, str]] = {}
+        # The schedules being launched now: see `launch_schedule`.
+        self._launching: set[str] = set()
+        self._launch_guard = threading.Lock()
         # Started here and nowhere else: a move made from the console is sent
         # whether or not a browser is still open to watch it go.
         self._outbox = board_module.Outbox(outbox_path())
@@ -827,6 +831,28 @@ class Api:
         )
         self.save_schedule(page_id, {**values, "active": False})
         return {"id": page_id.replace("-", ""), "name": name}
+
+    def launch_schedule(self, page_id: str) -> dict:
+        """Run one schedule now, once however many times the button is pressed.
+
+        A second request for a schedule already being launched is refused rather
+        than queued: it is the double click, and it must not make a second ticket.
+        """
+        wanted = page_id.replace("-", "")
+        with self._launch_guard:
+            if wanted in self._launching:
+                raise RuntimeError("this schedule is already being launched")
+            self._launching.add(wanted)
+        try:
+            entry = self.runner.launch(wanted)
+        except store.StoreError:
+            self.forget()
+            raise
+        finally:
+            with self._launch_guard:
+                self._launching.discard(wanted)
+        self.hub.publish("schedules", launched=wanted)
+        return {"ticket": entry["id"], "title": entry["ticket"]}
 
     def schedules(self) -> dict:
         """What comes back on its own, as `ponos schedules` says it.

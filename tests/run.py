@@ -2838,6 +2838,39 @@ def a_machine_that_was_off_for_three_days_produces_one_ticket_and_not_twelve():
 
 
 @case
+def launching_a_schedule_by_hand_makes_the_ticket_and_leaves_its_next_moment_alone():
+    """Even paused: that is how one is tried. `Last` moves, `Next` does not."""
+    later = (datetime.now().astimezone() + timedelta(days=2)).isoformat()
+    runner = _recurring([_schedule_page("s-1", next=later, active=False)])
+    recorded: list[dict] = []
+    original = state.record
+    state.record = recorded.append
+    try:
+        entry = runner.launch("s-1")
+    finally:
+        state.record = original
+
+    assert len(runner.client.created) == 1 and entry["id"] == "t1"
+    assert runner.client.created[0][1]["Status"] == "Ready"
+    assert _written(runner.client, "Last") is not None
+    assert _written(runner.client, "Next") is None, "the planned occurrence is untouched"
+    assert _written(runner.client, "Active") is None, "a paused schedule stays paused"
+    assert recorded and recorded[0]["status"] == "scheduled"
+
+
+@case
+def a_launch_that_fails_is_raised_and_leaves_last_alone():
+    runner = _recurring([_schedule_page("s-1")], refuses="400 body failed validation")
+    try:
+        runner.launch("s-1")
+    except notion.NotionError:
+        pass
+    else:
+        raise AssertionError("the failure has to reach whoever asked")
+    assert _written(runner.client, "Last") is None
+
+
+@case
 def the_body_of_the_schedule_is_copied_into_the_ticket_it_makes():
     """The ticket has to read on its own, and say where it came from."""
     stale = (datetime.now().astimezone() - timedelta(hours=2)).isoformat()
@@ -9602,6 +9635,30 @@ def the_console_draws_what_comes_back_on_its_own():
     api.projects = lambda: (_ for _ in ()).throw(AssertionError("the projects were read"))
     first = api.schedules()["schedules"][0]
     assert first["project"] == "" and first["project_id"] == "panimalink"
+
+
+@case
+def a_second_launch_of_the_same_schedule_is_refused_while_the_first_runs():
+    """The double click: one ticket, and the second request told why."""
+    api = _bare_api(_TalkClient([]))
+    api._runner = _recurring([_schedule_page("s-1")])
+    api._config = api._runner.config
+    api._launching, api._launch_guard = set(), __import__("threading").Lock()
+    seen: list[str] = []
+
+    def slow(page_id):
+        # The double click lands while the first launch is still writing.
+        try:
+            api.launch_schedule("s-1")
+        except RuntimeError as error:
+            seen.append(str(error))
+        return {"id": "t1", "ticket": "Revue"}
+
+    api._runner.launch = slow
+    assert api.launch_schedule("s-1") == {"ticket": "t1", "title": "Revue"}
+    assert seen and "already being launched" in seen[0]
+    # And the guard is let go of, so that the next launch is not refused for ever.
+    assert api.launch_schedule("s-1")["ticket"] == "t1"
 
 
 @case

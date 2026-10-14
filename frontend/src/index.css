@@ -194,7 +194,9 @@
      name for a screen reader, at a size nobody sees. */
   @media (width < 40rem) {
     [data-slot="table"]:has([data-schedule]) {
-      :is(th, td):nth-child(n + 5):not(:last-child) {
+      /* The run button is the column before the package's own (empty) actions one,
+         * and stays: it is a gesture, like the switch. */
+      :is(th, td):nth-child(n + 5):not(:last-child, :nth-last-child(2)) {
         display: none;
       }
       :is(th, td) {

@@ -260,6 +260,8 @@ export const api = {
     upload<Pictures>(`/api/projects/${id}/image/${slot}`, file, name),
   saveSchedule: (id: string, values: Record<string, unknown>) =>
     request<{ id: string }>(`/api/schedules/${id}`, values),
+  launchSchedule: (id: string) =>
+    request<{ ticket: string; title: string }>(`/api/schedules/${id}/launch`, {}),
   createSchedule: (values: Record<string, unknown>) =>
     request<{ id: string; name: string }>("/api/schedules", values),
   ideas: (project = "") =>
