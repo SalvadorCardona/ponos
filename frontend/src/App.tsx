@@ -15,6 +15,7 @@ import { CommandPalette } from "@/components/console/command-palette"
 import { CONTEXT_ANCHOR } from "@/components/console/context-block"
 import { TalkDrawer } from "@/components/console/talk-drawer"
 import { useTicketWindow } from "@/components/console/ticket-window"
+import { UpdateNotice } from "@/components/console/install-app"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ConsoleProvider, useConsole } from "@/hooks/use-console"
@@ -159,6 +160,7 @@ export default function App() {
         <RunnerMoodProvider>
           <RouterProvider router={router} />
           <Toaster />
+          <UpdateNotice />
         </RunnerMoodProvider>
       </ConsoleProvider>
     </TooltipProvider>

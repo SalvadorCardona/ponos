@@ -1,4 +1,5 @@
-import { copyFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { copyFileSync, readFileSync } from "node:fs"
 import path from "node:path"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
@@ -41,9 +42,37 @@ function publishTokens(): Plugin {
   }
 }
 
+/* The service worker is a template, and its version is what the build shipped.
+ *
+ * `pwa/sw.js` says `__BUILD__` where the deployment goes: a hash of the names
+ * of the files the build wrote — which are themselves hashes of what they hold
+ * — so two builds of the same sources write the same worker, and any change to
+ * the console writes a different one. A worker that never changed would never
+ * be reinstalled, and an installed app would stay on the build it was
+ * installed with.
+ */
+function serviceWorker(): Plugin {
+  return {
+    name: "service-worker",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const build = createHash("sha256")
+        .update(Object.keys(bundle).sort().join("\n"))
+        .digest("hex")
+        .slice(0, 12)
+      const template = readFileSync(path.resolve(import.meta.dirname, "pwa/sw.js"), "utf8")
+      this.emitFile({
+        type: "asset",
+        fileName: "sw.js",
+        source: template.replaceAll("__BUILD__", build),
+      })
+    },
+  }
+}
+
 export default defineConfig({
   base: "/static/",
-  plugins: [react(), tailwindcss(), publishTokens()],
+  plugins: [react(), tailwindcss(), publishTokens(), serviceWorker()],
   resolve: {
     alias: { "@": path.resolve(import.meta.dirname, "./src"), "@mascot": MASCOT },
   },
