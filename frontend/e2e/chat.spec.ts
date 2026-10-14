@@ -34,7 +34,7 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
 
   const thinking = page.locator("[data-slot=thinking]:not([data-done])")
   await expect(thinking.locator("ponos-robot")).toBeVisible()
-  await expect(thinking.getByText("reading api.py…")).toBeVisible()
+  await expect(thinking.getByText(/^Reads .*api\.py/)).toBeVisible()
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
   // The log is not the conversation: nothing of it shows while it is written.
   await expect(page.getByText("python3 -m app.check")).toBeHidden()
@@ -52,7 +52,14 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
   await expect(page.getByText("python3 -m app.check")).toBeHidden()
 
   await fold.click()
-  await expect(page.getByText("python3 -m app.check")).toBeVisible()
+  // One line per step, by name; the one that failed is open on its own.
+  const failed = page.getByRole("button", { name: /Runs python3 -m app.check/ })
+  await expect(page.getByRole("button", { name: /Reads .*api\.py/ }).last()).toHaveAttribute("aria-expanded", "false")
+  await expect(failed).toHaveAttribute("aria-expanded", "true")
+  await failed.click()
+  await expect(failed).toHaveAttribute("aria-expanded", "false")
+  await failed.press("Enter")
+  await expect(failed).toHaveAttribute("aria-expanded", "true")
   await expect(page.getByRole("button", { name: /Hide the steps/ }).last()).toBeVisible()
 })
 
@@ -66,7 +73,7 @@ test("Stop ends the turn, says so, and the conversation carries on", async ({ pa
 
   await ask(page, "take it slowly")
   await expect(page.getByText("fixing an error…")).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText("running a command…")).toBeVisible()
+  await expect(page.getByText(/^Runs /)).toBeVisible()
   const stop = page.getByRole("button", { name: "Stop" })
   await stop.click()
   // The double click: the second lands on a button already stopping, or gone.
@@ -87,7 +94,7 @@ test("Escape from the empty field stops the turn, and leaves the drawer open", a
   const stopped = await page.getByText("stopped by you").count()
   await ask(page, "slowly, please")
   await expect(page.getByText("fixing an error…")).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText("running a command…")).toBeVisible()
+  await expect(page.getByText(/^Runs /)).toBeVisible()
   const field = page.getByRole("textbox", { name: FIELD })
   await field.focus()
   await field.press("Escape")
