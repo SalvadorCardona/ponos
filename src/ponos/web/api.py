@@ -26,7 +26,7 @@ from typing import Any
 from .. import blocks
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, decisions, git, images, question, session, state, store, sync
-from .. import journal, models, project_settings, systemd, voice
+from .. import journal, models, notifications, project_settings, systemd, voice
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -185,6 +185,12 @@ class Api:
         self.reader.reconcile_next()
         self.outbox.retry()
         self.watch.nudge()
+
+    def read_notifications(self, identifier: int | None) -> dict:
+        """One notification read, or all of them — and the bell published at once."""
+        notifications.read(identifier)
+        self.watch.ring()
+        return notifications.recent()
 
     def synchronised(self) -> dict:
         """When the board last agreed with Notion, and what does not. See `board.describe`."""

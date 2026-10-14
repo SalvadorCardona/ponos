@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import blocks, channels, conversation, credits, provider, resources, session, state, store, sync
+from . import blocks, channels, conversation, credits, notifications, provider, resources, session, state, store, sync
 from . import question as question_module
 from . import voice as voice_module
 from .base import Base
@@ -340,6 +340,7 @@ class Reports(Base):
         *,
         urgent: bool = False,
         ask: bool = False,
+        code: str = "",
     ) -> None:
         """One moment of a ticket, said everywhere it is worth saying.
 
@@ -360,6 +361,12 @@ class Reports(Base):
         """
         said = self.voice
         headline = said.headline(verdict, ticket.title)
+        if not self.dry_run:
+            # The bell in the console, which keeps what the screen and the phone
+            # only say once. `code` is the cause of a stop, when it is one.
+            bell = notifications.kind_of(verdict, code)
+            if bell:
+                notifications.add(bell, ticket.id, ticket.title)
         self._notify(headline, body, urgent=urgent, link=ticket.url)
         settings = self.config.notify
         if self.dry_run or not settings.remote or not settings.wants(event):
@@ -565,6 +572,7 @@ class Reports(Base):
             "blocked",
             "\n".join(line for line in (done, *lines) if line),
             ask=True,
+            code=code,
         )
         self._set(
             ticket,

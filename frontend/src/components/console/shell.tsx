@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { TICKETS } from "@/resources/tickets"
 
 import { openPalette } from "./command-palette"
+import { NotificationBell } from "./notification-bell"
 import { Robot } from "./robot"
 import { VersionBadge } from "./version-badge"
 
@@ -332,9 +333,19 @@ export function TopBarEnd() {
         <TooltipContent>{`${t("search a page, a project, a ticket")} · ${palette.label}`}</TooltipContent>
       </Tooltip>
 
+      <NotificationBell />
+
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" onClick={refresh} aria-label={t("Resynchronise now")}>
+          {/* Not on a phone, where the bell took its place in the bar; the palette
+              (⌘K) still offers it there. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="max-md:hidden"
+            onClick={refresh}
+            aria-label={t("Resynchronise now")}
+          >
             <RefreshCw />
           </Button>
         </TooltipTrigger>

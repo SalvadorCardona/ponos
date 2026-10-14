@@ -18,6 +18,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A bell in the console's header for what asks for your attention.** A small badge counts what you
+  have not seen; a click opens a dropdown over the board — newest first, an icon for the kind, the
+  ticket's title, its project, how long ago — and a click on one opens that ticket's card and marks it
+  read. *Mark all as read* empties the badge. It rings when a session stops on a question (the one
+  that matters), a pull request is ready to read, the checks of a pull request fail, a session fails,
+  or a ticket is blocked — never for a ticket taken or moved to progress. Notifications are written by
+  the run into `ponos.db` (migration `notifications`), arrive on the stream like the board, so opening
+  the panel asks for nothing, and read ones are forgotten after thirty days. System (push)
+  notifications and a "CI is green again" ring are not part of it.
 - **The ideas list reads at a glance, and its filters live in the address.** Each card puts its title
   first, its status and type as badges, a few lines of description and who wrote it, small — and one
   button in plain sight: *Turn into a ticket*, or *Open the ticket* once it is one. Keeping, throwing

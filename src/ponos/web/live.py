@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Iterator
 
-from .. import progress, state
+from .. import notifications, progress, state
 
 # What a browser connecting mid-flight is given to catch up with. Enough to
 # rebuild a running session's steps, small enough to send in one go.
@@ -40,7 +40,7 @@ IDLE_SECONDS = 180
 # What is kept as a *state* rather than as an event (see `Hub`): a browser that
 # connects wants the board as it is and the sessions running now, not the last
 # twenty versions of either.
-STATES = ("board", "state", "sessions", "sync", "upgrade")
+STATES = ("board", "state", "sessions", "sync", "upgrade", "notifications")
 
 # How much of a log is read at a time, from its end, to find its last line —
 # which is enough, nearly always, to find it in one read.
@@ -392,6 +392,8 @@ class Watch:
         self._sent: dict[str, Any] | None = None
         self._version = 0
         self._nudged = threading.Event()
+        # The bell last published: a pass that finds the same says nothing.
+        self._bell = ""
 
     def ensure_running(self) -> None:
         with self._lock:
@@ -413,6 +415,19 @@ class Watch:
         later, and the board arrives on the stream like any other.
         """
         self._nudged.set()
+
+    def ring(self) -> None:
+        """Publish the bell when it changed — a read of a small table, once a second.
+
+        The runner writes notifications from another process, so there is nothing
+        to be told: the file is looked at, and only a change reaches the stream.
+        """
+        heard = notifications.recent()
+        fingerprint = json.dumps(heard, sort_keys=True)
+        if fingerprint == self._bell:
+            return
+        self._bell = fingerprint
+        self.hub.publish("notifications", **heard)
 
     def refresh(self, *, force: bool = False) -> None:
         """Read the board and publish what it says that is new.
@@ -467,6 +482,7 @@ class Watch:
                 self.refresh(force=asked)
             try:
                 self.tail.pass_once()
+                self.ring()
             except Exception as error:  # noqa: BLE001
                 self.hub.publish("notice", where="logs", message=str(error).splitlines()[0])
             if self._stop.wait(1):

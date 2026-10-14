@@ -53,7 +53,7 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 
 from .. import __version__
 from .. import config as config_module
-from .. import db, journal, legacy, openrouter, store, voice
+from .. import db, journal, legacy, notifications, openrouter, store, voice
 from ..config import Config, state_dir
 from . import attachments, mcp, mcp_setup, oauth, setup
 from .api import Api
@@ -489,6 +489,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.state(local=self._local()))
             if route == "/api/board":
                 return self._json(self.api.board())
+            if route == "/api/notifications":
+                return self._json(notifications.recent())
             if route == "/api/projects":
                 return self._json(self.api.all_projects())
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
@@ -760,6 +762,11 @@ class Handler(BaseHTTPRequestHandler):
                 if payload.get("target") != "public":
                     address = f"{self._loopback()}/mcp"
                 return self._json(mcp_setup.probe(address))
+            if route == "/api/notifications/read":
+                identifier = payload.get("id")
+                if identifier is not None and not isinstance(identifier, int):
+                    raise ValueError("id is a number, or absent for all of them")
+                return self._json(self.api.read_notifications(identifier))
             if route == "/api/refresh":
                 self.api.resynchronise()
                 return self._json({"ok": True})

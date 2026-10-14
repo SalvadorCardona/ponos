@@ -120,6 +120,16 @@ export const FRENCH: Record<string, string> = {
   // The board and Notion, side by side: when they last agreed, and what does
   // not — the line in the bar, its tooltip, and the button beside it.
   "Resynchronise now": "Resynchroniser maintenant",
+  "Notifications, {{count}} unread": "Notifications, {{count}} non lues",
+  "what asks for your attention": "ce qui demande votre attention",
+  "Mark all as read": "Tout marquer comme lu",
+  "Nothing needs you.": "Rien ne demande votre attention.",
+  unread: "non lue",
+  "A session is waiting for your answer": "Une session attend votre réponse",
+  "A pull request is ready to read": "Une pull request est prête à relire",
+  "The checks of a pull request fail": "Les vérifications d'une pull request échouent",
+  "A session failed": "Une session a échoué",
+  "A ticket is blocked": "Un ticket est bloqué",
   "resynchronise now: the whole board read again, the refused moves sent again":
     "resynchroniser maintenant : tout le tableau relu, les déplacements refusés renvoyés",
   "synced {{age}}": "synchro {{age}}",
