@@ -45,6 +45,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -351,7 +352,17 @@ def journal_of(ticket: str) -> None:
         second.event(_tool("Read", {"file_path": f"/repo/src/part-{index}.py"}))
     second.event(_said("Which header — the dashboard's, or the public site's?"))
     second.event({"type": "result", "total_cost_usd": 0.5})
-    second.end("blocked", "which header")
+    second.end("blocked", "which header", "session.question")
+    # Fifteen minutes of work in all — ten, then five — and the hour between
+    # them waited on, for the time the Brief adds up and the card wears.
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    for run, begun, minutes in ((first, 130, 10), (second, 60, 5)):
+        start = now - timedelta(minutes=begun)
+        with db.transaction() as connection:
+            connection.execute(
+                "UPDATE runs SET started_at = ?, ended_at = ? WHERE id = ?",
+                (start.isoformat(), (start + timedelta(minutes=minutes)).isoformat(), run.id),
+            )
     db.close()
 
 

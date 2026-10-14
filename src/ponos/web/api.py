@@ -27,7 +27,7 @@ from typing import Any
 from .. import blocks, ci
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, decisions, git, images, question, session, state, store, sync
-from .. import journal, models, notifications, project_settings, subtypes, systemd, voice
+from .. import journal, models, notifications, project_settings, subtypes, systemd, voice, worktime
 from .. import kinds as kinds_module
 from .. import provision
 from .. import schedules as schedules_module
@@ -235,6 +235,7 @@ class Api:
         ]
         _causes(tickets)
         _checks(tickets)
+        _times(tickets)
         self._synced = board_module.describe(self.reader, tickets)
         self._hold(tickets)
 
@@ -419,6 +420,7 @@ class Api:
         )
         _causes([card])
         _checks([card])
+        _times([card])
         # A board without the duration column still ran the session: its log
         # says how long. Only here, where one ticket is read — on the board it
         # would be a log opened per card.
@@ -1744,6 +1746,17 @@ def _causes(tickets: list[dict]) -> None:
         elif ticket.get("block") is None:
             codes = state.causes() if codes is None else codes
             ticket["block"] = blocks.describe(codes.get(str(ticket.get("id", "")), ""))
+
+
+def _times(tickets: list[dict]) -> None:
+    """How long Ponos has worked on every card, from the journal's runs in one read.
+
+    `None` on a card the journal has no run for — a ticket from before it, or
+    one never taken: the console says « — » there rather than a zero.
+    """
+    spans = journal.spans() if len(tickets) != 1 else journal.spans(str(tickets[0].get("id", "")))
+    for ticket in tickets:
+        ticket["worktime"] = worktime.measure(spans.get(str(ticket.get("id", "")), []), str(ticket.get("column", "")))
 
 
 def _subtype(page: store.Page, settings) -> str:

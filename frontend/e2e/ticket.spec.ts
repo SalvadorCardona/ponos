@@ -105,3 +105,25 @@ test("a ticket with sessions says the model the last one announced, as provider/
   const model = page.getByTitle("claude-opus-4-1-20250805")
   await expect(model).toHaveText("claude/opus · default")
 })
+
+test("a ticket that waits on an answer shows the 15 minutes it worked and why the clock is stopped", async ({ page }) => {
+  await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+  await page.goto("/?view=console/tickets/read/00000000000000000000000000000a5c")
+  await page.getByRole("tab", { name: "Brief" }).click()
+  const time = page.locator('[data-slot="ticket-time"]')
+  // Ten minutes, an hour of waiting, five more: the hour is not in it.
+  await expect(time).toHaveText("15 min")
+  await expect(time).toHaveAttribute("title", "On hold: waiting for your answer")
+
+  await time.hover()
+  const detail = page.locator('[data-slot="popover-content"]')
+  await expect(detail.getByText("Working time")).toBeVisible()
+  await expect(detail.getByText("Time on hold")).toBeVisible()
+  await expect(detail.getByText("Sessions")).toBeVisible()
+  await page.screenshot({ path: "/tmp/ponos-brief-time.png" })
+
+  // On the board, the same work wears the card, quietly.
+  await page.keyboard.press("Escape")
+  await page.goto("/?view=console/tickets/list/board")
+  await expect(page.locator('[data-slot="ticket-card-time"]').first()).toHaveText("15 min")
+})
