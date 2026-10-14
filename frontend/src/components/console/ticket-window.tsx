@@ -1,13 +1,12 @@
 import * as React from "react"
-import { Maximize2, XIcon } from "lucide-react"
 import { ActionList } from "react-data-form"
-import { Link, ViewResourceContextProvider, useCurrentViewResourceContext } from "react-resource-view"
+import { ViewResourceContextProvider, useCurrentViewResourceContext } from "react-resource-view"
 
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { titleOf, useBoard } from "@/lib/board-store"
 import { useT } from "@/lib/i18n"
 import { ticketHref } from "@/resources/tickets"
+
+import { RecordWindow } from "./record-window"
 
 /* A ticket opened from the board, in a window over it.
  *
@@ -84,52 +83,22 @@ export function TicketWindow() {
   React.useEffect(() => () => show(null), [])
 
   return (
-    <Dialog open={Boolean(id)} onOpenChange={(open) => (open ? undefined : show(null))}>
-      <DialogContent
-        data-ticket-window
-        showCloseButton={false}
-        aria-describedby={undefined}
-        className="gap-0 p-0 sm:max-w-3xl"
-      >
-        <DialogHeader className="flex-row items-start gap-2 border-b px-5 py-3 text-left sm:text-left">
-          <div className="min-w-0 flex-1">
-            {ticket ? (
-              <p className="text-muted-foreground font-mono text-xs">#{ticket.short}</p>
-            ) : null}
-            <DialogTitle
-              className="line-clamp-2 text-base leading-snug break-words"
-              title={title}
-            >
-              {title || t("Ticket")}
-            </DialogTitle>
-          </div>
-          {shown ? (
-            <Link
-              to={ticketHref(shown)}
-              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-              title={t("Open the full page")}
-              aria-label={t("Open the full page")}
-            >
-              <Maximize2 />
-            </Link>
-          ) : null}
-          <DialogClose asChild>
-            <Button variant="ghost" size="icon-sm" title={t("Close")} aria-label={t("Close")}>
-              <XIcon />
-            </Button>
-          </DialogClose>
-        </DialogHeader>
-        <div className="min-h-0 overflow-y-auto px-5 py-4">
-          {shown ? (
-            <ViewResourceContextProvider
-              key={shown}
-              resource={resource}
-              resourceAction={ActionList.read}
-              id={shown}
-            />
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <RecordWindow
+      open={Boolean(id)}
+      onClose={() => show(null)}
+      eyebrow={ticket ? `#${ticket.short}` : undefined}
+      title={title}
+      fallbackTitle={t("Ticket")}
+      href={shown ? ticketHref(shown) : undefined}
+    >
+      {shown ? (
+        <ViewResourceContextProvider
+          key={shown}
+          resource={resource}
+          resourceAction={ActionList.read}
+          id={shown}
+        />
+      ) : null}
+    </RecordWindow>
   )
 }

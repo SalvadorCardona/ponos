@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CalendarClock, CalendarOff } from "lucide-react"
+import { CalendarClock, CalendarOff, ExternalLink } from "lucide-react"
 import {
   ActionList,
   MomentInputController,
@@ -14,6 +14,7 @@ import {
   createResourceCollection,
   createViewResource,
   generateLinkByResource,
+  Link,
   tableViewOptionFactory,
   type RowInterface,
 } from "react-resource-view"
@@ -21,6 +22,7 @@ import {
 import { EmptyState } from "@/components/console/empty-state"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { Pagination } from "@/components/console/pagination"
+import { ScheduleWindow, opensScheduleInTheWindow } from "@/components/console/schedule-window"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, why } from "@/lib/api"
@@ -243,33 +245,47 @@ const editForm: FormInterface = {
   },
 }
 
-/* The name, and the way to the page it is written on.
- *
- * A schedule's page is where its history is — the comments, the edits, what
- * Notion draws that a form does not — so a list that did not lead there would
- * be a list you leave to go and find the page by hand. The package's own way
- * of drawing a cell otherwise is a controller, and this is the whole of it:
- * the row's name, linked where the row says its page is.
- */
+/* The name, as the way into the schedule: the window over the list, as a
+ * ticket's title opens its own over the board — and the page it is written on,
+ * where its history is (the comments, the edits, what Notion draws that a form
+ * does not), one icon further. The package's own way of drawing a cell is a
+ * controller, and this is the whole of it. */
 const PageLink: InputControllerComponentInterface = ({ formInput }) => {
   const { form } = useFormContext()
   const said = String(formInput.value ?? "")
   // The row the cell belongs to, which is what the form was built from: a
   // controller is handed its own field and nothing else.
-  const url = String((form?.data as { url?: string } | undefined)?.url ?? "")
+  const data = form?.data as { id?: string; url?: string } | undefined
+  const id = String(data?.id ?? "")
+  const url = String(data?.url ?? "")
   // `data-schedule` is how the stylesheet finds this table among the others,
   // to fold it to a phone's width.
-  if (!url) return <span data-schedule>{said}</span>
   return (
-    <a
-      data-schedule
-      href={url}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="underline-offset-2 hover:underline"
-    >
-      {said}
-    </a>
+    <span data-schedule className="inline-flex items-center gap-1.5">
+      {id ? (
+        <Link
+          to={scheduleHref(id)}
+          onClick={opensScheduleInTheWindow(id)}
+          className="underline-offset-2 hover:underline"
+        >
+          {said}
+        </Link>
+      ) : (
+        said
+      )}
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground hover:text-foreground"
+          title={t("Open the schedule's page on the board")}
+          aria-label={t("Open the schedule's page on the board")}
+        >
+          <ExternalLink className="size-3.5" />
+        </a>
+      ) : null}
+    </span>
   )
 }
 
@@ -355,6 +371,18 @@ const rowForm: FormInterface = {
 function SchedulesTop() {
   const { drawn, problem } = useSchedules()
   useLayoutInTheAddress(SCHEDULES)
+  return (
+    <>
+      <SchedulesCount drawn={drawn} problem={problem} />
+      <ScheduleWindow
+        titleOf={(id) => drawn?.schedules.find((schedule) => schedule.id === id)?.name ?? ""}
+        hrefOf={scheduleHref}
+      />
+    </>
+  )
+}
+
+function SchedulesCount({ drawn, problem }: LastRead) {
   if (problem)
     return (
       <Alert variant="destructive" className="mb-2">
@@ -551,9 +579,10 @@ export const schedules = createViewResource<ScheduleItem, ScheduleItem, Schedule
       // draws a Notion workspace and a directory of Markdown files.
       description:
         "A row says what to make and how often; when the moment comes the runner writes the ticket into the ready column and steps back.",
-      // The switch in the row is one gesture, the form is the other, and there
-      // is no third: nothing here is read on a page of its own.
-      behavior: { rowActions: [ActionList.update] },
+      // The switch in the row is one gesture, the name opening the form in a
+      // window is the other: no button of the package's, whose drawer is held
+      // by the row and closed whenever the list draws it again.
+      behavior: { rowActions: [] },
     },
     [ActionList.create]: {
       name: "A ticket that comes back",
@@ -579,3 +608,7 @@ export const schedulesHref = () =>
     resourceAction: ActionList.list,
     viewVariantId: layoutOf(SCHEDULES),
   })
+
+/** A schedule's own page: its form, as the window over the list draws it. */
+const scheduleHref = (id: string) =>
+  generateLinkByResource({ resource: schedules, resourceAction: ActionList.update, id })
