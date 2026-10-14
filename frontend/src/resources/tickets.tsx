@@ -474,10 +474,6 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   return (
     <div className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3 [contain-intrinsic-size:auto_9rem] [content-visibility:auto]">
       <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
-        <TicketRobot column={ticket.column} size={20} className="-my-1 shrink-0" />
-        <Link to={href} onClick={open} className="shrink-0 font-medium tracking-wide hover:underline">
-          #{ticket.short}
-        </Link>
         {/* Waiting on you: a run that asks a question lands in the blocked
             column, and so does a ticket held by hand — both wait for a word
             from you. The board reads no discussion, so the column is what it
@@ -489,14 +485,16 @@ function TicketCard({ row }: RowComponentPropsInterface) {
             onClick={open}
             data-slot="ticket-waiting"
             title={ticket.block?.code}
-            className="bg-tr-amber/15 text-tr-amber inline-flex min-w-0 items-center gap-1 rounded-xl px-1.5 py-0.5 font-sans leading-tight font-semibold whitespace-normal hover:underline"
+            className="bg-tr-amber/15 text-tr-amber inline-flex min-w-0 items-center gap-1 rounded-xl px-1.5 py-0.5 font-sans leading-tight font-semibold hover:underline"
           >
             <Waiting className="size-3 shrink-0" />
-            {ticket.block ? blockSaid(ticket.block.label) : t("waiting for you")}
+            <span className="min-w-0 truncate">
+              {ticket.block ? blockSaid(ticket.block.label) : t("waiting for you")}
+            </span>
           </Link>
         ) : null}
         <span className="flex-1" />
-        <span className="text-muted-foreground min-w-0 truncate">{ago(ticket.created)}</span>
+        <span className="text-muted-foreground shrink-0">{ago(ticket.created)}</span>
       </div>
 
       {/* Given up on: still read, struck through, the way a list crosses out
@@ -730,10 +728,10 @@ function BoardColumn({
   )
 }
 
-/* The narrowest a column is drawn. Below it a card's title wraps a word to a
- * line; above it the columns share the width, with no upper bound, and past
+/* The narrowest a column is drawn: wide enough for a card's badge and its
+ * date to share a line. Below it a card's title wraps a word to a line; above it the columns share the width, with no upper bound, and past
  * what the screen holds the board scrolls sideways — the board, not the page. */
-const COLUMN_MIN = "min-w-[17.5rem]"
+const COLUMN_MIN = "min-w-[21rem]"
 
 /* Whether the empty columns are drawn anyway, as the last person at this
  * browser left it. Hidden by default: on a board with three columns at "rien",
