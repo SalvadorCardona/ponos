@@ -27,7 +27,7 @@ import { ProjectSettingsTab } from "./project-settings"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
 import { ScopedIdeas } from "./scoped-ideas"
-import { StatisticsBand } from "./statistics-band"
+import { StatisticsBand } from "./statistics"
 import { Away, Chip, reachable } from "./ticket-bits"
 
 /* One project, as a page.

@@ -1,34 +1,45 @@
 import * as React from "react"
 import { format, subDays } from "date-fns"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, why } from "@/lib/api"
 import { currentBoard } from "@/lib/board-store"
 import { currentLanguage, useT } from "@/lib/i18n"
+import { byProject, bySubtype, regression, stacks, trend } from "@/lib/made"
 import { money, number } from "@/lib/numbers"
-import type { BlockFamily, Statistics, StatisticsDay } from "@/lib/types"
+import type { BlockFamily, Made, Statistics, StatisticsDay } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import { Eyebrow, Panel } from "./frame"
-import { LineChart } from "./line-chart"
+import { ActivityChart } from "./activity-chart"
 import { Robot } from "./robot"
-import { FAMILY_ICON, blockSaid, capital, columnTitle, familyColor, lasted, subtypeColor } from "./ticket-bits"
+import {
+  FAMILY_ICON,
+  blockSaid,
+  capital,
+  columnTitle,
+  familyColor,
+  lasted,
+  subtypeColor,
+  subtypeOf,
+} from "./ticket-bits"
 
 /* What the runner got through, over a period — at the top of the dashboard.
  *
  * It was a page of its own, and a page nobody opened: the figures are read
  * with the board under them or not at all. So they came to the board as a band
- * that keeps to a glance — four numbers, two short curves, the projects — and
+ * that keeps to a glance — four numbers, the activity, the projects — and
  * folds away into one line for whoever came for the cards. The figures are the
  * server's (`web/statistics.py`, which also says how a closing is dated); this
  * band asks for a period and draws.
  *
  * The same band is a project's page's, asked for that project alone
- * (`project`): the cards and the two curves are the ones above over its
+ * (`project`): the cards and the charts are the ones above over its
  * tickets, and the third panel — "by project" says nothing about one project —
  * is where its tickets stand, by column. It is the one split that is already
  * in the figures and that a project's page answers at a glance: how much of
@@ -38,6 +49,10 @@ import { FAMILY_ICON, blockSaid, capital, columnTitle, familyColor, lasted, subt
  * "Open" on a card is the last point of its curve — the evening of the last
  * day — so a period that ends today says what the board says, not a sum over
  * the week nobody could check against it.
+ *
+ * Beside the activity, what the tickets created were: features or bugs, a
+ * project moving on or mending what it broke (`lib/made.ts`). Filtered by type
+ * and by project on the spot — the cells came with the figures.
  */
 
 type Range = "24h" | "7d" | "30d" | "all" | "custom"
@@ -139,8 +154,8 @@ const long = (point: StatisticsDay) =>
   date(point.day).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "long" })
 const dollars = (value: number) => money(value, value >= 100 ? 0 : 2)
 
-// The curves' height: a glance over the board, not a page of their own.
-const CHART = 104
+// The charts' height: a glance over the board, not a page of their own.
+const CHART = 120
 
 /** `project`: the name of the project the figures are limited to; none for the whole board. */
 export function StatisticsBand({ project }: { project?: string }) {
@@ -273,7 +288,7 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
     {
       label: "Closed",
       value: number(totals.closed),
-      note: t("moved to done in the period"),
+      note: t("moved to done or validated in the period"),
       // How the closings were dated, for whoever wonders: the page said it at
       // its foot, the band says it under the pointer rather than in a line more.
       more: t(
@@ -337,34 +352,23 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
             : t("No ticket of this project over this period.")}
         </p>
       ) : (
-        <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <Panel eyebrow={t("Created and closed")} className="min-w-0" bodyClassName="pb-3">
-            <LineChart
+        <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,16rem)]">
+          <Panel eyebrow={t("Activity")} className="min-w-0" bodyClassName="pb-3">
+            <ActivityChart
               points={days}
-              label={t("Tickets created and closed per day")}
+              labels={{ created: t("Created"), closed: t("Closed"), open: t("Open") }}
+              label={t("Tickets created and closed per day, and still open each evening")}
               day={short}
               longDay={long}
-              height={CHART}
-              series={[
-                { key: "created", label: t("Created"), color: "var(--series-1)", value: (point) => point.created },
-                { key: "closed", label: t("Closed"), color: "var(--series-2)", value: (point) => point.closed },
-              ]}
+              height={CHART * 2}
             />
           </Panel>
 
-          <Panel eyebrow={t("Open tickets")} className="min-w-0" bodyClassName="pb-3">
-            <LineChart
-              points={days}
-              label={t("Tickets still open, evening after evening")}
-              day={short}
-              longDay={long}
-              height={CHART}
-              area
-              series={[
-                { key: "open", label: t("Open"), color: "var(--series-1)", value: (point) => point.open },
-              ]}
-            />
-          </Panel>
+          {figures.made ? (
+            <Panel eyebrow={t("Created, by type and sub-type")} className="min-w-0" bodyClassName="pb-3">
+              <MadeChart made={figures.made} project={project} />
+            </Panel>
+          ) : null}
 
           <Panel
             eyebrow={project === undefined ? t("Created, by project") : t("Created, by status")}
@@ -411,6 +415,227 @@ function Figures({ figures, project }: { figures: Statistics; project?: string }
         </div>
       )}
     </>
+  )
+}
+
+/* The types of ticket a chart of the tickets created is filtered by, as the
+ * board names them (`kinds.KINDS`): Code first, the one sub-types are for. */
+const KINDS = [
+  { key: "code", label: "Code" },
+  { key: "writing", label: "Writing" },
+  { key: "external", label: "External action" },
+  { key: "publication", label: "Publication" },
+]
+
+// Radix's select takes no empty value: these stand for "every one" and "none".
+const EVERY = "*"
+const NONE = "-"
+
+const percent = (rate: number) => `${Math.round(rate * 100)} %`
+
+/* The tickets created, day by day or week by week, stacked by sub-type — and
+ * beside them the regression rate: the bugs over the bugs and the work that
+ * moves a project on, against the period before (`lib/made.ts`).
+ *
+ * The sub-types are written as the board writes them in English, never
+ * translated: they are the words of the commits and the CHANGELOG. A ticket
+ * with none is its own part, Unclassified, rather than left out of the bar. On
+ * the dashboard the projects can be taken one at a time; all of them at once,
+ * a small table says which one breaks the most, and a click on its row shows
+ * it alone. */
+function MadeChart({ made, project }: { made: Made; project?: string }) {
+  const t = useT()
+  const [kind, setKind] = React.useState<string>("code")
+  const [chosen, setChosen] = React.useState<string | null>(null)
+  const scope = { kind: kind === EVERY ? null : kind, project: project ?? chosen }
+
+  const known = currentBoard()?.subtypes ?? []
+  const order = [...known.map((one) => one.key), ""]
+  const nameOf = (key: string) => {
+    const one = subtypeOf(key)
+    return one ? `${one.icon} ${one.label}` : t("Unclassified")
+  }
+  const colourOf = (key: string) => (key ? subtypeColor(key) : "color-mix(in oklab, var(--muted-foreground) 45%, transparent)")
+
+  const bars = stacks(made, scope)
+  const now = bySubtype(made.cells, scope)
+  const present = order.filter((key) => now[key])
+  const rate = regression(now)
+  const before = regression(bySubtype(made.before, scope))
+  const going = trend(rate, before)
+  const most = Math.max(1, ...bars.map((one) => one.total))
+  // A date under one bar in every few: they stay readable on a third of a screen.
+  const every = Math.max(1, Math.ceil(bars.length / 6))
+  const projects = [...new Set([...made.cells, ...made.before].map((cell) => cell.project))].sort((a, b) =>
+    a.localeCompare(b)
+  )
+  const rows = project === undefined && chosen === null ? byProject(made, scope.kind) : []
+  const said = (bucket: string) =>
+    made.unit === "week"
+      ? t("week of {{day}}", { day: date(bucket).toLocaleDateString(locale(), { day: "numeric", month: "short" }) })
+      : date(bucket).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "long" })
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2.5" data-slot="made-chart">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={kind} onValueChange={setKind}>
+          <SelectTrigger size="sm" className="h-7 text-xs" aria-label={t("Type")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={EVERY}>{t("All types")}</SelectItem>
+            {KINDS.map((one) => (
+              <SelectItem key={one.key} value={one.key}>
+                {t(one.label)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {project === undefined ? (
+          <Select
+            value={chosen === null ? EVERY : chosen || NONE}
+            onValueChange={(value) => setChosen(value === EVERY ? null : value === NONE ? "" : value)}
+          >
+            <SelectTrigger size="sm" className="h-7 max-w-48 text-xs" aria-label={t("Project")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={EVERY}>{t("All projects")}</SelectItem>
+              {projects.map((name) => (
+                <SelectItem key={name || NONE} value={name || NONE}>
+                  {name || t("No project")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+        <p
+          className="ml-auto flex items-baseline gap-1.5 text-xs"
+          title={t(
+            "Bugs over bugs, features and improvements created in the period; the arrow compares it with the period of the same length before."
+          )}
+          data-slot="regression-rate"
+        >
+          <span className="text-muted-foreground">{t("Regression rate")}</span>
+          <span className="text-base leading-none font-bold tabular-nums">{rate === null ? "—" : percent(rate)}</span>
+          {going ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-0.5 font-mono tabular-nums",
+                going === "up" ? "text-tr-red" : going === "down" ? "text-tr-green" : "text-muted-foreground"
+              )}
+              data-trend={going}
+            >
+              {going === "up" ? (
+                <ArrowUp className="size-3" aria-hidden />
+              ) : going === "down" ? (
+                <ArrowDown className="size-3" aria-hidden />
+              ) : (
+                <ArrowRight className="size-3" aria-hidden />
+              )}
+              {t("{{rate}} before", { rate: percent(before ?? 0) })}
+            </span>
+          ) : null}
+        </p>
+      </div>
+
+      {!present.length ? (
+        <p className="text-muted-foreground text-sm">{t("No ticket created in the period.")}</p>
+      ) : (
+        <figure className="flex min-w-0 flex-col gap-2" aria-label={t("Created, by type and sub-type")}>
+          <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {present.map((key) => (
+              <li key={key || NONE} className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-sm" style={{ background: colourOf(key) }} />
+                {nameOf(key)}
+                <span className="font-mono tabular-nums">{number(now[key])}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-end gap-[2px]" style={{ height: CHART }}>
+            {bars.map((one) => (
+              <div
+                key={one.bucket}
+                className="hover:bg-muted/60 flex h-full min-w-0 flex-1 flex-col justify-end rounded-sm"
+                title={[
+                  `${said(one.bucket)} — ${number(one.total)}`,
+                  ...present
+                    .filter((key) => one.counts[key])
+                    .map((key) => `${nameOf(key)} — ${number(one.counts[key])}`),
+                ].join("\n")}
+                data-slot="made-bucket"
+              >
+                <div className="flex flex-col-reverse gap-[2px]" style={{ height: `${(one.total / most) * 100}%` }}>
+                  {present
+                    .filter((key) => one.counts[key])
+                    .map((key, index, parts) => (
+                      <span
+                        key={key || NONE}
+                        className={cn("block min-h-[2px] w-full", index === parts.length - 1 && "rounded-t")}
+                        style={{ flexGrow: one.counts[key], background: colourOf(key) }}
+                      />
+                    ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-muted-foreground flex gap-[2px] font-mono text-[0.65rem]">
+            {bars.map((one, index) => (
+              <span key={one.bucket} className="min-w-0 flex-1 overflow-visible text-center whitespace-nowrap">
+                {index % every === 0
+                  ? date(one.bucket).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" })
+                  : ""}
+              </span>
+            ))}
+          </div>
+        </figure>
+      )}
+
+      {rows.length > 1 ? (
+        <table className="w-full min-w-0 table-fixed text-sm" data-slot="made-projects">
+          <thead>
+            <tr className="text-muted-foreground text-xs">
+              <th scope="col" className="pb-1 text-left font-medium">
+                {t("Project")}
+              </th>
+              <th scope="col" className="w-24 truncate pb-1 pl-3 text-right font-medium">
+                {nameOf("feature")}
+              </th>
+              <th scope="col" className="w-24 truncate pb-1 pl-3 text-right font-medium">
+                {nameOf("bug")}
+              </th>
+              <th scope="col" className="w-24 truncate pb-1 pl-3 text-right font-medium" title={t("Regression rate")}>
+                {t("Regression")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, 6).map((row) => {
+              const going = trend(row.rate, row.before)
+              return (
+                <tr
+                  key={row.project || NONE}
+                  className="hover:bg-muted/60 cursor-pointer border-t"
+                  onClick={() => setChosen(row.project)}
+                  data-project={row.project}
+                >
+                  <th scope="row" className="truncate py-1 text-left font-normal">
+                    {row.project || t("No project")}
+                  </th>
+                  <td className="py-1 text-right font-mono text-xs tabular-nums">{number(row.ahead)}</td>
+                  <td className="py-1 text-right font-mono text-xs tabular-nums">{number(row.broken)}</td>
+                  <td className="py-1 text-right font-mono text-xs font-semibold tabular-nums">
+                    {row.rate === null ? "—" : percent(row.rate)}
+                    {going === "up" ? <span className="text-tr-red"> ↑</span> : null}
+                    {going === "down" ? <span className="text-tr-green"> ↓</span> : null}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      ) : null}
+    </div>
   )
 }
 

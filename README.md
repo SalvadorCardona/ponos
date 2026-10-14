@@ -2546,11 +2546,18 @@ one line with the arrow beside its name, and that stays folded on that browser. 
 the runner got through over a period: the last seven days when you open it, or the last
 24 hours (yesterday and today: the figures count in days), thirty days, everything since the
 board's oldest ticket, or two dates of your own. Four cards: the tickets **open**
-on the evening of the last day (every column but *Done*, *Blocked* and *Failed* included —
-so a period that ends today says what the board says), those **closed** and those
-**created** in the period, and what the sessions **spent**. Under them, one point per day:
-created and closed side by side, the open stock evening after evening — and the tickets
-created in the period, by project. Notion dates when a page was created, never when its status changed, so a closing
+on the evening of the last day (every column but *Done*, *Validated* and *Cancelled*, *Blocked*
+and *Failed* included — so a period that ends today says what the board says), those **closed**
+(moved to *Done* or *Validated*) and those **created** in the period, and what the sessions
+**spent**. Under them, the **activity**: one chart, the tickets created and closed as two bars a
+day and the open stock as a line over them — on its own scale, on the right, when it is of
+another size than the bars —, every figure of a day under the pointer. Beside it, the tickets
+**created, by type and sub-type**: bars a day (a week past a month) stacked by sub-type, written
+as the board writes them in English, a ticket with none as *Unclassified*; a type to pick (Code
+by default) and, on the dashboard, a project. Next to it, the **regression rate** — the bugs
+over the bugs, features and improvements created —, with an arrow against the period of the
+same length just before; with every project, a small table says which one breaks the most, and
+a click on its row shows it alone. Last, the tickets created in the period, by project. Notion dates when a page was created, never when its status changed, so a closing
 is dated by the runner's history (in `ponos.db`) when the runner made it — a pull request
 merged from *Validated*, a document written or published — and by the page's last edit
 otherwise: a ticket you dragged to *Done*, or one closed because you merged its pull request

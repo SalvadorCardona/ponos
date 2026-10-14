@@ -27,6 +27,15 @@ The sub-types are the board's: every code ticket closed in the period, by its
 sub-type (subtypes.py) and by the week it closed in, and what one of each cost
 and lasted on average — all its sessions counted, as for the average above.
 
+The tickets created are counted once more, by type, sub-type and project, and
+by day — by week past a month, where daily bars would be hairs. They are handed
+over as cells rather than as a chart because the console filters them by type
+and by project on the spot, and works out how much of a project's work is
+fixing what it broke (`lib/made.ts`): the same cells for the period before, of
+the same length, are what its trend is measured against. A code ticket nobody
+gave a sub-type yet is a cell with none, drawn as unclassified rather than
+left out — leaving it out would make a board half sorted look all features.
+
 The blocks are the history's too: every line that ended blocked or failed,
 counted by the cause it carries (blocks.py) and by the week it fell in.
 
@@ -42,6 +51,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime, timedelta, tzinfo
+from typing import Callable
 
 from .. import blocks, subtypes
 
@@ -49,6 +59,14 @@ from .. import blocks, subtypes
 # status is not one: a session that opened a pull request reports "done" and
 # leaves the ticket in review.
 CLOSING_KINDS = ("document", "delivery")
+
+# Where a ticket stops being open: done, or validated — approved, and left to
+# the runner to merge. A cancelled ticket leaves the open ones too, but it is
+# not counted closed: see `figures`.
+CLOSED = ("done", "validated")
+
+# Up to this many days the tickets created are drawn day by day; past it, week by week.
+DAILY = 31
 
 # A period longer than this is refused rather than drawn: two years of points
 # is already more than a screen has pixels for.
@@ -102,15 +120,19 @@ def figures(
     last: date,
     zone: tzinfo | None = None,
     project: str | None = None,
+    kind_of: Callable[[str], str] = lambda option: "",
 ) -> dict:
     """The cards, the curves and the breakdowns of one period.
 
     `tickets` are the board's, as `Api.board` builds them, with `edited`.
     With a `project` (its name, "" for the tickets that have none) only its
-    tickets are counted, and only what its sessions spent.
+    tickets are counted, and only what its sessions spent. `kind_of` says
+    which of the four types a board's Type option is (`Notion.kind_of`).
     A ticket is open on a day if it was created by the end of it and not yet
-    closed: that is every status but done, failed and blocked included — they
-    are still somebody's to deal with. A cancelled ticket is neither: it leaves
+    closed: that is every status but done and validated (`CLOSED`), failed and
+    blocked included — they are still somebody's to deal with. A validated
+    ticket is dated by its last edit, moving it there, until the runner merges
+    it and the history says when it was done. A cancelled ticket is neither: it leaves
     the open ones on its last edit without being counted closed — nothing got
     done — and what its sessions spent stays in the spending, which is money
     gone all the same.
@@ -127,8 +149,8 @@ def figures(
     for ticket in tickets:
         created = day_of(ticket.get("created", ""), zone)
         closed = None
-        if ticket.get("column") == "done":
-            closed = dated.get(str(ticket.get("id", "")))
+        if ticket.get("column") in CLOSED:
+            closed = dated.get(str(ticket.get("id", ""))) if ticket.get("column") == "done" else None
             if closed:
                 from_history += 1
             else:
@@ -213,6 +235,9 @@ def figures(
     )
 
     born = [ticket for ticket, created, _ in known.values() if created and first <= created <= last]
+    made = created_by_kind(
+        [(ticket, created) for ticket, created, _ in known.values() if created], first, last, kind_of
+    )
     statuses = Counter(str(ticket.get("column") or "draft") for ticket in born)
     projects = Counter(str(ticket.get("project") or "") for ticket in born)
     return {
@@ -231,6 +256,56 @@ def figures(
         "average": average,
         "blocks": stops,
         "subtypes": kinds_of_work,
+        "made": made,
+    }
+
+
+def created_by_kind(
+    tickets: list[tuple[dict, date]],
+    first: date,
+    last: date,
+    kind_of: Callable[[str], str],
+) -> dict:
+    """The tickets created in a period, as cells: bucket, type, sub-type, project, count.
+
+    A bucket is a day, or a week named by its Monday past `DAILY` days; every
+    bucket the period touches is listed, empty ones included. `before` holds
+    the same cells, bucket left out, for the period of the same length that
+    ends the day before this one starts. A sub-type the table does not know is
+    none: the ticket is unclassified, still counted.
+    """
+    weekly = (last - first).days + 1 > DAILY
+    start = (lambda day: day - timedelta(days=day.weekday())) if weekly else (lambda day: day)
+    buckets = []
+    bucket = start(first)
+    while bucket <= last:
+        buckets.append(bucket.isoformat())
+        bucket += timedelta(days=7 if weekly else 1)
+    length = last - first + timedelta(days=1)
+    now: Counter[tuple[str, str, str, str]] = Counter()
+    before: Counter[tuple[str, str, str]] = Counter()
+    for ticket, created in tickets:
+        subtype = str(ticket.get("subtype") or "")
+        cell = (
+            kind_of(str(ticket.get("type") or "")),
+            subtype if subtype in subtypes.BY_KEY else "",
+            str(ticket.get("project") or ""),
+        )
+        if first <= created <= last:
+            now[(start(created).isoformat(), *cell)] += 1
+        elif first - length <= created < first:
+            before[cell] += 1
+    return {
+        "unit": "week" if weekly else "day",
+        "buckets": buckets,
+        "cells": [
+            {"bucket": bucket, "kind": kind, "subtype": subtype, "project": name, "count": count}
+            for (bucket, kind, subtype, name), count in sorted(now.items())
+        ],
+        "before": [
+            {"kind": kind, "subtype": subtype, "project": name, "count": count}
+            for (kind, subtype, name), count in sorted(before.items())
+        ],
     }
 
 

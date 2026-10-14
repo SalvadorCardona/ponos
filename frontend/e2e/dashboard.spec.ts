@@ -61,19 +61,19 @@ test("a period picked is asked for again", async ({ page }) => {
 
 test("the band folds into one line, and stays folded", async ({ page }) => {
   await open(page)
-  await expect(band(page).getByText("Created and closed", { exact: true })).toBeVisible()
+  await expect(band(page).getByText("Activity", { exact: true })).toBeVisible()
   await band(page).getByRole("button", { name: /Statistics/ }).click()
-  await expect(band(page).getByText("Created and closed", { exact: true })).toBeHidden()
+  await expect(band(page).getByText("Activity", { exact: true })).toBeHidden()
   await expect(band(page).getByText(/\d+ open · \d+ closed/)).toBeVisible()
   await page.reload()
   await expect(page.getByText("A long ticket").filter({ visible: true }).first()).toBeVisible()
-  await expect(band(page).getByText("Created and closed", { exact: true })).toBeHidden()
+  await expect(band(page).getByText("Activity", { exact: true })).toBeHidden()
 })
 
 test("the blocks panel is folded behind Show more, and stays as it was left", async ({ page }) => {
   await open(page)
   const panel = band(page).getByText("Blocks, by cause and week", { exact: true })
-  await expect(band(page).getByText("Created and closed", { exact: true })).toBeVisible()
+  await expect(band(page).getByText("Activity", { exact: true })).toBeVisible()
   await expect(panel).toHaveCount(0)
   await band(page).getByRole("button", { name: "Show more", exact: true }).click()
   await expect(panel.first()).toBeVisible()
@@ -90,4 +90,52 @@ test("the old address of the statistics leads to the dashboard", async ({ page }
   await open(page, "/?view=console/statistics/list")
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toContain("console/tickets/list")
   await expect(band(page)).toBeVisible()
+})
+
+test("one chart says the created, the closed and the open; the other what they were", async ({ page }) => {
+  // Figures of our own: what is checked is how they are drawn.
+  await page.route("**/api/statistics*", async (route) => {
+    const answer = await route.fetch()
+    const figures = await answer.json()
+    figures.totals = { ...figures.totals, created: 9, closed: 4, open: 5 }
+    figures.days = [
+      { day: day(2), created: 4, closed: 1, open: 3, cost: 0 },
+      { day: day(1), created: 3, closed: 2, open: 4, cost: 0 },
+      { day: day(0), created: 2, closed: 1, open: 5, cost: 0 },
+    ]
+    figures.made = {
+      unit: "day",
+      buckets: [day(2), day(1), day(0)],
+      cells: [
+        { bucket: day(2), kind: "code", subtype: "bug", project: "Opoil", count: 3 },
+        { bucket: day(2), kind: "code", subtype: "feature", project: "Opoil", count: 1 },
+        { bucket: day(1), kind: "code", subtype: "feature", project: "Website", count: 3 },
+        { bucket: day(0), kind: "code", subtype: "", project: "Website", count: 2 },
+      ],
+      before: [{ kind: "code", subtype: "bug", project: "Opoil", count: 2 }],
+    }
+    await route.fulfill({ response: answer, json: figures })
+  })
+  await open(page)
+  await expect(band(page).getByText("Open tickets", { exact: true })).toHaveCount(0)
+
+  const chart = band(page).locator('[data-slot="activity-chart"]')
+  const box = (await chart.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  const tip = band(page).locator('[data-slot="activity-tooltip"]')
+  await expect(tip).toContainText("Created3")
+  await expect(tip).toContainText("Closed2")
+  await expect(tip).toContainText("Open4")
+
+  const made = band(page).locator('[data-slot="made-chart"]')
+  await expect(made.getByText("Unclassified")).toBeVisible()
+  // 3 bugs over 3 bugs and 4 features; the period before was all bugs.
+  await expect(made.locator('[data-slot="regression-rate"]')).toContainText("43 %")
+  await expect(made.locator('[data-trend="down"]')).toBeVisible()
+
+  const projects = made.locator('[data-slot="made-projects"] tbody tr')
+  await expect(projects.first()).toHaveAttribute("data-project", "Opoil")
+  await projects.first().click()
+  await expect(made.locator('[data-slot="regression-rate"]')).toContainText("75 %")
+  await expect(made.locator('[data-slot="made-projects"]')).toHaveCount(0)
 })

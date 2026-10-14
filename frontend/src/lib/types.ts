@@ -716,6 +716,24 @@ export interface Statistics {
     weeks: { week: string; counts: Record<string, number> }[]
     subtypes: (Subtype & { count: number; cost: number | null; duration: number | null })[]
   }
+  /** The tickets created in the period, by bucket, type, sub-type and project — see `lib/made.ts`. */
+  made?: Made
+}
+
+/** One count of tickets created: a type and a sub-type key, "" for none of them. */
+export interface MadeCell {
+  kind: string
+  subtype: string
+  project: string
+  count: number
+}
+
+/** The tickets created, as cells: by day or by week (named by its Monday), and for the period before. */
+export interface Made {
+  unit: "day" | "week"
+  buckets: string[]
+  cells: (MadeCell & { bucket: string })[]
+  before: MadeCell[]
 }
 
 /* -- ideas ---------------------------------------------------------------- */

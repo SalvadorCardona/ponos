@@ -226,7 +226,7 @@ test.describe("the blocks of a project", () => {
     await onThePageOf(page, "Website")
     const band = page.locator('[data-slot="statistics-band"]')
     const panel = band.getByText("Blocks, by cause and week", { exact: true })
-    await expect(band.getByText("Created and closed", { exact: true })).toBeVisible()
+    await expect(band.getByText("Activity", { exact: true })).toBeVisible()
     await expect(panel).toHaveCount(0)
 
     await band.getByRole("button", { name: "Show more", exact: true }).click()
