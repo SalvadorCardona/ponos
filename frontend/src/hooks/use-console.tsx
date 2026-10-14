@@ -382,8 +382,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     notifications: (event: Bell) => publishBell(event),
 
     // Scores the light model wrote behind the page: the lists of ideas read again.
-    ideas: (event: { scored?: number; scoring?: number }) => {
+    ideas: (event: { scored?: number; scoring?: number; failed?: string }) => {
       if (event?.scored || event?.scoring) ideasScored()
+      if (event?.failed) toast.error(t("The ideas could not be scored"), { description: event.failed })
     },
 
     step: (event: StepEvent) => {

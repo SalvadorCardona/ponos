@@ -90,9 +90,22 @@ TONES = ("green", "orange", "red")
 
 # Scoring ideas already there: this many to a call, on the light model, and no
 # call allowed to cost more than this — what the console says before it starts
-# is the number of calls times this.
+# is the number of calls times this. A call costs 0.12 to 0.14 dollars even on a
+# prompt of a few thousand tokens (the CLI's own preamble weighs most of it), so
+# 0.10 stopped every one of them on `error_max_budget_usd`, for nothing.
 SCORE_BATCH = 20
-SCORE_CEILING_USD = 0.10
+SCORE_CEILING_USD = 0.50
+# What a call is estimated to cost before it starts: the CLI's own preamble,
+# plus the prompt at a price per token well above the light model's. A call
+# whose estimate is over the ceiling is not started — it would be stopped by it
+# after having been paid for.
+SCORE_OVERHEAD_USD = 0.20
+SCORE_USD_PER_TOKEN = 0.00001
+# The prompt of a score carries what lets it compare, not all of it.
+SCORE_BRIEF_LIMIT = 1500
+SCORE_CONTEXT_LIMIT = 800
+SCORE_TICKETS_SHOWN = 25
+SCORE_KNOWN_SHOWN = 60
 SCORE_TIMEOUT_MINUTES = 3
 # How long an idea waiting for its score says so: past this, the session that
 # was scoring it is gone, and it is not scored.
@@ -247,6 +260,7 @@ class Idea:
             "category": self.category,
             "score": self.score,
             "score_reason": str(self.detail.get("score_reason") or ""),
+            "score_error": "" if self.score is not None else str(self.detail.get("score_error") or ""),
             "tone": tone(self.score),
             "scoring": self.scoring(),
             "title": self.title,
@@ -382,16 +396,16 @@ def score_prompt(
     own = {idea.title for idea in candidates}
     sections: list[str] = []
     if context.strip():
-        sections.append(_section("Who the ideas are for", context.strip()[:CONTEXT_LIMIT]))
+        sections.append(_section("Who the ideas are for", context.strip()[:SCORE_CONTEXT_LIMIT]))
     if brief.strip():
-        sections.append(_section("The project's brief", brief.strip()[:BRIEF_LIMIT]))
+        sections.append(_section("The project's brief", brief.strip()[:SCORE_BRIEF_LIMIT]))
     if tickets:
         lines = [f"- {title} ({column})" if column else f"- {title}" for title, column in tickets]
-        sections.append(_section("Tickets", "\n".join(lines[:TICKETS_SHOWN])))
+        sections.append(_section("Tickets", "\n".join(lines[:SCORE_TICKETS_SHOWN])))
     others = [title for title in known or [] if title not in own]
     if others:
         sections.append(
-            _section("Other ideas", "\n".join(f"- {title}" for title in others[:KNOWN_SHOWN]))
+            _section("Other ideas", "\n".join(f"- {title}" for title in others[:SCORE_KNOWN_SHOWN]))
         )
     return SCORE_PROMPT.format(
         scope=_PROJECT.format(name=project) if project else _GLOBAL,
@@ -400,6 +414,11 @@ def score_prompt(
         ideas=listed,
         sections="".join(f"\n{section}" for section in sections),
     )
+
+
+def score_estimate(prompt: str) -> float:
+    """What scoring with this prompt may cost, in dollars: four characters to a token, rounded up."""
+    return SCORE_OVERHEAD_USD + (len(prompt) / 4) * SCORE_USD_PER_TOKEN
 
 
 def _section(heading: str, body: str) -> str:
@@ -795,12 +814,12 @@ def scoring(identifier: int) -> None:
     _detail(identifier, scoring=_now())
 
 
-def scored(identifier: int, score: int | None, reason: str = "") -> Idea:
-    """Write an idea's score and why — or, with None, that the session gave none."""
+def scored(identifier: int, score: int | None, reason: str = "", error: str = "") -> Idea:
+    """Write an idea's score and why — or, with None, that the session gave none and why not."""
     if score is None:
-        _detail(identifier, scoring=None)
+        _detail(identifier, scoring=None, score_error=_line(error)[:DESCRIPTION_LIMIT] or None)
         return get(identifier)
-    _detail(identifier, scoring=None, score_reason=_line(reason)[:DESCRIPTION_LIMIT])
+    _detail(identifier, scoring=None, score_error=None, score_reason=_line(reason)[:DESCRIPTION_LIMIT])
     with db.transaction() as connection:
         connection.execute("UPDATE ideas SET score = ? WHERE id = ?", (score_of(score), identifier))
     return get(identifier)

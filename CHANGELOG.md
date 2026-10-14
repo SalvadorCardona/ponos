@@ -178,6 +178,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **Ideas are scored again, and a scoring that fails says why.** A scoring call was stopped at 0.10 dollars
+  while it costs 0.12 to 0.14, so no idea was ever scored and nothing said so. The ceiling is now 0.50 dollars
+  a call, the prompt carries less (a shorter brief, fewer tickets and ideas to compare with), and a call whose
+  estimate would go over the ceiling is not started. When one fails — budget, credits, unreadable answer —
+  the cause is kept on the idea ("Not scored — try again", the cause in its tooltip), written to the
+  console's journal, and toasted when *Score the unscored ideas* was the one that failed.
+
 - **A ticket opens and closes in a blink on a full board.** On a board of 446 tickets, opening a card
   took about 400 ms and closing it 550 ms, because the whole board was drawn again each time — the
   open ticket was held by a component every card sat under — and because the window, by setting
