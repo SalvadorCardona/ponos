@@ -12745,6 +12745,64 @@ def the_console_is_downloaded_once_and_compressed():
 
 
 @case
+def the_console_is_installable_as_an_app():
+    """A manifest, three icons and a worker, served to a browser with no cookie.
+
+    A browser fetches the manifest and the worker for itself, and a manifest
+    request leaves without the cookie unless the page says `use-credentials` —
+    so these answer to nobody in particular, and what they answer is whole: every
+    icon the manifest names is a file of the build, the worker is served from
+    `/` so that it may control `/`, and it is never kept, or an installed app
+    would stay on the build it was installed with.
+    """
+    import json
+    import urllib.error
+    import urllib.request
+
+    from ponos.web import server as web_server
+
+    api = _bare_api(_TalkClient([]))
+    console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+    threading.Thread(target=console.serve_forever, daemon=True).start()
+    port = console.server_address[1]
+
+    def get(path: str):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as response:
+            return response.headers, response.read()
+
+    try:
+        headers, body = get("/static/manifest.webmanifest")
+        assert headers["Content-Type"].startswith("application/manifest+json")
+        manifest = json.loads(body)
+        assert manifest["display"] == "standalone" and manifest["start_url"] == "/"
+        assert manifest["name"] and manifest["short_name"]
+        sizes = {(icon["sizes"], icon["purpose"]) for icon in manifest["icons"]}
+        assert {("192x192", "any"), ("512x512", "any"), ("512x512", "maskable")} <= sizes
+        for icon in manifest["icons"]:
+            headers, data = get(icon["src"])
+            assert headers["Content-Type"] == "image/png" and data.startswith(b"\x89PNG")
+        headers, body = get("/sw.js")
+        assert headers["Content-Type"].startswith("application/javascript") or headers[
+            "Content-Type"
+        ].startswith("text/javascript")
+        assert headers["Cache-Control"] == "no-store", "an installed app would never see a new build"
+        assert b"__BUILD__" not in body, "the worker was shipped as a template"
+        get("/static/offline.html")
+        # And the console itself is still behind its key.
+        try:
+            get("/api/board")
+            raise AssertionError("the board answered without a key")
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+    finally:
+        console.shutdown()
+        console.server_close()
+
+    page = (STATIC / "index.html").read_text(encoding="utf-8")
+    assert 'rel="manifest"' in page and 'crossorigin="use-credentials"' in page
+
+
+@case
 def the_console_and_the_landing_page_draw_one_robot():
     """The mascot is one file, and the console bundles it rather than a copy.
 

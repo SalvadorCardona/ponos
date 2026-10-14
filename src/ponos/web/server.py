@@ -437,6 +437,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(405, b"", "text/plain", {"Allow": "POST"})
         if route == "/oauth/authorize":
             return self._authorize({key: values[0] for key, values in query.items()})
+        # What makes the console installable: the browser fetches these for
+        # itself, and a manifest request leaves without the cookie unless the
+        # page asks otherwise — they are the same files for everybody, and hold
+        # no secret, so no key is asked for them either.
+        if route == "/sw.js":
+            return self._static("sw.js")
+        if route in ("/static/manifest.webmanifest", "/static/offline.html") or route.startswith(
+            "/static/pwa/"
+        ):
+            return self._static(route[len("/static/") :])
         if not self._authorised(query):
             # An unclaimed console is drawn by the bundle, which is no secret:
             # it is the same files for everybody, and what it asks first is the
@@ -1177,6 +1187,8 @@ class Handler(BaseHTTPRequestHandler):
                     _compressed[key] = gzip.compress(body, compresslevel=9, mtime=0)
                 body = _compressed[key]
                 extra["Content-Encoding"] = "gzip"
+        if target.suffix == ".webmanifest":
+            kind = "application/manifest+json"
         if kind.startswith("text/") or kind == "application/javascript":
             kind = f"{kind}; charset=utf-8"
         cache = IMMUTABLE if name.startswith("assets/") else "no-store"

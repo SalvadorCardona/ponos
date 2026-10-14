@@ -15,6 +15,7 @@ import { TICKETS } from "@/resources/tickets"
 
 import { openPalette } from "./command-palette"
 import { NotificationBell } from "./notification-bell"
+import { InstallApp } from "./install-app"
 import { Robot } from "./robot"
 import { VersionBadge } from "./version-badge"
 
@@ -316,6 +317,8 @@ export function TopBarEnd() {
             can reach it; the version alone is in the pill. */}
         <VersionBadge offerOnly />
       </div>
+
+      <InstallApp />
 
       {/* The palette's way in for a mouse, and where its shortcut is learnt. */}
       <Tooltip>

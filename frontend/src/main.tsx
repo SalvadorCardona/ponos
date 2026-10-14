@@ -8,6 +8,9 @@ import { createRoot } from "react-dom/client"
 import App from "./App"
 import { SetupApp } from "./components/console/setup"
 import "./index.css"
+import { startServiceWorker } from "./lib/service-worker"
+
+startServiceWorker()
 
 /* The server marks the page `data-setup` when what it serves is the first
  * connection rather than the console — see `web/server.py` and `setup.tsx`. */

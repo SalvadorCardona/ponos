@@ -27,6 +27,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   the run into `ponos.db` (migration `notifications`), arrive on the stream like the board, so opening
   the panel asks for nothing, and read ones are forgotten after thirty days. System (push)
   notifications and a "CI is green again" ring are not part of it.
+- **The console installs as an app.** Chrome, Edge and Android offer it from a small icon in the bar
+  (*Install the app*); on iOS the same icon says *Share → Add to Home Screen*. It opens in a window
+  of its own on the board, with the robot as its icon. A service worker keeps the console's files
+  for a quick start — never the tickets, which come from the server every time — and shows a page
+  that says so when the server cannot be reached. A new version is noticed by the installed app,
+  which asks *New version available — Reload*. Browsers only install over HTTPS or on `localhost`.
 - **The ideas list reads at a glance, and its filters live in the address.** Each card puts its title
   first, its status and type as badges, a few lines of description and who wrote it, small — and one
   button in plain sight: *Turn into a ticket*, or *Open the ticket* once it is one. Keeping, throwing
