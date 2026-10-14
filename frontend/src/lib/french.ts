@@ -1725,6 +1725,7 @@ export const FRENCH: Record<string, string> = {
   "Ideas for {{name}}": "Idées pour {{name}}",
   "Swipe right to keep an idea, left to throw it away.":
     "Glisse à droite pour garder une idée, à gauche pour la jeter.",
+  "← throw away · → keep · Ctrl/Cmd+Z undo": "← jeter · → garder · Ctrl/Cmd+Z annuler",
   "Swipe right to keep, left to throw away.": "Glisse à droite pour garder, à gauche pour jeter.",
   "Swipe": "Idées",
   "Kept": "Gardée",

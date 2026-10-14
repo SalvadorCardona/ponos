@@ -302,6 +302,12 @@ function IdeasDialog({
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (tab !== "ideas" || phase !== "ready") return
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault()
+      if (canUndo) undo()
+      return
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey) return
     // A tab trigger has its own use for the arrows.
     if ((event.target as HTMLElement).closest('[role="tab"]')) return
     const side = sideOfKey(event.key)
@@ -314,7 +320,7 @@ function IdeasDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         data-slot="ideas-dialog"
-        className="flex flex-col gap-3 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:max-h-[90dvh] sm:max-w-md"
+        className="flex flex-col gap-3 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:h-[85dvh] sm:max-h-[85dvh] sm:max-w-[44rem]"
         closeLabel={t("Close")}
         onKeyDown={onKeyDown}
         onOpenAutoFocus={(event) => {
@@ -364,6 +370,14 @@ function IdeasDialog({
                 onDecide={decide}
                 onUndo={undo}
               />
+              {phase === "ready" && pile.length ? (
+                <p
+                  data-slot="ideas-shortcuts"
+                  className="text-muted-foreground/70 hidden text-center text-xs sm:block"
+                >
+                  {t("← throw away · → keep · Ctrl/Cmd+Z undo")}
+                </p>
+              ) : null}
             </div>
           </TabsContent>
           <TabsContent value="history" className="min-h-0 flex-1 overflow-y-auto">
@@ -440,7 +454,7 @@ function Pile({
   return (
     <div
       data-slot="ideas-pile"
-      className="relative mx-auto min-h-72 w-full max-w-sm flex-1 sm:max-h-96"
+      className="relative mx-auto min-h-72 w-full max-w-xl flex-1"
     >
       {shown
         .map((idea, depth) => (
@@ -548,17 +562,25 @@ function Card({
         <CategoryBadge category={idea.category} />
         <IdeaOrigin project={idea.kind === "project" ? "" : idea.project} name={name} />
       </div>
-      <h3 className="text-xl leading-snug font-semibold tracking-tight">{idea.title}</h3>
-      <p className="text-muted-foreground line-clamp-6 text-sm leading-relaxed">
-        {idea.description}
-      </p>
-      {idea.score !== null && idea.score_reason ? (
-        <p className="text-muted-foreground line-clamp-2 text-xs italic" data-slot="ideas-card-score-reason">
-          {idea.score_reason}
+      {/* The idea in full: what does not fit scrolls here, and only here — the
+          badges above stay in view. The card keeps `touch-pan-y`, so a finger moving
+          up or down scrolls this and a finger moving sideways drags the card. */}
+      <div
+        data-slot="ideas-card-body"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain"
+      >
+        <h3 className="text-xl leading-snug font-semibold tracking-tight">{idea.title}</h3>
+        <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">
+          {idea.description}
         </p>
-      ) : null}
-      <div className="mt-auto">
-        <Byline author={idea.author} when={idea.created_at} />
+        {idea.score !== null && idea.score_reason ? (
+          <p className="text-muted-foreground text-xs italic" data-slot="ideas-card-score-reason">
+            {idea.score_reason}
+          </p>
+        ) : null}
+        <div className="mt-auto">
+          <Byline author={idea.author} when={idea.created_at} />
+        </div>
       </div>
       {top ? (
         <>
