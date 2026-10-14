@@ -4575,6 +4575,9 @@ def _github(states: dict[str, str], merge=None, blockers: dict[str, str] | None 
     blocker = git_module.merge_blocker
     git_module.pull_request_state = lambda url, accounts=None: states.get(url, "")
     git_module.merge_blocker = lambda url, accounts=None: (blockers or {}).get(url, "")
+    # Nothing is asked of GitHub about the checks of the pull requests still open.
+    head = git_module.pull_request_head
+    git_module.pull_request_head = lambda url, accounts=None: ""
     if merge is not None:
         git_module.merge_pull_request = merge
     try:
@@ -4583,6 +4586,7 @@ def _github(states: dict[str, str], merge=None, blockers: dict[str, str] | None 
         git_module.pull_request_state = asked
         git_module.merge_pull_request = original
         git_module.merge_blocker = blocker
+        git_module.pull_request_head = head
 
 
 def _closing(pages: list[notion.Page], states: dict[str, str], status: dict[str, str]):
@@ -4608,6 +4612,101 @@ def a_merged_pull_request_moves_its_ticket_to_done():
     assert client.comments_written[0] == (
         "✅ Merged — PR #1\nhttps://github.com/x/y/pull/1"
     )
+
+
+def _checks(*buckets: str) -> list[dict]:
+    return [
+        {"name": f"job-{number}", "bucket": bucket, "link": f"https://ci/{number}"}
+        for number, bucket in enumerate(buckets)
+    ]
+
+
+@case
+def the_three_states_of_the_ci_are_deduced_from_the_checks():
+    from ponos import ci
+
+    assert ci.deduce(_checks("pass", "pass")) == "passed"
+    assert ci.deduce(_checks("pass", "skipping")) == "passed"
+    assert ci.deduce(_checks("pass", "pending")) == "pending"
+    assert ci.deduce(_checks("fail", "pass")) == "failed"
+    assert ci.deduce(_checks("cancel", "pass")) == "failed"
+    # The verdict is known as soon as one is red, whatever is still running.
+    assert ci.deduce(_checks("pending", "fail")) == "failed"
+    # No check is no CI: never a green.
+    assert ci.deduce([]) == ""
+    assert ci.read({"state": "", "url": "u", "checks": []}, "u") is None
+
+
+@case
+def a_push_puts_the_ci_back_to_running_until_the_new_checks_are_in():
+    from ponos import ci
+
+    url = "https://github.com/x/y/pull/1"
+    green = ci.settle(None, url, "aaa", _checks("pass"), 1000.0)
+    assert green["state"] == "passed" and green["head"] == "aaa"
+    # Same commit, same checks: nothing moves, and the date of the head stays.
+    again = ci.settle(green, url, "aaa", _checks("pass"), 1400.0)
+    assert again["state"] == "passed" and again["since"] == 1000.0
+    # A new head whose checks are not registered yet is still running.
+    pushed = ci.settle(again, url, "bbb", [], 1500.0)
+    assert pushed["state"] == "pending" and pushed["since"] == 1500.0
+    # A repository that never had a check says nothing, at the first reading and after.
+    assert ci.settle(None, url, "aaa", [], 1000.0)["state"] == ""
+    # And a pull request that answers with nothing for good is not kept pending.
+    assert ci.settle(pushed, url, "bbb", [], 1500.0 + ci.APPEAR_SECONDS)["state"] == ""
+
+
+@case
+def the_ci_is_asked_again_often_while_it_runs_and_rarely_once_it_has_settled():
+    from ponos import ci
+
+    url = "u"
+    running = {"url": url, "state": "pending", "asked": 1000.0}
+    settled = {"url": url, "state": "passed", "asked": 1000.0}
+    assert ci.due(None, url, 1000.0) and ci.due({**running, "url": "other"}, url, 1000.0)
+    assert not ci.due(running, url, 1000.0 + ci.RUNNING_SECONDS - 1)
+    assert ci.due(running, url, 1000.0 + ci.RUNNING_SECONDS)
+    assert not ci.due(settled, url, 1000.0 + ci.RUNNING_SECONDS)
+    assert ci.due(settled, url, 1000.0 + ci.SETTLED_SECONDS)
+
+
+@case
+def a_ticket_in_review_carries_its_ci_on_the_board_and_stops_when_it_leaves():
+    from ponos import git as git_module
+
+    url = "https://github.com/x/y/pull/2"
+    with _state_home():
+        runner = _board_runner(
+            [_reviewed("p-open", "In review", url)], {"review": "In review", "done": "Done"}
+        )
+        asked = []
+        head, listed = git_module.pull_request_head, git_module.checks
+        git_module.pull_request_head = lambda link, accounts=None: "aaa"
+        git_module.checks = lambda link, accounts=None: asked.append(link) or _checks("pass", "pending")
+        try:
+            with _github({url: "OPEN"}):
+                git_module.pull_request_head = lambda link, accounts=None: "aaa"
+                runner.close_merged()
+            # Written to the board, and kept for the list to read without GitHub.
+            assert runner.client.written == [("p-open", {"CI": "en cours"})], runner.client.written
+            cards = [{"id": "popen", "column": "review", "pull_request": url}]
+            web_api._checks(cards)
+            assert cards[0]["ci"]["state"] == "pending" and len(cards[0]["ci"]["checks"]) == 2
+            assert cards[0]["ci"]["link"] == url + "/checks"
+            # Asked again at once: not due, so GitHub is not.
+            with _github({url: "OPEN"}):
+                git_module.pull_request_head = lambda link, accounts=None: "aaa"
+                runner.close_merged()
+            assert asked == [url]
+            # Out of review: no longer followed, no longer drawn.
+            runner.client.written.clear()
+            runner.follow_ci([])
+            assert state.ci_rows() == {}
+            cards = [{"id": "popen", "column": "validated", "pull_request": url}]
+            web_api._checks(cards)
+            assert cards[0]["ci"] is None
+        finally:
+            git_module.pull_request_head, git_module.checks = head, listed
 
 
 @case

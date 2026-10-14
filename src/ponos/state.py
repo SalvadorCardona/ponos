@@ -357,6 +357,67 @@ def forget_mending(ticket_id: str, head: str) -> None:
         pass
 
 
+def ci_rows() -> dict[str, dict]:
+    """{ticket id without dashes: what the runner last read of its pull request's checks}.
+
+    What a card is drawn with: read with the list, from here, so that opening
+    the board never asks GitHub anything. Empty when the database cannot be
+    read — a card without its badge is still a card.
+    """
+    try:
+        with db.transaction(immediate=False) as connection:
+            rows = connection.execute(
+                "SELECT ticket, url, head, state, checks, since, asked FROM ci"
+            ).fetchall()
+    except db.ERRORS:
+        return {}
+    found: dict[str, dict] = {}
+    for ticket, url, head, status, checks, since, asked in rows:
+        try:
+            listed = json.loads(checks)
+        except json.JSONDecodeError:
+            listed = []
+        found[str(ticket).replace("-", "")] = {
+            "url": str(url),
+            "head": str(head),
+            "state": str(status),
+            "checks": listed if isinstance(listed, list) else [],
+            "since": float(since),
+            "asked": float(asked),
+        }
+    return found
+
+
+def keep_ci(ticket_id: str, row: dict) -> None:
+    """Write what was read of that ticket's checks, in place of what was there."""
+    try:
+        with db.transaction() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO ci (ticket, url, head, state, checks, since, asked) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    ticket_id,
+                    row["url"],
+                    row["head"],
+                    row["state"],
+                    json.dumps(row["checks"], ensure_ascii=False),
+                    row["since"],
+                    row["asked"],
+                ),
+            )
+    except db.ERRORS:
+        pass
+
+
+def drop_ci(ticket_ids: Iterable[str]) -> None:
+    """Stop following those tickets: they have left review."""
+    try:
+        with db.transaction() as connection:
+            connection.executemany("DELETE FROM ci WHERE ticket = ?", [(one,) for one in ticket_ids])
+    except db.ERRORS:
+        pass
+
+
 def _number(value: object) -> float | None:
     try:
         return None if value is None or value == "" else float(value)  # type: ignore[arg-type]

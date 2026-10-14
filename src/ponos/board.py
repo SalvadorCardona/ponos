@@ -582,12 +582,13 @@ class Board(Base):
             self.database, {"property": status_property, kind: {"equals": review}}
         )
         closed = 0
+        waiting: list[store.Page] = []
         for page in pages:
             url = str(store.read(page, self.config.notion.prop("pull_request")) or "")
-            if (
-                not url.startswith("http")
-                or git.pull_request_state(url, self.config.github) != "MERGED"
-            ):
+            if not url.startswith("http"):
+                continue
+            if git.pull_request_state(url, self.config.github) != "MERGED":
+                waiting.append(page)
                 continue
             ticket = Ticket(page)
             said = self.voice
@@ -601,6 +602,8 @@ class Board(Base):
                 ticket, said.report(said.verdict("merged", said.pull_request(url)), url)
             )
             closed += 1
+        # The ones still open are the ones whose CI is worth knowing.
+        self.follow_ci(waiting)
         return closed
 
     def _again(self, hand: InHand) -> list[Ticket]:

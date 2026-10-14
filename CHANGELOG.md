@@ -33,6 +33,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   for a quick start — never the tickets, which come from the server every time — and shows a page
   that says so when the server cannot be reached. A new version is noticed by the installed app,
   which asks *New version available — Reload*. Browsers only install over HTTPS or on `localhost`.
+- **A ticket in review shows whether its CI passes.** A badge on the card — running, passed or failed
+  — and, in the ticket's window, the list of its checks with a link to GitHub's page for them. A
+  pull request without a single check shows nothing, never a green. The runner reads the checks of
+  the pull requests in review a pass at a time (every 30 seconds while one runs, every five minutes
+  once settled) and keeps them in `ponos.db`, so the board stays as fast as it was; a push puts the
+  state back to running, and a ticket that leaves review is no longer followed. The state is also
+  written to a new `CI` select (`en cours`, `réussi`, `erreur`) that `ponos init` adds to the
+  tickets board, for a Notion view to filter on.
 - **The ideas list reads at a glance, and its filters live in the address.** Each card puts its title
   first, its status and type as badges, a few lines of description and who wrote it, small — and one
   button in plain sight: *Turn into a ticket*, or *Open the ticket* once it is one. Keeping, throwing

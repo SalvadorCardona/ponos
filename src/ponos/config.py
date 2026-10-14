@@ -762,6 +762,9 @@ _DEFAULT_PROPERTIES = {
     # Why a blocked or failed ticket stopped: a code of blocks.py, as a select a
     # Notion view filters on. Written when it stops, emptied when it leaves.
     "block": "Blocage",
+    # The state of the pull request's checks while the ticket is in review: a
+    # select with three options (see ci.py), emptied for a repository without CI.
+    "ci": "CI",
     # Relation to the Agents database. It carries the same word as the database
     # it points at, because it is the same thing.
     "role": "Agent",

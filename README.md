@@ -914,6 +914,7 @@ tickets are made up:
 | `Waiting for credit` | checkbox | *optional* — ticked by the runner while the subscription's window is spent under the ticket. It does not move: it is still ready, and the tick is the note saying why nobody has got to it yet |
 | `Type` | select | *optional* — `Code`, `Writing`, `External action`, `Publication`: **the road the ticket takes**. Empty, the runner works it out before running it — see [The type of a ticket](#the-type-of-a-ticket) |
 | `Blocage` | select | *optional* — filled by the runner when a ticket stops: **why**, as a code (`merge.checks-failed`, `session.question`, `worktree.residue`…), emptied when it leaves *Blocked* or *Failed* — see [Why a ticket stopped](#why-a-ticket-stopped) |
+| `CI` | select | *optional* — written by the runner while the ticket is in *In review*: the state of its pull request's checks (`en cours`, `réussi`, `erreur`), empty for a repository without CI — see [CI on the card](#ci-on-the-card) |
 
 `Waiting for credit` is an attribute rather than an eighth column, and on purpose: nothing
 happened to a ticket nothing was started for, so nothing on the board should say it moved.
@@ -1573,6 +1574,18 @@ it, and the gesture first among the buttons. The search over the board filters b
 the statistics count it week by week. The history written before codes existed was read
 back from its sentences, French and English, when `ponos.db` was migrated; a sentence that
 matched no cause is counted as `unknown`.
+
+<a id="ci-on-the-card"></a>**CI on the card.** A ticket in *In review* with a pull request shows
+whether its checks pass, without a trip to GitHub. Each pass asks `gh` for the checks of the
+open pull requests of that column — every 30 seconds while one is running, every five
+minutes once settled — and keeps the answer in `ponos.db`; the console reads it with the
+list, so opening the board or a card asks GitHub nothing. Three states: `en cours` (a check
+is waiting or running), `réussi` (all of them finished green, skipped ones included),
+`erreur` (one failed, was cancelled or timed out — a red check wins over a running one).
+A pull request with no check shows nothing, never a green. A push puts it back to `en cours`
+until the new commit's checks are in. The state is also written to the `CI` select of the
+board, so a Notion view can filter on it. A ticket that leaves *In review* is no longer
+followed.
 
 Four of those names are deliberate. *In review* rather than *Done*, because nothing is
 done when the runner lets go of a ticket: a pull request is waiting for a human, and a

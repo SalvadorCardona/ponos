@@ -721,6 +721,22 @@ def _notifications(connection: sqlite3.Connection) -> None:
     )
 
 
+def _ci(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE ci (
+            ticket  TEXT PRIMARY KEY,
+            url     TEXT NOT NULL,
+            head    TEXT NOT NULL DEFAULT '',
+            state   TEXT NOT NULL DEFAULT '',
+            checks  TEXT NOT NULL DEFAULT '[]',
+            since   REAL NOT NULL DEFAULT 0,
+            asked   REAL NOT NULL DEFAULT 0
+        )
+        """
+    )
+
+
 # Appended to, never edited or renamed: a file remembers each of these by name,
 # and the version of a file is how many of them it has been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -751,6 +767,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _mends,
     _ideas_have_a_category,
     _notifications,
+    _ci,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

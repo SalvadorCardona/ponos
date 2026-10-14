@@ -72,6 +72,10 @@ COLUMNS: dict[str, tuple[tuple[str, ...], str]] = {
         ("select",),
         "why a ticket stopped is not on the board, so no Notion view can filter blocks by cause",
     ),
+    "ci": (
+        ("select",),
+        "the state of a pull request's checks is not on the board, so no Notion view can filter on it",
+    ),
 }
 
 

@@ -186,6 +186,11 @@ type = "Type"
 # by; the console reads it for the card's badge. ponos init adds it, with every
 # code as an option. Optional: without it, the code is still in the history.
 block = "Blocage"
+# The state of the pull request's checks while the ticket is in review: a select
+# with three options (en cours, réussi, erreur), rewritten by the runner as the
+# checks move and left empty for a repository without CI. ponos init adds it.
+# Optional: without it the console still shows the state, only Notion does not.
+ci = "CI"
 
 # The columns of the *schedules* database — what comes back on its own. A row
 # there is the recipe for a ticket and the cadence it is born at; the body of

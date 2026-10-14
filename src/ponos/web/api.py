@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .. import blocks
+from .. import blocks, ci
 from .. import config as config_module
 from .. import channels, cleanup, conversation, credits, decisions, git, images, question, session, state, store, sync
 from .. import journal, models, notifications, project_settings, systemd, voice
@@ -230,6 +230,7 @@ class Api:
             for page in pages
         ]
         _causes(tickets)
+        _checks(tickets)
         self._synced = board_module.describe(self.reader, tickets)
         self._hold(tickets)
 
@@ -397,6 +398,7 @@ class Api:
             lambda status: names.get(status, "draft"),
         )
         _causes([card])
+        _checks([card])
         # A board without the duration column still ran the session: its log
         # says how long. Only here, where one ticket is read — on the board it
         # would be a log opened per card.
@@ -1692,6 +1694,18 @@ def _causes(tickets: list[dict]) -> None:
         elif ticket.get("block") is None:
             codes = state.causes() if codes is None else codes
             ticket["block"] = blocks.describe(codes.get(str(ticket.get("id", "")), ""))
+
+
+def _checks(tickets: list[dict]) -> None:
+    """The state of the checks on every card whose pull request is being followed.
+
+    Read from `ponos.db` in one go, never from GitHub: see `ci.py`. A card that
+    is not in review, or whose pull request has no check, carries none.
+    """
+    rows = state.ci_rows()
+    for ticket in tickets:
+        row = rows.get(str(ticket.get("id", ""))) if ticket.get("column") == "review" else None
+        ticket["ci"] = ci.read(row, str(ticket.get("pull_request") or ""))
 
 
 def _status(settings, key: str) -> str:

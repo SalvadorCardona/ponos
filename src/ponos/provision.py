@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import blocks, notion
+from . import blocks, ci, notion
 from .config import PRIORITIES, Notion
 from .schedules import CADENCES
 
@@ -51,6 +51,12 @@ _STATUS_COLOURS = {
 _TYPE_COLOURS = {"code": "blue", "writing": "gray", "external": "orange", "publication": "red"}
 
 # The families of blocks.py, in the colours the console draws them in.
+_CI_COLOURS = {
+    ci.LABELS[ci.PENDING]: "yellow",
+    ci.LABELS[ci.PASSED]: "green",
+    ci.LABELS[ci.FAILED]: "red",
+}
+
 _BLOCK_COLOURS = {
     "merge": "purple",
     "session": "blue",
@@ -207,6 +213,8 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
             blocks.CODES,
             {cause.code: _BLOCK_COLOURS[cause.family] for cause in blocks.CAUSES.values()},
         ),
+        # The checks of the pull request while the ticket is in review.
+        settings.prop("ci"): _select(list(ci.LABELS.values()), _CI_COLOURS),
     }
     # Single-property relations: the ticket points at its project, and the
     # projects database is not given a back-reference it would never read.

@@ -1293,3 +1293,19 @@ def pull_request_state(url: str, accounts: Accounts | None = None) -> str:
         token=token_for(url, accounts),
     )
     return result.out if result.ok else ""
+
+
+def pull_request_head(url: str, accounts: Accounts | None = None) -> str:
+    """The commit the pull request's branch is at, or nothing when GitHub cannot say.
+
+    What tells a push from a wait: the checks are those of this commit, so a
+    head that is not the one last read means they are all to be read again.
+    """
+    if not shutil.which("gh"):
+        return ""
+    result = run(
+        ["gh", "pr", "view", url, "--json", "headRefOid", "-q", ".headRefOid"],
+        timeout=60,
+        token=token_for(url, accounts),
+    )
+    return result.out.strip() if result.ok else ""

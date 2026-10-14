@@ -34,6 +34,7 @@ import {
   SEED,
   TicketActions,
   TicketBlock,
+  TicketCi,
   TicketFoot,
   TicketHeld,
   TicketSync,
@@ -472,7 +473,10 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   const Waiting = (ticket.block && FAMILY_ICON[ticket.block.family]) || MessageCircleQuestion
 
   return (
-    <div className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3 [contain-intrinsic-size:auto_9rem] [content-visibility:auto]">
+    <div
+      data-ticket-card={ticket.id}
+      className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3 [contain-intrinsic-size:auto_9rem] [content-visibility:auto]"
+    >
       <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
         {/* Waiting on you: a run that asks a question lands in the blocked
             column, and so does a ticket held by hand — both wait for a word
@@ -515,6 +519,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       <TicketHeld ticket={ticket} />
       {/* A blocked card says why in its button's tooltip, and its badge above. */}
       {ticket.column !== "blocked" ? <TicketBlock block={ticket.block} /> : null}
+      <TicketCi ci={ticket.ci} />
 
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />

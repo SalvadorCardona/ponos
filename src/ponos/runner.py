@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 
-from . import base, board, cleanup, credits, delivery, execution, preparation
+from . import base, board, ci, cleanup, credits, delivery, execution, preparation
 from . import recurrence, replies, reports, state, unblocking
 from . import update as update_module
 from .projects import Project
@@ -44,6 +44,7 @@ from .ticket import Ticket
 
 class Runner(
     board.Board,
+    ci.Checks,
     cleanup.Cleanup,
     delivery.Delivery,
     execution.Execution,
