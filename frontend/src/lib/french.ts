@@ -289,6 +289,7 @@ export const FRENCH: Record<string, string> = {
   "Empty, the model the runner is set to.": "Vide, le modèle réglé pour le runner.",
   "no project — a document": "aucun projet — un document",
   "no project": "aucun projet",
+  "Open the project {{name}}": "Ouvrir le projet {{name}}",
   "open in Notion": "ouvrir dans Notion",
   "pull request": "pull request",
   session: "session",

@@ -27,6 +27,10 @@ export interface Ticket {
   status: string
   column: ColumnKey
   project: string
+  /** The project's page id, empty for a ticket without one. */
+  project_id?: string
+  /** The project's icon, as `Project.icon` is: emoji, image or empty. */
+  project_icon?: Picture
   /** The project's kind of work, `code` or `document`. */
   kind: string
   /** The ticket's own type, as the board spells it: Code, Writing, External action… */

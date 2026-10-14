@@ -14,6 +14,8 @@ import {
   SquareTerminal,
 } from "lucide-react"
 
+import { ProjectThumb } from "@/components/console/project-picture"
+import { projectHref } from "@/resources/projects"
 import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -394,7 +396,24 @@ export function TicketFoot({ ticket }: { ticket: Ticket }) {
   return (
     <div className="flex items-center gap-2 border-t pt-2.5 font-mono text-[0.7rem]">
       <span className="text-muted-foreground flex min-w-0 flex-1 gap-1">
-        <span className="min-w-0 truncate">{ticket.project || t("no project")}</span>
+        {ticket.project && ticket.project_id ? (
+          <Link
+            to={projectHref(ticket.project_id)}
+            data-slot="ticket-project"
+            title={ticket.project}
+            aria-label={t("Open the project {{name}}", { name: ticket.project })}
+            className="hover:text-foreground focus-visible:ring-ring/50 flex min-w-0 items-center gap-1 rounded-sm outline-none hover:underline focus-visible:ring-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ProjectThumb
+              project={{ name: ticket.project, icon: ticket.project_icon }}
+              className="size-4 rounded-full border-0"
+            />
+            <span className="min-w-0 truncate">{ticket.project}</span>
+          </Link>
+        ) : (
+          <span className="min-w-0 truncate">{ticket.project || t("no project")}</span>
+        )}
         {ago(ticket.created) ? (
           <span
             className="shrink-0 whitespace-nowrap"
