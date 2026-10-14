@@ -161,6 +161,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A card waiting on an answer shows only its Unblock button.** The line that explained the stop
+  is gone from the card; it now sits in the button's tooltip, and the badge above still says what
+  it is waiting for.
+
 - **The Unblock tab reads at the size of the discussion.** The question the run asked comes first,
   large; then why the ticket is stuck, and what is already done as its own list. Text is 16 px in
   the normal colour instead of small grey, section titles are plain headings rather than tiny
