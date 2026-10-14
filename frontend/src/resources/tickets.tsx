@@ -436,20 +436,19 @@ const rowForm: FormInterface = {
 /* -- one card ------------------------------------------------------------- */
 
 /* How a ticket is drawn on the board. The card is the way into the ticket —
- * its title is the link, and so is the id over it; a click opens it in a
+ * its title is the link; a click opens it in a
  * window over the board (see `TicketWindow`).
  *
- * Read top to bottom it answers, in order: which one is this, how long has it
- * been sitting there, what is it, what is said about it, what is it doing,
- * where does the work go and what has it cost. "What is it doing" is live on a
+ * Read top to bottom it answers, in order: what is it, what is said about it,
+ * what is it doing, where does the work go, how long has it been sitting there
+ * and what has it cost. "What is it doing" is live on a
  * running card: what its session last said, as it says it. The `-m-4` is the frame
  * react-resource-view draws around every record being pushed back out of the
  * way: the coloured edge has to be the card's own edge, not a stripe inside a
  * second border.
  *
- * The id and the age never wrap: "#3f2acf09" cut in two is a different id to
- * read, and "il y a 1 j" over two lines was a line of the card spent on it.
- * The title and the summary do, anywhere if they must: a path, a URL or a
+ * The age never wraps: "il y a 1 j" over two lines was a line of the card
+ * spent on it. The title and the summary do, anywhere if they must: a path, a URL or a
  * branch name has no space to break at, and unbroken it set the width of the
  * whole column, which then ran under the ones beside it.
  *
@@ -472,35 +471,33 @@ function TicketCard({ row }: RowComponentPropsInterface) {
   const open = opensInTheWindow(ticket.id)
   const Waiting = (ticket.block && FAMILY_ICON[ticket.block.family]) || MessageCircleQuestion
 
+  // Waiting on you: a run that asks a question lands in the blocked column,
+  // and so does a ticket held by hand — both wait for a word from you. The
+  // board reads no discussion, so the column is what it goes by; the page it
+  // opens is on the discussion. Where the cause is known the mark says it,
+  // rather than a second badge under it. It sits with the chips, so it is
+  // never alone on a line.
+  const waiting =
+    ticket.column === "blocked" ? (
+      <Link
+        to={href}
+        onClick={open}
+        data-slot="ticket-waiting"
+        title={ticket.block?.code}
+        className="bg-tr-amber/15 text-tr-amber inline-flex min-w-0 items-center gap-1 rounded-xl px-1.5 py-0.5 text-[0.7rem] leading-tight font-semibold whitespace-nowrap hover:underline"
+      >
+        <Waiting className="size-3 shrink-0" />
+        <span className="min-w-0 truncate">
+          {ticket.block ? blockSaid(ticket.block.label) : t("waiting for you")}
+        </span>
+      </Link>
+    ) : null
+
   return (
     <div
       data-ticket-card={ticket.id}
       className="-m-4 flex min-w-0 flex-col gap-2 rounded-2xl p-3 [contain-intrinsic-size:auto_9rem] [content-visibility:auto]"
     >
-      <div className="flex items-center gap-2 font-mono text-[0.7rem] whitespace-nowrap">
-        {/* Waiting on you: a run that asks a question lands in the blocked
-            column, and so does a ticket held by hand — both wait for a word
-            from you. The board reads no discussion, so the column is what it
-            goes by; the page it opens is on the discussion. Where the cause
-            is known the mark says it, rather than a second badge under it. */}
-        {ticket.column === "blocked" ? (
-          <Link
-            to={href}
-            onClick={open}
-            data-slot="ticket-waiting"
-            title={ticket.block?.code}
-            className="bg-tr-amber/15 text-tr-amber inline-flex min-w-0 items-center gap-1 rounded-xl px-1.5 py-0.5 font-sans leading-tight font-semibold hover:underline"
-          >
-            <Waiting className="size-3 shrink-0" />
-            <span className="min-w-0 truncate">
-              {ticket.block ? blockSaid(ticket.block.label) : t("waiting for you")}
-            </span>
-          </Link>
-        ) : null}
-        <span className="flex-1" />
-        <span className="text-muted-foreground shrink-0">{ago(ticket.created)}</span>
-      </div>
-
       {/* Given up on: still read, struck through, the way a list crosses out
           what it no longer means to do. */}
       <Link
@@ -514,7 +511,7 @@ function TicketCard({ row }: RowComponentPropsInterface) {
         <Marked text={ticket.title} words={words} />
       </Link>
 
-      <TicketTags ticket={ticket} />
+      <TicketTags ticket={ticket} lead={waiting} />
       <TicketSync ticket={ticket} />
       <TicketHeld ticket={ticket} />
       {/* A blocked card says why in its button's tooltip, and its badge above. */}

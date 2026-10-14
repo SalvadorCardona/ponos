@@ -366,10 +366,11 @@ export function TicketSync({ ticket }: { ticket: Ticket }) {
 }
 
 /** What is said *about* a ticket rather than in it: how urgent, on which model, when. */
-export function TicketTags({ ticket }: { ticket: Ticket }) {
-  if (!ticket.priority && !ticket.model && !ticket.scheduled) return null
+export function TicketTags({ ticket, lead }: { ticket: Ticket; lead?: React.ReactNode }) {
+  if (!lead && !ticket.priority && !ticket.model && !ticket.scheduled) return null
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
+      {lead}
       {ticket.priority ? <Chip>{ticket.priority}</Chip> : null}
       {ticket.model ? (
         <Chip className="min-w-0 max-w-full">
@@ -383,15 +384,28 @@ export function TicketTags({ ticket }: { ticket: Ticket }) {
   )
 }
 
-/* The line along the bottom of a card: where the work goes, what it has cost,
- * and the way out to the page it is written on. All three are facts rather than
- * prose, so all three are set in the mono face and read as a single ruled row. */
+/* The line along the bottom of a card: where the work goes and how long ago the
+ * ticket was made, what it has cost, and the way out to the page it is written
+ * on. All facts rather than prose, so all set in the mono face and read as a
+ * single ruled row. The project gives way (it truncates) before the age, and
+ * both before the cost: a long project name must not push the figure out. */
 export function TicketFoot({ ticket }: { ticket: Ticket }) {
   const t = useT()
   return (
     <div className="flex items-center gap-2 border-t pt-2.5 font-mono text-[0.7rem]">
-      <span className="text-muted-foreground min-w-0 flex-1 truncate">
-        {ticket.project || t("no project")}
+      <span className="text-muted-foreground flex min-w-0 flex-1 gap-1">
+        <span className="min-w-0 truncate">{ticket.project || t("no project")}</span>
+        {ago(ticket.created) ? (
+          <span
+            className="shrink-0 whitespace-nowrap"
+            title={new Date(ticket.created).toLocaleString(currentLanguage(), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          >
+            · {ago(ticket.created)}
+          </span>
+        ) : null}
       </span>
       {typeof ticket.cost === "number" && ticket.cost ? (
         <span className="tabular-nums">{money(ticket.cost)}</span>
