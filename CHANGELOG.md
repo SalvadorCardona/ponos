@@ -165,6 +165,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   is gone from the card; it now sits in the button's tooltip, and the badge above still says what
   it is waiting for.
 
+- **Board cards lose their id and their robot, and the columns widen.** The `#a56f96e3` and the
+  robot's head are gone from the card — the id is still on the ticket's page — so the badge and the
+  date share the first line, the badge on one line and the date no longer cut. Columns are drawn at
+  least 21 rem wide instead of 17.5, which also gives titles fewer lines; the board scrolls sideways
+  when they do not all fit.
 - **The Unblock tab reads at the size of the discussion.** The question the run asked comes first,
   large; then why the ticket is stuck, and what is already done as its own list. Text is 16 px in
   the normal colour instead of small grey, section titles are plain headings rather than tiny
