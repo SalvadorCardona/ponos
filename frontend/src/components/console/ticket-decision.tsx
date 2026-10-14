@@ -83,7 +83,16 @@ export const TicketTabContext = React.createContext<{
 } | null>(null)
 
 /** The call to action of a card waiting on you: Unblock, or Decide. Nothing on any other card. */
-export function DecideButton({ ticket, className }: { ticket: Ticket; className?: string }) {
+export function DecideButton({
+  ticket,
+  className,
+  title,
+}: {
+  ticket: Ticket
+  className?: string
+  /** The tooltip: on a blocked card, the cause's line of help, which the card no longer shows. */
+  title?: string
+}) {
   const t = useT()
   const tabs = React.useContext(TicketTabContext)
   const action = actionOf(ticket.column)
@@ -98,6 +107,7 @@ export function DecideButton({ ticket, className }: { ticket: Ticket; className?
       size="sm"
       variant={blocked ? "outline" : "default"}
       data-decide={ticket.id}
+      title={title}
       className={cn(
         blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white",
         className

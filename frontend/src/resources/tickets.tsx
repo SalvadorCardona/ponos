@@ -515,7 +515,8 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       <TicketTags ticket={ticket} />
       <TicketSync ticket={ticket} />
       <TicketHeld ticket={ticket} />
-      <TicketBlock block={ticket.block} labelled={ticket.column !== "blocked"} />
+      {/* A blocked card says why in its button's tooltip, and its badge above. */}
+      {ticket.column !== "blocked" ? <TicketBlock block={ticket.block} /> : null}
 
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />
