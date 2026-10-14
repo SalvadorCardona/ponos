@@ -779,3 +779,22 @@ export interface Decision {
   }
   caveats?: string[]
 }
+
+/* -- the bell ---------------------------------------------------------------- */
+
+export type NotificationKind = "question" | "review" | "ci" | "failed" | "blocked"
+
+export interface Notification {
+  id: number
+  kind: NotificationKind
+  ticket: string
+  title: string
+  at: string
+  read: boolean
+}
+
+/** The bell as the stream says it — a state, replayed to every tab that connects. */
+export interface Bell {
+  items: Notification[]
+  unread: number
+}

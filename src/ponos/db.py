@@ -706,6 +706,21 @@ def _ideas_have_a_category(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE ideas ADD COLUMN category TEXT NOT NULL DEFAULT ''")
 
 
+def _notifications(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            ticket TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            at TEXT NOT NULL,
+            read_at TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+
+
 # Appended to, never edited or renamed: a file remembers each of these by name,
 # and the version of a file is how many of them it has been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -735,6 +750,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _write_ups,
     _mends,
     _ideas_have_a_category,
+    _notifications,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

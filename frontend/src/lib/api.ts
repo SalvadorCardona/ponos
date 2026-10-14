@@ -1,5 +1,6 @@
 import type {
   Attached,
+  Bell,
   Board,
   ColumnKey,
   Decision,
@@ -286,6 +287,9 @@ export const api = {
   /** Takes back the last decision of one scope. */
   undoIdea: (project = "") => request<{ idea: Idea; was: string }>("/api/ideas/undo", { project }),
   refresh: () => request<unknown>("/api/refresh", {}),
+  /** One notification read, or all of them; the bell it leaves is the answer. */
+  readNotifications: (id?: number) =>
+    request<Bell>("/api/notifications/read", id === undefined ? {} : { id }),
   disk: () => request<Disk>("/api/disk"),
   clean: () => request<Cleaned>("/api/disk/clean", {}),
   mcp: () => request<McpOverview>("/api/mcp"),

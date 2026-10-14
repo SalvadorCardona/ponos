@@ -532,7 +532,9 @@ class Board(Base):
                 )
                 asked = said.question(Question(ask=said.sentence(interrupted)))
                 self._comment(ticket, said.report(said.verdict("blocked"), *asked))
-                self._tell("blocked", ticket, "blocked", "\n".join(asked), ask=True)
+                self._tell(
+                    "blocked", ticket, "blocked", "\n".join(asked), ask=True, code="worktree.interrupted"
+                )
                 state.release(ticket.id)
                 recovered += 1
                 continue

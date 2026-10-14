@@ -275,6 +275,16 @@ def journal_of(ticket: str) -> None:
     db.close()
 
 
+def bell_of() -> None:
+    """Three notifications on the bell: the question the blocked ticket asked, and two on the long one."""
+    from ponos import db, notifications
+
+    notifications.add("failed", LONG, "A long ticket")
+    notifications.add("review", LONG, "A long ticket")
+    notifications.add("question", ASKING, "A ticket with a question")
+    db.close()
+
+
 def _said(text: str) -> dict:
     return {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
 
@@ -326,6 +336,7 @@ def main() -> None:
         PYTHONPATH=str(ROOT / "src"),
     )
     journal_of(ASKING)
+    bell_of()
     os.execvp(sys.executable, [sys.executable, "-m", "ponos", "serve", "--port", port])
 
 

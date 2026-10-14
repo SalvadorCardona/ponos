@@ -10678,6 +10678,7 @@ def a_blocked_ticket_travels_with_its_question_and_its_link():
     runner.quiet = True
     ticket = type("T", (), {
         "page": notion.Page(id=TICKET, url="https://notion.so/t", title="Le header"),
+        "id": TICKET,
         "title": "Le header",
         "url": "https://notion.so/t",
     })()
@@ -10685,11 +10686,12 @@ def a_blocked_ticket_travels_with_its_question_and_its_link():
     original = channels.announce
     channels.announce = lambda settings, text, **rest: sent.append({"text": text, **rest})
     try:
-        runner._tell(
-            "blocked", ticket, "blocked",
-            "Which header — the dashboard one or the public site?",
-            ask=True,
-        )
+        with _state_home():
+            runner._tell(
+                "blocked", ticket, "blocked",
+                "Which header — the dashboard one or the public site?",
+                ask=True,
+            )
     finally:
         channels.announce = original
 
@@ -10839,13 +10841,15 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
     runner.quiet = True
     ticket = type("T", (), {
         "page": notion.Page(id=TICKET, url="https://notion.so/t", title="t"),
+        "id": TICKET,
         "title": "t",
         "url": "https://notion.so/t",
     })()
     original = notify.send
     notify.send = lambda title, body, **rest: seen.append({"title": title, **rest})
     try:
-        runner._tell("done", ticket, "review", "branch")
+        with _state_home():
+            runner._tell("done", ticket, "review", "branch")
     finally:
         notify.send = original
     assert seen == [{"title": "To review · t", "urgent": False,
@@ -10855,10 +10859,79 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
     runner.config.runner.language = "fr"
     notify.send = lambda title, body, **rest: seen.append({"title": title, **rest})
     try:
-        runner._tell("done", ticket, "review", "branch")
+        with _state_home():
+            runner._tell("done", ticket, "review", "branch")
     finally:
         notify.send = original
     assert seen[0]["title"] == "À relire · t" and seen[0]["action"] == "Ouvrir le ticket"
+
+
+# -- the bell ----------------------------------------------------------------
+
+
+@case
+def only_the_moments_that_need_you_ring_the_bell():
+    from ponos import notifications
+    assert notifications.kind_of("review") == "review"
+    assert notifications.kind_of("failed") == "failed"
+    assert notifications.kind_of("blocked", "session.question") == "question"
+    assert notifications.kind_of("blocked", "worktree.interrupted") == "question"
+    assert notifications.kind_of("blocked", "merge.checks-failed") == "ci"
+    assert notifications.kind_of("blocked", "merge.refused") == "blocked"
+    assert notifications.kind_of("blocked") == "question", "a stop with no cause is a question asked"
+    for routine in ("published", "merged", "read", "prepared", "waiting", "requeued"):
+        assert notifications.kind_of(routine) == "", routine
+
+
+@case
+def the_bell_keeps_what_is_unread_once_and_forgets_what_was_read_after_thirty_days():
+    from ponos import notifications
+    with _state_home():
+        notifications.add("question", "a", "Le header")
+        notifications.add("question", "a", "Le header")  # asked twice before anyone looked
+        notifications.add("review", "a", "Le header")
+        notifications.add("routine", "a", "never")
+        heard = notifications.recent()
+        assert heard["unread"] == 2
+        assert [item["kind"] for item in heard["items"]] == ["review", "question"], "newest first"
+        assert all(item["read"] is False and item["ticket"] == "a" for item in heard["items"])
+
+        notifications.read(heard["items"][0]["id"])
+        assert notifications.recent()["unread"] == 1
+        notifications.add("review", "a", "Le header")  # read: a new one may ring
+        assert notifications.recent()["unread"] == 2
+
+        notifications.read()
+        heard = notifications.recent()
+        assert heard["unread"] == 0 and len(heard["items"]) == 3 and all(i["read"] for i in heard["items"])
+
+        old = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat(timespec="seconds")
+        with db.transaction() as connection:
+            connection.execute("UPDATE notifications SET read_at = ? WHERE id = ?", (old, heard["items"][2]["id"]))
+        notifications.read()
+        assert len(notifications.recent()["items"]) == 2, "read more than thirty days ago: purged"
+
+
+@case
+def a_question_a_review_and_a_failure_ring_the_bell_but_a_dry_run_does_not():
+    from ponos import notifications
+    runner = Runner.__new__(Runner)
+    runner._journals = {}
+    runner.config = _config("")
+    runner.quiet = True
+    ticket = type("T", (), {
+        "page": notion.Page(id=TICKET, url="u", title="t"), "id": TICKET, "title": "t", "url": "u",
+    })()
+    with _state_home():
+        runner.dry_run = True
+        runner._tell("done", ticket, "review", "branch")
+        assert notifications.recent()["unread"] == 0
+        runner.dry_run = False
+        runner._tell("done", ticket, "published", "merged")
+        assert notifications.recent()["unread"] == 0, "routine"
+        runner._tell("blocked", ticket, "blocked", "Which?", ask=True, code="session.question")
+        runner._tell("done", ticket, "review", "branch")
+        assert [i["kind"] for i in notifications.recent()["items"]] == ["review", "question"]
 
 
 # -- clean, and the branch a failure leaves behind ----------------------------
