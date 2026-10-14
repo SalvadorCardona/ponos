@@ -571,19 +571,34 @@ export function CardLive({ ticket }: { ticket: Ticket }) {
       : `${last.label}${last.detail ? ` · ${shorten(last.detail)}` : ""}`
     : ticket.progress
 
+  // Without a step yet there is no counter to put on its own line: the dot
+  // goes in front of what the card says instead of standing alone above it.
+  const counter = session?.count ? (
+    <span className="tabular-nums">
+      {counted(session.count, "{{count}} step", "{{count}} steps")}
+    </span>
+  ) : null
+
   return (
-    <div className="flex flex-col gap-1 text-xs">
-      <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-[0.7rem] whitespace-nowrap">
-        <Pulse />
-        <span className="sr-only">{t("writing now")}</span>
-        {session?.count ? (
-          <span className="tabular-nums">
-            {counted(session.count, "{{count}} step", "{{count}} steps")}
-          </span>
-        ) : null}
-      </div>
-      <p className="text-muted-foreground truncate" title={line || undefined}>
-        {line || t("starting…")}
+    <div className="flex flex-col gap-1 text-xs" data-slot="card-live">
+      {counter ? (
+        <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-[0.7rem] whitespace-nowrap">
+          <Pulse />
+          <span className="sr-only">{t("writing now")}</span>
+          {counter}
+        </div>
+      ) : null}
+      <p
+        className="text-muted-foreground flex items-center gap-1.5"
+        title={line || undefined}
+      >
+        {counter ? null : (
+          <>
+            <Pulse />
+            <span className="sr-only">{t("writing now")}</span>
+          </>
+        )}
+        <span className="min-w-0 truncate">{line || t("starting…")}</span>
       </p>
     </div>
   )

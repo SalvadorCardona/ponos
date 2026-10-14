@@ -90,6 +90,9 @@ NAMES = {
     "00000000000000000000000000c1c103": "Fix the footer",
     "00000000000000000000000000c1c104": "Rename the options",
 }
+# A card in progress that no session has written a step for yet, on a model
+# whose name is longer than the card is wide.
+STARTING = ("000000000000000000000000000057a1", "Warm up the engine", "qwen/qwen-2.5-coder-32b-instruct")
 STUCK = (
     "🙋 Stuck — branch `ticket/tailscale` ready\n"
     "Missing access: I have no SSH access to the server\n"
@@ -182,6 +185,11 @@ def board(root: Path, doomed: bool = False) -> None:
         (comments / f"{id}.md").write_text(
             files.render(said, STUCK if column == "blocked" else DELIVERED), encoding="utf-8"
         )
+    id, title, model = STARTING
+    page = {"id": id, "title": title, "Status": "In progress", "Model": model}
+    (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
+        files.render(page, "A short brief."), encoding="utf-8"
+    )
     for number in range(1, 13):
         page = {"id": f"{number:032d}", "title": f"Ticket {number}", "Status": "Backlog"}
         (tickets / f"ticket-{number}-{page['id'][-8:]}.md").write_text(
