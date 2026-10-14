@@ -353,6 +353,10 @@ class Api:
             "status": status,
             "column": names.get(status, "draft"),
             "project": (project or {}).get("name", ""),
+            # What the card needs to draw the project's mark and link to its page
+            # without asking for the project: both are already in the index.
+            "project_id": (project or {}).get("id", ""),
+            "project_icon": (project or {}).get("icon") or {"kind": ""},
             "kind": (project or {}).get("kind", ""),
             # The ticket's type as the board spells it — `kind` is the project's.
             "type": str(store.read(page, settings.prop("type")) or ""),

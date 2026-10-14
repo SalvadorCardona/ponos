@@ -110,6 +110,8 @@ PAUSED = "00000000000000000000000000005ed1"
 DUE = "00000000000000000000000000005ed2"
 PROJECTS = {"0000000000000000000000000000cafe": "Website", "0000000000000000000000000000beef": "Newsletter"}
 WRITING = ("0000000000000000000000000000f00d", "Journal", "📝")
+# A ticket on a project that has an icon: what its card's foot shows.
+FOOTED = ("00000000000000000000000000f007ed", "Write the journal entry")
 # Two projects only the deleting tests touch — one from the list, one from its
 # page — each with a ticket ready and one done, which a deletion must tell apart.
 # Written only for the console given `doomed`: the other tests count projects.
@@ -224,6 +226,9 @@ def board(root: Path, doomed: bool = False) -> None:
     (projects / f"{name.lower()}-{id[-8:]}.md").write_text(
         files.render(page, f"The brief of {name}."), encoding="utf-8"
     )
+    # A ticket on that project, for the card's foot: its icon, and its link.
+    page = {"id": FOOTED[0], "title": FOOTED[1], "Status": "Ready", "Project": [WRITING[0]]}
+    (tickets / f"footed-{FOOTED[0][-8:]}.md").write_text(files.render(page, "A short brief."), encoding="utf-8")
     # Two schedules whose `Next` is weeks behind: one turned off since, which
     # will not fire, and one on, which fires on the next pass. Neither may show
     # a date in the past.
