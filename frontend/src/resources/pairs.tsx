@@ -1,17 +1,17 @@
 import { FolderGit2, GitPullRequest } from "lucide-react"
-import { ActionList, type FormInterface } from "react-data-form"
+import { type FormInterface } from "react-data-form"
 import {
   createResourceCollection,
   createViewResource,
   type IconType,
-  type ViewResourceInterface,
+  type ViewResource,
 } from "react-resource-view"
 
 import { EmptyState } from "@/components/console/empty-state"
-import { Pagination } from "@/components/console/pagination"
 import { api } from "@/lib/api"
 import { t } from "@/lib/i18n"
-import { SCOPE } from "@/lib/resource-view"
+// The dialect in place before these are declared.
+import "@/lib/resource-view"
 import { currentSettings, publishSettings } from "@/lib/settings-store"
 import type { Pair } from "@/lib/types"
 
@@ -185,80 +185,67 @@ function pairResource(table: PairTable, words: Words) {
   const rowForm = form(words)
   return createViewResource<PairItem>(words.resource, {
     name: words.list,
-    scope: SCOPE,
     path: `/api/settings/${table}`,
     icon: words.icon,
-    canList: true,
-    canRead: false,
-    canCreate: true,
-    canUpdate: true,
-    canDelete: true,
+    // There is nothing to read that the row does not already show.
+    permissions: { read: false, export: false },
 
-    getCollection: async () =>
-      ({
-        data: createResourceCollection({
-          id: `/api/settings/${table}`,
-          items: rows(table).map((row) => item(table, row)),
-        }),
-      }) as never,
-    getItem: async ({ id }) => {
-      const found = rows(table).find((row) => row.name === String(id))
-      return { data: item(table, found ?? { name: String(id), value: "" }) }
-    },
-    createItem: async (fresh) => {
-      const row = { name: String(fresh.name ?? "").trim(), value: String(fresh.value ?? "").trim() }
-      await write(table, [...rows(table), row])
-      return { data: item(table, row) }
-    },
-    updateItem: async (patch) => {
-      const was = String(patch.id ?? "")
-      const row = { name: String(patch.name ?? "").trim(), value: String(patch.value ?? "").trim() }
-      await write(
-        table,
-        rows(table).map((current) => (current.name === was ? row : current))
-      )
-      return { data: item(table, row) }
-    },
-    removeItem: async ({ id }) => {
-      await write(
-        table,
-        rows(table).filter((row) => row.name !== String(id))
-      )
+    repository: {
+      getCollection: async () =>
+        ({
+          data: createResourceCollection({
+            id: `/api/settings/${table}`,
+            items: rows(table).map((row) => item(table, row)),
+          }),
+        }) as never,
+      getItem: async ({ id }) => {
+        const found = rows(table).find((row) => row.name === String(id))
+        return { data: item(table, found ?? { name: String(id), value: "" }) }
+      },
+      createItem: async (fresh) => {
+        const row = { name: String(fresh.name ?? "").trim(), value: String(fresh.value ?? "").trim() }
+        await write(table, [...rows(table), row])
+        return { data: item(table, row) }
+      },
+      updateItem: async (patch) => {
+        const was = String(patch.id ?? "")
+        const row = { name: String(patch.name ?? "").trim(), value: String(patch.value ?? "").trim() }
+        await write(
+          table,
+          rows(table).map((current) => (current.name === was ? row : current))
+        )
+        return { data: item(table, row) }
+      },
+      removeItem: async ({ id }) => {
+        await write(
+          table,
+          rows(table).filter((row) => row.name !== String(id))
+        )
+      },
     },
 
     views: {
-      [ActionList.list]: {
-        name: words.list,
+      list: {
         form: {
           inputs: {
             name: { label: words.name.label, readonly: true },
             value: { label: words.value.label, readonly: true },
           },
         },
-        // There is nothing to read that the row does not already show.
-        behavior: { rowActions: [ActionList.update, ActionList.delete] },
-        components: { noResult: nothingHere(words.empty), pagination: Pagination },
+        components: { empty: nothingHere(words.empty) },
       },
-      // Over the section rather than instead of it: two boxes are not a page,
-      // and the table behind them is what says whether the row is a duplicate.
-      [ActionList.create]: {
-        name: words.add,
-        label: { create: words.add },
-        form: rowForm,
-        behavior: { openIn: "popup" },
-      },
-      [ActionList.update]: {
-        name: words.row,
-        form: rowForm,
-        behavior: { openIn: "popup" },
-      },
-      [ActionList.delete]: { name: words.remove },
+      // Over the section rather than instead of it: two boxes are not a page —
+      // nor worth a link to one — and the table behind them is what says
+      // whether the row is a duplicate.
+      create: { title: words.add, buttonLabel: words.add, form: rowForm, open: "dialog" },
+      update: { title: words.row, form: rowForm, open: "dialog", expandable: false },
+      delete: { title: words.remove },
     },
   })
 }
 
 /** The resource that draws one table, by the name `Section.pairs` gives it. */
-export const pairResources: Record<PairTable, ViewResourceInterface<PairItem>> = {
+export const pairResources: Record<PairTable, ViewResource<PairItem>> = {
   projects: pairResource("projects", PROJECTS),
   github: pairResource("github", GITHUB),
 }

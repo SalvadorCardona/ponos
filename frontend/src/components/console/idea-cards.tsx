@@ -20,7 +20,7 @@ import { useT } from "@/lib/i18n"
 import { toneOf, type Tone } from "@/lib/idea-search"
 import type { Idea, IdeaAuthor, IdeaCategory, IdeaStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { SCOPED_IDEAS, ideaOf, ideasChanged, useReadAgainOnChange, type IdeaItem } from "@/resources/ideas"
+import { SCOPED_IDEAS, ideaOf, ideasChanged, type IdeaItem } from "@/resources/ideas"
 import { projectHref } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
 
@@ -409,7 +409,6 @@ function IdeaCard({ idea, named }: { idea: Idea; named: boolean }) {
 /** The card layout: one column in a narrow place, two or three where there is room. */
 export function IdeaCards({ rows = [] }: ListComponentPropsInterface) {
   const named = useNamed()
-  useReadAgainOnChange()
   return (
     <div className="@container w-full">
       <ul className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3" data-slot="ideas-items">
@@ -476,7 +475,6 @@ function IdeaRow({ idea, named }: { idea: Idea; named: boolean }) {
 export function IdeaRows({ rows = [] }: ListComponentPropsInterface) {
   const t = useT()
   const named = useNamed()
-  useReadAgainOnChange()
   return (
     <div className="w-full">
       <div className="bg-card overflow-hidden rounded-md border">
@@ -600,7 +598,6 @@ export function NewIdeaButton({ className }: { className?: string }) {
 export function NoIdea() {
   const t = useT()
   const { filterContext } = useListViewContext()
-  useReadAgainOnChange()
   if (!filterContext.filterIsEmpty)
     return (
       <EmptyState

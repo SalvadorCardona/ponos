@@ -1,6 +1,15 @@
 import * as React from "react"
 import { Maximize2, XIcon } from "lucide-react"
-import { Link } from "react-resource-view"
+import {
+  Link,
+  open,
+  useChildViewRoute,
+  useNavigate,
+  useViewLink,
+  type OpenFrame,
+  type OpenFrameProps,
+  type ViewResource,
+} from "react-resource-view"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -9,9 +18,80 @@ import { useT } from "@/lib/i18n"
 /* The window a record is opened in over its list: the ticket's over the board,
  * a schedule's over the schedules. One shell, so the two are the same size, on a
  * phone the same whole screen, and have the same two buttons in their header —
- * the record's own page, and the cross. What is inside is the caller's. */
-export function RecordWindow({
-  open,
+ * the record's own page, and the cross. What is inside is the view itself.
+ *
+ * It is a frame of react-resource-view's (`open.custom`), declared as the
+ * `open` of the view it draws: the package writes the record into the address
+ * under the list it was opened from (`…/tickets/list/tickets/read/<id>`), so
+ * Back closes it, a reload opens it again over the same list, and the stream
+ * drawing a card again in another column does not close it. The package's own
+ * dialog is not this one: its title is the view's name and nothing else, and a
+ * ticket is told by its short id and its whole title. */
+
+/** What the header says about the record on screen. */
+export interface RecordWindowHead {
+  /** The small line over the title: a ticket's short id. */
+  eyebrow?: string
+  title: string
+  /** What the record can be made to do, drawn before its page button. */
+  actions?: React.ReactNode
+}
+
+/** The window, as the `open` of a view: `useHead` is asked about the record the address names. */
+export function recordWindow({
+  type,
+  fallbackTitle,
+  useHead,
+}: {
+  type: string
+  /** What the title says while the record is not known (yet), as a key of the dictionary. */
+  fallbackTitle: string
+  useHead: (id: string) => RecordWindowHead
+}): OpenFrame {
+  function Frame({ close, expandHref, children }: OpenFrameProps) {
+    const t = useT()
+    const id = String(useChildViewRoute()?.child?.id ?? "")
+    const head = useHead(id)
+    return (
+      <RecordWindow
+        onClose={close}
+        eyebrow={head.eyebrow}
+        title={head.title}
+        fallbackTitle={t(fallbackTitle)}
+        href={expandHref}
+        actions={head.actions}
+      >
+        {children}
+      </RecordWindow>
+    )
+  }
+  return open.custom({ type, component: Frame })
+}
+
+/**
+ * What a link to a record does over its list: a plain click opens it in the
+ * window its view declares, and the link stays a link to its page — a middle
+ * click or Ctrl+click still opens that page in a tab of its own. `query` goes
+ * along in the address, for the view to read: the tab a ticket opens on.
+ */
+export function useOpensOverTheList(
+  resource: ViewResource,
+  action: "read" | "update",
+  id: string,
+  query = ""
+) {
+  const link = useViewLink({ resource, action, id })
+  const navigate = useNavigate()
+  return (event: React.MouseEvent<HTMLElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    // So that closing the window is Back, and the focus comes back to the link.
+    link.onOpen(event)
+    void navigate({ to: query ? `${link.to}${link.to.includes("?") ? "&" : "?"}${query}` : link.to })
+  }
+}
+
+function RecordWindow({
   onClose,
   eyebrow,
   title,
@@ -19,23 +99,16 @@ export function RecordWindow({
   href,
   actions,
   children,
-}: {
-  open: boolean
+}: RecordWindowHead & {
   onClose: () => void
-  /** The small line over the title: a ticket's short id. */
-  eyebrow?: string
-  title: string
-  /** What the title says while the record is not known (yet). */
   fallbackTitle: string
   /** The record's full page; no button without one. */
   href?: string
-  /** What the record can be made to do, drawn before its page button. */
-  actions?: React.ReactNode
   children: React.ReactNode
 }) {
   const t = useT()
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+    <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent
         data-ticket-window
         showCloseButton={false}

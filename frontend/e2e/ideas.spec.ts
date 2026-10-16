@@ -162,7 +162,7 @@ test.describe("at 1440px", () => {
     await expect(filter("ticket").locator('[data-slot="ideas-count"]')).toHaveText("1")
     await expect(tab.locator('[data-slot="ideas-item"][data-author="ponos"]').first()).toContainText("Ponos")
 
-    await tab.getByRole("button", { name: "New idea", exact: true }).click()
+    await tab.getByRole("link", { name: "New idea", exact: true }).click()
     const form = drawer(page)
     await expect(form.locator('[data-field="project"]')).toContainText("Website")
     await form.getByLabel("Title").fill("A page for the opening hours")

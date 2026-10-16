@@ -10365,9 +10365,14 @@ def the_pages_of_a_list_are_said_in_the_console_s_language():
     assert "…" in pagination and "...." not in pagination
     french = (FRONTEND / "src/lib/french.ts").read_text(encoding="utf-8")
     assert '"Affichage de {{from}} à {{to}} sur {{total}} résultats"' in french
+    # Given once, under every resource, rather than list by list.
+    views = (FRONTEND / "src/lib/resource-view.ts").read_text(encoding="utf-8")
+    assert "defaults: { components: { pagination: Pagination } }" in views, (
+        "the lists say their pages in English"
+    )
     for resource in ("tickets", "projects", "schedules", "pairs"):
         source = (FRONTEND / f"src/resources/{resource}.tsx").read_text(encoding="utf-8")
-        assert "pagination: Pagination" in source, f"the {resource} list says its pages in English"
+        assert "pagination: null" not in source, f"the {resource} list says its pages in English"
 
 
 def _session_line(kind: str = "assistant") -> str:
@@ -13993,13 +13998,15 @@ def the_console_is_drawn_in_react_resource_view_s_admin_layout():
             f"{gone} is back, beside the layout that replaced it"
         )
     assert not (FRONTEND / "src/components/ui/sidebar.tsx").exists(), "a second sidebar is back"
-    # The list's `components` replace the resource's whole, so the one that
-    # rereads the board on every event has to be said on the list too — without
-    # it the board stops following the stream.
+    # The component that rereads the board on every event sits over every view
+    # of the tickets — react-resource-view 1.0 merges a view's `components`
+    # into the resource's — and no view takes it away: without it the board
+    # stops following the stream.
     tickets = (FRONTEND / "src/resources/tickets.tsx").read_text(encoding="utf-8")
-    assert "components: { top: BoardTop, noResult: NoTicket, pagination: Pagination }" in tickets, (
+    assert "components: { top: BoardTop }" in tickets, (
         "the board no longer rereads itself when the stream moves it"
     )
+    assert "top: null" not in tickets, "a view of the tickets no longer follows the stream"
 
 
 @case
@@ -14013,9 +14020,10 @@ def a_project_is_a_resource_with_two_layouts_and_a_form():
     """
     declared = (FRONTEND / "src/resources/projects.tsx").read_text(encoding="utf-8")
     assert "createViewResource" in declared, "the projects are a hand-rolled pane again"
-    assert "cardViewOptionFactory" in declared, "the card layout is gone"
-    assert "tableViewOptionFactory" in declared, "the second layout is gone"
-    assert "canUpdate: true" in declared, "a project is read-only again"
+    assert "layout.cards(" in declared, "the card layout is gone"
+    assert "layout.table(" in declared, "the second layout is gone"
+    permissions = declared.split("permissions:")[1].split("\n")[0]
+    assert "update" not in permissions and "readonly" not in permissions, "a project is read-only again"
     assert "api.saveProject" in declared, "nothing writes the project back"
     page = (FRONTEND / "src/components/console/project-page.tsx").read_text(encoding="utf-8")
     assert "ResourceViewButton" in page, "the page offers no way into the form"
@@ -14040,9 +14048,9 @@ def a_schedule_is_a_resource_drawn_in_the_package_s_own_layouts():
     """
     declared = (FRONTEND / "src/resources/schedules.tsx").read_text(encoding="utf-8")
     assert "createViewResource" in declared, "the schedules are a hand-rolled pane again"
-    assert "tableViewOptionFactory" in declared, "the table layout is gone"
-    assert "calendarViewOptionFactory" in declared, "the calendar layout is gone"
-    assert 'dateKey: "when"' in declared, "the calendar no longer lays out the launches by when they land"
+    assert "layout.table(" in declared, "the table layout is gone"
+    assert "layout.calendar<" in declared, "the calendar layout is gone"
+    assert 'dateField: "when"' in declared, "the calendar no longer lays out the launches by when they land"
     assert "api.saveSchedule" in declared, "nothing writes a schedule back"
     assert "api.createSchedule" in declared, "nothing writes a new schedule"
     # The columns a pass writes back are how the runner knows an occurrence has
@@ -14108,16 +14116,17 @@ def the_console_menu_is_a_name_and_a_count():
 def a_project_that_cannot_be_read_says_what_the_server_answered():
     """The one screen where a generic sentence cost an afternoon.
 
-    The page a project opens on is handed `error: true` and nothing else, so
+    The page a project opens on was handed `error: true` and nothing else, so
     "This project could not be read." was the whole of what a browser showed
     while the server was answering `no such route: /api/projects/<id>`. What
     the server said belongs on the page — shown, not swallowed and not replaced
-    by a blank.
+    by a blank. react-resource-view 1.0 hands it over as `loadError`.
     """
     declared = (FRONTEND / "src/resources/projects.tsx").read_text(encoding="utf-8")
-    assert "whyNotRead" in declared, "nothing keeps what a failed read said"
+    getter = declared.split("getItem:")[1].split("\n")[0]
+    assert "catch" not in getter, "a failed read is swallowed before the page hears of it"
     page = (FRONTEND / "src/components/console/project-page.tsx").read_text(encoding="utf-8")
-    assert "whyNotRead()" in page, "the page shows the failure without its reason again"
+    assert "why(context.loadError)" in page, "the page shows the failure without its reason again"
     assert "This project could not be read." in page, "the failure is not said at all"
 
 

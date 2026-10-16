@@ -75,7 +75,7 @@ test("a dialog locks the page while it is open, and lets it go when it closes", 
   await open(page, "/")
   await taller(page)
 
-  await page.getByRole("button", { name: /New ticket|Nouveau ticket/ }).first().click()
+  await page.getByRole("link", { name: /New ticket|Nouveau ticket/ }).first().click()
   const dialog = page.getByRole("dialog")
   await expect(dialog).toBeVisible()
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).overflow)).toBe("hidden")

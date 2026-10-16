@@ -2,11 +2,10 @@
 // their dialect in place by the time `createViewResource` runs.
 import "./lib/resource-view"
 
-import { StrictMode } from "react"
+import { StrictMode, Suspense, lazy } from "react"
 import { createRoot } from "react-dom/client"
 
 import App from "./App"
-import { SetupApp } from "./components/console/setup"
 import "./index.css"
 import { startServiceWorker } from "./lib/service-worker"
 
@@ -16,6 +15,19 @@ startServiceWorker()
  * connection rather than the console — see `web/server.py` and `setup.tsx`. */
 const setup = Boolean(document.documentElement.dataset.setup)
 
+/* A page seen once, kept out of the console's first load, which has a budget. */
+const SetupApp = lazy(() =>
+  import("./components/console/setup").then((module) => ({ default: module.SetupApp }))
+)
+
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>{setup ? <SetupApp /> : <App />}</StrictMode>
+  <StrictMode>
+    {setup ? (
+      <Suspense fallback={null}>
+        <SetupApp />
+      </Suspense>
+    ) : (
+      <App />
+    )}
+  </StrictMode>
 )

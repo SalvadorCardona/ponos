@@ -14,7 +14,6 @@ import {
 import { CommandPalette } from "@/components/console/command-palette"
 import { CONTEXT_ANCHOR } from "@/components/console/context-block"
 import { TalkDrawer } from "@/components/console/talk-drawer"
-import { useTicketWindow } from "@/components/console/ticket-window"
 import { UpdateNotice } from "@/components/console/install-app"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -24,7 +23,7 @@ import { useBoard } from "@/lib/board-store"
 import { useLanguage, useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 import { consoleRouter, useRoute } from "@/lib/router"
-import { consoleScope, scopes } from "@/resources/scope"
+import { keepTheMenuLive, menuName, scopes } from "@/resources/scope"
 import { projectsHref } from "@/resources/projects"
 import { SESSIONS, sessionsHref } from "@/resources/sessions"
 import { SETTINGS, settingsHref } from "@/resources/settings"
@@ -49,6 +48,7 @@ const ACTIONS = new Set<string>(Object.values(ActionList))
 function Page({ params }: { params: ViewResourceContextParams }) {
   const language = useLanguage()
   const scope = useScopeContext()?.scope
+  keepTheMenuLive(scope)
   const action =
     params.resourceAction && ACTIONS.has(params.resourceAction)
       ? params.resourceAction
@@ -93,32 +93,33 @@ function useTitle(params: ViewResourceContextParams, ticketShort?: string) {
   const here =
     resourceId === TICKETS && params.resourceAction === ActionList.read && params.id
       ? `#${ticketShort ?? String(params.id).slice(-8)}`
-      : (consoleScope.menu?.find((item) => (item as { resource?: string }).resource === resourceId)
-          ?.name ?? t("Dashboard"))
+      : (menuName(resourceId) ?? t("Dashboard"))
   React.useEffect(() => {
     document.title = here ? `${here} · Ponos` : "Ponos"
   }, [here])
 }
 
-/* The address says which ticket is open — or the window over the board, which
- * leaves the address on the board; the board says what it is, so the
+/* The address says which ticket is open — its page, or the window over a list,
+ * which the address names under that list; the board says what it is, so the
  * discussion loads while the page is still being read.
  *
  * A component of its own, drawing nothing: opening a ticket changes the
  * console's `ticket`, and a `Console` that read it drew the whole page again —
  * every card of the board — on opening, on closing and when the stream moved
  * the board. Here only this is drawn again. */
+const ticketOf = (opened?: ViewResourceContextParams): string | null =>
+  opened &&
+  (opened.resourceId ?? TICKETS) === TICKETS &&
+  opened.resourceAction === ActionList.read &&
+  opened.id
+    ? String(opened.id)
+    : null
+
 function OpenTicket({ params }: { params: ViewResourceContextParams }) {
   const board = useBoard()
   const { ticket, openTicket, closeTicket } = useConsole()
-  const windowed = useTicketWindow()
 
-  const ticketId =
-    (params.resourceId ?? TICKETS) === TICKETS &&
-    params.resourceAction === ActionList.read &&
-    params.id
-      ? String(params.id)
-      : windowed
+  const ticketId = ticketOf(params) ?? ticketOf(params.childViewResource)
   React.useEffect(() => {
     if (!ticketId) {
       closeTicket()
