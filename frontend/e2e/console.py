@@ -196,6 +196,9 @@ def board(root: Path, doomed: bool = False) -> None:
         page = {"id": id, "title": title, "Status": status}
         if id in CHECKED:
             page["Pull Request"] = pull_request(id)
+            # What it cost: the foot of its card has more to say than its checks.
+            page["Cost"] = 7.28
+            page["created"] = "2026-10-15T10:00:00+00:00"
         (tickets / f"{title.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
             files.render(page, "A short brief."), encoding="utf-8"
         )

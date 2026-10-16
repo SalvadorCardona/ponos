@@ -29,14 +29,45 @@ test("a card in review draws Decide and a menu, and nothing else", async ({ page
   await expect(decide).toHaveText("Decide")
   const more = card(page).getByRole("button", { name: "More actions" })
   for (const button of [decide, more]) {
-    expect((await button.boundingBox())?.height).toBeGreaterThanOrEqual(48)
+    expect((await button.boundingBox())?.height).toBe(32)
   }
-  expect((await more.boundingBox())?.width).toBe(48)
+  expect((await more.boundingBox())?.width).toBe(32)
   // The checks are said in the line along the bottom, beside the age.
   await expect(card(page).locator('.border-t [data-slot="ticket-ci"]')).toHaveText(/CI failed/)
   for (const theme of ["dark", "light"] as const) {
     await open(page, theme)
     await card(page).screenshot({ path: `test-results/review-card-${theme}.png` })
+  }
+})
+
+test("the foot of a card wraps instead of drawing its items over one another", async ({ page }) => {
+  await open(page)
+  const foot = card(page).locator(".border-t")
+  // From a phone's column to the board's widest: the card is squeezed by hand.
+  for (const width of [150, 200, 260, 340, 480]) {
+    await card(page).evaluate((element, px) => ((element.parentElement as HTMLElement).style.width = `${px}px`), width)
+    // What is drawn: the text, the icons and the links, however deep. Two of
+    // them over one another is a foot that does not wrap.
+    const overlaps = await foot.evaluate((element) => {
+      const frame = element.getBoundingClientRect()
+      const items = Array.from(element.querySelectorAll("*")).filter(
+        (item) => !item.closest("svg:not(:scope)") || item.tagName === "svg"
+      )
+      const found: string[] = []
+      for (const [index, a] of items.entries()) {
+        const x = a.getBoundingClientRect()
+        if (!x.width) continue
+        if (x.right > frame.right + 1) found.push(`${a.textContent} leaves the card`)
+        for (const b of items.slice(index + 1)) {
+          const y = b.getBoundingClientRect()
+          if (!y.width || a.contains(b) || b.contains(a)) continue
+          if (x.right > y.left + 1 && y.right > x.left + 1 && x.bottom > y.top + 1 && y.bottom > x.top + 1)
+            found.push(`${a.textContent || a.tagName} over ${b.textContent || b.tagName}`)
+        }
+      }
+      return found
+    })
+    expect(overlaps, `at ${width}px`).toEqual([])
   }
 })
 
