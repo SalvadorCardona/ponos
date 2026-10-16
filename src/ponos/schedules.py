@@ -212,7 +212,21 @@ def next_occurrence(
     else:
         return None
 
-    return moment.astimezone() if after.tzinfo else moment
+    return _local(moment) if after.tzinfo else moment
+
+
+def _local(moment: datetime) -> datetime:
+    """A wall-clock moment read in this machine's timezone, the same on every Python.
+
+    An hour that does not exist (02:30 when the clocks jump to 03:00) is read
+    after the jump on 3.12 and later, and before it on 3.11, which swaps what
+    `fold` means in a gap. Both are tried and the later one kept, so the
+    launch lands after the change rather than an hour early.
+    """
+    first = moment.astimezone()
+    if first.replace(tzinfo=None) == moment:
+        return first
+    return max(first, moment.replace(fold=1 - moment.fold).astimezone())
 
 
 def upcoming(schedule: Schedule, now: datetime) -> datetime | None:
