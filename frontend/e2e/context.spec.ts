@@ -3,8 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 /* The standing context is the first block of the Projects page.
  *
  * It was a page of its own, in the menu. What is tested is the way a person
- * goes: the page opens on a folded preview of it with the projects right under
- * it, "See all" reads the rest, "Edit" writes it in place with the editor the
+ * goes: the page opens on a folded preview of it beside the projects, "See all" reads the rest, "Edit" writes it in place with the editor the
  * brief uses, a save reaches the board, leaving with something typed asks first,
  * and the old address leads here rather than to the board.
  */
@@ -36,11 +35,11 @@ test.describe("at 1440px", () => {
     await expect(block(page).getByText("Sent to Ponos in every ticket, for all the projects")).toBeVisible()
     await expect(block(page).getByText("Rule number 1 of the house.")).toBeVisible()
 
-    // Folded: a few lines, and the projects are under it.
+    // Folded: a few lines, and the projects are beside it, on its left.
     const folded = (await block(page).boundingBox())!
     expect(folded.height).toBeLessThan(260)
-    const card = (await page.locator("[data-project-card]").first().boundingBox())!
-    expect(card.y).toBeGreaterThan(folded.y + folded.height - 1)
+    const item = (await page.locator("[data-project-item]").first().boundingBox())!
+    expect(item.x + item.width).toBeLessThanOrEqual(folded.x)
 
     await block(page).getByRole("button", { name: "See all" }).click()
     await expect(block(page).getByText("Rule number 12 of the house.")).toBeInViewport()
@@ -103,10 +102,12 @@ test.describe("at 1440px", () => {
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 780 } })
 
-  test("folded, the context leaves the first project on the screen", async ({ page }) => {
+  test("the list comes first on a phone, and the folded context follows it", async ({ page }) => {
     await open(page)
     await expect(block(page)).toBeVisible()
-    const card = (await page.locator("[data-project-card]").first().boundingBox())!
-    expect(card.y).toBeLessThan(780)
+    const item = (await page.locator("[data-project-item]").first().boundingBox())!
+    expect(item.y).toBeLessThan(780)
+    const folded = (await block(page).boundingBox())!
+    expect(folded.y).toBeGreaterThan(item.y)
   })
 })

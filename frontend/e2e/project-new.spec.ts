@@ -15,7 +15,7 @@ import { expect, test, type Page } from "@playwright/test"
  * list, marked, its "+ Ticket" ready; or the first ticket's form straight away.
  */
 
-const LIST = "/?view=console/projects/list"
+const LIST = "/?view=console/projects/list&variant=cards"
 
 async function open(page: Page) {
   await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
@@ -35,6 +35,8 @@ async function newProject(page: Page) {
 
 test.describe("at 1440px", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
+  // They create projects on one board, and the first counts them.
+  test.describe.configure({ mode: "serial" })
 
   test("a writing project is created, first in the list and ready for a ticket", async ({ page }) => {
     await open(page)
@@ -70,6 +72,20 @@ test.describe("at 1440px", () => {
     const listed = await (await page.request.get("/api/projects")).json()
     const made = listed.projects.find((project: { name: string }) => project.name === "Press kit")
     expect(made.kind).toBe("document")
+  })
+
+  test("in the split layout the new project is in the list at once, and open in the panel", async ({ page }) => {
+    await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
+    await page.goto("/?view=console/projects/list")
+    await expect(page.locator("[data-project-item]", { hasText: "Website" })).toBeVisible()
+    await newProject(page)
+    await page.getByPlaceholder("Project name").fill("Split made")
+    await window_(page).getByRole("button", { name: "Writing", exact: true }).click()
+    await page.getByPlaceholder("What the project does, in one sentence").press("Control+Enter")
+    await expect(window_(page)).toBeHidden()
+    const item = page.locator("[data-project-item]", { hasText: "Split made" })
+    await expect(item).toHaveAttribute("data-selected", "true")
+    await expect(page.locator("[data-project-panel]")).toContainText("Split made")
   })
 
   test("a code project from GitHub says it will be cloned, and goes on to its first ticket", async ({ page }) => {

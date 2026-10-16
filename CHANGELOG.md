@@ -18,6 +18,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **The Projects page in two columns.** The list of projects is on the left — one compact line each: icon, name, type,
+  tickets and last activity — under the search, the *Type* filter and *New project*; on the right, the global context
+  stays folded to a few lines (*See all*, *Edit*, its character count) and, under it, the project picked in the list shows
+  its repository, its folder, its brief, *+ Ticket* and its “…” menu. A project just created is picked straight away. On a
+  phone the list comes first and a project picked opens full screen. *Cards* and *table* are still a tab away.
 - **Create a project from the console.** *New project* — beside *cards / table* on the Projects page, and in Ctrl+K —
   opens the same kind of window as *New idea*: name, description, *Code* or *Writing*, the repository on GitHub or as a
   folder of this machine (whose `origin` fills GitHub in), the public site and the brief, which becomes the page's

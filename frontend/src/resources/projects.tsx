@@ -23,6 +23,7 @@ import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectMenu } from "@/components/console/project-delete"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
+import { ProjectAside } from "@/components/console/project-panel"
 import {
   BoxInputController,
   KindInputController,
@@ -197,7 +198,7 @@ const createdListeners = new Set<() => void>()
 /** The project the console created last, by its page. */
 export const lastCreated = () => created
 
-function useLastCreated(): string {
+export function useLastCreated(): string {
   return React.useSyncExternalStore(
     (listener) => {
       createdListeners.add(listener)
@@ -212,6 +213,8 @@ function useLastCreated(): string {
 function markCreated(id: string) {
   created = id
   createdListeners.forEach((listener) => listener())
+  // And open in the panel beside the list, where it has its "+ Ticket" ready.
+  pick(id)
 }
 
 /** The list, the project just created first. */
@@ -221,7 +224,7 @@ const createdFirst = (rows: Project[]) => {
 }
 
 /** One project, from wherever it is held: its page, or the line that names it. */
-async function one(id: string): Promise<ProjectItem> {
+export async function readProject(id: string): Promise<ProjectItem> {
   if (isAPage(id)) return item(await api.project(id))
   // No page to read: the row is a line in the file, and the list is where it
   // was read from. Read again rather than taken from what is held, so a link
@@ -402,7 +405,7 @@ function ToThePage() {
  * varies (a path, a status) to a line that is there or not. */
 
 /** The two kinds of work, said as a badge: code in the accent, writing quieter. */
-function KindBadge({ project }: { project: ProjectItem }) {
+export function KindBadge({ project }: { project: ProjectItem }) {
   const code = project.kind === "code"
   return (
     <Badge
@@ -428,7 +431,7 @@ function GitHubMark({ className }: { className?: string }) {
 }
 
 /** Where the work happens, in one line each: the repository, and the path only where one is set. */
-function Whereabouts({ project }: { project: ProjectItem }) {
+export function Whereabouts({ project }: { project: ProjectItem }) {
   const repository = repositoryName(project.repository ?? "")
   return (
     <div className="text-muted-foreground flex min-w-0 flex-col gap-1 text-xs">
@@ -465,7 +468,7 @@ const STATUS = {
 } as const
 
 /** How many tickets, always; and, where there are any, how many wait, run and wait for a review. */
-function TicketTally({ project, withStatuses = true }: { project: ProjectItem; withStatuses?: boolean }) {
+export function TicketTally({ project, withStatuses = true }: { project: ProjectItem; withStatuses?: boolean }) {
   const tally = useTally(project.name)
   if (!tally) return <Skeleton className="h-3 w-16" />
   return (
@@ -488,7 +491,7 @@ function TicketTally({ project, withStatuses = true }: { project: ProjectItem; w
 }
 
 /** When the last of its tickets moved, said the way a card says it. */
-function LastActivity({ project }: { project: ProjectItem }) {
+export function LastActivity({ project }: { project: ProjectItem }) {
   const edited = useTally(project.name)?.edited ?? ""
   const said = edited ? ago(edited) : ""
   if (!said) return null
@@ -506,7 +509,7 @@ const REACHABLE =
 
 /** The “…” of a card or a row, beside its link and not inside it: a menu in an `<a>` is a link click.
  * Only for a project that is a page — a line of `config.toml` is not deleted from here. */
-function RowMenu({ project, onDeleted, className }: { project: ProjectItem; onDeleted: () => void; className?: string }) {
+export function RowMenu({ project, onDeleted, className }: { project: ProjectItem; onDeleted: () => void; className?: string }) {
   const tickets = useTicketCount(project.name)
   if (!isAPage(project.id)) return null
   return <ProjectMenu project={project} tickets={tickets} onDeleted={onDeleted} className={className} />
@@ -514,7 +517,7 @@ function RowMenu({ project, onDeleted, className }: { project: ProjectItem; onDe
 
 /** “+ Ticket”, beside the link of a card or a row and not inside it: the dialog is the dashboard's
  * “New ticket”, with the project already in its field — and none to point at for a line of `config.toml`. */
-function NewTicket({ project, className }: { project: ProjectItem; className?: string }) {
+export function NewTicket({ project, className }: { project: ProjectItem; className?: string }) {
   const link = useViewLink({ resource: tickets, action: "create" })
   if (!isAPage(project.id)) return null
   return (
@@ -670,6 +673,93 @@ function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
   )
 }
 
+/* -- the list beside its panel ----------------------------------------------- */
+
+/* The third layout, and the one the list opens on: the projects on the left, one
+ * line each, and on the right what the page around them holds — the global
+ * context folded, and the project picked, with its repository, its folder, its
+ * brief and its actions. Picking is not navigating: the page of a project is a
+ * click further, from the panel, and the list stays where it was.
+ *
+ * Which project is picked is kept here, like the one just created, because the
+ * list and the panel are two components of the package's frame that share
+ * nothing else. */
+let picked = ""
+const pickedListeners = new Set<() => void>()
+
+/** The project picked in the list, by its address; empty when none is. */
+export function usePicked(): string {
+  return React.useSyncExternalStore(
+    (listener) => {
+      pickedListeners.add(listener)
+      return () => {
+        pickedListeners.delete(listener)
+      }
+    },
+    () => picked
+  )
+}
+
+export function pick(id: string) {
+  picked = id
+  pickedListeners.forEach((listener) => listener())
+}
+
+/** The split layout's name in the address and in the switch. */
+export const SPLIT = "split"
+
+/** The list on the left: compact rows, each one a button that fills the panel. */
+function ProjectMaster({ rows = [] }: ListComponentPropsInterface) {
+  const chosen = usePicked()
+  const fresh = useLastCreated()
+  return (
+    <div className="w-full">
+      <ul className="flex flex-col gap-1.5">
+        {rows.map((row) => {
+          const project = row.data as ProjectItem | undefined
+          if (!project) return null
+          const on = chosen === project.id
+          return (
+            <li key={project.id}>
+              <button
+                type="button"
+                data-project-item
+                data-selected={on || undefined}
+                data-fresh={fresh === project.id || undefined}
+                aria-pressed={on}
+                onClick={() => pick(on ? "" : project.id)}
+                className={cn(
+                  "bg-card flex w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left",
+                  "hover:border-primary/50 hover:bg-accent/40",
+                  on && "border-primary bg-accent/40 ring-primary/30 ring-[3px]",
+                  REACHABLE
+                )}
+              >
+                <ProjectThumb project={project} className="size-9" />
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-semibold" title={project.name}>
+                      {project.name}
+                    </span>
+                    <KindBadge project={project} />
+                  </span>
+                  <span className="flex min-w-0 items-center justify-between gap-3">
+                    <TicketTally project={project} withStatuses={false} />
+                    <LastActivity project={project} />
+                  </span>
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="mt-5">
+        <ListPagination />
+      </div>
+    </div>
+  )
+}
+
 /** A project's repository, by its owner and name, and a link to it where it has an address. */
 export function Repository({ declared }: { declared?: string }) {
   const repository = repositoryName(declared ?? "")
@@ -731,6 +821,11 @@ function CopyPath({ path }: { path: string }) {
 
 /** The standing context, over the projects it covers; then how many of them are worked on in git. */
 function ProjectsTop() {
+  useLayoutInTheAddress(PROJECTS)
+  const { viewVariant } = useCurrentViewResourceContext()
+  // Beside the list, in the panel: see `ProjectAside`. Over it, in the other
+  // two layouts, which have no room on their side.
+  if (viewVariant === SPLIT) return <ProjectAside />
   return (
     <>
       <ContextBlock />
@@ -742,7 +837,6 @@ function ProjectsTop() {
 /** How many of them are worked on in git, said where the list opens. */
 function ProjectsCount() {
   const read = useProjects()
-  useLayoutInTheAddress(PROJECTS)
   if (!read) return null
   const code = read.projects.filter((project) => project.kind === "code").length
   const counted = { count: String(code), total: String(read.projects.length) }
@@ -851,7 +945,7 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
     },
     // What the server says when it fails is the page's to say (`loadError`):
     // "no such route" and "no project with id …" are two different afternoons.
-    getItem: async ({ id }) => ({ data: await one(String(id)) }),
+    getItem: async ({ id }) => ({ data: await readProject(String(id)) }),
     updateItem: async (patch) => {
       const id = String(patch.id ?? "")
       if (!isAPage(id))
@@ -901,6 +995,7 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
        * are drawn, and their address is their type: `cards`, `table`, in
        * every language. */
       layouts: [
+        layout.cards({ id: SPLIT, label: "split", components: { list: ProjectMaster } }),
         layout.cards({ label: "cards", components: { list: ProjectCards } }),
         layout.table({ label: "table", components: { list: ProjectRows } }),
       ],
