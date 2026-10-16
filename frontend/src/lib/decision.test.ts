@@ -1,4 +1,4 @@
-/* The Unblock and Decide tabs' decisions, held to what they say.
+/* The Decide tab's decisions, and a blocked ticket's quick replies, held to what they say.
  *
  *     npm test          (node --test, nothing to install)
  */
@@ -9,17 +9,18 @@ import {
   CATEGORIES,
   LABELS,
   actionOf,
+  answersIn,
+  askedAt,
   away,
   decisionTabOf,
-  buttonsOf,
   categoryOf,
   immediate,
-  instructionOf,
   itemsOf,
   labelOf,
-  openedWith,
-  plainRetry,
   promptOf,
+  quiet,
+  repliesOf,
+  typedOf,
   prefilled,
   sendable,
   titlesIn,
@@ -42,8 +43,8 @@ test("a blocked card is unblocked, a card in review is decided, and nothing else
   assert.equal(actionOf("done"), null)
 })
 
-test("the tab that unblocks or decides is a blocked or reviewed ticket's, and no other's", () => {
-  assert.equal(decisionTabOf("blocked"), "unblock")
+test("a blocked ticket opens on its discussion, one in review on Decide, and no other asks", () => {
+  assert.equal(decisionTabOf("blocked"), "discussion")
   assert.equal(decisionTabOf("review"), "decide")
   for (const column of ["draft", "ready", "running", "validated", "failed", "done", "cancelled"])
     assert.equal(decisionTabOf(column), null, column)
@@ -58,7 +59,7 @@ test("every category the runner names has a name, and an unknown one reads as st
 
 test("every key the runner offers has a button, and an option is called by its words", () => {
   for (const key of [
-    "yes", "answer", "done-retry", "retry", "model", "instruct", "split", "abandon", "other",
+    "yes", "close", "answer", "done-retry", "retry", "model", "instruct", "split", "abandon", "other",
     "validate", "rework", "fix-ci", "add-tests", "screenshots", "rebase", "caveat", "reject",
   ])
     assert.ok(LABELS[key], key)
@@ -105,25 +106,45 @@ test("the way forward stands out and the way out reads as one", () => {
   assert.equal(tone(offer("other", "text"), 0), "outline")
 })
 
-test("a blocked panel writes its instruction in a field of its own, and opens on the answer", () => {
-  const asked = [offer("answer", "text"), offer("instruct", "text"), offer("abandon", "note"), offer("other", "text")]
-  assert.deepEqual(buttonsOf("blocked", asked).map((one) => one.key), ["answer", "abandon"])
-  assert.equal(instructionOf("blocked", asked)?.key, "instruct")
-  assert.equal(openedWith("blocked", asked)?.key, "answer")
-  // Out of credit offers no instruction of its kind: the field sends "other".
-  const credits = [offer("retry"), offer("abandon", "note"), offer("other", "text")]
-  assert.equal(instructionOf("blocked", credits)?.key, "other")
-  assert.equal(openedWith("blocked", credits), null)
-  // In review, nothing changes: every offer is a button, none opens by itself.
-  const review = [offer("validate"), offer("rework", "text"), offer("reject", "note")]
-  assert.deepEqual(buttonsOf("review", review), review)
-  assert.equal(instructionOf("review", review), null)
+test("a yes-no question is answered yes or no, and run again as it is", () => {
+  const asked = [offer("yes"), offer("answer", "text"), offer("instruct", "text"), offer("abandon", "note"), offer("other", "text")]
+  const replies = repliesOf("blocked", asked)
+  assert.deepEqual(replies.map((reply) => reply.label), ["Yes", "No", "Run it again as it is"])
+  assert.equal(replies[1].offer?.key, "answer")
+  assert.equal(replies[1].text, "No")
+  // No retry on offer: running it again as it is is the plain move back to Ready.
+  assert.equal(replies[2].offer, undefined)
+  assert.deepEqual(repliesOf("review", asked), [])
 })
 
-test("running it again without changes is offered quietly, where no button already does it", () => {
-  assert.ok(plainRetry("blocked", [offer("done-retry", "note"), offer("other", "text")]))
-  assert.ok(!plainRetry("blocked", [offer("retry"), offer("other", "text")]))
-  assert.ok(!plainRetry("review", [offer("validate")]))
+test("a choice is one reply per option, in its own words, and a close proposal closes", () => {
+  const options = [offer("option", "", "Buy the Starter Business Email plan for hermez.dev (0,39 €/month)", 1), offer("option", "", "No purchase", 2), offer("retry", "note")]
+  const replies = repliesOf("blocked", options)
+  assert.deepEqual(replies.map((reply) => reply.label), [options[0].text, "No purchase", "Run it again as it is"])
+  assert.equal(replies[2].offer?.key, "retry")
+  const closing = repliesOf("blocked", [offer("yes"), offer("close"), offer("answer", "text"), offer("other", "text")])
+  assert.deepEqual(closing.map((reply) => reply.label), ["Yes, close it", "No", "Run it again as it is"])
+})
+
+test("a sentence typed under the question is its answer, or an instruction where it has none", () => {
+  assert.equal(typedOf([offer("yes"), offer("answer", "text"), offer("other", "text")])?.key, "answer")
+  assert.equal(typedOf([offer("retry"), offer("other", "text")])?.key, "other")
+  assert.equal(typedOf([offer("retry")]), null)
+})
+
+test("the run's lines in passing are quiet, and are not Ponos answering", () => {
+  const talk = [
+    { role: "runner", text: "🧠 Model chosen automatically — opus\nA large change." },
+    { role: "you", text: "Go." },
+    { role: "runner", text: "🙋 Stuck — branch ready\nWhich host?" },
+    { role: "runner", text: "↩️ Back in the queue" },
+  ]
+  assert.ok(quiet("runner", talk[0].text))
+  assert.ok(!quiet("you", talk[0].text), "only the runner speaks in passing")
+  assert.ok(!quiet("runner", talk[2].text))
+  assert.equal(answersIn(talk), 1)
+  assert.equal(askedAt(talk), 2)
+  assert.equal(askedAt(talk.slice(0, 2)), -1)
 })
 
 test("an answer's field asks for an answer, the others for what they need", () => {

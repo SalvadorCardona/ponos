@@ -3,13 +3,15 @@ import { expect, test, type Page } from "@playwright/test"
 /* A ticket's discussion, on its page.
  *
  * `e2e/console.py` writes one ticket blocked on a question a run asked. Its
- * card says it is waiting; its page opens on the discussion's tab, marked and counted, with the
- * question in it; and the answer is typed in the console's own bar and appears
- * under it — without the bubble, which opens the workspace on every page.
+ * card says it is waiting; its page opens on the discussion's tab, marked and
+ * counted, with the question in it, signed by Ponos; and the answer is typed
+ * in the console's own bar — without the bubble, which opens the workspace on
+ * every page. Sending it is `decide.spec.ts`'s: an answer runs the ticket
+ * again, and this one has to stay blocked for the other files that read it.
  */
 
 const ASKING = "/?view=console/tickets/read/00000000000000000000000000000a5c"
-const FIELD = "Answer the ticket, or ask it something"
+const FIELD = "Answer Ponos or give it an instruction…"
 
 async function open(page: Page, path: string) {
   await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
@@ -45,7 +47,7 @@ test("a stopped card says why, and Unblock opens on the question's answer", asyn
   await page.keyboard.press("Escape")
   await expect(page).toHaveURL(/block=session\.question/)
   await expect(card).toHaveCount(1)
-  // The window opens on its Unblock tab: the question, and the field to answer it already open.
+  // The window opens on its discussion: the question, and the field to answer it in.
   // The board is wider than the window once Done and Cancelled both hold a
   // card: the strip scrolls smoothly, so the button is brought in, and clicked
   // once it has stopped moving rather than mid-scroll. Brought to the middle:
@@ -62,31 +64,26 @@ test("a stopped card says why, and Unblock opens on the question's answer", asyn
     )
     .toBe(true)
   await unblock.click()
-  await expect(page.locator('[data-slot="ticket-decide-tab"]')).toHaveAttribute("aria-selected", "true")
-  const panel = page.locator('[data-slot="ticket-decision"]')
-  await expect(panel).toContainText("Which header, the dashboard's or the site's?")
-  await expect(panel.getByRole("textbox", { name: "Your answer" })).toBeVisible()
+  await expect(page.locator('[data-slot="ticket-talk-tab"]')).toHaveAttribute("aria-selected", "true")
+  await expect(page.locator('[data-talk="question"]')).toContainText("Which header, the dashboard's or the site's?")
+  await expect(page.locator("[data-ticket-window]").getByRole("textbox", { name: FIELD })).toBeVisible()
 })
 
-test("its page opens on the discussion, marked, and the answer goes through the console's bar", async ({ page }) => {
+test("its page opens on the discussion, marked, the question in it once, and the console's bar to answer", async ({ page }) => {
   await open(page, ASKING)
   const toggle = page.locator('[data-slot="ticket-talk-tab"]')
   await expect(toggle).toHaveAttribute("aria-selected", "true")
   await expect(toggle.locator('[data-slot="ticket-waiting-badge"]')).toBeVisible()
   await expect(toggle).toContainText("1")
-  await expect(page.getByText("Which header, the dashboard's or the site's?")).toBeVisible()
-  // The run's question is signed by Ponos, with its face.
-  const question = page.getByRole("log").locator("[data-slot=message]").filter({ hasText: "Which header" })
+  // Said once, signed by Ponos, with its face.
+  const question = page.locator('[data-talk="question"]')
+  await expect(page.getByRole("log").getByText("Which header, the dashboard's or the site's?")).toHaveCount(1)
   await expect(question.locator("[data-slot=message-header]")).toHaveText(/^\s*Ponos/)
   await expect(question.locator("[data-slot=turn-avatar] ponos-robot")).toBeVisible()
-
+  // A free question has no reply to pick: running it again as it is, and the field.
+  await expect(page.locator('[data-slot="quick-replies"] button')).toHaveText(["Run it again as it is"])
   const field = page.getByRole("textbox", { name: FIELD })
   await expect(page.locator('[data-slot="composer"]').filter({ has: field })).toBeVisible()
-  await field.fill("The dashboard's.")
-  await field.press("Enter")
-  await expect(page.getByRole("log").getByText("The dashboard's.")).toBeVisible()
-  await expect(toggle).toContainText("2")
-  await expect(field).toHaveValue("")
 
   // The bubble is the workspace's, here as anywhere.
   await expect(page.getByRole("button", { name: "open the console" })).toBeVisible()

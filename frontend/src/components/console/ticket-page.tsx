@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConsole, useSteps } from "@/hooks/use-console"
 import { why } from "@/lib/api"
-import { type DecisionTab, actionOf, decisionTabOf } from "@/lib/decision"
+import { type DecisionTab, actionOf } from "@/lib/decision"
 import { useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import type { TicketDetail } from "@/lib/types"
@@ -34,6 +34,7 @@ import { TicketTime } from "./ticket-time"
 import {
   SEED,
   LABEL,
+  NO_COMMIT,
   columnTitle,
   TicketActions,
   TicketBlock,
@@ -75,7 +76,7 @@ export function TicketPage() {
   const { ticket: open, openTicket } = useConsole()
   const t = useT()
   const brief = useBrief(page)
-  // Unblock, pressed on the ticket itself: a tab to switch to, under it.
+  // Unblock or Decide, pressed on the ticket itself: a tab to switch to, under it.
   const [asked, setAsked] = React.useState<{ tab: DecisionTab; at: number }>()
   const goTo = React.useCallback((tab: DecisionTab) => setAsked({ tab, at: Date.now() }), [])
   // The tab on show, for the button above them to know it is already there.
@@ -99,8 +100,11 @@ export function TicketPage() {
       {ticket ? (
         <>
           {/* Why it stopped, as on its card: the gesture it proposes is
-              among the actions below, the answer in the discussion. */}
-          {ticket.block ? (
+              among the actions below, the answer in the discussion. Not a
+              session that committed nothing, which is no fault when there was
+              nothing to change: the discussion says it in passing, on the
+              session's line. */}
+          {ticket.block && ticket.block.code !== NO_COMMIT ? (
             <div className="mb-3">
               <TicketBlock block={ticket.block} />
             </div>
@@ -358,7 +362,7 @@ function TicketSummary({ ticket, onSession }: { ticket: TicketDetail; onSession:
 }
 
 /* The tabs of a ticket: its brief, its discussion, its session — and, on one
- * waiting on you, what unblocks it, or what you decide (see `ticket-decision.tsx`).
+ * in review, what you decide (see `ticket-decision.tsx`).
  *
  * Which one a ticket opens on says what it is waiting for. A running ticket
  * opens on its session, because that is what somebody opening it then has
@@ -375,21 +379,29 @@ function TicketSummary({ ticket, onSession }: { ticket: TicketDetail; onSession:
  * The tab picked is written in the address (`&tab=live`), so a reload, the
  * way back, or a link pasted elsewhere comes back to it — on the ticket's own
  * page only: the window over the board has the board's address, and keeps its
- * tab to itself, opened on Unblock by the card that asked for it.
+ * tab to itself, opened on the discussion, or on Decide, by the card that
+ * asked for it.
  *
- * The Unblock or Decide tab is there only while the ticket waits on you. Once
- * a choice is sent it goes, with nothing left to decide, and the ticket shows
- * its discussion — its session, when one starts: that is what comes next.
+ * A blocked ticket has no tab of its own: its question is answered in the
+ * discussion, which it opens on, scrolled to the question — and an address
+ * written when it had one, `&tab=unblock`, opens there too. The Decide tab is
+ * there only while the ticket is in review. Once a choice is sent it goes,
+ * with nothing left to decide, and the ticket shows its discussion — its
+ * session, when one starts: that is what comes next.
  *
  * The status, the actions and the session's whereabouts stay above the tabs,
  * on every one of them, the block of facts first.
  * `talking` says the discussion held is this ticket's, and not still the last
  * one's.
  */
-const TABS = ["brief", "discussion", "live", "unblock", "decide"] as const
+const TABS = ["brief", "discussion", "live", "decide"] as const
 type Tab = (typeof TABS)[number]
 
 const isTab = (value: string | null | undefined): value is Tab => TABS.includes(value as Tab)
+
+/** A tab named in an address, as it is called now: Unblock was folded into the discussion. */
+const tabNamed = (value: string | null): Tab | undefined =>
+  value === "unblock" ? "discussion" : isTab(value) ? value : undefined
 
 /** The query string with its tab said again, under `key` — the rest of it left exactly as written. */
 function withTab(searchStr: string, tab: Tab, key: string): string {
@@ -411,14 +423,14 @@ function useAddressedTab(id: string): [Tab | undefined, (tab: Tab) => void] {
   const inWindow = opened?.resourceAction === ActionList.read && String(opened.id ?? "") === id
   const key = onPage ? "tab" : WINDOW_TAB
   const mine = onPage || inWindow
-  const named = new URLSearchParams(searchStr).get(key)
+  const named = tabNamed(new URLSearchParams(searchStr).get(key))
   const write = React.useCallback(
     (tab: Tab) => {
       if (mine) router.history.replace(pathname + withTab(searchStr, tab, key))
     },
     [mine, router, pathname, searchStr, key]
   )
-  return [mine && isTab(named) ? named : undefined, write]
+  return [mine ? named : undefined, write]
 }
 
 function TicketTabs({
@@ -431,7 +443,7 @@ function TicketTabs({
   ticket: TicketDetail
   brief: ReturnType<typeof useBrief>
   talking: boolean
-  /** A tab the ticket's own Unblock button asked for — the latest press. */
+  /** A tab the ticket's own Unblock or Decide button asked for — the latest press. */
   asked?: { tab: DecisionTab; at: number }
   /** Told which tab is on show. */
   onTab: (tab: string) => void
@@ -445,7 +457,7 @@ function TicketTabs({
   // Sent: the tab goes at once, before the stream has said the ticket moved.
   const [settled, setSettled] = React.useState(false)
   React.useEffect(() => setSettled(false), [ticket.column])
-  const deciding = settled ? null : decisionTabOf(ticket.column)
+  const deciding = settled || ticket.column !== "review" ? null : "decide"
   const action = actionOf(ticket.column)
   const [addressed, address] = useAddressedTab(ticket.id)
   const [tab, setTab] = React.useState<Tab>(
@@ -471,13 +483,13 @@ function TicketTabs({
     if (addressed) setTab(addressed)
   }, [addressed])
   React.useEffect(() => onTab(tab), [tab, onTab])
-  // The Unblock button above the tabs, pressed.
+  // The Unblock or Decide button above the tabs, pressed.
   React.useEffect(() => {
     if (asked) show(asked.tab, true)
   }, [asked, show])
   // Nothing left to decide — sent from here, or moved elsewhere: the tab goes,
   // and the ticket shows what comes next.
-  const gone = (tab === "unblock" || tab === "decide") && tab !== deciding
+  const gone = tab === "decide" && tab !== deciding
   React.useEffect(() => {
     if (gone) show(running ? "live" : "discussion", false)
   }, [gone, running, show])
@@ -547,7 +559,7 @@ function TicketTabs({
             {t(action)}
             <CircleAlert
               data-slot="ticket-decide-badge"
-              className={cn("size-4", deciding === "unblock" ? "text-tr-amber" : "text-tr-pink")}
+              className="text-tr-pink size-4"
               aria-label={t("your decision is awaited")}
             />
           </TabsTrigger>
@@ -589,7 +601,7 @@ function TicketTabs({
         </section>
       </TabsContent>
       <TabsContent value="discussion">
-        <TicketTalk />
+        <TicketTalk ticket={ticket} onSession={() => show("live", true)} />
       </TabsContent>
       <TabsContent value="live">
         <TicketLive ticket={ticket} />

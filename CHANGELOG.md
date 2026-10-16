@@ -211,6 +211,18 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A blocked ticket is answered in its discussion: the Unblock tab is gone.** The question the session stopped on is
+  said once, as a bubble from Ponos — what is done, why it stops, the question in bold — with quick replies under it:
+  *Yes* / *No*, one per option of a choice (in full, wrapped, never cut), *Yes, close it* when the session proposes to
+  close the ticket — a duplicate, nothing to do — which files it as done with a comment, and *Run it again as it is*. A
+  click answers and runs it again, as the same words typed would. One field takes the answer or an instruction, with
+  the model beside it; *Run it again as it is*, *Abandon* (confirmed) and *See the session* are behind ⋯. A blocked
+  ticket opens on its discussion, marked, and an old `&tab=unblock` link lands there.
+- **Ponos is shown at work after you write.** From the moment a message or a quick reply is sent, the discussion shows
+  the robot and *Ponos is working…* under it, until Ponos answers — or the session fails, which is said in its place.
+- **The run's technical lines are discreet.** *Model chosen automatically — opus …* and the like are a small grey line
+  across the discussion rather than a bubble each, and a session that committed nothing is said on the session's line
+  instead of a red badge over the ticket.
 - **A card in review offers one thing to do: Decide.** A pink button across the card's width, and beside
   it a « ⋯ » that holds the rest, in the order you reach for it — *Validate and publish*, *Run the agent
   again*, *Mark done* and, apart and in red, *Cancel the ticket*. Five buttons in three styles made Decide

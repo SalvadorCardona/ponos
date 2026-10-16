@@ -93,6 +93,7 @@ export function Composer({
   limitMb = 25,
   transcribe,
   dictation,
+  tools,
   className,
 }: {
   ref?: React.Ref<ComposerHandle>
@@ -110,6 +111,8 @@ export function Composer({
   limitMb?: number
   transcribe?: (audio: Blob) => Promise<string>
   dictation?: Dictation
+  /** What else the bar holds, beside the + : a ticket's model, chosen for the session its answer starts. */
+  tools?: React.ReactNode
   className?: string
 }) {
   const t = useT()
@@ -485,6 +488,7 @@ export function Composer({
               />
             </>
           ) : null}
+          {tools}
           <span className="flex-1" />
 
           {recording ? (

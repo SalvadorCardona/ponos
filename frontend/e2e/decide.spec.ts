@@ -1,22 +1,24 @@
 import { expect, test, type Page } from "@playwright/test"
 
-/* The Unblock and Decide tabs of a ticket, from its card and on itself.
+/* A blocked ticket's discussion, and the Decide tab, from its card and on itself.
  *
  * `e2e/console.py` writes tickets blocked on a report that names its kind of
- * stop — missing access, with two options — and one in review whose report
- * says what to check. A blocked card offers Unblock, which opens the ticket's
- * window — one window, nothing beside it — on the tab that says why, what is
- * done and what would get it moving; a card in review offers Decide. A choice
+ * stop — missing access, with two options; one whose session proposes to close
+ * it as a duplicate — and one in review whose report says what to check. A
+ * blocked card offers Unblock, which opens the ticket's window — one window,
+ * nothing beside it — on its discussion: the question said once, in Ponos's
+ * bubble, and under it the quick replies, each a click that answers and runs
+ * it again. A card in review offers Decide, a tab of its own; a choice there
  * that needs words opens its field, and sending it moves the ticket and leaves
- * the instruction on it, where the next session reads it; the tab goes then,
- * and the ticket shows its discussion.
+ * the instruction on it, where the next session reads it.
  */
 
 const READ = "00000000000000000000000000b10c01"
 const ACT = "00000000000000000000000000b10c02"
-const DONE = "00000000000000000000000000b10c03"
+const CLOSE = "00000000000000000000000000b10c03"
 const GIVE_UP = "00000000000000000000000000b10c04"
 const PLAIN = "00000000000000000000000000b10c05"
+const TYPED = "00000000000000000000000000b10c06"
 const REVIEW = "00000000000000000000000000de1c01"
 const LONG = "000000000000000000000000000abcde"
 
@@ -27,17 +29,25 @@ async function open(page: Page, path = "/") {
 
 const ticketWindow = (page: Page) => page.locator("[data-ticket-window]")
 const tab = (page: Page) => page.locator('[data-slot="ticket-decide-tab"]')
+const talkTab = (page: Page) => page.locator('[data-slot="ticket-talk-tab"]')
 const panel = (page: Page) => page.locator('[data-slot="ticket-decision"]')
+const question = (page: Page) => page.locator('[data-talk="question"]')
+const replies = (page: Page) => page.locator('[data-slot="quick-replies"] button')
 
-/** The card's button, clicked: the window opens on the tab, and nothing else opens. */
+/** The card's button, clicked: the window opens, and nothing else opens. */
 async function unblock(page: Page, id: string) {
   const button = page.locator(`[data-decide="${id}"]`)
   await button.scrollIntoViewIfNeeded()
   await button.click()
   await expect(ticketWindow(page)).toBeVisible()
   await expect(page.getByRole("dialog")).toHaveCount(1)
-  await expect(tab(page)).toHaveAttribute("aria-selected", "true")
-  await expect(panel(page)).toBeVisible()
+}
+
+/** The same, on a blocked card: the window is on the discussion, and the question in it. */
+async function answer(page: Page, id: string) {
+  await unblock(page, id)
+  await expect(talkTab(page)).toHaveAttribute("aria-selected", "true")
+  await expect(question(page)).toBeVisible()
 }
 
 test.describe("on a desktop", () => {
@@ -54,44 +64,42 @@ test.describe("on a desktop", () => {
     await expect(card.locator('[data-slot="ticket-waiting"]')).toHaveCount(0)
   })
 
-  test("Unblock opens one window, on the tab that says why it is stuck and what would unblock it", async ({ page }) => {
+  test("Unblock opens one window on the discussion: the question once, and its quick replies", async ({ page }) => {
     await open(page)
-    await unblock(page, READ)
-    await expect(tab(page)).toHaveText("Unblock")
-    await expect(tab(page).locator('[data-slot="ticket-decide-badge"]')).toBeVisible()
-    await expect(page.locator('[data-slot="decision-panel"]')).toHaveCount(0)
-    await expect(panel(page)).toContainText("Missing access")
-    await expect(panel(page)).toContainText("I have no SSH access to the server")
-    await expect(panel(page).locator('[data-slot="decision-done"]')).toContainText("branch `ticket/tailscale` ready")
-    await expect(panel(page).locator('[data-slot="decision-question"]')).toContainText("Which way do you prefer?")
-    // Already on the tab: the button above it would only point at where you are.
+    await answer(page, READ)
+    // No tab of its own: the discussion wears the mark of a question waiting.
+    await expect(tab(page)).toHaveCount(0)
+    await expect(talkTab(page).locator('[data-slot="ticket-waiting-badge"]')).toBeVisible()
+    // What is done, why it stops, then the question — said once, nowhere else.
+    await expect(question(page)).toContainText("ticket/tailscale")
+    await expect(question(page)).toContainText("I have no SSH access to the server")
+    await expect(question(page).locator('[data-slot="talk-ask"]')).toHaveText("Which way do you prefer?")
+    await expect(ticketWindow(page).getByText("Which way do you prefer?")).toHaveCount(1)
+    // Already on the discussion: the button above it would only point at where you are.
     await expect(ticketWindow(page).locator(`[data-decide="${READ}"]`)).toHaveCount(0)
-    const choices = panel(page).locator("[data-solution]")
-    await expect(choices.first()).toHaveText(/Give me an SSH key/)
-    await expect(panel(page).getByRole("button", { name: "It's done, run it again" })).toBeVisible()
-    // This board has a column to give a ticket up in: it is filed there, not as done.
-    await expect(choices.last()).toHaveText("Abandon — move to cancelled")
-    // An instruction of your own is not a choice among them: its field is always there.
-    await expect(panel(page).getByRole("button", { name: "Other: write an instruction" })).toHaveCount(0)
-    const instruction = panel(page).locator('[data-slot="decision-instruction"]')
-    await expect(instruction.getByRole("textbox")).toBeVisible()
-    await expect(instruction.getByRole("button", { name: "Send and run again" })).toBeDisabled()
-    // Nothing above runs it again as it is, so the quiet way does.
-    await expect(panel(page).getByRole("button", { name: "Run it again without changes" })).toBeVisible()
-    // A choice that needs words opens its field; one that does not, does not.
-    await panel(page).getByRole("button", { name: "It's done, run it again" }).click()
-    await expect(panel(page).getByRole("textbox")).toHaveCount(2)
+    // One reply per option, in its own words, and running it again as it is.
+    await expect(replies(page)).toHaveText([
+      "Give me an SSH key",
+      "Install it yourself and tell me",
+      "Run it again as it is",
+    ])
+    // One field, the composer's, and the rarer gestures behind ⋯.
+    await expect(ticketWindow(page).getByRole("textbox")).toHaveCount(1)
+    await expect(ticketWindow(page).getByRole("textbox", { name: "Answer Ponos or give it an instruction…" })).toBeVisible()
+    await ticketWindow(page).locator('[data-slot="talk-menu"]').click()
+    await expect(page.getByRole("menuitem")).toHaveText(["Run it again as it is", "Abandon", "See the session"])
+    await page.keyboard.press("Escape")
     // The other tabs are a click away, and the button in the window's header comes back to it.
     await ticketWindow(page).locator('[data-slot="ticket-brief-tab"]').click()
-    await expect(panel(page)).toBeHidden()
+    await expect(question(page)).toBeHidden()
     await ticketWindow(page).locator(`[data-decide="${READ}"]`).click()
-    await expect(tab(page)).toHaveAttribute("aria-selected", "true")
-    await expect(panel(page)).toBeVisible()
+    await expect(talkTab(page)).toHaveAttribute("aria-selected", "true")
+    await expect(question(page)).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(ticketWindow(page)).toBeHidden()
   })
 
-  test("a ticket that waits on nobody has no Unblock tab", async ({ page }) => {
+  test("a ticket that waits on nobody has no Decide tab, and an old Unblock address opens the discussion", async ({ page }) => {
     await open(page)
     await page.getByRole("link", { name: "A long ticket" }).click()
     await expect(ticketWindow(page).locator('[data-slot="ticket-brief-tab"]')).toBeVisible()
@@ -99,68 +107,87 @@ test.describe("on a desktop", () => {
     await open(page, `/?view=console/tickets/read/${LONG}&tab=unblock`)
     await expect(page.locator('[data-slot="ticket-brief-tab"]')).toBeVisible()
     await expect(tab(page)).toHaveCount(0)
-    await expect(page.locator('[data-slot="ticket-talk-tab"]')).toHaveAttribute("aria-selected", "true")
+    await expect(talkTab(page)).toHaveAttribute("aria-selected", "true")
   })
 
-  test("on its page, the tab is in the address, and Unblock switches to it", async ({ page }) => {
+  test("on its page, the tab is in the address, and Unblock switches to the discussion", async ({ page }) => {
     await open(page, `/?view=console/tickets/read/${READ}&tab=unblock`)
-    await expect(tab(page)).toHaveAttribute("aria-selected", "true")
-    await expect(panel(page)).toContainText("Missing access")
+    await expect(talkTab(page)).toHaveAttribute("aria-selected", "true")
+    await expect(question(page)).toContainText("Which way do you prefer?")
     await page.locator('[data-slot="ticket-brief-tab"]').click()
     await expect(page).toHaveURL(/[?&]tab=brief$/)
     await page.locator(`[data-decide="${READ}"]`).click()
-    await expect(tab(page)).toHaveAttribute("aria-selected", "true")
-    await expect(page).toHaveURL(/[?&]tab=unblock$/)
+    await expect(talkTab(page)).toHaveAttribute("aria-selected", "true")
+    await expect(page).toHaveURL(/[?&]tab=discussion$/)
   })
 
-  test("an instruction of your own moves the ticket to Ready and is left on it", async ({ page }) => {
+  test("a quick reply answers and runs it again, and Ponos is shown at work", async ({ page }) => {
     await open(page)
-    await unblock(page, ACT)
-    const instruction = panel(page).locator('[data-slot="decision-instruction"]')
-    await instruction.getByRole("textbox").fill("Use the key in 1Password.")
-    await instruction.getByRole("button", { name: "Send and run again" }).click()
+    await answer(page, ACT)
+    await replies(page).filter({ hasText: "Install it yourself and tell me" }).click()
     await expect(page.getByText("“Choose the host” moved to Ready")).toBeVisible()
-    // Nothing left to unblock: the tab goes, and the window shows the discussion.
-    await expect(tab(page)).toHaveCount(0)
-    await expect(ticketWindow(page).locator('[data-slot="ticket-talk-tab"]')).toHaveAttribute("aria-selected", "true")
+    const working = ticketWindow(page).locator('[data-talk="working"]')
+    await expect(working).toContainText("Ponos is working…")
+    await expect(working.locator("ponos-robot")).toHaveAttribute("state", "thinking")
     const said = (await (await page.request.get(`/api/tickets/${ACT}/talk`)).json()) as {
       messages: { text: string }[]
     }
+    expect(said.messages[said.messages.length - 1].text).toContain("Decision: option 2, “Install it yourself and tell me”.")
+  })
+
+  test("a sentence typed under the question is its answer, and runs it again", async ({ page }) => {
+    await open(page)
+    await answer(page, TYPED)
+    const field = ticketWindow(page).getByRole("textbox", { name: "Answer Ponos or give it an instruction…" })
+    await field.fill("Use the key in 1Password.")
+    await field.press("Control+Enter")
+    await expect(page.getByText("“Pick the header” moved to Ready")).toBeVisible()
+    await expect(ticketWindow(page).locator('[data-talk="working"]')).toBeVisible()
+    await expect(field).toHaveValue("")
+    const said = (await (await page.request.get(`/api/tickets/${TYPED}/talk`)).json()) as {
+      messages: { text: string }[]
+    }
     const last = said.messages[said.messages.length - 1].text
-    expect(last).toContain("Decision: run it again with an instruction.")
+    expect(last).toContain("Decision: an instruction.")
     expect(last).toContain("Use the key in 1Password.")
   })
 
-  test("it's done, run it again: the ticket goes back to Ready", async ({ page }) => {
+  test("a proposal to close the ticket is accepted in one click, and files it as done", async ({ page }) => {
     await open(page)
-    await unblock(page, DONE)
-    await panel(page).getByRole("button", { name: "It's done, run it again" }).click()
-    await panel(page).locator("li form").getByRole("button", { name: "Send and run again" }).click()
-    await expect(page.getByText("“Open the firewall” moved to Ready")).toBeVisible()
-    await expect(tab(page)).toHaveCount(0)
+    await answer(page, CLOSE)
+    await expect(replies(page)).toHaveText(["Yes, close it", "No", "Run it again as it is"])
+    await replies(page).filter({ hasText: "Yes, close it" }).click()
+    await expect(page.getByText("“Close the duplicate” moved to Done")).toBeVisible()
+    // Nothing to run: Ponos is not shown at work on it.
+    await expect(ticketWindow(page).locator('[data-talk="working"]')).toHaveCount(0)
+    const said = (await (await page.request.get(`/api/tickets/${CLOSE}/talk`)).json()) as {
+      messages: { text: string }[]
+    }
+    expect(said.messages[said.messages.length - 1].text).toContain("Decision: yes, close it — moved to done.")
   })
 
-  test("abandon files the ticket as cancelled", async ({ page }) => {
+  test("abandon is behind ⋯, asks first, and files the ticket as cancelled", async ({ page }) => {
     await open(page)
-    await unblock(page, GIVE_UP)
-    await panel(page).getByRole("button", { name: "Abandon — move to cancelled" }).click()
-    await panel(page).locator("li form").getByRole("button", { name: "Confirm" }).click()
+    await answer(page, GIVE_UP)
+    await ticketWindow(page).locator('[data-slot="talk-menu"]').click()
+    await page.getByRole("menuitem", { name: "Abandon" }).click()
+    const asking = page.getByRole("alertdialog")
+    await expect(asking).toContainText("Abandon — move to cancelled")
+    await asking.getByRole("button", { name: /^Abandon/ }).click()
     await expect(page.getByText("“Move the old backups” moved to Cancelled")).toBeVisible()
-    await expect(tab(page)).toHaveCount(0)
-    await expect(ticketWindow(page).locator('[data-slot="ticket-talk-tab"]')).toHaveAttribute("aria-selected", "true")
   })
 
-  test("run it again without changes puts it back in Ready", async ({ page }) => {
+  test("run it again as it is puts it back in Ready", async ({ page }) => {
     await open(page)
-    await unblock(page, PLAIN)
-    await panel(page).getByRole("button", { name: "Run it again without changes" }).click()
+    await answer(page, PLAIN)
+    await replies(page).filter({ hasText: "Run it again as it is" }).click()
     await expect(page.getByText("“Renew the certificate” moved to Ready")).toBeVisible()
-    await expect(tab(page)).toHaveCount(0)
   })
 
   test("a card in review says what it delivered, what to check, and how to decide", async ({ page }) => {
     await open(page)
     await unblock(page, REVIEW)
+    await expect(tab(page)).toHaveAttribute("aria-selected", "true")
     await expect(tab(page)).toHaveText("Decide")
     await expect(panel(page)).toContainText("Adds a share button under each article.")
     await expect(panel(page).getByRole("link", { name: /Pull request/ })).toHaveAttribute(
@@ -182,7 +209,7 @@ test.describe("on a desktop", () => {
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
-  test("Unblock opens the ticket's window on its tab, the choices a thumb wide", async ({ page }) => {
+  test("Unblock opens the ticket's window on its discussion, the replies read in full", async ({ page }) => {
     await open(page)
     // Brought to the middle of the screen first: left at its edge, the button
     // sits under the bottom bar, or on a card not yet drawn (content-visibility).
@@ -190,11 +217,16 @@ test.describe("on a phone", () => {
     await unblock.evaluate((button) => button.scrollIntoView({ block: "center" }))
     await unblock.tap()
     await expect(page.getByRole("dialog")).toHaveCount(1)
-    await expect(tab(page)).toHaveAttribute("aria-selected", "true")
-    await expect(panel(page)).toContainText("Missing access")
-    // Once the window has grown in: it opens from slightly smaller.
-    const choice = panel(page).locator("[data-solution]").first()
-    await expect.poll(async () => (await choice.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(40)
-    await expect.poll(async () => (await choice.boundingBox())?.width ?? 0).toBeGreaterThan(300)
+    await expect(talkTab(page)).toHaveAttribute("aria-selected", "true")
+    await expect(question(page)).toContainText("Which way do you prefer?")
+    // Once the window has grown in: it opens from slightly smaller. Each reply
+    // is a thumb high, inside the screen, and none of its words cut.
+    const reply = replies(page).first()
+    await expect.poll(async () => (await reply.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32)
+    for (const one of await replies(page).all()) {
+      const box = await one.boundingBox()
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390)
+      expect(await one.evaluate((button) => button.scrollWidth <= button.clientWidth)).toBe(true)
+    }
   })
 })

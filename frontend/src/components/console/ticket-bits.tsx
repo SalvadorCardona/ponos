@@ -203,6 +203,9 @@ export function blockSaid(words: { en: string; fr: string }): string {
  * under it. The gesture it proposes is with the others, in `TicketActions`.
  * A blocked card keeps neither: the label and the help move to the tooltip of
  * its Unblock button, whose icon is the cause's — the button says what to do. */
+/** The cause of a session that committed nothing — see `blocks.py`: no fault when there was nothing to change. */
+export const NO_COMMIT = "session.no-commit"
+
 export function TicketBlock({ block }: { block?: Block | null }) {
   if (!block) return null
   const Icon = FAMILY_ICON[block.family] ?? ServerCrash
@@ -589,10 +592,10 @@ export function TicketActions({
   // A ticket the runner has in hand is not one you move: drawing an empty row
   // for it would leave a gap on the card where the gestures would have been.
   if (ticket.column === "running") return null
-  // A blocked card has one gesture, Unblock: its cause is known, so the tab
-  // it opens is the one to choose between answering, an instruction and
-  // running it again as it is — see `ticket-decision.tsx`. Three buttons that
-  // all put it back to work left you to guess which one was yours.
+  // A blocked card has one gesture, Unblock: it opens the ticket's discussion,
+  // where its question is answered — by a quick reply, a sentence, or running
+  // it again as it is — see `ticket-talk.tsx`. Three buttons that all put it
+  // back to work left you to guess which one was yours.
   if (ticket.column === "blocked")
     return (
       <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
