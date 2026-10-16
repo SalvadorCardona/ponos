@@ -22,6 +22,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DecideButton } from "@/components/console/ticket-decision"
@@ -428,6 +429,29 @@ export function TicketTags({ ticket, lead }: { ticket: Ticket; lead?: React.Reac
   )
 }
 
+/* A review's checks, said in the line along the bottom of its card rather than
+ * as a badge over its buttons: a fact like its age and its cost, read in the
+ * same row. A red one keeps its colour on the words too — it is the one that
+ * asks to be seen. */
+function FootCi({ ci }: { ci?: Ci | null }) {
+  if (!ci) return null
+  const { icon: Icon, color, spin } = CI_STATE[ci.state]
+  return (
+    <span
+      data-slot="ticket-ci"
+      data-state={ci.state}
+      className={cn(
+        "flex shrink-0 items-center gap-1 whitespace-nowrap",
+        ci.state === "failed" && "text-tr-red font-semibold"
+      )}
+    >
+      ·
+      <Icon className={cn("size-3", color, spin && "animate-spin")} />
+      {CI_WORDS()[ci.state]}
+    </span>
+  )
+}
+
 /* The line along the bottom of a card: where the work goes and how long ago the
  * ticket was made, what it has cost, and the way out to the page it is written
  * on. All facts rather than prose, so all set in the mono face and read as a
@@ -467,6 +491,7 @@ export function TicketFoot({ ticket }: { ticket: Ticket }) {
             · {ago(ticket.created)}
           </span>
         ) : null}
+        <FootCi ci={ticket.column === "review" ? ticket.ci : null} />
       </span>
       {/* 12 min · $0.64: the work beside what it cost, the quieter of the two. */}
       <CardTime time={ticket.worktime} />
@@ -560,6 +585,7 @@ export function TicketActions({
   const board = useBoard()
   const t = useT()
   const [asked, setAsked] = React.useState(false)
+  const [validating, setValidating] = React.useState(false)
   // A ticket the runner has in hand is not one you move: drawing an empty row
   // for it would leave a gap on the card where the gestures would have been.
   if (ticket.column === "running") return null
@@ -647,6 +673,17 @@ export function TicketActions({
     board.cancel && ticket.column !== "cancelled" ? (
       <DropdownMenuItem onSelect={() => void move(ticket, "cancelled")}>{t("cancel the ticket")}</DropdownMenuItem>
     ) : null
+  // Validating is the gesture the runner acts on — it merges the pull request,
+  // or publishes what the ticket holds — where "done" only files the ticket
+  // away yourself. Offered only on a board that has the column.
+  const validate = {
+    title: t("Validate “{{title}}”?", { title: titleOf(ticket) }),
+    body: ticket.pull_request
+      ? t("The runner merges its pull request on its next pass. A merge is not taken back from here.")
+      : t("The runner publishes what the ticket holds on its next pass."),
+    confirm: t("Validate"),
+    onConfirm: () => void move(ticket, "validated"),
+  }
   const menu = (items: React.ReactNode) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -657,6 +694,48 @@ export function TicketActions({
       <DropdownMenuContent align="start">{items}</DropdownMenuContent>
     </DropdownMenu>
   )
+  // A card in review is there to be decided on, and says so with one button
+  // across its width; the plain gestures wait behind "…", in the order they are
+  // reached for, giving it up last and apart. Five buttons in three styles made
+  // Decide and validate fight for the eye. The menu only opens the same
+  // dialogs: what each gesture asks first, and where it moves the ticket, are
+  // those of the buttons it replaces.
+  if (ticket.column === "review")
+    return (
+      <div className={cn("flex items-center gap-1.5", className)}>
+        <DecideButton ticket={ticket} className="h-12 min-w-0 flex-1 rounded-lg text-sm" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-12 shrink-0 rounded-lg"
+              aria-label={t("More actions")}
+              title={t("More actions")}
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {board.validate ? (
+              <DropdownMenuItem onSelect={() => setValidating(true)}>{t("Validate and publish")}</DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onSelect={() => setAsked(true)}>{t("Run the agent again")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void move(ticket, "done")}>{t("Mark done")}</DropdownMenuItem>
+            {board.cancel ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={() => void move(ticket, "cancelled")}>
+                  {t("Cancel the ticket")}
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Confirmed open={asked} onOpenChange={setAsked} {...ready} />
+        {board.validate ? <Confirmed open={validating} onOpenChange={setValidating} {...validate} /> : null}
+      </div>
+    )
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {/* What a card waiting on you is for: why it waits, and what to do —
@@ -675,9 +754,7 @@ export function TicketActions({
           {t("reopen")}
         </Button>
       ) : null}
-      {ticket.column === "review" ? (
-        <Confirmed label={t("run again")} {...ready} />
-      ) : ticket.column === "done" ? (
+      {ticket.column === "done" ? (
         <>
           {menu(
             <>
@@ -689,28 +766,6 @@ export function TicketActions({
         </>
       ) : ticket.column !== "ready" ? (
         <Confirmed label={again ? t("run again") : t("make ready")} {...ready} />
-      ) : null}
-      {/* Validating is the gesture the runner acts on — it merges the pull
-          request, or publishes what the ticket holds — where "done" only files
-          the ticket away yourself. Offered only on a board that has the column. */}
-      {ticket.column === "review" && board.validate ? (
-        <Confirmed
-          label={t("validate")}
-          className="text-tr-pink hover:text-tr-pink"
-          title={t("Validate “{{title}}”?", { title: titleOf(ticket) })}
-          body={
-            ticket.pull_request
-              ? t("The runner merges its pull request on its next pass. A merge is not taken back from here.")
-              : t("The runner publishes what the ticket holds on its next pass.")
-          }
-          confirm={t("Validate")}
-          onConfirm={() => void move(ticket, "validated")}
-        />
-      ) : null}
-      {ticket.column === "review" ? (
-        <Button variant="outline" size="sm" onClick={() => void move(ticket, "done")}>
-          {t("done")}
-        </Button>
       ) : null}
       {ticket.column === "ready" ? (
         <Button

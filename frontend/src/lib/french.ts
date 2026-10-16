@@ -341,6 +341,10 @@ export const FRENCH: Record<string, string> = {
   Question: "Question",
   "make ready": "rendre prêt",
   "cancel the ticket": "abandonner le ticket",
+  "Validate and publish": "Valider et publier",
+  "Run the agent again": "Relancer l'agent",
+  "Mark done": "Marquer terminé",
+  "Cancel the ticket": "Abandonner le ticket",
   reopen: "rouvrir",
   "Back to the drafts: the runner does not touch it until it is made ready.":
     "Retour aux brouillons : le runner n'y touche pas tant qu'il n'est pas rendu prêt.",
