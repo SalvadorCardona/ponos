@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils"
  * react-resource-view draws its own, and writes most of it as it stands —
  * "Showing 1 to 30 sur 475 results", half English and half French whatever the
  * console is in, with four dots between the pages. The package lets a view
- * bring its own (`components.pagination`), so this is the same pagination —
+ * bring its own (`components.pagination`, given to every resource at once in
+ * `lib/resource-view.ts`), so this is the same pagination —
  * the same page size, the same `page` filter, the same pages shown — with every
  * word going through the dictionary. */
 
@@ -38,7 +39,7 @@ export function Pagination() {
   const { resource, view } = useCurrentViewResourceContext()
   if (!list.originalData) return null
 
-  const perPage = view.itemsPerPage ?? 30
+  const perPage = view.pageSize ?? 30
   const current = Number(list.filterContext.filter["page"] ?? 1)
   const items = getCollectionTotal(list.originalData, resource) ?? 0
   const total = Math.ceil(items / perPage)

@@ -3,6 +3,7 @@ import { ActionList } from "react-data-form"
 import {
   createAdminLayout,
   type MenuItemInterface,
+  type ResolvedScope,
   type ScopeConfig,
   type ScopeInterface,
 } from "react-resource-view"
@@ -11,12 +12,13 @@ import { MenuEntry, Mark, TopBarEnd, onPhone, type ConsoleMenuItem } from "@/com
 import { t } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
 
-import { IDEAS, ideas, ideasHref } from "./ideas"
+import { IDEAS, ideas, ideasHref, scopedIdeas } from "./ideas"
+import { pairResources } from "./pairs"
 import { PROJECTS, projects, projectsHref } from "./projects"
 import { SCHEDULES, schedules, schedulesHref } from "./schedules"
 import { SESSIONS, sessions, sessionsHref } from "./sessions"
 import { SETTINGS, settings, settingsHref } from "./settings"
-import { TICKETS, boardHref, tickets } from "./tickets"
+import { TICKETS, boardHref, projectTickets, tickets } from "./tickets"
 
 /* The console, as one scope of react-resource-view.
  *
@@ -28,7 +30,8 @@ import { TICKETS, boardHref, tickets } from "./tickets"
  * The names and the links are getters. A name is read from the dictionary as
  * the menu is drawn, so the language can change after this is declared; the
  * board's link carries the layout it was last worked in, which changes every
- * time somebody picks the table.
+ * time somebody picks the table. react-resource-view 1.0 copies the menu as it
+ * loads the scope, which reads each getter once — see `keepTheMenuLive`.
  */
 
 const entry = (
@@ -92,17 +95,57 @@ const entries = () => [
   entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
 ]
 
+const MENU: MenuItemInterface[] = [
+  ...entries().map(onTheBar),
+  // The drawer's entries are a copy of their own: the ones above hide on a
+  // phone, and the package leaves a hidden entry out of a drawer too.
+  more(entries().filter((item) => !ON_THE_BAR.has(item.resource))),
+]
+
+/** What the menu calls a resource's page, in the language of the moment. */
+export const menuName = (resource: string): string | undefined =>
+  (MENU as Partial<ConsoleMenuItem>[]).find((item) => item.resource === resource)?.name
+
+/* The menu the layout draws is a copy: react-resource-view 1.0 resolves a
+ * scope as it loads it, once, and spreads every entry into a new object — so
+ * a getter is read there, and the menu would say its names in the language
+ * the console opened in, link the board in the layout it opened on, and keep
+ * the bar of the width it opened at. The getters are put back on the copy,
+ * entry by entry: the copy is in the menu's order. */
+const live = new WeakSet<object>()
+
+export function keepTheMenuLive(scope: ResolvedScope | undefined) {
+  if (!scope?.menu || live.has(scope)) return
+  live.add(scope)
+  const restore = (copies: MenuItemInterface[], originals: MenuItemInterface[]) =>
+    copies.forEach((copy, index) => {
+      const original = originals[index]
+      if (!original) return
+      for (const [key, said] of Object.entries(Object.getOwnPropertyDescriptors(original)))
+        if (said.get) Object.defineProperty(copy, key, said)
+      if (copy.items && original.items) restore(copy.items, original.items)
+    })
+  restore(scope.menu, MENU)
+}
+
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "Ponos",
-  resources: [tickets, projects, schedules, ideas, sessions, settings],
-  decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
-  menu: [
-    ...entries().map(onTheBar),
-    // The drawer's entries are a copy of their own: the ones above hide on a
-    // phone, and the package leaves a hidden entry out of a drawer too.
-    more(entries().filter((item) => !ON_THE_BAR.has(item.resource))),
+  // Every resource of the console, the lists drawn inside another page
+  // included: a scope is what a resource's links are written under.
+  resources: [
+    tickets,
+    projects,
+    schedules,
+    ideas,
+    sessions,
+    settings,
+    projectTickets,
+    scopedIdeas,
+    ...Object.values(pairResources),
   ],
+  decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
+  menu: MENU,
   // An address that names nothing is the board.
   defaultViewResourceContextParams: {
     scope: SCOPE,

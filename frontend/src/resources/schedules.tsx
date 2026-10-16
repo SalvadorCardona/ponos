@@ -11,13 +11,12 @@ import {
   type InputControllerComponentInterface,
 } from "react-data-form"
 import {
-  calendarViewOptionFactory,
   createResourceCollection,
   createViewResource,
   generateLinkByResource,
   Link,
   ListCalendar,
-  tableViewOptionFactory,
+  layout,
   useCurrentViewResourceContext,
   useNavigate,
   type ListComponentPropsInterface,
@@ -27,14 +26,13 @@ import {
 
 import { EmptyState } from "@/components/console/empty-state"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
-import { Pagination } from "@/components/console/pagination"
-import { ScheduleWindow, opensScheduleInTheWindow } from "@/components/console/schedule-window"
+import { recordWindow, useOpensOverTheList } from "@/components/console/record-window"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, why } from "@/lib/api"
 import { t } from "@/lib/i18n"
-import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
+import { layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
 import type { Schedule, Schedules } from "@/lib/types"
 import { projectsOnce, useProjects } from "@/resources/projects"
@@ -360,6 +358,7 @@ const PageLink: InputControllerComponentInterface = ({ formInput }) => {
   const data = form?.data as { id?: string; url?: string } | undefined
   const id = String(data?.id ?? "")
   const url = String(data?.url ?? "")
+  const open = useOpensOverTheList(schedules, "update", id)
   // `data-schedule` is how the stylesheet finds this table among the others,
   // to fold it to a phone's width.
   return (
@@ -367,7 +366,7 @@ const PageLink: InputControllerComponentInterface = ({ formInput }) => {
       {id ? (
         <Link
           to={scheduleHref(id)}
-          onClick={opensScheduleInTheWindow(id)}
+          onClick={open}
           className="underline-offset-2 hover:underline"
         >
           {said}
@@ -475,17 +474,23 @@ const rowForm: FormInterface = {
 function SchedulesTop() {
   const { drawn, problem } = useSchedules()
   useLayoutInTheAddress(SCHEDULES)
-  return (
-    <>
-      <SchedulesCount drawn={drawn} problem={problem} />
-      <ScheduleWindow
-        titleOf={(id) => drawn?.schedules.find((schedule) => schedule.id === id)?.name ?? ""}
-        hrefOf={scheduleHref}
-        actionsOf={(id) => <LaunchButton id={id} />}
-      />
-    </>
-  )
+  return <SchedulesCount drawn={drawn} problem={problem} />
 }
+
+/* A schedule opened from the list, in the window a ticket opens in over the
+ * board: its name over it, and the way to run it now beside the way to its
+ * page. The schedule inside is the `update` view, as on its page. */
+const scheduleWindow = recordWindow({
+  type: "schedule-window",
+  fallbackTitle: "Schedule",
+  useHead: function useScheduleHead(id) {
+    const { drawn } = useSchedules()
+    return {
+      title: drawn?.schedules.find((schedule) => schedule.id === id)?.name ?? "",
+      actions: id ? <LaunchButton id={id} /> : null,
+    }
+  },
+})
 
 function SchedulesCount({ drawn, problem }: LastRead) {
   if (problem)
@@ -630,6 +635,7 @@ const hour = (instant: number) =>
 /** What the window over a launch says: whether it has happened, when, and the way to the schedule. */
 const LaunchPreview = ({ row }: RowComponentPropsInterface<Launch>) => {
   const launch = row?.data
+  const open = useOpensOverTheList(schedules, "update", launch?.schedule ?? "")
   if (!launch) return null
   return (
     <div className="flex w-full flex-col gap-2 text-sm">
@@ -642,7 +648,7 @@ const LaunchPreview = ({ row }: RowComponentPropsInterface<Launch>) => {
       ) : null}
       <Link
         to={scheduleHref(launch.schedule)}
-        onClick={opensScheduleInTheWindow(launch.schedule)}
+        onClick={open}
         className="text-primary underline-offset-2 hover:underline"
       >
         {t("Open the schedule")}
@@ -653,107 +659,112 @@ const LaunchPreview = ({ row }: RowComponentPropsInterface<Launch>) => {
 
 /* -- the declaration ------------------------------------------------------ */
 
-export const schedules = createViewResource<ScheduleItem, ScheduleItem, ScheduleWrite>(SCHEDULES, {
+export const schedules = createViewResource<ScheduleItem, ScheduleWrite>(SCHEDULES, {
   name: "Schedules",
-  scope: SCOPE,
   path: "/api/schedules",
   icon: CalendarClock,
-  canList: true,
-  // There is nothing about a schedule the row does not already say, and its own
-  // page is on the board — which its name in the list leads to.
-  canRead: false,
-  // A board with no Schedules database has nowhere to write a row to, and the
-  // package asks this every time it draws the button.
-  canCreate: () => Boolean(read.drawn?.database),
-  canUpdate: true,
-  // A schedule that has fired is a page with a history; unticking it is what
-  // the switch is for, and there is no endpoint that removes one.
-  canDelete: false,
-
-  getCollection: async () => {
-    const fresh = await load()
-    return {
-      data: createResourceCollection({
-        id: "/api/schedules",
-        items: fresh.schedules.map(item),
-      }),
-    } as never
+  // A row is opened in its form, and never deleted — unticking it stops it. A
+  // new one is offered where the board has a database to write it to.
+  permissions: {
+    read: false,
+    create: () => Boolean(read.drawn?.database),
+    delete: false,
+    export: false,
   },
-  // Asked of the server every time, even for a row the list holds: the list
-  // carries no body — twenty rows would be twenty pages read — and the form
-  // this feeds is the one that writes it.
-  getItem: async ({ id }) => {
-    try {
-      return { data: item(await api.schedule(String(id))) }
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404)
-        throw new Error(t("This schedule is no longer on the board."))
-      throw error
-    }
+  repository: {
+    getCollection: async () => {
+      const fresh = await load()
+      return {
+        data: createResourceCollection({
+          id: "/api/schedules",
+          items: fresh.schedules.map(item),
+        }),
+      } as never
+    },
+    // Asked of the server every time, even for a row the list holds: the list
+    // carries no body — twenty rows would be twenty pages read — and the form
+    // this feeds is the one that writes it.
+    getItem: async ({ id }) => {
+      try {
+        return { data: item(await api.schedule(String(id))) }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404)
+          throw new Error(t("This schedule is no longer on the board."))
+        throw error
+      }
+    },
+    updateItem: async (patch) => {
+      const id = String(patch.id ?? "")
+      // Written field by field rather than as the row arrived: a row carries the
+      // three columns a pass writes back, and the project it points at as a name
+      // rather than as the page the column holds. The body only when the row
+      // came with one — the switch in the list saves a row read without it, and
+      // an absent body is not an empty page.
+      await api.saveSchedule(id, {
+        name: patch.name ?? "",
+        cadence: patch.cadence ?? "",
+        at: patch.at ?? "",
+        day: patch.day ?? "",
+        active: patch.active === true,
+        model: patch.model ?? "",
+        priority: patch.priority ?? "",
+        ...(patch.body === undefined ? {} : { body: patch.body }),
+      })
+      const fresh = await load()
+      const found = fresh.schedules.find((schedule) => schedule.id === id)
+      return {
+        data: found ? item({ ...found, body: patch.body }) : (patch as unknown as ScheduleItem),
+      }
+    },
+    createItem: async (fresh) => {
+      const made = await api.createSchedule({
+        name: fresh.name ?? "",
+        cadence: fresh.cadence ?? "",
+        at: fresh.at ?? "",
+        day: fresh.day ?? "",
+        model: fresh.model ?? "",
+        priority: fresh.priority ?? "",
+        ...(fresh.body ? { body: fresh.body } : {}),
+      })
+      const after = await load()
+      const found = after.schedules.find((schedule) => schedule.id === made.id)
+      return { data: found ? item(found) : ({ ...fresh, ...made } as unknown as ScheduleItem) }
+    },
+    removeItem: async () => {
+      throw new Error("a schedule is not deleted from the console; unticking it stops it")
+    },
   },
-  updateItem: async (patch) => {
-    const id = String(patch.id ?? "")
-    // Written field by field rather than as the row arrived: a row carries the
-    // three columns a pass writes back, and the project it points at as a name
-    // rather than as the page the column holds. The body only when the row
-    // came with one — the switch in the list saves a row read without it, and
-    // an absent body is not an empty page.
-    await api.saveSchedule(id, {
-      name: patch.name ?? "",
-      cadence: patch.cadence ?? "",
-      at: patch.at ?? "",
-      day: patch.day ?? "",
-      active: patch.active === true,
-      model: patch.model ?? "",
-      priority: patch.priority ?? "",
-      ...(patch.body === undefined ? {} : { body: patch.body }),
-    })
-    const fresh = await load()
-    const found = fresh.schedules.find((schedule) => schedule.id === id)
-    return {
-      data: found ? item({ ...found, body: patch.body }) : (patch as unknown as ScheduleItem),
-    }
-  },
-  createItem: async (fresh) => {
-    const made = await api.createSchedule({
-      name: fresh.name ?? "",
-      cadence: fresh.cadence ?? "",
-      at: fresh.at ?? "",
-      day: fresh.day ?? "",
-      model: fresh.model ?? "",
-      priority: fresh.priority ?? "",
-      ...(fresh.body ? { body: fresh.body } : {}),
-    })
-    const after = await load()
-    const found = after.schedules.find((schedule) => schedule.id === made.id)
-    return { data: found ? item(found) : ({ ...fresh, ...made } as unknown as ScheduleItem) }
-  },
-  removeItem: async () => {
-    throw new Error("a schedule is not deleted from the console; unticking it stops it")
-  },
-
-  view: {
-    form: rowForm,
-    /* The two layouts. A variant's name is drawn as it is given and its id is
-     * slugged from it where none is said, so the id is said here and the name
-     * read from the dictionary as the tab is drawn: the address stays `table`
-     * in every language. */
-    viewVariants: [
-      {
-        ...tableViewOptionFactory({ id: "table" }),
-        get name() {
-          return t("table")
-        },
+  views: {
+    list: {
+      // The table's columns, on the list alone: a form declared at the root is
+      // merged into every action's, and the create form would have grown them.
+      form: rowForm,
+      components: {
+        // Declared on the list rather than on the view every action inherits: a
+        // `top` posted there is drawn over the create form too, and the count
+        // of what is on belongs to the page, not to the form over it.
+        top: SchedulesTop,
+        bottom: SchedulesFoot,
+        empty: NoSchedule,
       },
-      {
-        ...calendarViewOptionFactory({
-          id: "calendar",
-          // What `ScheduleCalendar` hands the package: launches, not rows.
-          dateKey: "when",
-          titleKey: "title",
-          colorKey: "color",
-          listComponent: ScheduleCalendar as never,
-          rowComponent: LaunchPreview as never,
+      // What a schedule is, without naming where it is kept: the same console
+      // draws a Notion workspace and a directory of Markdown files.
+      description: "A row says what to make and how often; when the moment comes the runner writes the ticket into the ready column and steps back.",
+      // The switch in the row is one gesture, the name opening the form in a
+      // window is the other: no button of the package's beside them.
+      rowActions: [],
+      /* The two layouts. Their labels go through the dictionary as the tabs
+       * are drawn, and their address is their type: `table`, `calendar`, in
+       * every language. */
+      layouts: [
+        layout.table({ label: "table" }),
+        // Typed against the launches `ScheduleCalendar` hands the package, not
+        // against the rows — hence the cast into the rows' list of layouts.
+        layout.calendar<Launch>({
+          label: "calendar",
+          dateField: "when",
+          titleField: "title",
+          colorField: "color",
           // The month, because that is the span a cadence is read in — the day
           // and the week are a tab away, on the package's own switch. The whole
           // day in those two: a launch at 03:00 is not one to leave off the grid.
@@ -762,47 +773,25 @@ export const schedules = createViewResource<ScheduleItem, ScheduleItem, Schedule
           hourEnd: 23,
           getIcon: (row: RowInterface<Record<string, unknown>>) =>
             row.data?.kind === "past" ? CalendarCheck : CalendarClock,
-        }),
-        get name() {
-          return t("calendar")
-        },
-      },
-    ],
-  },
-  views: {
-    [ActionList.list]: {
-      name: "Schedules",
-      // Declared on the list rather than on the view every action inherits: a
-      // `top` posted there is drawn over the create dialog too, and the count
-      // of what is on belongs to the page, not to the form over it.
-      components: {
-        top: SchedulesTop,
-        bottom: SchedulesFoot,
-        noResult: NoSchedule,
-        pagination: Pagination,
-      },
-      // What a schedule is, without naming where it is kept: the same console
-      // draws a Notion workspace and a directory of Markdown files.
-      description:
-        "A row says what to make and how often; when the moment comes the runner writes the ticket into the ready column and steps back.",
-      // The switch in the row is one gesture, the name opening the form in a
-      // window is the other: no button of the package's, whose drawer is held
-      // by the row and closed whenever the list draws it again.
-      behavior: { rowActions: [] },
+          components: { list: ScheduleCalendar as never, row: LaunchPreview as never },
+        }) as never,
+      ],
     },
-    [ActionList.create]: {
-      name: "A ticket that comes back",
-      label: { create: "New schedule" },
+    create: {
+      title: "A ticket that comes back",
       form: createForm,
       // Over the list rather than instead of it — the list behind is what says
       // whether the row is a duplicate of one that already fires — and against
       // the edge at full height, since the last field is a brief.
-      behavior: { openIn: "drawer" },
+      open: "drawer",
+      buttonLabel: "New schedule",
     },
-    [ActionList.update]: {
-      name: "A ticket that comes back",
+    update: {
+      title: "A ticket that comes back",
       form: editForm,
-      behavior: { openIn: "drawer" },
+      // Over the list, in the window a ticket opens in over the board; its
+      // address alone is the schedule's page.
+      open: scheduleWindow,
       components: { top: LaunchOnThePage },
     },
   },

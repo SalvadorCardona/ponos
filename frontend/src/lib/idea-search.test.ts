@@ -100,16 +100,16 @@ test("the colour keeps the ideas of that colour, and not scored is one of them",
 
 test("by relevance the green come first, the unscored last, and equals stay newest first", () => {
   assert.deepEqual(
-    ordered(scored, { order: "relevance" }).map((one) => one.title),
+    ordered(scored, { sorted: "relevance" }).map((one) => one.title),
     ["green", "green too", "newest", "red", "unscored"]
   )
-  assert.deepEqual(ordered(scored, { order: "newest" }).map((one) => one.title), scored.map((one) => one.title))
+  assert.deepEqual(ordered(scored, { sorted: "newest" }).map((one) => one.title), scored.map((one) => one.title))
 })
 
 test("the new ideas rest on relevance, every other list on the newest first", () => {
   assert.equal(orderOf({ status: "proposed" }), "relevance")
   assert.equal(orderOf({}), "newest")
   assert.equal(orderOf({ status: "kept" }), "newest")
-  assert.equal(orderOf({ status: "proposed", order: "newest" }), "newest")
-  assert.equal(orderOf({ order: "relevance" }), "relevance")
+  assert.equal(orderOf({ status: "proposed", sorted: "newest" }), "newest")
+  assert.equal(orderOf({ sorted: "relevance" }), "relevance")
 })

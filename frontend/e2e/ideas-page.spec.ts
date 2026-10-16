@@ -74,7 +74,7 @@ test.describe("at 1440px", () => {
     await open(page)
     expect(await look('[data-slot="ideas-button"]')).toBe(dashboard)
     const header = page.locator('[data-slot="list-header"]')
-    await expect(header.getByRole("button", { name: "New idea", exact: true })).toBeVisible()
+    await expect(header.getByRole("link", { name: "New idea", exact: true })).toBeVisible()
   })
 
   test("a project's ideas carry its name, and the filters narrow the list", async ({ page }) => {
@@ -240,7 +240,7 @@ test.describe("at 1440px", () => {
 
     await page.locator('[data-slot="ideas-order"]').click()
     await page.getByRole("option", { name: "Most relevant first" }).click()
-    await expect.poll(() => filterOf(page)).toMatchObject({ order: "relevance" })
+    await expect.poll(() => filterOf(page)).toMatchObject({ sorted: "relevance" })
     await expect(cards(page).first().locator('[data-slot="ideas-score"]')).toHaveAttribute("data-tone", "green")
     const said = await cards(page).locator('[data-slot="ideas-score"]').allTextContents()
     const scores = said.map((text) => (/^\d+$/.test(text) ? Number(text) : -1))
@@ -251,7 +251,7 @@ test.describe("at 1440px", () => {
     await status(page, "proposed").click()
     await expect(page.locator('[data-slot="ideas-order"]')).toContainText("Most relevant first")
     await expect(cards(page).first().locator('[data-slot="ideas-score"]')).toHaveAttribute("data-tone", "green")
-    expect(filterOf(page).order).toBeUndefined()
+    expect(filterOf(page).sorted).toBeUndefined()
 
     await page.locator('[data-slot="ideas-score-filter"]').click()
     await page.getByRole("option", { name: "Red (under 40)" }).click()
@@ -271,7 +271,7 @@ test.describe("at 1440px", () => {
     await expect(whole.getByRole("button", { name: "Keep", exact: true })).toBeVisible()
     await page.keyboard.press("Escape")
 
-    await page.locator('[data-slot="list-header"]').getByRole("button", { name: "New idea", exact: true }).click()
+    await page.locator('[data-slot="list-header"]').getByRole("link", { name: "New idea", exact: true }).click()
     await drawer(page).getByLabel("Title").fill("A shop for the mugs")
     await drawer(page).getByRole("button", { name: "Create" }).click()
     await expect(page.getByText("Idea saved: A shop for the mugs")).toBeVisible()

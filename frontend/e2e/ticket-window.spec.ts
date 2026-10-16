@@ -6,7 +6,8 @@ import { expect, test, type Page } from "@playwright/test"
  * the top of it. What is tested is the way a user goes: a click on a card or a
  * row of the table, the window over the list, then either of its two buttons —
  * the page, at the address it always had, or the cross and Escape, back to the
- * board where it was.
+ * board where it was. The window is in the address, under the board: a reload
+ * opens it again there, and Back closes it.
  */
 
 const LONG = "000000000000000000000000000abcde"
@@ -36,8 +37,11 @@ test.describe("at 1440px", () => {
   test("a card opens its ticket in a window, and the full page from there", async ({ page }) => {
     await open(page)
     await openLong(page)
-    // The board is still there, under it: the address has not moved.
-    expect(new URL(page.url()).searchParams.get("view")).toBe("console/tickets/list/board")
+    // The board is still there, under it: the address names it, then the ticket.
+    expect(new URL(page.url()).searchParams.get("view")).toBe(`console/tickets/list/board/tickets/read/${LONG}`)
+    await page.reload()
+    await expect(window_(page).locator('[data-slot="dialog-title"]')).toHaveText("A long ticket")
+    await expect(page.locator(`[data-ticket-card="${LONG}"]`)).toBeAttached()
 
     await window_(page).getByRole("link", { name: "Open the full page" }).click()
     await expect(page).toHaveURL(new RegExp(`tickets/read/${LONG}`))
@@ -56,6 +60,11 @@ test.describe("at 1440px", () => {
     await page.keyboard.press("Escape")
     await expect(window_(page)).not.toBeAttached()
     await expect(page.getByRole("link", { name: "A long ticket" })).toBeVisible()
+
+    await openLong(page)
+    await page.goBack()
+    await expect(window_(page)).not.toBeAttached()
+    expect(new URL(page.url()).searchParams.get("view")).toBe("console/tickets/list/board")
   })
 
   test("the table opens the same window from a ticket's title", async ({ page }) => {

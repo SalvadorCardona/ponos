@@ -28,7 +28,7 @@ async function onThePageOf(page: Page, name: string) {
 async function openWebsiteForm(page: Page) {
   await card(page, "Website").click()
   await onThePageOf(page, "Website")
-  await page.getByRole("button", { name: "Edit" }).click()
+  await page.getByRole("link", { name: "Edit" }).click()
   await expect(drawer(page)).toBeVisible()
   await expect(drawer(page).getByLabel("Project")).toHaveValue("Website")
 }
@@ -89,7 +89,8 @@ test.describe("at 1440px", () => {
     })
     // One with no repository too: its tickets come back as a document.
     await card(page, "Journal").locator("xpath=..").locator("[data-project-new-ticket]").click()
-    expect(new URL(page.url()).searchParams.get("view")).toBe("console/projects/list")
+    // Over the projects, not the project's page: the address names the list, then the form.
+    expect(new URL(page.url()).searchParams.get("view")).toBe("console/projects/list/tickets/create")
     const dialog = page.getByRole("dialog")
     await expect(dialog.getByRole("combobox", { name: "Project" })).toContainText("Journal")
     await dialog.getByLabel("Title").fill("From a card")
@@ -142,12 +143,12 @@ test.describe("at 1440px", () => {
     await page.keyboard.press("Escape")
     await expect(drawer(page)).toBeHidden()
 
-    await page.getByRole("button", { name: "Edit" }).click()
+    await page.getByRole("link", { name: "Edit" }).click()
     await expect(drawer(page)).toBeVisible()
     await drawer(page).locator('[data-slot="drawer-close"]').click()
     await expect(drawer(page)).toBeHidden()
 
-    await page.getByRole("button", { name: "Edit" }).click()
+    await page.getByRole("link", { name: "Edit" }).click()
     await expect(drawer(page)).toBeVisible()
     await page.mouse.click(20, 450)
     await expect(drawer(page)).toBeHidden()
@@ -157,7 +158,7 @@ test.describe("at 1440px", () => {
     await open(page)
     await card(page, "Newsletter").click()
     await onThePageOf(page, "Newsletter")
-    await page.getByRole("button", { name: "Edit" }).click()
+    await page.getByRole("link", { name: "Edit" }).click()
     const name = drawer(page).getByLabel("Project")
     await expect(name).toHaveValue("Newsletter")
     await name.fill("Weekly letter")
@@ -303,7 +304,7 @@ test.describe("the page of a project", () => {
     await open(page)
     await card(page, "Website").click()
     await onThePageOf(page, "Website")
-    await page.getByRole("button", { name: "New ticket" }).click()
+    await page.getByRole("link", { name: "New ticket" }).click()
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
     // The project is the page's: the form comes with it settled.
@@ -319,7 +320,7 @@ test.describe("the page of a project", () => {
     await card(page, "Website").click()
     await onThePageOf(page, "Website")
     // The board is shared with the other tests: this one brings its own ticket.
-    await page.getByRole("button", { name: "New ticket" }).click()
+    await page.getByRole("link", { name: "New ticket" }).click()
     const dialog = page.getByRole("dialog")
     await dialog.getByLabel("Title").fill("Rows of the table")
     await dialog.getByRole("button", { name: "Launch the ticket" }).click()

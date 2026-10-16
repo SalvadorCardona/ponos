@@ -51,14 +51,15 @@ export const AUTHORS = ["ponos", "human"] as const
 export const WORKSPACE = "workspace"
 
 /** What the list is asked for: one status, one category, one author, one scope, one colour ("" for all of
- * each) — and an order, "" for the one the status rests on. */
+ * each) — and an order, "" for the one the status rests on. The order is `sorted` rather than `order`,
+ * which react-resource-view keeps for a sort of its own: one that outlives "Clear the search". */
 export interface IdeaFilter {
   status?: unknown
   category?: unknown
   author?: unknown
   project?: unknown
   score?: unknown
-  order?: unknown
+  sorted?: unknown
 }
 
 /** One idea, as the filters read it. */
@@ -119,7 +120,7 @@ export function scopes(ideas: Filterable[]): string[] {
 
 /** The order a list is in: the one chosen, or the most relevant first for the new ideas and the newest otherwise. */
 export function orderOf(filter: IdeaFilter = {}): Order {
-  const chosen = said(filter.order)
+  const chosen = said(filter.sorted)
   if ((ORDERS as readonly string[]).includes(chosen)) return chosen as Order
   return said(filter.status) === "proposed" ? "relevance" : "newest"
 }

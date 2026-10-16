@@ -70,7 +70,7 @@ test.describe("at 1440px", () => {
     await open(page)
     await card(page, "Old blog").click()
     await expect(page.getByRole("heading", { name: "Old blog" })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Edit" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Edit" })).toBeVisible()
 
     await menu(page, "Old blog").click()
     await page.getByRole("menuitem", { name: "Delete" }).click()

@@ -5,6 +5,7 @@ import { Link, ResourceViewButton, useCurrentViewResourceContext, useNavigate } 
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { why } from "@/lib/api"
 import { counted, useT } from "@/lib/i18n"
 import { useRoute } from "@/lib/router"
 import {
@@ -13,7 +14,6 @@ import {
   isAPage,
   projectsHref,
   useTicketCount,
-  whyNotRead,
   type ProjectItem,
 } from "@/resources/projects"
 import { settingsHref } from "@/resources/settings"
@@ -23,12 +23,17 @@ import { IdeasButton } from "./ideas-deck"
 import { ProjectBrief } from "./project-brief"
 import { ProjectMenu } from "./project-delete"
 import { ProjectCover } from "./project-picture"
-import { ProjectSettingsTab } from "./project-settings"
 import { ProjectTickets } from "./project-tickets"
 import { Robot } from "./robot"
 import { ScopedIdeas } from "./scoped-ideas"
 import { StatisticsBand } from "./statistics"
 import { Away, Chip, reachable } from "./ticket-bits"
+
+/* A project's own switches, a tab opened now and then: kept out of the first
+ * load, which has a budget. */
+const ProjectSettingsTab = React.lazy(() =>
+  import("./project-settings").then((module) => ({ default: module.ProjectSettingsTab }))
+)
 
 /* One project, as a page.
  *
@@ -58,8 +63,8 @@ export function ProjectPage() {
             {/* And what the server answered, as it answered it: "no such route"
                 and "no project with id …" are two different afternoons, and the
                 sentence above alone tells neither. */}
-            {whyNotRead() ? (
-              <p className="text-muted-foreground font-mono text-xs">{whyNotRead()}</p>
+            {context.loadError ? (
+              <p className="text-muted-foreground font-mono text-xs">{why(context.loadError)}</p>
             ) : null}
           </div>
         ) : (
@@ -184,7 +189,9 @@ function ProjectTabs({ project, children }: { project: ProjectItem; children: Re
       <TabsContent value="brief">{children}</TabsContent>
       {ideas ? (
         <TabsContent value="settings">
-          <ProjectSettingsTab project={project.id} />
+          <React.Suspense fallback={null}>
+            <ProjectSettingsTab project={project.id} />
+          </React.Suspense>
         </TabsContent>
       ) : null}
     </Tabs>

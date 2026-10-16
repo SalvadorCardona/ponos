@@ -7,7 +7,6 @@ import {
   ListChecks,
   Plug,
   Play,
-  Search,
   Settings2,
   SlidersHorizontal,
   Trash2,
@@ -17,45 +16,28 @@ import {
   ViewResourceContextProvider,
   createViewResource,
   generateLink,
-  useCurrentViewResourceContext,
-  useNavigate,
   type IconType,
-  type SubViewResourceInterface,
+  type TabDefinition,
 } from "react-resource-view"
 
-import { PageHead } from "@/components/console/frame"
 import { LanguagePicker } from "@/components/console/language-picker"
-import { SetupSummary } from "@/components/console/setup"
-import {
-  GroupForm,
-  cardId,
-  inputName,
-  type SaveNote,
-} from "@/components/console/settings-bits"
+import type { SaveNote } from "@/components/console/settings-bits"
 import { Rich } from "@/components/console/text"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useConsole } from "@/hooks/use-console"
 import { api } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import { SCOPE } from "@/lib/resource-view"
-import { search } from "@/lib/settings-search"
 import {
-  ask,
-  asked,
+  cardId,
   currentSettings,
-  groupOf,
+  inputName,
   publishSettings,
-  sectionOf,
   sectionsIn,
-  showKeys,
-  somethingIsEdited,
   takeAsked,
   useAsked,
-  useKeysShown,
   useSettingsRevision,
 } from "@/lib/settings-store"
 import type { Disk, SettingGroup, SettingSection, Settings } from "@/lib/types"
@@ -226,7 +208,9 @@ function Overview() {
       </div>
       {open ? (
         <div className="mt-3">
-          <SetupSummary change={(row) => <a href={settingsHref(row.section)}>{t("Change")}</a>} />
+          <React.Suspense fallback={null}>
+            <LazySetupSummary change={(row) => <a href={settingsHref(row.section)}>{t("Change")}</a>} />
+          </React.Suspense>
         </div>
       ) : null}
     </div>
@@ -376,17 +360,37 @@ function GroupPage({ group }: { group: string }) {
       ) : null}
       {/* Keyed by the revision: a save reads the file again, and the fields of
           every page are redrawn from what it now says. */}
-      <GroupForm
-        key={revision}
-        group={group}
-        extra={extra}
-        pairs={pairs}
-        note={note}
-        onSaved={setNote}
-      />
+      <React.Suspense fallback={null}>
+        <GroupForm
+          key={revision}
+          group={group}
+          extra={extra}
+          pairs={pairs}
+          note={note}
+          onSaved={setNote}
+        />
+      </React.Suspense>
     </div>
   )
 }
+
+/* The fields of the settings, what the console runs on and the MCP tab: pages
+ * opened now and then, kept out of the first load, which has a budget. */
+const GroupForm = React.lazy(() =>
+  import("@/components/console/settings-bits").then((module) => ({ default: module.GroupForm }))
+)
+const LazySetupSummary = React.lazy(() =>
+  import("@/components/console/setup").then((module) => ({ default: module.SetupSummary }))
+)
+const LazyMcpPage = React.lazy(() =>
+  import("@/components/console/mcp-page").then((module) => ({ default: module.McpPage }))
+)
+
+const McpPage = () => (
+  <React.Suspense fallback={null}>
+    <LazyMcpPage />
+  </React.Suspense>
+)
 
 /* One component per page rather than one built as the tabs are drawn: a
  * component born in a render is a component React remounts on the next one. */
@@ -402,238 +406,49 @@ function pageFor(group: SettingGroup): React.FC {
 
 /* The tabs, as the description last read says them.
  *
- * Read as they are drawn rather than fixed when the resource is declared: the
- * groups arrive with the configuration, and the page is drawn from what the
- * server says the file holds — never from a list kept here.
+ * Built from what the server says the file holds — never from a list kept
+ * here — so they are only known once the configuration is read. And
+ * react-resource-view 1.0 reads a declaration's tabs once, as the resource is
+ * declared, keeping the array it is handed: so it is handed this one, filled
+ * again each time the configuration is read, before the page that draws the
+ * tabs is drawn.
  */
-function tabs(): SubViewResourceInterface[] {
-  const pages = (currentSettings()?.groups ?? []).map((group) => ({
-    slug: group.key,
+const TABS: TabDefinition<SettingsItem>[] = []
+
+function tellTheTabs() {
+  const pages: TabDefinition<SettingsItem>[] = (currentSettings()?.groups ?? []).map((group) => ({
+    id: group.key,
     // Drawn by the package, which translates both as it draws.
-    name: group.title,
+    label: group.title,
     description: group.blurb,
     icon: ICONS[group.key] ?? Settings2,
-    viewComponent: pageFor(group),
+    component: pageFor(group),
   }))
-  if (!pages.length) return pages
-  return [
-    ...pages,
-    {
-      slug: MCP_TAB,
-      name: "MCP",
+  if (pages.length)
+    pages.push({
+      id: MCP_TAB,
+      label: "MCP",
       description: "What an MCP is, how to plug Ponos into Claude, and the ones the sessions use.",
       icon: ICONS[MCP_TAB],
-      viewComponent: McpPage,
-    },
-  ]
+      component: McpPage,
+    })
+  TABS.splice(0, TABS.length, ...pages)
 }
-
-/* The MCP tab is opened now and then: kept out of the first load, which has a
- * budget (tests/run.py, `the_console_is_downloaded_once_and_compressed`). */
-const LazyMcpPage = React.lazy(() =>
-  import("@/components/console/mcp-page").then((module) => ({ default: module.McpPage }))
-)
-
-const McpPage = () => (
-  <React.Suspense fallback={null}>
-    <LazyMcpPage />
-  </React.Suspense>
-)
 
 /* -- the head of the page ---------------------------------------------------- */
 
-/** One answer of the search: a field, or a card that is a list of rows. */
-interface Found {
-  name: string
-  words: string[]
-  target: string
-  group: string
-  label: string
-  where: string
-}
+/* Where you are, how to find a setting, and whatever `doctor` would refuse to
+ * start over: drawn with the page, and fetched with it rather than with the
+ * console, whose first load has a budget. */
+const Head = React.lazy(() =>
+  import("@/components/console/settings-head").then((module) => ({ default: module.SettingsHead }))
+)
 
-/* A search over every field of every page, by what it is called, what it does
- * or its key — in the console's language and in the file's. A click opens the
- * page it is on, unfolds what hides it, and brings it into view. */
-function SettingsSearch() {
-  const t = useT()
-  useSettingsRevision()
-  const navigate = useNavigate()
-  const { setViewResource } = useCurrentViewResourceContext()
-  const [typed, setTyped] = React.useState("")
-  const [open, setOpen] = React.useState(false)
-  const box = React.useRef<HTMLDivElement>(null)
-  const drawn = currentSettings()
-
-  const items = React.useMemo<Found[]>(() => {
-    if (!drawn) return []
-    return drawn.sections.flatMap((section) => {
-      const where = `${t(groupOf(section.group)?.title ?? "")} › ${t(section.title)}`
-      if (section.pairs)
-        return [
-          {
-            name: section.pairs,
-            words: [t(section.title), t(section.blurb), section.title],
-            target: section.key,
-            group: section.group,
-            label: t(section.title),
-            where,
-          },
-        ]
-      return section.fields.map((field) => ({
-        name: field.variable ? `${field.name} ${field.variable}` : field.name,
-        words: [t(field.label), t(field.help), field.label, field.help],
-        target: field.name,
-        group: section.group,
-        label: t(field.label),
-        where,
-      }))
-    })
-  }, [drawn, t])
-
-  const found = search(items, typed)
-
-  const go = (item: Found) => {
-    setTyped("")
-    setOpen(false)
-    ask(item.target)
-    setViewResource((current) => ({ ...current, subResource: item.group }))
-    void navigate({ to: settingsHref(item.group), replace: true, resetScroll: false })
-  }
-
-  return (
-    <div
-      ref={box}
-      className="relative w-full sm:w-80"
-      onBlur={(event) => {
-        if (!box.current?.contains(event.relatedTarget as Node | null)) setOpen(false)
-      }}
-    >
-      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-      <Input
-        type="search"
-        aria-label={t("Search the settings")}
-        placeholder={t("Search the settings")}
-        className="pl-9"
-        value={typed}
-        onChange={(event) => {
-          setTyped(event.target.value)
-          setOpen(true)
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && found[0]) go(found[0])
-          if (event.key === "Escape") {
-            setTyped("")
-            setOpen(false)
-          }
-        }}
-      />
-      {open && typed.trim().length >= 2 ? (
-        <div
-          role="listbox"
-          aria-label={t("Settings found")}
-          className="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-40 mt-1 max-h-96 overflow-y-auto rounded-md border p-1 shadow-md"
-        >
-          {found.length ? (
-            found.map((item) => (
-              <button
-                key={item.target}
-                type="button"
-                role="option"
-                aria-selected={false}
-                className="hover:bg-muted focus-visible:bg-muted flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left outline-none"
-                onClick={() => go(item)}
-              >
-                <span className="text-sm font-medium">{item.label}</span>
-                <span className="text-muted-foreground text-xs">{item.where}</span>
-              </button>
-            ))
-          ) : (
-            <p className="text-muted-foreground px-2 py-1.5 text-sm">{t("No setting by that name.")}</p>
-          )}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-/** The switch that shows `config.toml`'s keys under every field. */
-function KeysSwitch() {
-  const t = useT()
-  const shown = useKeysShown()
-  return (
-    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
-      <Switch checked={shown} onCheckedChange={showKeys} />
-      {t("Show keys")}
-    </label>
-  )
-}
-
-/* What sits above the tabs: where you are, how to find a setting, and whatever
- * `doctor` would refuse to start over. */
-function SettingsHead() {
-  const { fetchData, subResource, setViewResource } = useCurrentViewResourceContext()
-  const navigate = useNavigate()
-  const t = useT()
-  useSettingsRevision()
-  const drawn = currentSettings()
-
-  const latest = React.useRef(fetchData)
-  latest.current = fetchData
-  React.useEffect(() => {
-    // Another tab saved, or `ponos config` did. Read it again — unless a page
-    // is in the middle of an edit, which is not something to take away from you.
-    const listener = () => {
-      if (!somethingIsEdited()) void latest.current()
-    }
-    window.addEventListener("ponos:settings", listener)
-    return () => window.removeEventListener("ponos:settings", listener)
-  }, [])
-
-  React.useEffect(() => {
-    // Leaving the page with something typed and not saved: the browser asks.
-    const warn = (event: BeforeUnloadEvent) => {
-      if (somethingIsEdited()) event.preventDefault()
-    }
-    window.addEventListener("beforeunload", warn)
-    return () => window.removeEventListener("beforeunload", warn)
-  }, [])
-
-  React.useEffect(() => {
-    // An address that names a card rather than a page — a link written before
-    // there were pages, or one that means "the notifications" wherever they
-    // are: the page it is on, scrolled to it.
-    if (!drawn || !subResource || groupOf(subResource)) return
-    const section = sectionOf(subResource)
-    if (!section) return
-    if (asked() !== section.key) ask(section.key)
-    setViewResource((current) => ({ ...current, subResource: section.group }))
-    void navigate({ to: settingsHref(section.group), replace: true })
-  }, [drawn, subResource, navigate, setViewResource])
-
-  if (!drawn)
-    return <p className="text-muted-foreground text-sm">{t("Reading the configuration…")}</p>
-
-  return (
-    <>
-      <PageHead
-        title={t("Configure the runner.")}
-        action={
-          <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 sm:w-auto">
-            <SettingsSearch />
-            <KeysSwitch />
-          </div>
-        }
-      />
-      {drawn.problem ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{drawn.problem}</AlertDescription>
-        </Alert>
-      ) : null}
-    </>
-  )
-}
+const SettingsHead = () => (
+  <React.Suspense fallback={null}>
+    <Head />
+  </React.Suspense>
+)
 
 /* The layout's header, in place of the package's: nothing. The page says what it
  * is in `SettingsHead`, and the bar above it already says where you are. */
@@ -641,57 +456,53 @@ const NoHeader = () => null
 
 export const settings = createViewResource<SettingsItem>(SETTINGS, {
   name: "Settings",
-  scope: SCOPE,
   path: "/api/settings",
   icon: Settings2,
-  canRead: true,
-  canList: false,
-  canCreate: false,
-  canUpdate: false,
-  canDelete: false,
-
-  getCollection: async () => {
-    throw new Error("there is one configuration; it is not listed")
+  // The one page, and nothing to write or delete through the package. Its list
+  // is allowed only to be linked to — the breadcrumb does — and leads to the
+  // page (see `App`).
+  permissions: ["list", "read"],
+  repository: {
+    getCollection: async () => {
+      throw new Error("there is one configuration; it is not listed")
+    },
+    getItem: async () => {
+      const drawn = await api.settings()
+      // Published before it is returned: the tabs are built from the store, and
+      // they are drawn the moment this resolves.
+      publishSettings(drawn)
+      tellTheTabs()
+      return {
+        data: { ...drawn, id: THE_FILE, name: "config.toml", "@id": "/api/settings", "@type": SETTINGS },
+      }
+    },
+    createItem: async () => {
+      throw new Error("the configuration is not created from the console")
+    },
+    updateItem: async () => {
+      throw new Error("a page saves itself; see settings-bits")
+    },
+    removeItem: async () => {
+      throw new Error("the configuration is not deleted from the console")
+    },
   },
-  getItem: async () => {
-    const drawn = await api.settings()
-    // Published before it is returned: the tabs are built from the store, and
-    // they are drawn the moment this resolves.
-    publishSettings(drawn)
-    return {
-      data: { ...drawn, id: THE_FILE, name: "config.toml", "@id": "/api/settings", "@type": SETTINGS },
-    }
-  },
-  createItem: async () => {
-    throw new Error("the configuration is not created from the console")
-  },
-  updateItem: async () => {
-    throw new Error("a page saves itself; see settings-bits")
-  },
-  removeItem: async () => {
-    throw new Error("the configuration is not deleted from the console")
-  },
-
   views: {
-    [ActionList.read]: {
-      name: "Settings",
-      viewComponent: SettingsHead,
-      // No header from the layout: it said the page twice over `SettingsHead`
-      // — a way back, "Settings", "#config" — and its way back led to a list
-      // the one file does not have.
-      components: { navigation: NoHeader },
+    read: {
+      components: {
+        view: SettingsHead,
+        // No header from the layout: it said the page twice over `SettingsHead`
+        // — a way back, "Settings", "#config" — and its way back led to a list
+        // the one file does not have.
+        navigation: NoHeader,
+      },
       // The page's whole width rather than the layout's column: the column of
       // tabs and the column of fields side by side.
       fullWidth: true,
-      // The object is what the package reads the tabs off, so the getter on it
-      // survives the copy `createViewResource` makes of the view itself.
-      subViewResource: {
+      tabs: {
         // Six pages read as a short column beside the fields; on a phone the
         // package lays them out as a row that scrolls.
         orientation: "vertical",
-        get list() {
-          return tabs()
-        },
+        items: TABS,
       },
     },
   },

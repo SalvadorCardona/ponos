@@ -2824,8 +2824,10 @@ not a resource at all: it is a block at the top of the projects' list, which it 
 The package knows neither this router nor this API. The router is
 [TanStack Router](https://tanstack.com/router), reached through the adapter the package
 ships (`react-resource-view/tanstack`), in the package's `query` routing mode — the one
-page the Python server serves is `/`, so the board is `/?view=console/tickets/list` and a
-ticket `/?view=console/tickets/read/<id>`. The *dialect* is twenty lines in
+page the Python server serves is `/`, so the board is `/?view=console/tickets/list`, a
+ticket `/?view=console/tickets/read/<id>`, and the same ticket in its window over the board
+`/?view=console/tickets/list/tickets/read/<id>` — a reload opens it there again, Back closes
+it. The *dialect* is twenty lines in
 `frontend/src/lib/resource-view.ts`, because every read and write of a resource is its own
 (the rows come off the stream, a ticket off `/api/tickets/<id>`, a drop is
 `POST …/status`). The two transcripts — the workspace's and a ticket's — are shadcn's

@@ -14,7 +14,7 @@ async function open(page: Page) {
   await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
   await page.goto("/")
   await expect(page.getByText("A long ticket").filter({ visible: true }).first()).toBeVisible()
-  await page.getByRole("button", { name: /New ticket|Nouveau ticket/ }).first().click()
+  await page.getByRole("link", { name: /New ticket|Nouveau ticket/ }).first().click()
   const dialog = page.getByRole("dialog")
   await expect(dialog).toBeVisible()
   return dialog

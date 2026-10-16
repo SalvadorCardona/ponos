@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils"
 import {
   boardHref,
   holdTicket,
-  lastTicketProblem,
   readTicket,
   releaseTicket,
 } from "@/resources/tickets"
@@ -29,10 +28,9 @@ import { Eyebrow } from "./frame"
 import { Markdown } from "./markdown"
 import { Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
-import { TicketDecision, TicketTabContext } from "./ticket-decision"
+import { TicketDecision, TicketTabContext, WINDOW_TAB } from "./ticket-decision"
 import { TicketTalk } from "./ticket-talk"
 import { TicketTime } from "./ticket-time"
-import { useTicketWindowTab } from "./ticket-window"
 import {
   SEED,
   LABEL,
@@ -151,7 +149,7 @@ export function TicketPage() {
             </>
           }
         >
-          {lastTicketProblem() || t("The server gave no reason.")}
+          {(context.loadError ? why(context.loadError) : "") || t("The server gave no reason.")}
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
@@ -393,27 +391,32 @@ type Tab = (typeof TABS)[number]
 
 const isTab = (value: string | null | undefined): value is Tab => TABS.includes(value as Tab)
 
-/** The query string with its `tab` said again — the rest of it left exactly as written. */
-function withTab(searchStr: string, tab: Tab): string {
+/** The query string with its tab said again, under `key` — the rest of it left exactly as written. */
+function withTab(searchStr: string, tab: Tab, key: string): string {
   const rest = searchStr
     .replace(/^\?/, "")
     .split("&")
-    .filter((part) => part && !part.startsWith("tab="))
-  return `?${[...rest, `tab=${tab}`].join("&")}`
+    .filter((part) => part && !part.startsWith(`${key}=`))
+  return `?${[...rest, `${key}=${tab}`].join("&")}`
 }
 
-/** The tab named in the address, and how to name another — when the address is this ticket's page. */
+/** The tab named in the address, and how to name another — when the address is
+ * this ticket's page, or the window it is opened in over a list. */
 function useAddressedTab(id: string): [Tab | undefined, (tab: Tab) => void] {
   const { pathname, searchStr } = useLocation()
   const router = useRouter()
   const { params } = useRoute()
-  const mine = params.resourceAction === ActionList.read && String(params.id ?? "") === id
-  const named = new URLSearchParams(searchStr).get("tab")
+  const onPage = params.resourceAction === ActionList.read && String(params.id ?? "") === id
+  const opened = params.childViewResource
+  const inWindow = opened?.resourceAction === ActionList.read && String(opened.id ?? "") === id
+  const key = onPage ? "tab" : WINDOW_TAB
+  const mine = onPage || inWindow
+  const named = new URLSearchParams(searchStr).get(key)
   const write = React.useCallback(
     (tab: Tab) => {
-      if (mine) router.history.replace(pathname + withTab(searchStr, tab))
+      if (mine) router.history.replace(pathname + withTab(searchStr, tab, key))
     },
-    [mine, router, pathname, searchStr]
+    [mine, router, pathname, searchStr, key]
   )
   return [mine && isTab(named) ? named : undefined, write]
 }
@@ -445,12 +448,10 @@ function TicketTabs({
   const deciding = settled ? null : decisionTabOf(ticket.column)
   const action = actionOf(ticket.column)
   const [addressed, address] = useAddressedTab(ticket.id)
-  const windowTab = useTicketWindowTab(ticket.id)
-  const requested = isTab(windowTab) ? windowTab : undefined
   const [tab, setTab] = React.useState<Tab>(
-    () => addressed ?? requested ?? (running ? "live" : waiting ? "discussion" : "brief")
+    () => addressed ?? (running ? "live" : waiting ? "discussion" : "brief")
   )
-  const picked = React.useRef(Boolean(addressed ?? requested))
+  const picked = React.useRef(Boolean(addressed))
   // Left by itself when the decision was sent: still free to follow a session that starts.
   const left = React.useRef(false)
   const show = React.useCallback(
