@@ -4,7 +4,6 @@ import { toast } from "sonner"
 import {
   ActionList,
   MomentInputController,
-  SelectInputController,
   SwitchInputController,
   useFormContext,
   type FormInterface,
@@ -26,6 +25,13 @@ import {
 
 import { EmptyState } from "@/components/console/empty-state"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
+import {
+  DayInputController,
+  RecurrenceFields,
+  RecurrenceFoot,
+  SegmentsInputController,
+  TimeInputController,
+} from "@/components/console/recurrence-dialog-lazy"
 import { recordWindow, useOpensOverTheList } from "@/components/console/record-window"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -34,6 +40,7 @@ import { ApiError, api, why } from "@/lib/api"
 import { t } from "@/lib/i18n"
 import { layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
+import { setRunnerZone } from "@/lib/runner-zone"
 import type { Schedule, Schedules } from "@/lib/types"
 import { projectsOnce, useProjects } from "@/resources/projects"
 import { ticketHref } from "@/resources/tickets"
@@ -115,6 +122,7 @@ const listeners = new Set<() => void>()
 
 function publish(fresh: LastRead) {
   read = fresh
+  if (fresh.drawn) setRunnerZone(fresh.drawn.timezone)
   listeners.forEach((listener) => listener())
 }
 
@@ -237,33 +245,44 @@ function LaunchOnThePage() {
 
 /* -- the forms ------------------------------------------------------------- */
 
-/** What a cadence may say. The same four `schedules.py` knows, and no free text. */
-const CADENCES = ["Hourly", "Daily", "Weekly", "Monthly"]
-const MODELS = ["opus", "sonnet", "haiku"]
-const PRIORITIES = ["Urgent", "High", "Normal", "Low"]
-
-/* A list of words as the package's select reads them, with the empty one first:
- * "nobody picked a cadence" is an answer, and a select with no option for it is
- * a field you cannot take back. */
-const choices = (words: string[]) => [
-  { value: "", label: "nothing said" },
-  ...words.map((word) => ({ value: word, label: word })),
+/* What a cadence may say: the same four `schedules.py` knows, and no free
+ * text — each said as the sentence a button can carry. */
+const CADENCES = (
+  [
+    ["Hourly", "Every hour"],
+    ["Daily", "Every day"],
+    ["Weekly", "Every week"],
+    ["Monthly", "Every month"],
+  ] as const
+).map(([value, words]) => ({
+  value,
+  // Read from the dictionary as the button is drawn: the language can change after.
+  get label() {
+    return t(words)
+  },
+}))
+/* The model and the priority in the board's own words, which are the runner's
+ * vocabulary and stay untranslated. None chosen is an answer: the ticket then
+ * takes the runner's model, and waits its turn. */
+const MODELS = [
+  { value: "haiku", label: "Haiku" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "opus", label: "Opus" },
 ]
+const PRIORITIES = ["Low", "Normal", "High", "Urgent"].map((word) => ({ value: word, label: word }))
 
-/* The seven fields a schedule is written in.
+/* The seven fields a schedule is written in, drawn by `RecurrenceFields` in
+ * the window the list opens (see `recurrence-dialog.tsx`).
  *
- * A label, the button and a select's options are translated by the package as
- * it draws them; the sentence under a field and the greyed example in it are
- * not — they are used as they are given. Those are read from the dictionary as
- * the field is drawn, which is what the getters are for: the declaration is
- * built once, and the language can change after it.
+ * A label is translated by the package as it draws it; the sentence under a
+ * field and the greyed example in it are not — they are used as they are
+ * given. Those are read from the dictionary as the field is drawn, which is
+ * what the getters are for: the declaration is built once, and the language
+ * can change after it.
  */
 const fields: FormInterface["inputs"] = {
   name: {
-    label: "Schedule",
-    get description() {
-      return t("What the ticket it makes will be called. Every occurrence carries this name.")
-    },
+    label: "Ticket title",
     required: true,
     get placeholder() {
       return t("Weekly dependency review")
@@ -275,74 +294,55 @@ const fields: FormInterface["inputs"] = {
   },
   cadence: {
     label: "Cadence",
-    controller: SelectInputController,
-    valueOptions: choices(CADENCES),
+    // Required, so a press on the chosen one does not let it go: a schedule
+    // without a cadence is one the runner cannot read.
+    required: true,
+    controller: SegmentsInputController,
+    valueOptions: CADENCES,
+    // "When?" over it says what it is: the label is for the screen reader.
+    className: "[&_[data-slot=field-label]]:sr-only",
   },
-  at: {
-    label: "At",
-    get description() {
-      return t("The hour, written 09:00. Empty, and the hour the pass runs at answers.")
-    },
-    placeholder: "09:00",
-  },
-  day: {
-    label: "Day",
-    get description() {
-      return t("Which day a weekly or monthly one lands on.")
-    },
-    get placeholder() {
-      return t("Monday, or 1 to 31")
-    },
-  },
-  model: {
-    label: "Model",
-    controller: SelectInputController,
-    valueOptions: choices(MODELS),
-  },
-  priority: {
-    label: "Priority",
-    controller: SelectInputController,
-    valueOptions: choices(PRIORITIES),
-  },
+  // Drawn only for a weekly or a monthly one, in the shape that cadence gives it.
+  day: { label: "Day", controller: DayInputController },
+  at: { label: "Time", controller: TimeInputController },
+  model: { label: "Model", controller: SegmentsInputController, valueOptions: MODELS },
+  priority: { label: "Priority", controller: SegmentsInputController, valueOptions: PRIORITIES },
   // The page body, and the part of a schedule that says what to do: every
   // occurrence is born with it copied under its first line.
   body: {
-    label: "Context",
+    label: "What Ponos must do every time",
     get description() {
-      return t("Copied into every ticket it makes: what to do, where, and how you will know it is done.")
+      return t("Copied into every ticket created.")
     },
     get placeholder() {
-      return t("What each occurrence has to do.")
+      return t(
+        "Run npm outdated in the repository, update what can be, and open a pull request. Done when the CI is green."
+      )
     },
     controller: MarkdownInputController,
   },
+  // Said by the box at the foot of the window: see `RecurrenceFoot`.
+  active: { hidden: () => true },
 }
 
-/* A new row, and the switch is deliberately not on it: a schedule is created
- * unticked whatever a form says, so offering the choice would be offering one
- * that is not taken. The form says so instead. */
+/* A new row starts weekly, on Monday at nine — the example the summary under
+ * the cadence then reads back — and unticked: the server writes it so
+ * whatever the form says, and `createItem` ticks it straight after when the
+ * box at the foot asked for it. */
 const createForm: FormInterface = {
-  label: {
-    submit: "Create",
-    get description() {
-      return t("Created unticked: nothing is born until you turn it on.")
-    },
+  components: { formInputs: RecurrenceFields, formSubmitAction: RecurrenceFoot },
+  inputs: {
+    ...fields,
+    cadence: { ...fields.cadence, defaultValue: "Weekly" },
+    day: { ...fields.day, defaultValue: "Monday" },
+    at: { ...fields.at, defaultValue: "09:00" },
+    active: { ...fields.active, defaultValue: false },
   },
-  inputs: fields,
 }
 
 const editForm: FormInterface = {
-  label: { submit: "Save" },
-  inputs: {
-    ...fields,
-    active: {
-      label: "On",
-      get description() {
-        return t("Off, and nothing is born — the row is kept, and the hours with it.")
-      },
-      controller: SwitchInputController,
-    },
-  },
+  components: { formInputs: RecurrenceFields, formSubmitAction: RecurrenceFoot },
+  inputs: fields,
 }
 
 /* The name, as the way into the schedule: the window over the list, as a
@@ -477,16 +477,31 @@ function SchedulesTop() {
   return <SchedulesCount drawn={drawn} problem={problem} />
 }
 
-/* A schedule opened from the list, in the window a ticket opens in over the
- * board: its name over it, and the way to run it now beside the way to its
- * page. The schedule inside is the `update` view, as on its page. */
+/* The window a schedule is written in, new or opened from the list: the one a
+ * ticket opens in over the board, narrower — a form of a few rows, not a page
+ * to read. The same window both ways, its title saying which: a new one, or
+ * the one whose name is over the title, with the way to run it now beside the
+ * way to its page. The schedule inside is the `update` view, as on its page. */
+const SCHEDULE_WINDOW = "overflow-hidden sm:max-w-[620px] sm:rounded-2xl"
+const SUBTITLE = "Ponos creates this ticket automatically, at the cadence you choose."
+
+const newScheduleWindow = recordWindow({
+  type: "schedule-new",
+  fallbackTitle: "New recurring ticket",
+  className: SCHEDULE_WINDOW,
+  useHead: () => ({ title: t("New recurring ticket"), description: t(SUBTITLE) }),
+})
+
 const scheduleWindow = recordWindow({
   type: "schedule-window",
-  fallbackTitle: "Schedule",
+  fallbackTitle: "Edit the schedule",
+  className: SCHEDULE_WINDOW,
   useHead: function useScheduleHead(id) {
     const { drawn } = useSchedules()
     return {
-      title: drawn?.schedules.find((schedule) => schedule.id === id)?.name ?? "",
+      eyebrow: drawn?.schedules.find((schedule) => schedule.id === id)?.name ?? "",
+      title: t("Edit the schedule"),
+      description: t(SUBTITLE),
       actions: id ? <LaunchButton id={id} /> : null,
     }
   },
@@ -726,6 +741,9 @@ export const schedules = createViewResource<ScheduleItem, ScheduleWrite>(SCHEDUL
         priority: fresh.priority ?? "",
         ...(fresh.body ? { body: fresh.body } : {}),
       })
+      // The server writes a new row unticked, whatever it is sent; "Turn on
+      // right away" is the switch of the list, pressed for you once it exists.
+      if (fresh.active === true) await api.saveSchedule(made.id, { active: true })
       const after = await load()
       const found = after.schedules.find((schedule) => schedule.id === made.id)
       return { data: found ? item(found) : ({ ...fresh, ...made } as unknown as ScheduleItem) }
@@ -778,16 +796,16 @@ export const schedules = createViewResource<ScheduleItem, ScheduleWrite>(SCHEDUL
       ],
     },
     create: {
-      title: "A ticket that comes back",
+      title: "New recurring ticket",
       form: createForm,
       // Over the list rather than instead of it — the list behind is what says
-      // whether the row is a duplicate of one that already fires — and against
-      // the edge at full height, since the last field is a brief.
-      open: "drawer",
+      // whether the row is a duplicate of one that already fires — and in the
+      // middle of it, in the window an opened schedule is edited in.
+      open: newScheduleWindow,
       buttonLabel: "New schedule",
     },
     update: {
-      title: "A ticket that comes back",
+      title: "Edit the schedule",
       form: editForm,
       // Over the list, in the window a ticket opens in over the board; its
       // address alone is the schedule's page.

@@ -275,6 +275,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A schedule is written in a window in the middle of the list, as a few clicks rather than seven fields.** « New
+  schedule » no longer opens a drawer against the edge: a 620px window titled « New recurring ticket » — and « Edit the
+  schedule » for one opened from the list, the same window — closed by Escape, its cross or a click beside it, the
+  whole screen on a phone. The cadence is four buttons (every hour, day, week or month), the day only shows when it
+  matters and in the shape it takes — seven round pills for a week, « On the [1] of the month » for a month — and the
+  hour is a real time field, 09:00 by default. A blue line under them says the rule back with the date the next ticket
+  is born: « Every Monday at 09:00. Next ticket: Mon 19 Oct at 09:00. » The model (Haiku, Sonnet, Opus) and the
+  priority (Low, Normal, High, Urgent) are buttons too, side by side; pressed again, one lets go and the ticket takes
+  the runner's. The context is now « What Ponos must do every time ». A « Turn on right away » box at the foot
+  replaces « Created unticked »: left empty, the schedule is created off, as before.
 - **« New ticket » is a wide dialog in two columns: the brief on the left, the settings on the right.** The title is
   one large field, the brief takes the rest of the column, and two buttons under it add a « Done when » section or a
   « Files concerned » one. The type and the priority are buttons all in view — *Auto* leaves the type to the runner,

@@ -342,6 +342,11 @@
     max-width: none;
     padding-bottom: 0;
   }
+  /* A schedule's form, the whole width of its window (see `recurrence-dialog.tsx`). */
+  [role="edit-view"]:has([data-recurrence-form]) {
+    max-width: none;
+    padding-bottom: 0;
+  }
 
   /* A ticket's window, the whole screen on a phone: a ticket is a page to
      read, and a phone has no board beside it to keep in view. Said after the
