@@ -2,7 +2,7 @@
  *
  * Escape closes — the dialog primitive already does it — so the one decision
  * left to us is Enter. It confirms, wherever the focus is, except where Enter
- * already means something: on a button (it presses that button, native), and in
+ * already means something: on a button (it presses that button, native; a checkbox drawn as one is not pressed by Enter), and in
  * a field that takes several lines, where it is a new line and the confirmation
  * moves to Ctrl+Enter (⌘+Enter on a Mac). A line field keeps no Enter of its
  * own, so Enter there confirms, as it does in a form.
@@ -28,6 +28,8 @@ export interface EnterPress {
 export interface EnterTarget {
   tagName?: string
   isContentEditable?: boolean
+  /** A checkbox is drawn as a button, but Enter does nothing on it: it confirms. */
+  role?: string | null
 }
 
 /** Whether a field lets Enter write a new line. */
@@ -41,7 +43,7 @@ export function takesLines(target: EnterTarget | null | undefined): boolean {
 export function enterConfirms(press: EnterPress, target: EnterTarget | null | undefined): boolean {
   if (press.key !== "Enter" || press.repeat || press.isComposing || press.altKey) return false
   const tag = (target?.tagName ?? "").toLowerCase()
-  if (tag === "button" || tag === "a") return false
+  if ((tag === "button" && target?.role !== "checkbox") || tag === "a") return false
   const mod = press.ctrlKey || press.metaKey
   if (takesLines(target)) return mod
   return !press.shiftKey

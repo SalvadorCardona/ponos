@@ -11,7 +11,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/lib/api"
 import { counted, useT } from "@/lib/i18n"
@@ -20,8 +19,9 @@ import { cn } from "@/lib/utils"
 /* Deleting a project, from the list and from its page.
  *
  * One dialog for both, and no way around it: the menu only opens the dialog,
- * and the button in it stays off until the project's name has been typed —
- * the server asks for the name too, so the gesture cannot be done without.
+ * and the button in it stays off until the box saying one is sure has been
+ * ticked (a long name is a chore to retype) — the server still asks for the
+ * name, which the dialog sends itself.
  * It says what is about to happen in the order it happens: the project leaves
  * the console and the runner for good, its page goes to the Notion trash, its
  * tickets are stopped (or trashed, if asked), and what is on the machine is not
@@ -48,25 +48,24 @@ export function DeleteProjectDialog({
   onDeleted: () => void
 }) {
   const t = useT()
-  const [typed, setTyped] = React.useState("")
+  const [sure, setSure] = React.useState(false)
   const [trash, setTrash] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [refused, setRefused] = React.useState("")
 
   React.useEffect(() => {
     if (!open) return
-    setTyped("")
+    setSure(false)
     setTrash(false)
     setRefused("")
   }, [open])
 
-  const matches = typed.trim() === project.name
   const confirm = async () => {
-    if (!matches || busy) return false
+    if (!sure || busy) return false
     setBusy(true)
     setRefused("")
     try {
-      const done = await api.deleteProject(project.id, { confirm: typed.trim(), trash_tickets: trash })
+      const done = await api.deleteProject(project.id, { confirm: project.name, trash_tickets: trash })
       onOpenChange(false)
       toast.success(t("Project “{{name}}” deleted", { name: done.name }), {
         description: done.url
@@ -104,7 +103,7 @@ export function DeleteProjectDialog({
               )
       }
       destructive
-      disabled={!matches}
+      disabled={!sure}
       confirm={
         <>
           <Trash2 />
@@ -138,19 +137,15 @@ export function DeleteProjectDialog({
         </Label>
       ) : null}
 
-      <div className="grid gap-2">
-        <Label htmlFor="delete-project-name" className="text-sm font-normal">
-          {t("Type the project's name to confirm:")} <strong className="font-semibold">{project.name}</strong>
-        </Label>
-        <Input
-          id="delete-project-name"
-          value={typed}
-          autoComplete="off"
-          spellCheck={false}
-          aria-invalid={Boolean(typed) && !matches}
-          onChange={(event) => setTyped(event.target.value)}
+      <Label className="border-destructive/40 bg-destructive/5 items-start gap-2.5 rounded-md border p-3 text-sm font-medium">
+        <Checkbox
+          checked={sure}
+          onCheckedChange={(next) => setSure(next === true)}
+          className="mt-0.5"
+          data-confirm-delete
         />
-      </div>
+        <span>{t("Yes, I am sure I want to delete this project")}</span>
+      </Label>
 
       {refused ? (
         <p role="alert" className="text-destructive text-sm">

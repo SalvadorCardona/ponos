@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test"
 
-/* Deleting a project asks for its name, and then it is gone at once.
+/* Deleting a project asks for a tick, and then it is gone at once.
  *
  * From the list and from the project's own page, through the same dialog. What
  * is tested is the way a person goes: the menu, the dialog that names the
- * project and counts its tickets, a button that stays off until the name is
- * typed, and — once it is — the card gone from the list and the ticket the
+ * project and counts its tickets, a button that stays off until the box is
+ * ticked, and — once it is — the card gone from the list and the ticket the
  * runner could have taken blocked, without waiting for any synchronisation.
  */
 
@@ -30,7 +30,7 @@ async function statusOf(page: Page, title: string) {
 test.describe("at 1440px", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("a project is deleted from the list, once its name is typed", async ({ page }) => {
+  test("a project is deleted from the list, once the box is ticked", async ({ page }) => {
     await open(page)
     await menu(page, "Old shop").click()
     await page.getByRole("menuitem", { name: "Delete" }).click()
@@ -41,22 +41,19 @@ test.describe("at 1440px", () => {
     await expect(dialog(page)).toContainText("2 tickets point at it")
     await expect(dialog(page)).toContainText("never deleted")
     await expect(confirm(page)).toBeDisabled()
-    await expect(dialog(page).getByLabel(/Type the project's name/)).toBeFocused()
 
-    // Neither a wrong name nor Enter deletes anything.
-    const typed = dialog(page).getByLabel(/Type the project's name/)
-    await typed.fill("Old shopp")
-    await expect(confirm(page)).toBeDisabled()
-    await typed.press("Enter")
+    // Without the tick, Enter deletes nothing.
+    const sure = dialog(page).getByRole("checkbox", { name: "Yes, I am sure I want to delete this project" })
+    await expect(sure).not.toBeChecked()
+    await page.keyboard.press("Enter")
     await expect(dialog(page)).toBeVisible()
     expect(await statusOf(page, "Old shop work, ready")).toBe("ready")
 
-    // The focus opened on the field, the one thing to do first; once the name
-    // is right, Enter deletes.
-    await typed.fill("Old shop")
+    // Once ticked, the button is on and Enter deletes.
+    await sure.check()
     await expect(confirm(page)).toBeEnabled()
     await expect(confirm(page).locator("kbd")).toHaveText("↵ Enter")
-    await typed.press("Enter")
+    await page.keyboard.press("Enter")
 
     await expect(dialog(page)).toBeHidden()
     await expect(page.getByText("Project “Old shop” deleted")).toBeVisible()
@@ -77,8 +74,8 @@ test.describe("at 1440px", () => {
 
     await menu(page, "Old blog").click()
     await page.getByRole("menuitem", { name: "Delete" }).click()
-    await dialog(page).getByLabel(/Type the project's name/).fill("Old blog")
-    await dialog(page).getByRole("checkbox").check()
+    await dialog(page).getByRole("checkbox", { name: /Also move its/ }).check()
+    await dialog(page).getByRole("checkbox", { name: "Yes, I am sure I want to delete this project" }).check()
     await confirm(page).click()
 
     // Back on the list, where it is no longer.

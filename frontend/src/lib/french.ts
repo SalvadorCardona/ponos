@@ -1795,7 +1795,7 @@ export const FRENCH: Record<string, string> = {
     "Mettre aussi son ticket à la corbeille de Notion",
   "Also move its {{count}} tickets to the Notion trash":
     "Mettre aussi ses {{count}} tickets à la corbeille de Notion",
-  "Type the project's name to confirm:": "Saisissez le nom du projet pour confirmer :",
+  "Yes, I am sure I want to delete this project": "Oui, je suis sûr de supprimer ce projet",
   "Deleting…": "Suppression…",
   "Delete the project": "Supprimer le projet",
   "More actions on “{{name}}”": "Autres actions sur « {{name}} »",
