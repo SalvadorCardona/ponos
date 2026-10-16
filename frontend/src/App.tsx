@@ -11,9 +11,7 @@ import {
   type ViewResourceContextParams,
 } from "react-resource-view"
 
-import { CommandPalette } from "@/components/console/command-palette"
 import { CONTEXT_ANCHOR } from "@/components/console/context-block"
-import { TalkDrawer } from "@/components/console/talk-drawer"
 import { UpdateNotice } from "@/components/console/install-app"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -133,6 +131,15 @@ function OpenTicket({ params }: { params: ViewResourceContextParams }) {
   return null
 }
 
+/* Both wait for a key or a button, so neither is in the first load, which has a
+ * budget: they are fetched once the page is up. */
+const TalkDrawer = React.lazy(() =>
+  import("@/components/console/talk-drawer").then((module) => ({ default: module.TalkDrawer }))
+)
+const CommandPalette = React.lazy(() =>
+  import("@/components/console/command-palette").then((module) => ({ default: module.CommandPalette }))
+)
+
 function Console() {
   const { params, moved } = useRoute()
 
@@ -149,9 +156,11 @@ function Console() {
 
       {/* Over everything, at every width: the conversation is never a page you
           navigate to and lose your place for. */}
-      <TalkDrawer />
-      {/* Ctrl+K, from every page: inside the router, which its links go through. */}
-      <CommandPalette />
+      <React.Suspense fallback={null}>
+        <TalkDrawer />
+        {/* Ctrl+K, from every page: inside the router, which its links go through. */}
+        <CommandPalette />
+      </React.Suspense>
     </>
   )
 }
