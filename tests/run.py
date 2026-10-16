@@ -12342,7 +12342,10 @@ def a_base_moved_by_the_runners_own_merges_is_not_held_against_the_ticket():
     assert passes[-1][0]["status"] == "done", passes
 
 
-def _reading_checks(verdicts: list[str], failing: list[list[str]], on_base: list[str], rerun: bool = True):
+def _reading_checks(
+    verdicts: list[str], failing: list[list[str]], on_base: list[str], rerun: bool = True,
+    unstarted: str = "",
+):
     """`_checked` against a CI that answers `verdicts` in turn, and what it was asked."""
     url = "https://github.com/x/y/pull/1"
     runner = _board_runner([], {})
@@ -12360,6 +12363,7 @@ def _reading_checks(verdicts: list[str], failing: list[list[str]], on_base: list
     with _git_answering(
         wait_for_checks=wait,
         failing_checks=lambda url, accounts=None: failing.pop(0) if failing else [],
+        unstarted_checks=lambda url, accounts=None: unstarted,
         rerun_failed_checks=again,
         failing_on=lambda url, base, accounts=None: asked.append(f"base {base}") or on_base,
     ):
@@ -12404,6 +12408,103 @@ def a_check_red_only_here_still_stops_the_merge_and_is_named():
     checks, said, asked = _reading_checks(["failed"], [[]], ["frontend"], rerun=False)
     assert checks == "failed" and said == "CI: red.", (checks, said)
     assert asked == ["wait", "rerun"], asked
+
+
+_NOT_STARTED = (
+    "The job was not started because recent account payments have failed or your "
+    "spending limit needs to be increased."
+)
+
+
+@case
+def a_ci_github_never_started_is_said_as_such_and_not_run_again():
+    """Red in two seconds, every job refused by GitHub's billing: nothing ran.
+
+    It used to read “its checks fail” on every pull request of a private
+    repository, and a forced merge stopped there without saying the one thing
+    that mattered — not the code, the account. Running the jobs again would be
+    refused the same way, so it is not asked.
+    """
+    checks, said, asked = _reading_checks(
+        ["failed"], [["Tests", "Lint"]], [], unstarted=_NOT_STARTED
+    )
+    assert checks == "unstarted", checks
+    assert asked == ["wait"], "neither run again nor compared with the base"
+    assert "did not start" in said and "spending limit" in said, said
+
+
+@case
+def a_forced_merge_says_on_the_ticket_why_the_ci_stopped_it():
+    """The sentence `_checked` wrote, not a generic “its checks fail”."""
+    from types import SimpleNamespace
+
+    url = "https://github.com/x/y/pull/1"
+    for checks, sentence in (
+        ("failed", "CI: red on `core (3.11)`, where `main` is not."),
+        ("unstarted", f"CI: did not start — GitHub says: {_NOT_STARTED}"),
+    ):
+        runner = _board_runner([], {})
+        runner._checked = lambda url, workdir, base, said=(checks, sentence): said
+        job = SimpleNamespace(ticket=SimpleNamespace(id="p-forced"), workdir=Path("/work"), base="main")
+        merges: list[str] = []
+        with _state_home(), _github({}, merge=lambda *args, **kept: merges.append(args) or "merged"):
+            why, later = runner._force_merge(job, url)
+        assert (why, later, merges) == (sentence, False, []), (checks, why, later, merges)
+
+
+@case
+def an_older_gh_reads_the_checks_from_the_pull_request_itself():
+    """`gh pr checks --json` is gh 2.48 and later; Ubuntu ships 2.46.
+
+    Without the fallback every check read as unknown on such a machine — no
+    names, nothing run again, no comparison with the base, and nothing the
+    console could show — and a forced merge only ever said “its checks fail”.
+    """
+    from ponos import git as git_module
+
+    rollup = {"statusCheckRollup": [
+        {"__typename": "CheckRun", "name": "Tests", "status": "COMPLETED", "conclusion": "FAILURE",
+         "detailsUrl": "https://github.com/x/y/actions/runs/38/job/116"},
+        {"__typename": "CheckRun", "name": "Lint", "status": "COMPLETED", "conclusion": "SUCCESS",
+         "detailsUrl": "https://github.com/x/y/actions/runs/38/job/117"},
+        {"__typename": "CheckRun", "name": "Build", "status": "IN_PROGRESS", "conclusion": "",
+         "detailsUrl": "https://github.com/x/y/actions/runs/38/job/118"},
+        {"__typename": "StatusContext", "context": "GitGuardian", "state": "SUCCESS",
+         "targetUrl": "https://dashboard.gitguardian.com"},
+    ]}
+    annotations = {"116": _NOT_STARTED, "117": ""}
+    asked: list[list[str]] = []
+
+    def run(args, *rest, **kept):
+        asked.append(args)
+        if args[:3] == ["gh", "pr", "checks"]:
+            return git_module.Result(1, "", "unknown flag: --json\n\nUsage:  gh pr checks")
+        if args[:3] == ["gh", "pr", "view"] and "statusCheckRollup" in args:
+            return git_module.Result(0, json.dumps(rollup), "")
+        if args[:2] == ["gh", "api"]:
+            job = next(part for part in args if "check-runs/" in part).split("/")[-2]
+            return git_module.Result(0, annotations.get(job, ""), "")
+        return git_module.Result(1, "", "")
+
+    original_which = shutil.which
+    git_module.shutil.which = lambda name, *rest, **kept: f"/usr/bin/{name}"
+    try:
+        with _git_answering(run=run, token_for=lambda reference, accounts=None: ""):
+            url = "https://github.com/x/y/pull/1"
+            listed = git_module.checks(url)
+            assert [(one["name"], one["bucket"]) for one in listed] == [
+                ("Tests", "fail"), ("Lint", "pass"), ("Build", "pending"), ("GitGuardian", "pass"),
+            ], listed
+            assert listed[0]["link"].endswith("/actions/runs/38/job/116"), listed[0]
+            assert git_module.failing_checks(url) == ["Tests"]
+            assert git_module.unstarted_checks(url) == _NOT_STARTED
+            assert any("repos/x/y/check-runs/116/annotations" in part for one in asked for part in one)
+
+            # One red check that did run is enough: that red is the code's.
+            rollup["statusCheckRollup"][1]["conclusion"] = "FAILURE"
+            assert git_module.unstarted_checks(url) == ""
+    finally:
+        git_module.shutil.which = original_which
 
 
 def _forcing(checks: str, refuses: str = "", blocker: str = "", options=None):
