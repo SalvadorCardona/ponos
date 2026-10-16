@@ -1423,7 +1423,7 @@ the ticket         the task
 From the widest frame to the narrowest, so the specific is read last and wins when the two
 disagree. What belongs there:
 
-> Je suis Salvador Cardona, développeur web depuis 13 ans. Je travaille sur Animalink.
+> Je suis <prénom>, développeur web depuis 13 ans. Je travaille sur Animalink.
 > Stack: PHP/Symfony, React, Docker. `pnpm`, jamais `npm`.
 > Réponses courtes, pas d'emoji, la commande plutôt que l'explication.
 
@@ -4012,9 +4012,7 @@ pushed are never touched.
 
 ## Author
 
-Ponos is written by [Salvador Cardona — portfolio](https://cardona.digital), web
-developer for thirteen years, currently on Animalink. The rest of what comes out of the
-same workshop is over there.
+Ponos is a Hermez product.
 
 ---
 
