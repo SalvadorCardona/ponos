@@ -1696,8 +1696,8 @@ failed = "Needs you"
 An eighth key, `draft`, is optional and has no default: it names the option your board
 **already has** for a ticket still being written — `ponos init` creates none, and
 the runner never writes nor picks one up. Named, the console draws those tickets in a
-*Draft* column of their own (*Brouillon* in French), first, and *New ticket* with *Ready to
-run* off puts the ticket there; `doctor` checks the option exists and is none of the seven
+*Draft* column of their own (*Brouillon* in French), first, and *New ticket*'s *Draft*
+button puts the ticket there; `doctor` checks the option exists and is none of the seven
 above. Left out, a draft has no status and sits in that same column, as before:
 
 ```toml

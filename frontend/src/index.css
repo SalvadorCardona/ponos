@@ -330,6 +330,19 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
 
+  /* The new ticket's dialog, in two columns: as wide as a brief and its
+     settings side by side want, which is wider than the package's dialog and
+     its form's column (see `new-ticket.tsx`). Narrower than that, the
+     settings go under the brief. */
+  [data-slot="dialog-content"]:has([data-new-ticket]) {
+    width: 65rem;
+    max-width: calc(100% - 2rem);
+  }
+  [role="edit-view"]:has([data-new-ticket]) {
+    max-width: none;
+    padding-bottom: 0;
+  }
+
   /* A ticket's window, the whole screen on a phone: a ticket is a page to
      read, and a phone has no board beside it to keep in view. Said after the
      rule above, which would otherwise keep a margin round it. */

@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 
 /* A new ticket says how urgent it is, which road it takes and on which model,
- * from the dialog — and says what ticking "Ready to run" costs.
+ * from the dialog — two columns, the brief on the left and the settings on the
+ * right — and is either launched or kept as a draft.
  *
  * The three used to be set in Notion afterwards, by hand. The board here is
  * Markdown, which has every column: all three are offered. What is sent is
@@ -19,9 +20,9 @@ async function open(page: Page) {
   return dialog
 }
 
-/* The package's select is a combobox of its own, not a <select>: opened, then
- * an option picked from the list it draws. Found by the label its group opens
- * with: "Type" is also in "Sub-type". */
+/* The model is the package's select, a combobox of its own, not a <select>:
+ * opened, then an option picked from the list it draws. Found by the label its
+ * group opens with. */
 const choiceField = (dialog: ReturnType<Page["getByRole"]>, field: string) =>
   dialog
     .getByRole("group")
@@ -33,7 +34,12 @@ async function choose(page: Page, dialog: ReturnType<Page["getByRole"]>, field: 
   await page.getByRole("option", { name: option, exact: true }).click()
 }
 
-test("a new ticket carries its priority, type and model, and Ctrl+Enter creates it", async ({ page }) => {
+/* The type and the priority are all in view, a button each; so is a code
+ * ticket's sub-type. */
+const segment = (dialog: ReturnType<Page["getByRole"]>, field: string, option: string) =>
+  dialog.getByRole("group", { name: field, exact: true }).getByRole("button", { name: option, exact: true })
+
+test("a new ticket carries its priority, type and model, and Ctrl+Enter launches it", async ({ page }) => {
   const sent: Record<string, unknown>[] = []
   await page.route("**/api/tickets", async (route) => {
     if (route.request().method() !== "POST") return route.fallback()
@@ -42,24 +48,104 @@ test("a new ticket carries its priority, type and model, and Ctrl+Enter creates 
   })
   const dialog = await open(page)
 
-  await expect(dialog.getByText("Ticked, a session starts at the next pass")).toBeVisible()
-  await choose(page, dialog, "Priority", "High")
-  await choose(page, dialog, "Type", "Writing")
+  await expect(dialog.getByText("Launched, the ticket starts at the next pass")).toBeVisible()
+  await expect(dialog.getByText("Ready to run")).toHaveCount(0)
+  await segment(dialog, "Priority", "High").click()
+  await expect(segment(dialog, "Priority", "High")).toHaveAttribute("aria-pressed", "true")
+  await segment(dialog, "Type", "Code").click()
   await choose(page, dialog, "Model", "haiku")
-  await choose(page, dialog, "Sub-type", "🐞 Bug")
+  await segment(dialog, "Sub-type", "🐞 Bug").click()
   await dialog.getByLabel("Title").fill("Announce it")
+  await page.screenshot({ path: "test-results/new-ticket.png" })
   await dialog.getByLabel("Title").press("Control+Enter")
 
   await expect.poll(() => sent.length).toBe(1)
   expect(sent[0]).toMatchObject({
     title: "Announce it",
     priority: "High",
-    type: "writing",
+    type: "code",
     model: "haiku",
     subtype: "bug",
     ready: true,
   })
   await expect(dialog).toBeHidden()
+})
+
+test("the sub-type is a code ticket's: shown for Code, hidden for any other type", async ({ page }) => {
+  const dialog = await open(page)
+  const subtype = dialog.getByRole("group", { name: "Sub-type", exact: true })
+  await expect(subtype).toHaveCount(0)
+  await segment(dialog, "Type", "Code").click()
+  await expect(subtype).toBeVisible()
+  await segment(dialog, "Sub-type", "✨ Feature").click()
+  await segment(dialog, "Type", "Writing").click()
+  await expect(subtype).toHaveCount(0)
+  await segment(dialog, "Type", "Code").click()
+  await expect(subtype).toBeVisible()
+  // Taken away with the type it belonged to.
+  await expect(segment(dialog, "Sub-type", "✨ Feature")).toHaveAttribute("aria-pressed", "false")
+})
+
+test("the card under the settings says what the ticket will come back as", async ({ page }) => {
+  const dialog = await open(page)
+  const outcome = dialog.locator('[data-slot="ticket-outcome"]')
+  await expect(outcome).toContainText("A document, written on the ticket's page.")
+  await expect(outcome).toContainText("The runner deduces the type")
+
+  const project = dialog.getByRole("combobox", { name: "Project" })
+  await project.click()
+  await page.getByRole("option", { name: /Website/ }).click()
+  await expect(outcome).toContainText("A pull request on Website.")
+  await expect(dialog.locator('[data-slot="project-repository"]')).toHaveText("git")
+
+  await segment(dialog, "Type", "Code").click()
+  await segment(dialog, "Sub-type", "🐞 Bug").click()
+  await expect(outcome).toContainText("fix:")
+  await expect(outcome).toContainText("Fixed")
+  await expect(outcome).not.toContainText("The runner deduces the type")
+
+  await segment(dialog, "Type", "Writing").click()
+  await expect(outcome).toContainText("A document, written on the ticket's page.")
+  await expect(outcome).not.toContainText("fix:")
+
+  await project.click()
+  await page.getByRole("option", { name: /Journal/ }).click()
+  await expect(dialog.locator('[data-slot="project-repository"]')).toHaveText("no git")
+  await segment(dialog, "Type", "Code").click()
+  await expect(outcome).toContainText("A code ticket needs a project with a repository.")
+})
+
+test("Draft creates a ticket the runner leaves alone", async ({ page }) => {
+  const sent: Record<string, unknown>[] = []
+  await page.route("**/api/tickets", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    sent.push(route.request().postDataJSON())
+    await route.fulfill({ json: { id: "0000000000000000000000000000f011", title: "Later" } })
+  })
+  const dialog = await open(page)
+  await dialog.getByLabel("Title").fill("Later")
+  await segment(dialog, "Priority", "Low").click()
+  await dialog.getByRole("button", { name: "Draft" }).click()
+  await expect.poll(() => sent.length).toBe(1)
+  expect(sent[0]).toMatchObject({ title: "Later", priority: "Low", ready: false })
+  await expect(dialog).toBeHidden()
+})
+
+test("a draft refused for want of a title, then launched with Ctrl+Enter, is launched", async ({ page }) => {
+  const sent: Record<string, unknown>[] = []
+  await page.route("**/api/tickets", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    sent.push(route.request().postDataJSON())
+    await route.fulfill({ json: { id: "0000000000000000000000000000f012", title: "Now" } })
+  })
+  const dialog = await open(page)
+  await dialog.getByRole("button", { name: "Draft" }).click()
+  await expect(dialog.getByLabel("Title")).toHaveAttribute("aria-invalid", "true")
+  expect(sent).toHaveLength(0)
+  await dialog.getByLabel("Title").fill("Now")
+  await dialog.getByLabel("Title").press("Control+Enter")
+  await expect.poll(() => sent.length).toBe(1)
+  expect(sent[0]).toMatchObject({ title: "Now", ready: true })
 })
 
 test("left alone, the three say nothing and the type is the runner's to deduce", async ({ page }) => {
@@ -71,9 +157,9 @@ test("left alone, the three say nothing and the type is the runner's to deduce",
   })
   const dialog = await open(page)
   await dialog.getByLabel("Title").fill("Plain")
-  await dialog.getByRole("button", { name: "Create" }).click()
+  await dialog.getByRole("button", { name: "Launch the ticket" }).click()
   await expect.poll(() => sent.length).toBe(1)
-  expect(sent[0]).toMatchObject({ priority: "", type: "", model: "", subtype: "" })
+  expect(sent[0]).toMatchObject({ priority: "", type: "", model: "", subtype: "", ready: true })
 })
 
 test("Ctrl+Enter from the brief creates the ticket with the last words typed", async ({ page }) => {
@@ -106,11 +192,10 @@ test("the project is chosen from the keyboard, filtered by what is typed", async
   const dialog = await open(page)
   await dialog.getByLabel("Title").fill("Typed")
   const project = dialog.getByRole("combobox", { name: "Project" })
-  await expect(dialog.getByText("A project with a repository gets a pull request")).toBeVisible()
 
   // Reached by Tab like any field — here from the one after it, since the
   // brief's editor before it keeps Tab for its own lists.
-  await choiceField(dialog, "Priority").focus()
+  await segment(dialog, "Type", "Auto").focus()
   await page.keyboard.press("Shift+Tab")
   await expect(project).toBeFocused()
   await page.keyboard.press("ArrowDown")

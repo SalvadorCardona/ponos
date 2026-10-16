@@ -264,30 +264,46 @@ export const FRENCH: Record<string, string> = {
   Cost: "Coût",
   Took: "Durée",
   Scheduled: "Prévu",
-  "Ready to run": "Prêt à tourner",
   Create: "Créer",
-  "What has to be done, in one line. It is what the board shows.":
-    "Ce qu'il y a à faire, en une ligne. C'est ce que le tableau montre.",
-  "The whole of what the runner is told. Written on the ticket's page, and read from there.":
-    "Tout ce que le runner reçoit. Écrit sur la page du ticket, et lu depuis là.",
   "What must change, where, and how you will know it is done.":
     "Ce qui doit changer, où, et à quoi vous verrez que c'est fait.",
-  "A project with a repository gets a pull request; none at all gets a document.":
-    "Un projet avec un dépôt donne une pull request ; aucun projet donne un document.",
-  "Off, and the ticket is a draft the runner leaves alone.":
-    "Décoché, le ticket est un brouillon auquel le runner ne touche pas.",
-  "Ticked, a session starts at the next pass (within {{every}}).":
-    "Coché, une session démarre au prochain passage (d'ici {{every}}).",
-  "Ticked, a session starts at the next pass.": "Coché, une session démarre au prochain passage.",
-  "no priority": "aucune priorité",
   "Which ready ticket goes first. Empty, it waits its turn.":
     "Quel ticket prêt passe en premier. Vide, il attend son tour.",
   "deduced by the runner": "déduit par le runner",
   "The road the ticket takes. Empty, the runner deduces it before the ticket runs.":
     "Le chemin que prend le ticket. Vide, le runner le déduit avant de le lancer.",
   "the runner's model": "le modèle du runner",
-  "Empty, the model the runner is set to.": "Vide, le modèle réglé pour le runner.",
   "no project — a document": "aucun projet — un document",
+  // The "New ticket" dialog, in two columns (new-ticket.tsx).
+  "Markdown · read by the runner on the ticket's page": "Markdown · lu par le runner sur la page du ticket",
+  "Done criterion": "Critère de fin",
+  "File concerned": "Fichier concerné",
+  "It is done when": "C'est fait quand",
+  "what you will see once it is done": "ce que vous verrez une fois que c'est fait",
+  "Files concerned": "Fichiers concernés",
+  "path/to/the/file": "chemin/du/fichier",
+  Auto: "Auto",
+  None: "Aucune",
+  "A git repository: the ticket comes back as a pull request.":
+    "Un dépôt git : le ticket revient en pull request.",
+  "No repository: the ticket comes back as a document.": "Pas de dépôt : le ticket revient en document.",
+  "no git": "sans git",
+  "What it will give": "Ce que ça donnera",
+  "A document, written on the ticket's page.": "Un document, écrit sur la page du ticket.",
+  "Work done elsewhere — a browser, a service — and its log on the ticket's page.":
+    "Un travail fait ailleurs — un navigateur, un service — et son compte rendu sur la page du ticket.",
+  "Prepared, then published once you validate it.": "Préparé, puis publié une fois que vous l'avez validé.",
+  "A pull request on {{project}}.": "Une pull request sur {{project}}.",
+  "A code ticket needs a project with a repository.": "Un ticket Code demande un projet avec un dépôt.",
+  "The runner deduces the type before it starts.": "Le runner déduit le type avant de démarrer.",
+  Commit: "Commit",
+  "no entry": "aucune entrée",
+  "The runner deduces the commit prefix and the CHANGELOG section.":
+    "Le runner déduit le préfixe du commit et la section du CHANGELOG.",
+  "Launched, the ticket starts at the next pass, within {{every}}.":
+    "Lancé, le ticket démarre au prochain passage, d'ici {{every}}.",
+  "Launched, the ticket starts at the next pass.": "Lancé, le ticket démarre au prochain passage.",
+  "Launch the ticket": "Lancer le ticket",
   "no project": "aucun projet",
   "Open the project {{name}}": "Ouvrir le projet {{name}}",
   "open in Notion": "ouvrir dans Notion",

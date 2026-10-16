@@ -10287,7 +10287,7 @@ def a_ticket_with_no_status_is_a_draft_whether_or_not_the_board_names_them():
 
     The drafts are always the first column, and a ticket with no status is one.
     Named in `[notion.status]`, the column is also the option, and "New ticket"
-    with "Ready to run" off writes it. Left unnamed, a move to the drafts
+    with its "Draft" button writes it. Left unnamed, a move to the drafts
     clears the status and a new draft is written with none — and one named the
     same as `ready` is the runner's, so never called a draft.
     """
