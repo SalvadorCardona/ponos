@@ -859,6 +859,7 @@ _SAID: dict[str, dict[str, str]] = {
     "decision": {"en": "Decision: {choice}.", "fr": "Décision : {choice}."},
     "decided-answer": {"en": "answer to the question", "fr": "réponse à la question"},
     "decided-yes": {"en": "yes, go ahead", "fr": "oui, vas-y"},
+    "decided-close": {"en": "yes, close it — moved to done", "fr": "oui, clos-le — passé en terminé"},
     "decided-option": {"en": "option {number}, “{option}”", "fr": "option {number}, « {option} »"},
     "decided-done-retry": {"en": "done by hand, run it again", "fr": "c'est fait, relancer"},
     "decided-retry": {"en": "run it again", "fr": "relancer"},
@@ -904,6 +905,10 @@ _SAID: dict[str, dict[str, str]] = {
     "told-done-retry": {
         "en": "I did what you asked by hand: check it and carry on.",
         "fr": "J'ai fait à la main ce que tu demandais : vérifie et reprends.",
+    },
+    "told-close": {
+        "en": "Closed as you proposed: nothing more to do on this ticket.",
+        "fr": "Clos comme tu le proposais : plus rien à faire sur ce ticket.",
     },
     "told-retry": {
         "en": "Try again, from where you stopped.",

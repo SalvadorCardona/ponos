@@ -63,13 +63,12 @@ test("a Ready ticket is set aside in one click, and made ready again once confir
     })
     .toBe("Blocked")
   await page.reload()
-  // Blocked, it offers Unblock alone; set aside by hand, nothing says why, and
-  // its Unblock tab runs it again — once its field is sent.
+  // Blocked, it opens on its discussion, and offers nothing else above it; set
+  // aside by hand, nothing says why, and it runs again as it is in one click.
   await expect(page.getByRole("button", { name: "make ready" })).toHaveCount(0)
-  await page.locator('[data-decide="0000000000000000000000000000a51d"]').click()
-  const panel = page.locator('[data-slot="ticket-decision"]')
-  await panel.getByRole("button", { name: "Run it again", exact: true }).click()
-  await panel.locator("li form").getByRole("button", { name: "Send and run again" }).click()
+  await expect(page.locator('[data-slot="ticket-talk-tab"]')).toHaveAttribute("aria-selected", "true")
+  await expect(page.locator('[data-talk="question"]')).toContainText("Set aside by hand: no run said why.")
+  await page.locator('[data-slot="quick-replies"]').getByRole("button", { name: "Run it again as it is" }).click()
   await expect(page.getByText("“A ticket to set aside” moved to Ready")).toBeVisible()
   await expect(page.getByRole("button", { name: "set aside" })).toBeVisible()
 })

@@ -23,7 +23,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useOpensOverTheList } from "@/components/console/record-window"
-import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import { titleOf, useBoard } from "@/lib/board-store"
 import {
@@ -31,17 +30,10 @@ import {
   PROMPTS,
   type DecisionTab,
   actionOf,
-  actionsOf,
   away,
-  buttonsOf,
-  categoryOf,
   decisionTabOf,
   immediate,
-  instructionOf,
-  itemsOf,
   labelOf,
-  openedWith,
-  plainRetry,
   prefilled,
   promptOf,
   sendable,
@@ -54,27 +46,20 @@ import { cn } from "@/lib/utils"
 import { tickets } from "@/resources/tickets"
 
 /* What a card waiting on you is for: why it waits, and what to do about it.
- *
  * A blocked card used to offer "make ready" and nothing else, and one in review
  * three gestures that said nothing of what they were deciding on: the reason was
  * in the last report, on the page. This reads that report for you — the server
  * does, see `decisions.py` — and lays out the few choices that fit, each a click,
  * or a click and a sentence.
  *
- * It is a tab of the ticket — Unblock, or Decide — beside its brief, its
- * discussion and its session. It was a panel of its own for a while, held over
- * the console, and the ticket's window opened under it: two windows over the
- * board, saying the ticket's title and why it stopped twice. The button on a
- * card opens the window on this tab; the same button on the ticket itself, in
- * its window or on its page, only switches to it.
- *
- * On a blocked ticket it is drawn the way "answer" was — an outline in the
- * colour of a ticket waiting on you — and the tab does the choosing the card
- * used to leave to you: a question opens on its answer, a missing access on
- * what is missing and "it's done", any other stop on its reason and running it
- * again. Under every one of them, a field for an instruction of your own, and —
- * quietly, where nothing above already does it — running it again as it is,
- * which was "make ready".
+ * In review, it is a tab of the ticket — Decide — beside its brief, its
+ * discussion and its session. A blocked ticket had one too, Unblock, and it
+ * said the question twice and offered two fields to answer it in, beside the
+ * discussion that was already a conversation: its question is answered there
+ * now, in the bubble Ponos asked it in and the quick replies under it — see
+ * `ticket-talk.tsx`. The button on a card opens the window on the tab, or on
+ * the discussion; the same button on the ticket itself, in its window or on
+ * its page, only switches to it.
  */
 
 /** How a ticket shown on screen goes to one of its tabs: none around a card, which opens the window instead. */
@@ -170,7 +155,7 @@ function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: ()
     )
   return (
     <div data-slot="ticket-decision" className="max-w-[75ch] space-y-8 text-base leading-relaxed">
-      {decision.column === "review" ? <Delivered decision={decision} /> : <Stuck decision={decision} ticket={ticket} />}
+      <Delivered decision={decision} />
       <Choices decision={decision} ticket={ticket} onDone={onDone} />
     </div>
   )
@@ -179,78 +164,6 @@ function Panel({ id, ticket, onDone }: { id: string; ticket?: Ticket; onDone: ()
 function Heading({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="text-foreground mb-2 text-lg font-semibold">{children}</h3>
-  )
-}
-
-/* Why a blocked ticket stopped: its kind, its reason, what is done and what is
- * missing — and, for a stop on a pull request or on its base's CI, the way to
- * them the card used to carry. */
-function Stuck({ decision, ticket }: { decision: Decision; ticket?: Ticket }) {
-  const t = useT()
-  const pullRequest = ticket?.pull_request ?? ""
-  const ci = ticket?.block?.action === "base-ci" ? actionsOf(pullRequest) : ""
-  const reason = decision.reason?.trim()
-  // The question the run asked is what you are here to answer: first, and large.
-  const asked = decision.question?.ask?.trim()
-  const done = itemsOf(decision.done)
-  return (
-    <>
-      {asked ? (
-        <section data-slot="decision-question" className="space-y-2">
-          <Heading>{t("The question")}</Heading>
-          <p className="text-xl leading-snug font-semibold break-words">{asked}</p>
-        </section>
-      ) : null}
-      <section data-slot="decision-reason" className="space-y-3">
-        <Heading>{t("Why it is stuck")}</Heading>
-        <Badge className="bg-tr-amber/15 text-tr-amber border-transparent">
-          {t(categoryOf(decision.category))}
-        </Badge>
-        <p className="font-medium break-words">
-          {reason || (decision.reported ? t("The run did not say why.") : t("Set aside by hand: no run said why."))}
-        </p>
-        {decision.detail ? (
-          <p className="text-muted-foreground line-clamp-3 break-words" data-slot="decision-explanation">
-            {decision.detail}
-          </p>
-        ) : null}
-      </section>
-      {done.length ? (
-        <section data-slot="decision-done">
-          <Heading>{t("Already done")}</Heading>
-          {done.length > 1 ? (
-            <ul className="list-disc space-y-1 pl-5 break-words">
-              {done.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="break-words">{done[0]}</p>
-          )}
-        </section>
-      ) : null}
-      {pullRequest || ci ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {pullRequest ? (
-            <Button asChild variant="outline" size="sm">
-              <a href={pullRequest} target="_blank" rel="noreferrer">
-                <GitPullRequest />
-                {t("Pull request")}
-                <ExternalLink className="opacity-60" />
-              </a>
-            </Button>
-          ) : null}
-          {ci ? (
-            <Button asChild variant="outline" size="sm">
-              <a href={ci} target="_blank" rel="noreferrer">
-                {t("CI")}
-                <ExternalLink className="opacity-60" />
-              </a>
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </>
   )
 }
 
@@ -319,11 +232,8 @@ function Delivered({ decision }: { decision: Decision }) {
 function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ticket; onDone: () => void }) {
   const t = useT()
   const board = useBoard()
-  const { move } = useConsole()
-  const opening = openedWith(decision.column, decision.solutions)
-  const [chosen, setChosen] = React.useState<Solution | null>(opening)
+  const [chosen, setChosen] = React.useState<Solution | null>(null)
   const [text, setText] = React.useState("")
-  const [instruction, setInstruction] = React.useState("")
   const [model, setModel] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const models = (board.choices?.model ?? []).filter((one) => one.value && one.value !== decision.model)
@@ -366,13 +276,11 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
 
   const same = (one: Solution, other: Solution | null) =>
     other !== null && one.key === other.key && one.number === other.number
-  const buttons = buttonsOf(decision.column, decision.solutions)
-  const written = instructionOf(decision.column, decision.solutions)
-  const plain = ticket && plainRetry(decision.column, decision.solutions)
+  const buttons = decision.solutions
 
   return (
     <section data-slot="decision-choices">
-      <Heading>{decision.column === "review" ? t("Your decision") : t("What would unblock it")}</Heading>
+      <Heading>{t("Your decision")}</Heading>
       <ul className="space-y-2">
         {buttons.map((solution, index) => (
           <li key={`${solution.key}-${solution.number}`}>
@@ -423,9 +331,7 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
                   </Select>
                 ) : null}
                 <Textarea
-                  // The answer a question opens on is under its reason, read
-                  // first: the field waits for a click rather than taking it.
-                  autoFocus={!same(solution, opening)}
+                  autoFocus
                   value={text}
                   rows={solution.needs === "titles" ? 4 : 3}
                   aria-label={t(promptOf(solution))}
@@ -456,57 +362,6 @@ function Choices({ decision, ticket, onDone }: { decision: Decision; ticket?: Ti
           </li>
         ))}
       </ul>
-      {written ? (
-        <form
-          data-slot="decision-instruction"
-          className="mt-8 space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (sendable(written, instruction)) void apply(written, instruction, "")
-          }}
-        >
-          <Heading>{t("Or an instruction of your own")}</Heading>
-          <Textarea
-            value={instruction}
-            rows={2}
-            aria-label={t(PROMPTS.text)}
-            placeholder={t("Drop that part, only do…")}
-            onChange={(event) => setInstruction(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault()
-                event.currentTarget.form?.requestSubmit()
-              }
-            }}
-            className="text-base md:text-base"
-          />
-          <div className="flex items-center justify-between gap-2">
-            {/* "Make ready", kept for when nothing needs saying: the same
-                move the card made, quieter, under the choices that say why. */}
-            {plain ? (
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                disabled={busy}
-                data-slot="decision-plain-retry"
-                className="text-muted-foreground hover:text-foreground h-auto px-0 text-sm"
-                onClick={() => {
-                  onDone()
-                  void move(ticket, "ready")
-                }}
-              >
-                {t("Run it again without changes")}
-              </Button>
-            ) : (
-              <span />
-            )}
-            <Button type="submit" disabled={busy || !sendable(written, instruction)}>
-              {t("Send and run again")}
-            </Button>
-          </div>
-        </form>
-      ) : null}
     </section>
   )
 }

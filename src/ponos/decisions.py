@@ -82,6 +82,16 @@ _REWORK = (
     ("rebase", ("rebase", "conflict", "conflit", "behind", "en retard sur")),
 )
 
+# The words of a question that proposes to close the ticket rather than to work
+# on it — a duplicate, nothing left to do. Folded, and matched as the start of a
+# word, like `_WORDS`. Such a question is answered "yes, close it" in one click,
+# which files the ticket as done instead of starting a session to say so.
+_CLOSING = (
+    "clore", "clos", "cloture", "fermer", "ferme le", "ferme ce", "close", "closing",
+    "doublon", "duplicate", "rien a faire", "rien a changer", "nothing to do", "nothing to change",
+    "mark it done", "mark it as done", "marquer comme termine", "passer en done", "move it to done",
+)
+
 # How many of the session's points to check become a button of their own.
 CAVEATS = question_module.CAVEATS
 
@@ -158,6 +168,14 @@ def classify(*texts: str) -> str:
         if any(re.search(r"(?<![a-z])" + re.escape(word), folded) for word in words):
             return category
     return "question" if "?" in folded else "other"
+
+
+def closing(asked: Question | None) -> bool:
+    """Whether a question proposes to close the ticket: a duplicate, nothing to do."""
+    if not asked or asked.mode == "free":
+        return False
+    folded = " " + fold(" ".join([asked.ask, *asked.options])) + " "
+    return any(re.search(r"(?<![a-z])" + re.escape(word), folded) for word in _CLOSING)
 
 
 def _labelled(line: str) -> tuple[str, str]:
@@ -267,7 +285,8 @@ def unblocking(found: Blockage, *, models: bool = True, cancel: bool = False) ->
 
     A yes-no question offers its yes, and a choice its options — except on a
     ticket too big for one, whose options are the sub-tickets it proposes and go
-    into the split instead. Then whatever its kind of stop calls for, and last,
+    into the split instead. A question that proposes to close the ticket — a
+    duplicate, nothing to do — offers to do it at once, as done. Then whatever its kind of stop calls for, and last,
     always, an instruction of your own. `models` is whether the board has a Model
     column to run it again on another model with, and `cancel` whether it has a
     cancelled one to file an abandoned ticket under rather than done.
@@ -276,6 +295,8 @@ def unblocking(found: Blockage, *, models: bool = True, cancel: bool = False) ->
     asked = found.question
     if asked and asked.mode == "yes-no":
         solutions.append(Solution("yes", "ready"))
+    if closing(asked) and found.category != "split":
+        solutions.append(Solution("close", "done"))
     if asked and asked.mode == "choice" and found.category != "split":
         solutions.extend(
             Solution("option", "ready", text=option, number=number)
@@ -341,7 +362,7 @@ def deciding(
 
 
 KEYS = {
-    "blocked": ("yes", "option", "answer", "instruct", "done-retry", "retry", "model", "split",
+    "blocked": ("yes", "close", "option", "answer", "instruct", "done-retry", "retry", "model", "split",
                 "abandon", "other"),
     "review": ("validate", "rework", "fix-ci", "add-tests", "screenshots", "rebase", "caveat",
                "reject"),
@@ -388,6 +409,7 @@ def told(
         "option": said.say("relayed-option", number=solution.number, option=solution.text),
         "done-retry": said.say("told-done-retry"),
         "retry": said.say("told-retry"),
+        "close": said.say("told-close"),
     }.get(key, "")
     lines = [said.say("decision", choice=label(said, solution, model=model, titles=titles))]
     lines.extend(line for line in (words or instruction).splitlines() if line.strip())

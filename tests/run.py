@@ -13961,7 +13961,7 @@ def the_discussion_opens_from_a_bubble_rather_than_from_a_column():
     # a ticket said so nowhere, and a question waiting on you sat behind it.
     assert "TicketTalk" not in drawer, "the bubble turns into a ticket's discussion again"
     page = (FRONTEND / "src/components/console/ticket-page.tsx").read_text(encoding="utf-8")
-    assert "<TicketTalk />" in page, "a ticket's page no longer holds its discussion"
+    assert "<TicketTalk " in page, "a ticket's page no longer holds its discussion"
     app = (FRONTEND / "src/App.tsx").read_text(encoding="utf-8")
     assert "TalkDrawer" in app, "nothing opens the discussion"
     assert "ConsolePane" not in app, "the console has a column of its own again"
@@ -17821,6 +17821,25 @@ def a_ticket_too_big_offers_its_sub_tickets_as_a_split():
     offered = decisions.unblocking(found)
     assert [solution.key for solution in offered] == ["split", "instruct", "abandon", "other"]
     assert offered[0].text == "The API\nThe page" and offered[0].column == "done"
+
+
+@case
+def a_question_that_proposes_to_close_the_ticket_offers_to_close_it_at_once():
+    """A duplicate, nothing to do: "yes, close it" files it as done, no session to say so."""
+    from ponos import decisions, question
+
+    said = voice.Voice("fr")
+    for ask in ("C'est un doublon de #12 : je le clos ?", "Nothing to do here — close it?"):
+        found = decisions.Blockage(category="question", question=question.Question(ask=ask, mode="yes-no"))
+        offered = decisions.unblocking(found)
+        assert [solution.key for solution in offered][:3] == ["yes", "close", "answer"], ask
+        assert offered[1].column == "done" and offered[1].needs == ""
+    told = decisions.told(said, decisions.Solution("close", "done"))
+    assert told == ["Décision : oui, clos-le — passé en terminé.", said.say("told-close")]
+    work = decisions.Blockage(question=question.Question(ask="Which header?", mode="choice", options=["A", "B"]))
+    assert "close" not in [solution.key for solution in decisions.unblocking(work)]
+    free = decisions.Blockage(question=question.Question(ask="Close which one?", mode="free"))
+    assert "close" not in [solution.key for solution in decisions.unblocking(free)], "a free answer is words"
 
 
 @case

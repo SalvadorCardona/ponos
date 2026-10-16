@@ -2365,28 +2365,33 @@ one unread per ticket and kind), the console reads them off the same stream as t
 notification read more than thirty days ago is purged.
 
 **Unblock and Decide.** A *Blocked* card carries one button, **Unblock** — no *answer* or
-*make ready* beside it: the tab it opens chooses for you — and a card *In
-review* a **Decide** one; both open the ticket's window on a tab of that name, beside *Brief*,
-*Discussion* and *Live*, there only while the ticket waits on you. The same button on the ticket
-itself switches to it, and on its page the tab is in the address (`&tab=unblock`,
-`&tab=decide`), so a link opens on it. Once a choice is sent the tab goes and the ticket shows
-its discussion — its session, when one starts. Unblock says why the ticket stopped, in one sentence and under its
-kind — a decision to make, missing access, something to do by hand, out of credit, failing
-checks, a conflict, too big for one ticket — then what is done and what is missing, and the
-few choices that would get it moving: the options the session proposed, *answer the
-question* (open already, under the question, when the session asked one), *it's done, run it
-again*, *run it again on another model*, *split into sub-tickets* (drafts in the same
-project, the parent filed away), *abandon* — the pull request or the base's CI a link
-away when that is where it stopped — and always under them a field for an instruction of
-your own (“drop that part, only do X”), with a quiet *run it again without changes* where
-no choice above already does that. Decide shows the session's sentence,
+*make ready* beside it — and a card *In review* a **Decide** one. Unblock opens the ticket's
+window on its *Discussion*, marked with a question mark and scrolled to the end; Decide on a
+tab of that name, beside *Brief*, *Discussion* and *Live*, there only while the ticket is in
+review. The same button on the ticket itself switches to it, and on its page the tab is in the
+address (`&tab=discussion`, `&tab=decide` — an old `&tab=unblock` link opens the discussion).
+In the discussion, the report the session stopped on is drawn once, as Ponos speaking: what is
+done, why it stops, and the question in bold. Under it, quick replies, each a click that
+answers and runs the ticket again: *Yes* and *No* for a yes-no question, one per option —
+in full, never cut — for a choice, *Yes, close it* when the session proposes to close the
+ticket (a duplicate, nothing to do), which files it as *Done* with a comment, and always *Run
+it again as it is*. One field under them takes an answer or an instruction alike (Enter or
+Ctrl+Enter sends), with the model to run it on next beside it on a board with a *Model*
+column; *Run it again as it is*, *Abandon* — confirmed first — and *See the session* are behind
+the ⋯ of the discussion. Once something is sent, Ponos is shown at work under it — the robot
+of the *Live* tab, *Ponos is working…* — until it says something back, or the session fails,
+which is said in its place; the quick replies wait meanwhile. The run's lines in passing —
+*Model chosen automatically*, a session that committed nothing — are one small grey line
+across the discussion, not a bubble nor a red badge. Decide shows the session's sentence,
 the pull request, its checks as GitHub says them now, and the points the session said it
 could not check; then *validate*, *send back with an instruction* — ready-made for red checks,
 missing tests, screenshots, a rebase, or any of those points — or *reject*. Each choice writes
 one comment — *Answered from the console. Decision: run it again on opus.* and the words you
 typed — which the next session reads as yours, then moves the ticket: to *Ready* to work
 again, *Validated* to merge, *Done* — or *Cancelled*, on a board that has that column — to
-file it away.
+file it away. The MCP server's `list_solutions` still lists every choice a blocked ticket
+offers — *it's done, run it again*, *split into sub-tickets* and the rest — for an assistant
+to pick from.
 
 All of it is read off the report the runner already writes. A session that stops names the
 kind of thing it stopped on (a `CATEGORY:` line beside `WHY:` and `QUESTION:`), which the
@@ -3073,7 +3078,7 @@ back is a task, a project, an idea, an amount — never a page or a property.
 | `list_ideas` | Idées | read | the ideas of a project, or of the workspace, by state, each with its score and why |
 | `create_task` | Créer une tâche | write | a task, *draft* or *ready*, with its description, project, type and priority — through the console's *New ticket*, so the same rules as any other |
 | `answer_question` | Répondre à une tâche bloquée | write | an answer under a blocked task's question, as the console's discussion writes it; `ready: true` also moves it back to *ready* |
-| `list_solutions` | Solutions d'une tâche en attente | read | why a blocked task stopped (its kind, its reason, what is done) or what a task in review delivered (sentence, pull request, checks, points to check), and the choices the console's Unblock and Decide tabs offer |
+| `list_solutions` | Solutions d'une tâche en attente | read | why a blocked task stopped (its kind, its reason, what is done) or what a task in review delivered (sentence, pull request, checks, points to check), and the choices the console offers on a blocked ticket's discussion and its Decide tab |
 | `apply_solution` | Appliquer une solution | write | one of those choices: the decision and its instruction in the task's discussion, then the move — *ready*, *validated* or *done* |
 | `create_idea` | Proposer une idée | write | an idea among the proposed ones, to be kept or thrown away |
 | `set_idea_state` | Garder ou jeter une idée | write | `keep` (for later, nothing on the board), `ticket` (a draft, as swiping right in the pile does), `discard`, or `new` to propose it again |

@@ -1,4 +1,4 @@
-/* What the Unblock and Decide tabs decide, without a DOM to decide it in.
+/* What the Decide tab and a blocked ticket's discussion decide, without a DOM to decide it in.
  *
  * The server says what a card offers (`decisions.py`): a key, the column it
  * moves the ticket to, and what it needs before it can be done. What a button
@@ -34,6 +34,7 @@ export const CATEGORIES: Record<string, string> = {
 /** The button for each offer. An option is called by its own words instead. */
 export const LABELS: Record<string, string> = {
   yes: "Yes, go ahead",
+  close: "Yes, close it",
   answer: "Answer the question",
   "done-retry": "It's done, run it again",
   retry: "Run it again",
@@ -108,30 +109,6 @@ export function tone(offer: Offer, index: number): "default" | "outline" {
   return index === 0 && offer.key !== "other" && !away(offer) ? "default" : "outline"
 }
 
-/* A blocked ticket's tab is laid out rather than listed. Writing an
- * instruction is not one choice among others but a field that is always
- * there — "drop that part, only do X" fits every kind of stop — so the two
- * offers that open one ("instruct", "other") are not drawn as buttons. */
-const WRITTEN = ["instruct", "other"]
-
-/** The offers drawn as buttons: on a blocked ticket, all but the instruction, which has its field. */
-export const buttonsOf = <T extends Offer>(column: string, offers: T[]): T[] =>
-  column === "blocked" ? offers.filter((offer) => !WRITTEN.includes(offer.key)) : offers
-
-/** The offer the always-open field of a blocked ticket sends: an instruction, or "other" where there is none. */
-export const instructionOf = <T extends Offer>(column: string, offers: T[]): T | null =>
-  column !== "blocked"
-    ? null
-    : (WRITTEN.map((key) => offers.find((offer) => offer.key === key)).find(Boolean) ?? null)
-
-/** The offer whose field opens with the tab: a question's answer, which is what it waits for. */
-export const openedWith = <T extends Offer>(column: string, offers: T[]): T | null =>
-  column === "blocked" ? (offers.find((offer) => offer.key === "answer") ?? null) : null
-
-/** Whether the tab adds a quiet "run it again without changes": only where no offer already does that. */
-export const plainRetry = (column: string, offers: Offer[]): boolean =>
-  column === "blocked" && !offers.some((offer) => offer.key === "retry")
-
 /* Where the CI of a pull request's repository is read: its Actions page, from
  * the pull request's own address. */
 export function actionsOf(pullRequest: string): string {
@@ -143,14 +120,73 @@ export function actionsOf(pullRequest: string): string {
 export const actionOf = (column: string): string | null =>
   column === "blocked" ? "Unblock" : column === "review" ? "Decide" : null
 
-/* The call to action is a tab of the ticket's window, and of its page, named
- * in the address like the others (`&tab=unblock`): a link to a blocked ticket
- * opens on what unblocks it. */
-export type DecisionTab = "unblock" | "decide"
+/* The call to action opens a tab of the ticket's window, and of its page,
+ * named in the address like the others: a blocked ticket's discussion, where
+ * its question is answered — there is no tab of its own for unblocking any
+ * more, and `&tab=unblock`, from a link written before, reads as the
+ * discussion — or the Decide tab of one in review. */
+export type DecisionTab = "discussion" | "decide"
 
-/** The tab a ticket waiting on you has for it, in the column it is in — none on any other. */
+/** The tab a ticket waiting on you opens on, in the column it is in — none on any other. */
 export const decisionTabOf = (column: string): DecisionTab | null =>
-  column === "blocked" ? "unblock" : column === "review" ? "decide" : null
+  column === "blocked" ? "discussion" : column === "review" ? "decide" : null
+
+/* -- a blocked ticket's discussion ------------------------------------------ */
+
+/* The question a run stopped on is answered where it was asked: in the
+ * discussion, by a sentence typed under it or by one of the quick replies drawn
+ * under its bubble — each a click that answers and runs the ticket again, the
+ * way the same words typed would. A yes-no question is a yes and a no; a choice,
+ * one reply per option, in its own words; one that proposes to close the ticket,
+ * "yes, close it" in place of the yes, which files it as done; and always
+ * running it again as it is. */
+
+/** One quick reply: the offer it sends, and the words it sends with it — or the plain move back to Ready. */
+export interface Reply<T extends Offer> {
+  label: string
+  offer?: T
+  /** The answer it gives, before translation: the "No" of a yes-no question. */
+  text?: string
+}
+
+/** The quick replies under a blocked ticket's question, in the order they are drawn. */
+export function repliesOf<T extends Offer>(column: string, offers: T[]): Reply<T>[] {
+  if (column !== "blocked") return []
+  const find = (key: string) => offers.find((offer) => offer.key === key)
+  const replies: Reply<T>[] = []
+  const yes = find("yes")
+  const close = find("close")
+  const answer = find("answer")
+  if (close) replies.push({ label: LABELS.close, offer: close })
+  else if (yes) replies.push({ label: "Yes", offer: yes })
+  if (yes && answer) replies.push({ label: "No", offer: answer, text: "No" })
+  for (const option of offers.filter((offer) => offer.key === "option"))
+    replies.push({ label: option.text, offer: option })
+  replies.push({ label: "Run it again as it is", offer: find("retry") })
+  return replies
+}
+
+/** The offer a sentence typed under a blocked ticket's question sends: its answer, or an instruction. */
+export const typedOf = <T extends Offer>(offers: T[]): T | null =>
+  offers.find((offer) => offer.key === "answer") ?? offers.find((offer) => offer.key === "other") ?? null
+
+/* What a run says on a ticket that is not a report of what it did: the model
+ * it chose, the class it gave, the queue it went back to, a pause. A line in
+ * passing, drawn small and grey across the discussion rather than as a bubble
+ * of Ponos's — the marks are `voice.MARKS`. */
+const QUIET = ["🧠", "🏷️", "↩️", "⏸️"]
+
+/** Whether a message is one of the run's lines in passing, rather than something it says to you. */
+export const quiet = (role: string, text: string): boolean =>
+  role === "runner" && QUIET.some((mark) => text.trimStart().startsWith(mark))
+
+/** How many times Ponos has spoken to you in a discussion: its lines in passing do not count. */
+export const answersIn = (messages: { role: string; text: string }[]): number =>
+  messages.filter((message) => message.role === "runner" && !quiet(message.role, message.text)).length
+
+/** Where the last question a run stopped on is, in a discussion — -1 when there is none. */
+export const askedAt = (messages: { role: string; text: string }[]): number =>
+  messages.findLastIndex((message) => message.role === "runner" && message.text.trimStart().startsWith("🙋"))
 
 /** The words a pull request's checks are summed up in. */
 export const CHECKS: Record<string, string> = {

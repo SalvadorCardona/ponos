@@ -65,16 +65,17 @@ GESTURES = {
     "0000000000000000000000000000c0de": ("A ticket to give up", "Ready"),
     "0000000000000000000000000000c0ff": ("A ticket given up", "Cancelled"),
 }
-# Cards waiting on you, for the Unblock and Decide tabs: blocked on a report
-# that names its kind of stop — one to read, and one for each gesture that moves
-# it — and one in review whose report says what to check. No project, so no
-# count moves.
+# Cards waiting on you, for a blocked ticket's discussion and the Decide tab:
+# blocked on a report that names its kind of stop — one to read, and one for
+# each gesture that moves it, one of them proposing to close the ticket — and
+# one in review whose report says what to check. No project, so no count moves.
 WAITING = {
     "00000000000000000000000000b10c01": ("Install Tailscale on the server", "Blocked", "blocked"),
     "00000000000000000000000000b10c02": ("Choose the host", "Blocked", "blocked"),
-    "00000000000000000000000000b10c03": ("Open the firewall", "Blocked", "blocked"),
+    "00000000000000000000000000b10c03": ("Close the duplicate", "Blocked", "blocked"),
     "00000000000000000000000000b10c04": ("Move the old backups", "Blocked", "blocked"),
     "00000000000000000000000000b10c05": ("Renew the certificate", "Blocked", "blocked"),
+    "00000000000000000000000000b10c06": ("Pick the header", "Blocked", "blocked"),
     "00000000000000000000000000de1c01": ("Add the share button", "In review", "review"),
 }
 # Pull requests in review, and what the runner last read of their checks: one
@@ -106,6 +107,13 @@ STUCK = (
     "Which way do you prefer?\n"
     "1. Give me an SSH key · 2. Install it yourself and tell me"
 )
+# The one card whose session proposes to close it rather than to work on it.
+CLOSING = (
+    "🙋 Stuck — nothing done\n"
+    "A decision to make: the same change was merged last week\n"
+    "It is a duplicate of “Open the firewall”: close it? → yes / no"
+)
+REPORTS = {"00000000000000000000000000b10c03": CLOSING}
 DELIVERED = (
     "✅ To review — PR #12 · 3 commits · 9 minutes\n"
     "Adds a share button under each article.\n"
@@ -194,7 +202,7 @@ def board(root: Path, doomed: bool = False) -> None:
         said = {"id": f"r{id[-4:]}", "at": "2026-10-01T10:00:00+00:00", "by": "ponos",
                 "discussion": f"r{id[-4:]}"}
         (comments / f"{id}.md").write_text(
-            files.render(said, STUCK if column == "blocked" else DELIVERED), encoding="utf-8"
+            files.render(said, REPORTS.get(id, STUCK) if column == "blocked" else DELIVERED), encoding="utf-8"
         )
     id, title, model = STARTING
     page = {"id": id, "title": title, "Status": "In progress", "Model": model}
