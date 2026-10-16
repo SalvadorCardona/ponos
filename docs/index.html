@@ -90,12 +90,12 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet">
 <style>
   /* The landing page is the console's design system written without a build:
      the same tokens, and the same shapes as its shadcn components — button,
      badge, card, tabs — recopied as plain classes. */
-  :root { color-scheme: light; --wrap: 1120px; --radius-md: calc(var(--radius) - 2px); --radius-xl: calc(var(--radius) + 4px);
+  :root { color-scheme: light; --wrap: 1120px; --radius-md: calc(var(--radius) * 0.8); --radius-xl: calc(var(--radius) * 1.4);
     --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / .05); --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1); }
   .dark { color-scheme: dark; }
   *, *::before, *::after { box-sizing: border-box; border-color: var(--border); }
@@ -110,7 +110,7 @@
   a { color: inherit; }
   p a, li a, figcaption a { color: var(--primary); text-underline-offset: 3px; }
   code, kbd, pre { font-family: var(--mono); }
-  :not(pre) > code { font-size: .85em; background: var(--muted); border: 1px solid var(--border); padding: .1em .35em; border-radius: calc(var(--radius) - 4px); white-space: nowrap; }
+  :not(pre) > code { font-size: .85em; background: var(--muted); border: 1px solid var(--border); padding: .1em .35em; border-radius: calc(var(--radius) * 0.6); white-space: nowrap; }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -200,7 +200,7 @@
   /* -- sections -- */
   section { padding: 5.5rem 0 0; }
   .sec-head { max-width: 680px; margin-bottom: 2.25rem; }
-  h1, h2, h3 { letter-spacing: -.025em; font-weight: 700; }
+  h1, h2, h3 { font-family: var(--heading); letter-spacing: var(--heading-tracking); font-weight: var(--heading-weight); }
   h2 { font-size: clamp(1.875rem, 4vw, 2.5rem); line-height: 1.1; margin: .5rem 0 0; }
   .sec-head p { color: var(--muted-foreground); font-size: 1.0625rem; margin: .875rem 0 0; }
   .grid { display: grid; gap: 1rem; }
@@ -211,7 +211,7 @@
   .hero { padding-top: 4rem; }
   .hero-in { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 3rem; align-items: center; }
   @media (max-width: 900px) { .hero-in { grid-template-columns: minmax(0, 1fr); gap: 2.5rem; } }
-  h1 { font-size: clamp(2.75rem, 7vw, 4.75rem); line-height: 1; letter-spacing: -.04em; margin: 0; }
+  h1 { font-size: clamp(2.75rem, 7vw, 4.75rem); line-height: 1; margin: 0; }
   h1 span { color: var(--primary); display: block; }
   /* What it is, in one line, before what it does: read first, so a little
      louder than the paragraph under it. */

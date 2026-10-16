@@ -2777,8 +2777,10 @@ tests run one after another, and one for everything else, in parallel — a cons
 single conversation, and a turn left running there would be in every other test's way. Set
 `PONOS_E2E_PORT` to pin them (the chat takes the next port).
 
-**One set of tokens for the console and the site.** The colours of both themes, the two
-faces (DM Sans, JetBrains Mono), the radius, the `--tr-*` status colours and the chart
+**One set of tokens for the console and the site.** The colours of both themes —
+Hermez's, the design system in SalvadorCardona/brand-assets, on its stone greys and its
+orange —, the faces (Bricolage Grotesque for headings, the system's own for the rest), the
+radius, the `--tr-*` status colours and the chart
 series live in `frontend/src/tokens.css`, which `index.css` imports. The landing page has
 no build step, so it links `docs/tokens.css` — a copy that `npm run build` writes and that
 `tests/run.py` checks is still byte for byte the source. Change a colour in

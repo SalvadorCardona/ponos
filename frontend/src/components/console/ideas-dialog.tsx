@@ -277,7 +277,7 @@ export function IdeasDialog({
               {phase === "ready" && pile.length ? (
                 <p
                   data-slot="ideas-shortcuts"
-                  className="text-muted-foreground/70 hidden text-center text-xs sm:block"
+                  className="text-muted-foreground hidden text-center text-xs sm:block"
                 >
                   {t("← throw away · → keep · Ctrl/Cmd+Z undo")}
                 </p>

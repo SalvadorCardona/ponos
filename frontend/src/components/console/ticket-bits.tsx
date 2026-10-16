@@ -74,7 +74,7 @@ export const TONE: Record<string, string> = {
   review: "text-tr-violet",
   validated: "text-tr-pink",
   failed: "text-tr-red",
-  cancelled: "text-muted-foreground/70 line-through",
+  cancelled: "text-muted-foreground line-through",
 }
 
 /** The same colour again, as a dot — over a column, beside a status. Done

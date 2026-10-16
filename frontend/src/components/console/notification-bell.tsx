@@ -73,7 +73,7 @@ export function NotificationBell() {
                 <span
                   aria-hidden
                   data-testid="bell-badge"
-                  className="bg-tr-red absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[0.6rem] leading-none text-white"
+                  className="bg-tr-red absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[0.6rem] leading-none text-white dark:text-background"
                 >
                   {label}
                 </span>

@@ -6,6 +6,9 @@ import { StrictMode, Suspense, lazy } from "react"
 import { createRoot } from "react-dom/client"
 
 import App from "./App"
+// The headings' face, bundled with the console (see `tokens.css`): no request
+// to a font service. The text keeps the system's face.
+import "@fontsource-variable/bricolage-grotesque/index.css"
 import "./index.css"
 import { startServiceWorker } from "./lib/service-worker"
 

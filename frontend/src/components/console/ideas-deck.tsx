@@ -21,7 +21,7 @@ const IdeasDialog = React.lazy(() => import("./ideas-dialog").then((module) => (
 /** The dashboard's look for a button that starts something with Ponos: the one
  * every page shares, so that none of them has a style of its own. */
 export const ponosActionLook =
-  "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-primary/20 bg-primary/5 h-8 gap-1.5"
+  "border-primary/30 text-primary bg-card hover:bg-accent hover:text-primary dark:border-primary/30 dark:bg-primary/10 dark:hover:bg-primary/20 h-8 gap-1.5"
 
 export function IdeasButton({
   project = "",

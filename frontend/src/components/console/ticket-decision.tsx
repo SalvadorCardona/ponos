@@ -106,7 +106,7 @@ export function DecideButton({
       data-decide={ticket.id}
       title={title}
       className={cn(
-        blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white",
+        blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white dark:text-background",
         className
       )}
       onClick={(event) => (tabs ? tabs.goTo(tab) : openOnTheTab(event))}
