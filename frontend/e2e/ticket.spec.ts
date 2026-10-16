@@ -65,9 +65,8 @@ test("a ticket's page says its type, model and cost on its brief, and the other 
   await expect(page.getByText("Part 40")).toBeAttached()
 
   // Always there, even before anything ran: what it is, on what, for how much.
-  for (const label of ["type", "model", "spent", "priority", "created"])
-    await expect(page.getByText(label, { exact: true })).toBeVisible()
-  await expect(page.getByText("default", { exact: false }).first()).toBeVisible()
+  const summary = page.locator('[data-slot="ticket-summary"]')
+  await expect(summary.getByText("Ticket", { exact: true })).toBeVisible()
 
   // A ticket neither running nor waiting opens on its brief.
   const tabs = page.getByRole("tablist")
@@ -103,7 +102,7 @@ test("a ticket with sessions says the model the last one announced, as provider/
   // The column is empty: the model is the last session's own word, said short
   // and still a default, with the full identifier a hover away.
   const model = page.getByTitle("claude-opus-4-1-20250805")
-  await expect(model).toHaveText("claude/opus · default")
+  await expect(model).toHaveText("opus · default")
 })
 
 test("a ticket that waits on an answer shows the 15 minutes it worked and why the clock is stopped", async ({ page }) => {

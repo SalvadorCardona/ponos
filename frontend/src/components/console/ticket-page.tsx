@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useLocation, useRouter } from "@tanstack/react-router"
-import { ArrowLeft, CircleAlert, CopyIcon, MessageCircleQuestion, RotateCw } from "lucide-react"
+import { ArrowLeft, CircleAlert, CopyIcon, GitBranch, MessageCircleQuestion, RotateCw } from "lucide-react"
 import { ActionList } from "react-data-form"
 import { Link, useCurrentViewResourceContext } from "react-resource-view"
 import { toast } from "sonner"
@@ -25,9 +25,9 @@ import {
 } from "@/resources/tickets"
 
 import { EmptyState } from "./empty-state"
-import { Eyebrow, Fact, Facts } from "./frame"
+import { Eyebrow } from "./frame"
 import { Markdown } from "./markdown"
-import { MOOD, Robot } from "./robot"
+import { Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
 import { TicketDecision, TicketTabContext } from "./ticket-decision"
 import { TicketTalk } from "./ticket-talk"
@@ -35,6 +35,7 @@ import { TicketTime } from "./ticket-time"
 import { useTicketWindowTab } from "./ticket-window"
 import {
   SEED,
+  LABEL,
   columnTitle,
   TicketActions,
   TicketBlock,
@@ -55,11 +56,10 @@ import {
  * notes between, is read here from `/api/tickets/<id>`, once per opening (see
  * `readTicket`). Opening this page is also what loads the ticket's discussion.
  *
- * It opens the way the board's cards do and then says more: the column as a
- * banner, and the metadata as a ruled grid — because six facts in a row of pills is six pills, where six
- * facts in a grid is a thing you can read down.
+ * It opens the way the board's cards do and then says more: the column and the
+ * metadata, as one block of two columns — see `TicketSummary`.
  *
- * Under them, three tabs: the brief, with the facts that describe the ticket;
+ * Under them, three tabs: the brief;
  * the discussion; and the session. They were sections folded one under the
  * other for a while, all three on one page — and a running session, open at the
  * bottom of a long brief, was a page you scrolled to the end of every time it
@@ -74,7 +74,7 @@ import {
 export function TicketPage() {
   const context = useCurrentViewResourceContext()
   const page = context.data as TicketDetail | undefined
-  const { ticket: open, openTicket, board } = useConsole()
+  const { ticket: open, openTicket } = useConsole()
   const t = useT()
   const brief = useBrief(page)
   // Unblock, pressed on the ticket itself: a tab to switch to, under it.
@@ -95,33 +95,11 @@ export function TicketPage() {
   // The board, in the layout it was left in: coming back onto the cards, when
   // the table is what you were reading the board in, is losing your place.
   const back = boardHref()
-  const column = ticket
-    ? capital(columnTitle(ticket.column, board.columns.find((item) => item.key === ticket.column)?.name))
-    : ""
 
   return (
     <div>
       {ticket ? (
         <>
-          {/* The column, across the top: the one fact that decides what the
-              runner will do with this ticket next — and the robot in the
-              mood of it, moving here, where it is the only one on the
-              page, whatever the column. */}
-          <div className="bg-card mb-4 flex items-center gap-2 rounded-lg border px-3 py-2">
-            <Robot state={MOOD[ticket.column] ?? "sleep"} size={32} className="-my-1.5 shrink-0" />
-            {/* The column as the board heads it — its dot, its name with a
-                capital — rather than in its colour: a coloured word on its own
-                read as a link, and a lower-case one as a value leaked out of
-                Notion. */}
-            <span className={cn("size-1.5 shrink-0 rounded-full", SEED[ticket.column] ?? "bg-muted-foreground")} />
-            <span className="text-sm font-medium">{column}</span>
-            {ticket.progress ? (
-              <span className="text-muted-foreground min-w-0 truncate text-xs">
-                · {ticket.progress}
-              </span>
-            ) : null}
-          </div>
-
           {/* Why it stopped, as on its card: the gesture it proposes is
               among the actions below, the answer in the discussion. */}
           {ticket.block ? (
@@ -233,111 +211,151 @@ function useBrief(page: TicketDetail | undefined) {
   }
 }
 
-/* What the page says about the ticket, as a ruled grid.
+/* What the page says about the ticket, as one block of two columns.
  *
- * Six of them always: what kind of work it is, on what, at what price, are
- * the first three questions about any ticket, and a cell that came and went
- * with the run hid them exactly while one was going on. What the ticket does
- * not have yet says "—". The rest — how long it took, where it went, which
- * machine has it — is drawn when the ticket has it: a board made by hand has
- * no duration and no agent column, and a row of "—" said so on every ticket.
+ * Ticket on the left — what kind of work it is, on what, how urgent, where it
+ * stands — and Execution on the right: the pull request, what it cost, which
+ * model, which session. It was a ruled grid with a cell, and a label, for each
+ * of them, and the brief began a screen lower for it. What a ticket does not
+ * have yet says nothing at all rather than "—", so one that never ran draws
+ * the Ticket column alone, across the whole width.
  */
-function TicketFacts({ ticket }: { ticket: TicketDetail }) {
+function TicketSummary({ ticket, onSession }: { ticket: TicketDetail; onSession: () => void }) {
   const t = useT()
+  const { board } = useConsole()
   // Until the page's own read has said, a model written on the ticket is the one it has.
   const used =
     ticket.model_in_use ??
     (ticket.model ? { label: ticket.model_label ?? ticket.model, full: ticket.model, default: false } : undefined)
-  const none = <span className="text-muted-foreground">—</span>
   const created = ago(ticket.created)
   const pull = ticket.pull_request.match(/\/pull\/(\d+)/)?.[1]
+  // The board's word for the column is Notion's, often English ("Progress"):
+  // the console's own, in its language, where it has one.
+  const status = LABEL[ticket.column]
+    ? t(LABEL[ticket.column])
+    : capital(columnTitle(ticket.column, board.columns.find((item) => item.key === ticket.column)?.name))
+  const cost = typeof ticket.cost === "number" && ticket.cost ? money(ticket.cost) : ""
+  const took = typeof ticket.duration === "number" && ticket.duration ? lasted(ticket.duration) : ""
+  const executed = Boolean(
+    ticket.pull_request || cost || used?.label || ticket.session || ticket.worktime || took || ticket.runner
+  )
+  const sep = <span className="text-muted-foreground/60">·</span>
+  const line = "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
   return (
-    <Facts className="mt-4">
-      <Fact label={t("project")}>{ticket.project || t("no project — a document")}</Fact>
-      {/* As the board spells it: Code, Writing, External action, Publication. */}
-      <Fact label={t("type")}>{ticket.type || none}</Fact>
-      {/* A code ticket's sub-type, as the card wears it. */}
-      {ticket.subtype ? (
-        <Fact label={t("sub-type")}>
-          <TicketSubtype subtype={ticket.subtype} />
-        </Fact>
-      ) : null}
-      <Fact label={t("priority")}>{ticket.priority || none}</Fact>
-      {/* The column empty is not "no model": it is the one the session
-          announced, or the runner's, or Claude Code's own. The server says
-          which, as provider/model; the full identifier is the tooltip. */}
-      <Fact label={t("model")}>
-        {used?.label ? (
-          <span title={used.full}>
-            {used.label}
-            {used.default ? (
-              <span className="text-muted-foreground font-normal"> · {t("default")}</span>
+    <div
+      data-slot="ticket-summary"
+      className={cn(
+        "bg-card mt-4 grid rounded-xl border text-sm",
+        executed && "md:grid-cols-2 md:[&>*+*]:border-l [&>*+*]:border-t md:[&>*+*]:border-t-0"
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-1.5 px-3.5 py-3">
+        <Eyebrow>{t("Ticket")}</Eyebrow>
+        <div className={line}>
+          <span className="font-semibold">{ticket.project || t("no project — a document")}</span>
+          {ticket.type ? (
+            <>
+              {sep}
+              <span>{ticket.type}</span>
+            </>
+          ) : null}
+          {ticket.subtype ? <TicketSubtype subtype={ticket.subtype} /> : null}
+          {ticket.priority ? (
+            <>
+              {sep}
+              <span>{ticket.priority}</span>
+            </>
+          ) : null}
+        </div>
+        <div className={cn(line, "text-muted-foreground")}>
+          <span className="text-foreground inline-flex items-center gap-1.5">
+            <span className={cn("size-1.5 shrink-0 rounded-full", SEED[ticket.column] ?? "bg-muted-foreground")} />
+            {status}
+          </span>
+          {created ? (
+            <>
+              {sep}
+              <span>
+                {t("created")} {created}
+              </span>
+            </>
+          ) : null}
+          {ticket.scheduled ? (
+            <>
+              {sep}
+              <span>
+                {t("scheduled")} {when(ticket.scheduled)}
+              </span>
+            </>
+          ) : null}
+        </div>
+      </div>
+      {executed ? (
+        <div className="flex min-w-0 flex-col gap-1.5 px-3.5 py-3">
+          <Eyebrow>{t("Execution")}</Eyebrow>
+          <div className={line}>
+            {ticket.pull_request ? (
+              <a
+                href={ticket.pull_request}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+              >
+                <GitBranch className="size-3.5" />
+                {pull ? `PR #${pull}` : t("pull request")}
+              </a>
             ) : null}
-          </span>
-        ) : (
-          <span>
-            {t("Claude Code's default, unknown before the first session")}
-          </span>
-        )}
-      </Fact>
-      {/* Written on the ticket when its session ends: the stream a session
-          writes says what it cost only in its last line. */}
-      <Fact label={t("spent")}>
-        {typeof ticket.cost === "number" && ticket.cost ? money(ticket.cost) : none}
-      </Fact>
-      {/* The runs' time with the clock stopped while it waited — not the
-          time since it was made, which holds the queue and the review. */}
-      <Fact label={t("time")}>
-        <TicketTime time={ticket.worktime} />
-      </Fact>
-      <Fact label={t("created")}>{created || none}</Fact>
-      {/* What the run cost in time, next to what it cost in money — from
-          the board's column, or from the session's log where the board
-          has none (see `Api.ticket`). */}
-      {typeof ticket.duration === "number" && ticket.duration ? (
-        <Fact label={t("took")}>{lasted(ticket.duration)}</Fact>
+            {cost ? <span>{cost}</span> : null}
+            {/* The column empty is not "no model": it is the one the session
+                announced, or the runner's, or Claude Code's own. The server
+                says which, as provider/model; the full identifier is the tooltip. */}
+            {used?.label ? (
+              <span title={used.full}>
+                {used.label.replace(/^claude\//, "")}
+                {used.default ? (
+                  <span className="text-muted-foreground font-normal"> · {t("default")}</span>
+                ) : null}
+              </span>
+            ) : null}
+            {/* The runs' time with the clock stopped while it waited — not the
+                time since it was made, which holds the queue and the review. */}
+            {ticket.worktime ? <TicketTime time={ticket.worktime} /> : null}
+            {took ? <span className="text-muted-foreground">{took}</span> : null}
+          </div>
+          {ticket.session || ticket.runner ? (
+            <div className={cn(line, "text-muted-foreground")}>
+              {ticket.session ? (
+                <span className="inline-flex items-center gap-1.5">
+                  {t("session")}
+                  <button
+                    type="button"
+                    onClick={onSession}
+                    className="text-foreground cursor-pointer font-mono text-xs underline-offset-2 hover:underline"
+                    title={ticket.session}
+                  >
+                    {ticket.session.slice(0, 8)}
+                  </button>
+                </span>
+              ) : null}
+              {/* Which machine has it, for the days two of them share a board
+                  — and the other half of the answer to "why has nothing
+                  happened": nobody claimed it. */}
+              {ticket.runner ? (
+                <>
+                  {ticket.session ? sep : null}
+                  <span>
+                    {t("taken by")}{" "}
+                    <span className="font-mono text-xs" title={ticket.runner}>
+                      {ticket.runner}
+                    </span>
+                  </span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : null}
-      {ticket.pull_request ? (
-        <Fact label={t("pull request")}>
-          <a
-            href={ticket.pull_request}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-2 hover:underline"
-          >
-            {pull ? `#${pull}` : ticket.pull_request}
-          </a>
-        </Fact>
-      ) : null}
-      {ticket.session ? (
-        <Fact label={t("session")}>
-          {ticket.session_link ? (
-            <a
-              href={ticket.session_link}
-              className="font-mono text-xs underline-offset-2 hover:underline"
-              title={ticket.session}
-            >
-              {ticket.session.slice(0, 8)}
-            </a>
-          ) : (
-            <span className="font-mono text-xs" title={ticket.session}>
-              {ticket.session.slice(0, 8)}
-            </span>
-          )}
-        </Fact>
-      ) : null}
-      {ticket.scheduled ? <Fact label={t("scheduled")}>{when(ticket.scheduled)}</Fact> : null}
-      {/* Which machine has it, for the days two of them share a board
-          — and the other half of the answer to "why has nothing
-          happened": nobody claimed it. */}
-      {ticket.runner ? (
-        <Fact label={t("taken by")}>
-          <span className="font-mono text-xs" title={ticket.runner}>
-            {ticket.runner}
-          </span>
-        </Fact>
-      ) : null}
-    </Facts>
+    </div>
   )
 }
 
@@ -366,7 +384,7 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
  * its discussion — its session, when one starts: that is what comes next.
  *
  * The status, the actions and the session's whereabouts stay above the tabs,
- * on every one of them; the facts that describe the ticket are the brief's.
+ * on every one of them, the block of facts first.
  * `talking` says the discussion held is this ticket's, and not still the last
  * one's.
  */
@@ -469,20 +487,31 @@ function TicketTabs({
   const count = talking ? talk.filter((message) => message.role !== "error").length : 0
 
   return (
+    <>
+    <TicketSummary
+      ticket={{ ...ticket, model_in_use: brief.model }}
+      onSession={() => show("live", true)}
+    />
     <Tabs
       value={tab}
       onValueChange={(value) => {
         if (isTab(value)) show(value, true)
       }}
-      className="mt-6 gap-4"
+      className="mt-4 gap-4"
     >
       {/* The whole width on a phone, three equal thirds: a tab list sized to
           its words leaves the third one to be scrolled to. */}
-      <TabsList className="w-full sm:w-fit">
-        <TabsTrigger value="brief" data-slot="ticket-brief-tab">
+      <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-transparent p-0 sm:w-fit">
+        <TabsTrigger
+          value="brief" data-slot="ticket-brief-tab"
+          className="data-[state=active]:border-b-primary -mb-px h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+        >
           {t("Brief")}
         </TabsTrigger>
-        <TabsTrigger value="discussion" data-slot="ticket-talk-tab">
+        <TabsTrigger
+          value="discussion" data-slot="ticket-talk-tab"
+          className="data-[state=active]:border-b-primary -mb-px h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+        >
           {t("Discussion")}
           {waiting ? (
             <MessageCircleQuestion
@@ -497,7 +526,10 @@ function TicketTabs({
             </span>
           ) : null}
         </TabsTrigger>
-        <TabsTrigger value="live" data-slot="ticket-live-tab">
+        <TabsTrigger
+          value="live" data-slot="ticket-live-tab"
+          className="data-[state=active]:border-b-primary -mb-px h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+        >
           {t("Live")}
           {running ? (
             <>
@@ -507,7 +539,10 @@ function TicketTabs({
           ) : null}
         </TabsTrigger>
         {deciding && action ? (
-          <TabsTrigger value={deciding} data-slot="ticket-decide-tab">
+          <TabsTrigger
+          value={deciding} data-slot="ticket-decide-tab"
+          className="data-[state=active]:border-b-primary -mb-px h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+        >
             {t(action)}
             <CircleAlert
               data-slot="ticket-decide-badge"
@@ -519,10 +554,8 @@ function TicketTabs({
       </TabsList>
 
       <TabsContent value="brief">
-        <TicketFacts ticket={{ ...ticket, model_in_use: brief.model }} />
-        <section className="mt-6">
-          <Eyebrow>{t("the brief")}</Eyebrow>
-          <div className="mt-2">
+        <section>
+          <div>
             {brief.content === undefined ? (
               brief.problem !== undefined ? (
                 <EmptyState
@@ -566,6 +599,7 @@ function TicketTabs({
         </TabsContent>
       ) : null}
     </Tabs>
+    </>
   )
 }
 
