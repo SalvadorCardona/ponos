@@ -130,6 +130,20 @@
   :root { color-scheme: light; }
   .dark { color-scheme: dark; }
 
+  /* Tailwind 4's preflight no longer gives `<button>` the hand, so what can be
+     clicked says so here, once, and what cannot says no. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for],
+  select {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   /* How tall the bar along the bottom of a phone is — the package's, drawn
      under the admin layout's own line between a phone and the rest. What
      floats over the page's bottom edge (the discussion's bubble, a section's
