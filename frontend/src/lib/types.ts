@@ -7,6 +7,7 @@
  */
 
 import type { UpgradePhase } from "./upgrade"
+import type { WorkTime } from "./worktime"
 
 export type ColumnKey =
   | "draft"
@@ -65,6 +66,8 @@ export interface Ticket {
   ci?: Ci | null
   /** A code ticket's sub-type, by its key — `bug`, `docs` — or empty: see `subtypes.py`. */
   subtype?: string
+  /** How long Ponos worked on it, the clock stopped while it waited — null when no run was made: see `worktime.py`. */
+  worktime?: WorkTime | null
 }
 
 /** One sub-type of a code ticket, whole, as the board sends the table of them. */

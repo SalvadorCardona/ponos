@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DecideButton } from "@/components/console/ticket-decision"
+import { CardTime, hasCardTime } from "@/components/console/ticket-time"
 import { moveWithToast as move } from "@/hooks/use-console"
 import { currentBoard, titleOf, useBoard } from "@/lib/board-store"
 import { actionsOf } from "@/lib/decision"
@@ -467,6 +468,11 @@ export function TicketFoot({ ticket }: { ticket: Ticket }) {
           </span>
         ) : null}
       </span>
+      {/* 12 min · $0.64: the work beside what it cost, the quieter of the two. */}
+      <CardTime time={ticket.worktime} />
+      {hasCardTime(ticket.worktime) && typeof ticket.cost === "number" && ticket.cost ? (
+        <span className="text-muted-foreground">·</span>
+      ) : null}
       {typeof ticket.cost === "number" && ticket.cost ? (
         <span className="tabular-nums">{money(ticket.cost)}</span>
       ) : null}

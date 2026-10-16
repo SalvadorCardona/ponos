@@ -24,6 +24,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   `Next` is not touched, so the planned occurrence still happens. It works on a paused schedule too,
   without turning it on, and the button spins while it runs so a double click makes one ticket. A
   failure is shown in the toast.
+- A ticket says how long Ponos worked on it. The Brief has a « Time » cell next
+  to « Spent » — 12 min 30 s, 1 h 05 — that counts live while a session works,
+  shows ⏸ and the reason when the ticket waits on your answer, is blocked or
+  waits for credit, and opens on the working time, the time on hold and the
+  number of sessions. Review and the wait in Ready are not counted. The card
+  wears it beside the cost (12 min · $0.64). It is read from the runs the
+  journal already keeps, so it survives a restart, and tickets from before it
+  have theirs; a ticket with no run says « — » rather than a wrong figure.
 - **A code ticket says what kind of change it is: Bug, Feature, Amélioration, Chore, Refactor,
   Perf, Docs or Sécurité.** A `Sous-type` select on the board (`ponos init` adds it, `ponos doctor`
   asks for it), ignored on the other types. Empty, the runner fills it before the ticket runs: from

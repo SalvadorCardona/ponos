@@ -31,6 +31,7 @@ import { MOOD, Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
 import { TicketDecision, TicketTabContext } from "./ticket-decision"
 import { TicketTalk } from "./ticket-talk"
+import { TicketTime } from "./ticket-time"
 import { useTicketWindowTab } from "./ticket-window"
 import {
   SEED,
@@ -283,6 +284,11 @@ function TicketFacts({ ticket }: { ticket: TicketDetail }) {
           writes says what it cost only in its last line. */}
       <Fact label={t("spent")}>
         {typeof ticket.cost === "number" && ticket.cost ? money(ticket.cost) : none}
+      </Fact>
+      {/* The runs' time with the clock stopped while it waited — not the
+          time since it was made, which holds the queue and the review. */}
+      <Fact label={t("time")}>
+        <TicketTime time={ticket.worktime} />
       </Fact>
       <Fact label={t("created")}>{created || none}</Fact>
       {/* What the run cost in time, next to what it cost in money — from

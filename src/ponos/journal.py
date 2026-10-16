@@ -225,6 +225,35 @@ def runs(ticket: str = "", limit: int = 50) -> list[dict]:
         return [_run(row, names) for row in cursor.fetchall()]
 
 
+def spans(ticket: str = "") -> dict[str, list[dict]]:
+    """{ticket: its runs as intervals} — one ticket's, or every ticket's — for worktime.py.
+
+    A run still open carries the moment of its last step as `last`, which is
+    all that is known of it if the runner was killed. Empty when the journal
+    cannot be read: a card without its time is still a card.
+    """
+    key = _ticket_key(ticket) if ticket else ""
+    query = (
+        "SELECT runs.ticket, runs.started_at, runs.ended_at, runs.status, runs.code,"
+        " CASE WHEN runs.ended_at IS NULL THEN"
+        " (SELECT max(steps.at) FROM steps WHERE steps.run = runs.id) END FROM runs"
+    )
+    try:
+        with db.transaction(immediate=False) as connection:
+            rows = connection.execute(
+                query + (" WHERE runs.ticket = ? OR substr(runs.ticket, -8) = ?" if key else ""),
+                (key, key[-8:]) if key else (),
+            ).fetchall()
+    except _FAILURES:
+        return {}
+    found: dict[str, list[dict]] = {}
+    for ticket_id, start, end, status, code, last in rows:
+        found.setdefault(ticket_id, []).append(
+            {"start": start, "end": end, "status": status, "code": code or "", "last": last or start}
+        )
+    return found
+
+
 def chosen(ticket: str) -> dict | None:
     """The last run of a ticket whose model the runner chose, and how it ended.
 
