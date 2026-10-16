@@ -79,43 +79,61 @@ export function tally(steps: readonly StepLike[]): { steps: number; errors: numb
   return { steps: count, errors }
 }
 
-/** The name of a step, in a few words and in the active voice: "Reads src/ui/hud.ts".
+/** Commands that run the tests, wherever in the line they stand. */
+const RUNS_TESTS =
+  /\b(?:pytest|jest|vitest|playwright|go test|cargo test|npm (?:run )?test\b|tests\/(?:run|functional)\.py)/
+/** A word standing where a command would: first, or after `;`, `&&`, `|`, `(` — not in the middle of a path. */
+const command = (word: string) => new RegExp(`(?:^|[;&|(]\\s*)(?:timeout \\d+ )?${word}`)
+const BOARD = command("ponos\\s+schedules?\\b")
+const PONOS = command("ponos\\b")
+const LOOKS = /\b(?:ls|cat|head|tail|grep|rg|find|sed|wc|tree|stat|file)\s/
+const INSTALLS = /\b(?:npm|pnpm|yarn|pip3?|apt(?:-get)?|brew)\s+(?:ci|install|add)\b/
+const BUILDS = /\b(?:npm|pnpm|yarn)\s+run\s+(?:build|lint)\b|\btsc\b/
+
+/** A shell command, said for somebody who has never opened a terminal. */
+function describe(detail: string): Doing {
+  if (/\bgit\s+(?:commit|push)\b/.test(detail)) return { key: "I save and send the changes" }
+  if (RUNS_TESTS.test(detail)) return { key: "I check that everything works" }
+  if (BOARD.test(detail)) return { key: "I look at the scheduled tasks" }
+  if (PONOS.test(detail)) return { key: "I look at the board" }
+  if (/\bgit\b/.test(detail)) return { key: "I look at the project’s history" }
+  if (INSTALLS.test(detail)) return { key: "I install what the project needs" }
+  if (BUILDS.test(detail)) return { key: "I check that the project builds" }
+  if (LOOKS.test(detail)) return { key: "I look through the project’s files" }
+  return { key: "I work on the project" }
+}
+
+/** The title of a step, in the first person and in words anybody follows: "I read the project’s code".
  *
- * Read off the tool and what it was pointed at, nothing else. It is the sentence
- * a step is listed by and, while it runs, the one under the avatar — the whole
- * of it: cutting it to the width it has is the page's business, so that the
- * full text is still there to hover.
+ * Read off the tool and, for a command, the kind of command it is — never the
+ * command, nor a path, nor a tool's own name: those are the card's body, one
+ * click down. What it does not recognise is "I work on the project", which is
+ * true of everything. It is the line a step is listed by and, while it runs,
+ * the one under the avatar.
  */
 export function named(step: StepLike): Doing {
-  const detail = step.detail.trim()
   switch (step.label) {
     case "Read":
-      return detail ? { key: "Reads {{name}}", params: { name: detail } } : { key: "Reads a file" }
+      return { key: "I read the project’s code" }
     case "Edit":
-      return detail ? { key: "Edits {{name}}", params: { name: detail } } : { key: "Edits a file" }
+      return { key: "I edit the project’s files" }
     case "Write":
-      return detail ? { key: "Writes {{name}}", params: { name: detail } } : { key: "Writes a file" }
+      return { key: "I write a file" }
     case "Search":
-      return detail
-        ? { key: "Searches “{{query}}” in the project", params: { query: detail } }
-        : { key: "Searches the project" }
+      return { key: "I search the project’s code" }
     case "Web":
-      return detail
-        ? { key: "Looks up {{query}} on the web", params: { query: detail } }
-        : { key: "Looks something up on the web" }
+      return { key: "I look for information on the web" }
     case "Sub-agent":
-      return detail
-        ? { key: "Hands “{{task}}” to a helper", params: { task: detail } }
-        : { key: "Hands part of it to a helper" }
+      return { key: "I hand part of the work to a helper" }
     case "Plan":
-      return { key: "Plans the work" }
+      return { key: "I plan the work" }
     case "Error":
-      return { key: "Error" }
+      return { key: "Something went wrong" }
     case "Bash":
     case "Command":
-      return detail ? { key: "Runs {{command}}", params: { command: detail } } : { key: "Runs a command" }
+      return describe(step.detail)
     default:
-      return { key: "Uses {{tool}}: {{detail}}", params: { tool: step.label, detail } }
+      return { key: "I work on the project" }
   }
 }
 

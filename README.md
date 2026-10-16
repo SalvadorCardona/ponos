@@ -2504,11 +2504,15 @@ the old one stays resumable by its identifier.
 
 **While it answers**, the conversation shows Ponos thinking — the flame swaying, the eyes
 searching — and one line about what the session is on, said in words rather than in tool
-names (*reading api.py…*, *running the tests…*, *fixing an error…*), with the time spent.
+names (*I read the project's code*, *I check that everything works*), with the time spent.
 Under `prefers-reduced-motion` Ponos holds still and the line says it all. The steps
-themselves — every Bash, every Traceback — are folded under *Show the steps*, closed by
-default, during the turn and after it: once answered, the fold's line says how many steps,
-how long and what it cost, and a red dot counts the ones that failed, without opening it.
+appear under it one by one, as a vertical timeline of cards, and stay after the turn: each
+card is titled in plain language, in the console's language — never a shell command or a
+tool's name, whatever it is not sure of being *I work on the project* — with a mark for
+going on, done or failed. Cards start closed; opening one shows the exact detail (the
+command as typed, what the tool answered when it failed), and *Expand all* / *Collapse
+all* does it for the lot. A line above the cards says how many steps, how long and what it
+cost, and a red dot counts the ones that failed, without opening anything.
 
 **Stop.** While a turn runs, the arrow of the bar becomes a square: a click — or Escape,
 from an empty field — ends the session's whole process group, the command it was running
