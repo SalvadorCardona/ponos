@@ -16,6 +16,8 @@ import type {
   IdeaList,
   Ideas,
   LogEntry,
+  ChatModels,
+  ChatSession,
   ChatState,
   Context,
   Message,
@@ -236,6 +238,16 @@ export const api = {
       audio
     ),
   resetChat: () => request<unknown>("/api/chat/reset", {}),
+  sessions: (query = "") =>
+    request<{ sessions: ChatSession[] }>(`/api/chat/sessions?q=${encodeURIComponent(query)}`),
+  openSession: (id: string) => request<ChatState>(`/api/chat/sessions/${id}/open`, {}),
+  renameSession: (id: string, title: string) =>
+    request<ChatState>(`/api/chat/sessions/${id}/rename`, { title }),
+  deleteSession: (id: string) => request<ChatState>(`/api/chat/sessions/${id}/delete`, {}),
+  chatModels: () => request<ChatModels>("/api/chat/models"),
+  setChatModel: (model: string) => request<ChatState>("/api/chat/model", { model }),
+  linkSession: (id: string, project: string) =>
+    request<ChatState>(`/api/chat/sessions/${id}/project`, { project }),
   stopChat: () => request<unknown>("/api/chat/stop", {}),
   saveSettings: (payload: {
     settings: Record<string, SettingValue>

@@ -6,8 +6,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useConsole, type Entry } from "@/hooks/use-console"
 import { api } from "@/lib/api"
 import { currentLanguage, useT } from "@/lib/i18n"
+import { settingsHref } from "@/resources/settings"
 
 import { Composer, type ComposerHandle } from "./composer"
+import { ModelPicker } from "./model-picker"
 import { Flow } from "./text"
 import { Thinking } from "./thinking"
 import { Line, Transcript } from "./transcript"
@@ -31,7 +33,8 @@ const transcribe = async (audio: Blob) => (await api.transcribe(audio, currentLa
 const carriesFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files")
 
 export function ConsolePane() {
-  const { transcript, busy, stopping, submit, resetChat, stopChat, runner } = useConsole()
+  const { transcript, busy, stopping, submit, resetChat, stopChat, runner, reloadState } =
+    useConsole()
   const t = useT()
   const composer = React.useRef<ComposerHandle>(null)
   const [dragging, setDragging] = React.useState(false)
@@ -83,8 +86,17 @@ export function ConsolePane() {
           switch, which float over this corner. Creating a ticket is the
           board's job; here Ponos makes one when asked. */}
       <div className="flex items-center gap-2 border-b py-2 pr-12 pl-3.5 sm:pr-20">
-        <span className="text-muted-foreground text-sm font-medium">Ponos</span>
-        <span className="flex-1" />
+        <span
+          className="text-muted-foreground min-w-0 flex-1 truncate text-sm font-medium"
+          title={chat?.title || undefined}
+        >
+          {chat?.title || "Ponos"}
+        </span>
+        <ModelPicker
+          model={chat?.model_in_use ?? ""}
+          onChosen={() => void reloadState()}
+          settingsTo={settingsHref("models")}
+        />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

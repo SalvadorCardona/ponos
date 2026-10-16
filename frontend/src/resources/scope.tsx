@@ -14,6 +14,7 @@ import { SCOPE } from "@/lib/resource-view"
 import { IDEAS, ideas, ideasHref } from "./ideas"
 import { PROJECTS, projects, projectsHref } from "./projects"
 import { SCHEDULES, schedules, schedulesHref } from "./schedules"
+import { SESSIONS, sessions, sessionsHref } from "./sessions"
 import { SETTINGS, settings, settingsHref } from "./settings"
 import { TICKETS, boardHref, tickets } from "./tickets"
 
@@ -87,13 +88,14 @@ const entries = () => [
   // board, and this menu is redrawn every time the board moves.
   entry(SCHEDULES, schedules.icon, "Schedules", schedulesHref),
   entry(IDEAS, ideas.icon, "Ideas", ideasHref),
+  entry(SESSIONS, sessions.icon, "Sessions", sessionsHref),
   entry(SETTINGS, settings.icon, "Settings", () => settingsHref()),
 ]
 
 export const consoleScope: ScopeInterface = {
   name: SCOPE,
   label: "Ponos",
-  resources: [tickets, projects, schedules, ideas, settings],
+  resources: [tickets, projects, schedules, ideas, sessions, settings],
   decoratorComponent: createAdminLayout({ logo: <Mark />, topBarEnd: <TopBarEnd /> }),
   menu: [
     ...entries().map(onTheBar),

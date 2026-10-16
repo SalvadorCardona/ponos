@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -147,3 +148,43 @@ def _said(error: urllib.error.HTTPError) -> str:
     except (ValueError, OSError, AttributeError):
         message = ""
     return f"{error.code} {message}".strip() if message else f"{error.code} {error.reason}"
+
+
+# The catalogue is a few hundred models and changes a few times a week: asked
+# once in a while, not once per page opened.
+CATALOGUE_TTL = 600
+CATALOGUE_TIMEOUT = 15
+_catalogue: dict[str, tuple[float, list[dict]]] = {}
+
+
+def catalogue(settings: OpenRouter) -> list[dict]:
+    """Every model OpenRouter offers, `{id, name}` each, as its API lists them.
+
+    Raises `Unavailable` with a sentence when it cannot be read — the console
+    still offers the Claude models then, and says why the rest is missing.
+    """
+    base = settings.base_url.rstrip("/") or OPENROUTER_URL
+    kept = _catalogue.get(base)
+    if kept and time.monotonic() - kept[0] < CATALOGUE_TTL:
+        return kept[1]
+    request = urllib.request.Request(
+        f"{base}/models",
+        headers={"Authorization": f"Bearer {settings.key}", "X-Title": "ponos"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=CATALOGUE_TIMEOUT) as response:
+            answer = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise Unavailable(f"OpenRouter refused the list of models: {_said(error)}") from error
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise Unavailable(f"OpenRouter could not be reached: {error}") from error
+    except ValueError as error:
+        raise Unavailable("OpenRouter answered something that is not JSON") from error
+    data = answer.get("data") if isinstance(answer, dict) else None
+    models = [
+        {"id": str(item["id"]), "name": str(item.get("name") or item["id"])}
+        for item in data or []
+        if isinstance(item, dict) and item.get("id")
+    ]
+    _catalogue[base] = (time.monotonic(), models)
+    return models

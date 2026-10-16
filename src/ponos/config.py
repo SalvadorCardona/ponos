@@ -539,6 +539,9 @@ class Web:
     # A chat turn is a Claude session like any other, and wants the same kind of
     # ceiling. Shorter than a ticket's: somebody is sitting in front of it.
     chat_timeout_minutes: int = 20
+    # The model a new conversation of the console starts on. Empty: the runner's
+    # own default model. Each conversation then keeps the one it was given.
+    chat_model: str = ""
     # What a message to the workspace may carry. A file is refused past this
     # size rather than read and then regretted: a phone video is a gigabyte,
     # and the session would read none of it anyway.
@@ -1563,6 +1566,7 @@ def load(path: Path | None = None, *, secrets: Path | None = None) -> Config:
         chat_timeout_minutes=max(
             1, int(web_raw.get("chat_timeout_minutes", web_defaults.chat_timeout_minutes))
         ),
+        chat_model=str(web_raw.get("chat_model", web_defaults.chat_model)).strip(),
         attachment_max_mb=max(
             1, int(web_raw.get("attachment_max_mb", web_defaults.attachment_max_mb))
         ),

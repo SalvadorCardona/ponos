@@ -49,7 +49,7 @@ import {
 } from "@/lib/settings-store"
 import type { Folder, SettingField, SettingFold, SettingSection, SettingValue } from "@/lib/types"
 
-import { openTalk } from "./talk-drawer"
+import { openTalk } from "@/lib/talk"
 import { Rich } from "./text"
 
 /* One page of `config.toml`, as a form of cards.

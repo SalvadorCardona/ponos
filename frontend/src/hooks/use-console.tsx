@@ -249,6 +249,39 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  /* The open session, read from the server: its transcript, and a turn already
+   * running when the page opened — Ponos thinks from now on, its earlier steps
+   * were said to a page that was not there. Also what a session opened, deleted
+   * or started in another tab leaves this one to draw. */
+  const loadChat = React.useCallback(async () => {
+    try {
+      const payload = await api.chat()
+      const said: Entry[] = payload.messages.length
+        ? payload.messages.map((message) => ({
+            id: nextId(),
+            kind: "turn" as const,
+            role: message.role,
+            text: message.text,
+            attachments: message.attachments,
+          }))
+        : [{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }]
+      if (payload.busy)
+        said.push({
+          id: nextId(),
+          kind: "steps",
+          steps: [],
+          done: false,
+          started: Date.now(),
+          stopping: Boolean(payload.stopping),
+        })
+      setTranscript(said)
+      setBusy(Boolean(payload.busy))
+      setStopping(Boolean(payload.stopping))
+    } catch (error) {
+      say("error", why(error))
+    }
+  }, [say])
+
   // The phase this page last saw, to tell a restart it watched from one it did not.
   const upgradePhase = React.useRef<UpgradePhase | undefined>(undefined)
 
@@ -397,6 +430,17 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     },
 
     chat: (event: ChatEvent) => {
+      if (
+        event.stage === "opened" ||
+        event.stage === "deleted" ||
+        event.stage === "renamed" ||
+        event.stage === "model"
+      ) {
+        // Another session is the open one: its transcript replaces this one's.
+        if (event.stage === "opened" || event.stage === "deleted") void loadChat()
+        void reloadState()
+        return
+      }
       if (event.stage === "reset") {
         setTranscript([{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }])
         setBusy(false)
@@ -646,41 +690,14 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
-    void api
-      .chat()
-      .then((payload) => {
-        const said: Entry[] = payload.messages.length
-          ? payload.messages.map((message) => ({
-              id: nextId(),
-              kind: "turn" as const,
-              role: message.role,
-              text: message.text,
-              attachments: message.attachments,
-            }))
-          : [{ id: nextId(), kind: "turn", role: "workspace", text: t(WELCOME) }]
-        // A turn already running when the page opened: Ponos thinks from now
-        // on, its earlier steps were said to a page that was not there.
-        if (payload.busy)
-          said.push({
-            id: nextId(),
-            kind: "steps",
-            steps: [],
-            done: false,
-            started: Date.now(),
-            stopping: Boolean(payload.stopping),
-          })
-        setTranscript(said)
-        if (payload.busy) setBusy(true)
-        if (payload.stopping) setStopping(true)
-      })
-      .catch((error) => say("error", why(error)))
+    void loadChat()
 
     void api
       .projects()
       .then((payload) => setProjects(payload.projects))
       // A board with no projects database is a board that runs.
       .catch(() => {})
-  }, [reloadState, say])
+  }, [reloadState, loadChat, say])
 
   const value = React.useMemo<ConsoleValue>(
     () => ({

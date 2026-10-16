@@ -943,6 +943,12 @@ poll_seconds = 15
 # Shorter, because somebody is sitting in front of it.
 chat_timeout_minutes = 20
 
+# The model a new conversation of the console starts on: `opus`, `sonnet`,
+# `haiku`, `fable`, or an OpenRouter slug (`openai/gpt-5`) when [openrouter] has
+# a key. Empty: runner.model. Each conversation keeps the model it was given,
+# and it is changed from the conversation itself.
+chat_model = ""
+
 # What a message to the workspace may carry: images (png, jpg, webp, gif),
 # videos (mp4, webm, mov) and documents (pdf, txt, md, csv, json, docx, xlsx).
 # They are kept under the runner's state — never in a repository — in a folder

@@ -26,6 +26,7 @@ import { SCOPE } from "@/lib/resource-view"
 import { consoleRouter, useRoute } from "@/lib/router"
 import { consoleScope, scopes } from "@/resources/scope"
 import { projectsHref } from "@/resources/projects"
+import { SESSIONS, sessionsHref } from "@/resources/sessions"
 import { SETTINGS, settingsHref } from "@/resources/settings"
 import { TICKETS, boardHref } from "@/resources/tickets"
 
@@ -69,6 +70,9 @@ function Page({ params }: { params: ViewResourceContextParams }) {
   // to one — the breadcrumb in the bar does — and a list asked for is the file.
   if (resourceId === SETTINGS && action === ActionList.list)
     return <Navigate to={settingsHref()} replace />
+  // Likewise the sessions: the page draws its own list.
+  if (resourceId === SESSIONS && action === ActionList.list)
+    return <Navigate to={sessionsHref()} replace />
   return (
     // The language is part of the key: what the package draws — the view's
     // name, a column header, the words on a form — it reads from the

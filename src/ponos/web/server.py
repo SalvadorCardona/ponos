@@ -558,6 +558,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(figures)
             if route == "/api/chat":
                 return self._json({"messages": self.api.chat.history(), **self.api.chat.state()})
+            if route == "/api/chat/sessions":
+                return self._json({"sessions": self.api.chat.sessions((query.get("q") or [""])[0])})
+            if route == "/api/chat/models":
+                return self._json(self.api.chat.models())
             if match := re.fullmatch(r"/api/chat/attachments/([0-9a-f]{12})", route):
                 return self._attachment(match.group(1))
             if route == "/api/settings":
@@ -742,6 +746,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(self.api.chat.stop())
             if route == "/api/chat/reset":
                 return self._json(self.api.chat.reset())
+            if route == "/api/chat/model":
+                return self._json(self.api.chat.choose(str(payload.get("model", ""))))
+            if match := re.fullmatch(r"/api/chat/sessions/([0-9a-f]{12})/(open|rename|delete|project)", route):
+                identifier, verb = match.groups()
+                if verb == "open":
+                    return self._json(self.api.chat.open(identifier))
+                if verb == "rename":
+                    return self._json(self.api.chat.rename(identifier, str(payload.get("title", ""))))
+                if verb == "project":
+                    return self._json(self.api.chat.link(identifier, str(payload.get("project", ""))))
+                return self._json(self.api.chat.delete(identifier))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/delete", route):
                 return self._json(self.api.removal.delete(match.group(1), payload))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/settings", route):
