@@ -14255,7 +14255,7 @@ def the_console_offers_the_two_languages_it_has():
     assert '"en"' in i18n and '"fr"' in i18n, "the console no longer offers both"
     assert "navigator.languages" in i18n, "the browser's own languages are not read"
     assert "resolvedOptions().timeZone" in i18n, "the time zone no longer answers for it"
-    settings = (FRONTEND / "src/resources/settings.tsx").read_text(encoding="utf-8")
+    settings = (FRONTEND / "src/components/console/settings-page.tsx").read_text(encoding="utf-8")
     assert "LanguagePicker" in settings, "the settings have nowhere to change the language"
 
 
