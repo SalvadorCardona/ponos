@@ -288,16 +288,6 @@ export const FRENCH: Record<string, string> = {
     "Un dépôt git : le ticket revient en pull request.",
   "No repository: the ticket comes back as a document.": "Pas de dépôt : le ticket revient en document.",
   "no git": "sans git",
-  "What it will give": "Ce que ça donnera",
-  "A document, written on the ticket's page.": "Un document, écrit sur la page du ticket.",
-  "Work done elsewhere — a browser, a service — and its log on the ticket's page.":
-    "Un travail fait ailleurs — un navigateur, un service — et son compte rendu sur la page du ticket.",
-  "Prepared, then published once you validate it.": "Préparé, puis publié une fois que vous l'avez validé.",
-  "A pull request on {{project}}.": "Une pull request sur {{project}}.",
-  "A code ticket needs a project with a repository.": "Un ticket Code demande un projet avec un dépôt.",
-  "The runner deduces the type before it starts.": "Le runner déduit le type avant de démarrer.",
-  Commit: "Commit",
-  "no entry": "aucune entrée",
   "The runner deduces the commit prefix and the CHANGELOG section.":
     "Le runner déduit le préfixe du commit et la section du CHANGELOG.",
   "Launched, the ticket starts at the next pass, within {{every}}.":

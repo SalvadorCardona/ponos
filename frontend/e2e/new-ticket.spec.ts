@@ -86,33 +86,18 @@ test("the sub-type is a code ticket's: shown for Code, hidden for any other type
   await expect(segment(dialog, "Sub-type", "✨ Feature")).toHaveAttribute("aria-pressed", "false")
 })
 
-test("the card under the settings says what the ticket will come back as", async ({ page }) => {
+test("no card says what the ticket will come back as, whatever the type", async ({ page }) => {
   const dialog = await open(page)
-  const outcome = dialog.locator('[data-slot="ticket-outcome"]')
-  await expect(outcome).toContainText("A document, written on the ticket's page.")
-  await expect(outcome).toContainText("The runner deduces the type")
-
   const project = dialog.getByRole("combobox", { name: "Project" })
   await project.click()
   await page.getByRole("option", { name: /Website/ }).click()
-  await expect(outcome).toContainText("A pull request on Website.")
   await expect(dialog.locator('[data-slot="project-repository"]')).toHaveText("git")
 
-  await segment(dialog, "Type", "Code").click()
-  await segment(dialog, "Sub-type", "🐞 Bug").click()
-  await expect(outcome).toContainText("fix:")
-  await expect(outcome).toContainText("Fixed")
-  await expect(outcome).not.toContainText("The runner deduces the type")
-
-  await segment(dialog, "Type", "Writing").click()
-  await expect(outcome).toContainText("A document, written on the ticket's page.")
-  await expect(outcome).not.toContainText("fix:")
-
-  await project.click()
-  await page.getByRole("option", { name: /Journal/ }).click()
-  await expect(dialog.locator('[data-slot="project-repository"]')).toHaveText("no git")
-  await segment(dialog, "Type", "Code").click()
-  await expect(outcome).toContainText("A code ticket needs a project with a repository.")
+  for (const type of ["Auto", "Code", "Writing", "External action", "Publication"]) {
+    await segment(dialog, "Type", type).click()
+    await expect(dialog.locator('[data-slot="ticket-outcome"]')).toHaveCount(0)
+    await expect(dialog.getByText("What it will give")).toHaveCount(0)
+  }
 })
 
 test("Draft creates a ticket the runner leaves alone", async ({ page }) => {
