@@ -23,7 +23,6 @@ import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectMenu } from "@/components/console/project-delete"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
-import { ProjectAside } from "@/components/console/project-panel"
 import {
   BoxInputController,
   KindInputController,
@@ -73,6 +72,11 @@ import { tickets } from "@/resources/tickets"
  * under a `config:` prefix, and its page says where it is really edited. Every
  * project is clickable; only the ones that are a page are written from here.
  */
+
+// A chunk of its own: only the split view shows it, and it imports this file.
+const ProjectAside = React.lazy(() =>
+  import("@/components/console/project-panel").then((module) => ({ default: module.ProjectAside }))
+)
 
 export const PROJECTS = "projects"
 
@@ -825,7 +829,13 @@ function ProjectsTop() {
   const { viewVariant } = useCurrentViewResourceContext()
   // Beside the list, in the panel: see `ProjectAside`. Over it, in the other
   // two layouts, which have no room on their side.
-  if (viewVariant === SPLIT) return <ProjectAside />
+  if (viewVariant === SPLIT) {
+    return (
+      <React.Suspense fallback={null}>
+        <ProjectAside />
+      </React.Suspense>
+    )
+  }
   return (
     <>
       <ContextBlock />

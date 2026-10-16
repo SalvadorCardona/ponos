@@ -268,6 +268,9 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **`main` is green again: the console's first load is back under 500 kB.** The two-column Projects page took it to
+  501 kB gzipped and the core suite failed on every push. The project panel and a ticket's *Discussion* tab are now
+  loaded when they are opened, which brings the first load to 491 kB.
 - **Desktop notifications say what happened, where, and what to do.** The title is the event and the project (*Ponos a
   une question — Leadz*, *Ticket terminé — Adam*, *Ticket en erreur — Portfolio*), the body the ticket's name, cut on a
   word, and one sentence — never a bare « Ponos ». A ticket's later notification replaces its earlier one instead of

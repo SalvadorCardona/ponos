@@ -29,7 +29,6 @@ import { Markdown } from "./markdown"
 import { Robot } from "./robot"
 import { Pulse, TicketLive } from "./session-log"
 import { TicketDecision, TicketTabContext, WINDOW_TAB } from "./ticket-decision"
-import { TicketTalk } from "./ticket-talk"
 import { TicketTime } from "./ticket-time"
 import {
   SEED,
@@ -46,6 +45,9 @@ import {
   lasted,
   when,
 } from "./ticket-bits"
+
+// The Discussion tab is opened on demand: its chat stays out of the first load.
+const TicketTalk = React.lazy(() => import("./ticket-talk").then((module) => ({ default: module.TicketTalk })))
 
 /* One ticket, as a page.
  *
@@ -601,7 +603,9 @@ function TicketTabs({
         </section>
       </TabsContent>
       <TabsContent value="discussion">
-        <TicketTalk ticket={ticket} onSession={() => show("live", true)} />
+        <React.Suspense fallback={null}>
+          <TicketTalk ticket={ticket} onSession={() => show("live", true)} />
+        </React.Suspense>
       </TabsContent>
       <TabsContent value="live">
         <TicketLive ticket={ticket} />
