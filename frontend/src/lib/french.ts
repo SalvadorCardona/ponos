@@ -2165,4 +2165,6 @@ export const FRENCH: Record<string, string> = {
   "A git repository, whose origin is {{origin}}.": "Un dépôt git, dont l'origin est {{origin}}.",
   "A git repository, with no origin remote.": "Un dépôt git, sans remote origin.",
   "Create a first ticket": "Créer un premier ticket",
+  split: "colonnes",
+  "local folder": "dossier local",
 }

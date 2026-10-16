@@ -285,6 +285,38 @@
     min-width: 0;
   }
 
+  /* The projects' split layout: the list on the left, the global context and the
+     project picked on the right. The list's frame and the panel are siblings,
+     so the grid is the parent's, found by the panel it holds. On a phone the
+     panel comes after the list, and a picked project opens over it as a sheet. */
+  div:has(> [data-projects-aside]) {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  div:has(> [data-projects-aside]) > [data-projects-aside] {
+    order: 1;
+  }
+  @media (width >= 64rem) {
+    div:has(> [data-projects-aside]) {
+      display: grid;
+      grid-template-columns: minmax(20rem, 26rem) minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      align-items: start;
+      column-gap: 2rem;
+    }
+    div:has(> [data-projects-aside]) > :not([data-projects-aside]) {
+      grid-column: 1;
+    }
+    div:has(> [data-projects-aside]) > [data-projects-aside] {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      order: 0;
+      position: sticky;
+      top: 1rem;
+    }
+  }
+
   /* The list's "New project" beside its cards / table switch on a phone. The
      package draws the create button the width of the screen, which put it on a
      row of its own and the first project 48px further down — under the fold,

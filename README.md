@@ -2576,7 +2576,12 @@ declares — so "no repository could be found" has somewhere to be answered. A s
 finds a project by a part of its name (or its type) and a *Type* menu keeps the code projects or
 the documents; both are kept in the address, so a shared link or a reload opens the same list.
 
-It is drawn in **two layouts**, and the tab you are on is in the address. *Cards* is for a
+It is drawn in **three layouts**, and the tab you are on is in the address. *Columns*, the one
+it opens on, puts the list on the left, one compact line per project (icon, name, type, tickets,
+last activity), and on the right the global context folded to a few lines — always in view, with
+*See all*, *Edit* and its character count — and, under it, the project picked in the list: its
+repository, its folder, its brief, *+ Ticket* and the “…” menu, with a link to its page. On a
+phone the list comes first and the project picked opens full screen over it. *Cards* is for a
 workspace you half remember: a project is recognised by its name and its shape rather than
 read. *Table* is for comparing them — which of these eleven has no repository, which has
 no path on this machine — because that is a question a grid of cards will not answer.

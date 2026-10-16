@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test"
  * or a reload opens the same list.
  */
 
-const LIST = "/?view=console/projects/list"
+const LIST = "/?view=console/projects/list&variant=cards"
 
 const card = (page: Page, name: string) => page.locator("[data-project-card]", { hasText: name })
 const search = (page: Page) => page.getByPlaceholder("Search a project")

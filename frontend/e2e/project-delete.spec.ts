@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test"
  * runner could have taken blocked, without waiting for any synchronisation.
  */
 
-const LIST = "/?view=console/projects/list"
+const LIST = "/?view=console/projects/list&variant=cards"
 
 async function open(page: Page, path = LIST) {
   await page.context().addCookies([{ name: "ponos_token", value: "e2e", url: test.info().project.use.baseURL }])
