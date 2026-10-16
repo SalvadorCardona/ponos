@@ -271,6 +271,17 @@
     min-width: 0;
   }
 
+  /* The list's "New project" beside its cards / table switch on a phone. The
+     package draws the create button the width of the screen, which put it on a
+     row of its own and the first project 48px further down — under the fold,
+     where `context.spec.ts` wants it. At the width of its name it sits next to
+     the switch. */
+  @media (width < 48rem) {
+    div:has(> [data-slot="tabs"]) > a.w-full {
+      width: auto;
+    }
+  }
+
   /* The end of a page clear of the discussion's bubble on a phone. The
      package leaves room under the content for its bottom bar, and the bubble
      floats over the corner above that bar: the last card's cost and link, a
