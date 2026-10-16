@@ -24,7 +24,6 @@ import {
 } from "react-resource-view"
 
 import { PageHead } from "@/components/console/frame"
-import { McpPage } from "@/components/console/mcp-page"
 import { LanguagePicker } from "@/components/console/language-picker"
 import { SetupSummary } from "@/components/console/setup"
 import {
@@ -428,6 +427,18 @@ function tabs(): SubViewResourceInterface[] {
     },
   ]
 }
+
+/* The MCP tab is opened now and then: kept out of the first load, which has a
+ * budget (tests/run.py, `the_console_is_downloaded_once_and_compressed`). */
+const LazyMcpPage = React.lazy(() =>
+  import("@/components/console/mcp-page").then((module) => ({ default: module.McpPage }))
+)
+
+const McpPage = () => (
+  <React.Suspense fallback={null}>
+    <LazyMcpPage />
+  </React.Suspense>
+)
 
 /* -- the head of the page ---------------------------------------------------- */
 
