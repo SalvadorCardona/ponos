@@ -293,6 +293,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **A new idea is written in a quick-entry window rather than a drawer the height of the screen.** « New idea »
+  opens a window as tall as what it holds — a sheet up from the bottom on a phone, its button the whole width. Its
+  header is whom the idea is for, a menu of the workspace and its projects (the page's own already picked) ending on
+  « Propose a new project », which makes the idea a project-creation ticket and replaces the old Type select. The
+  title is the largest thing in it and has the cursor; the category is four chips, pressed again to let go, and the
+  sentence about Tech only shows once Tech is chosen. « Create the idea » stays greyed until there is a title,
+  Ctrl+Enter (⌘+Enter) sends it from any field, and « Create another » empties the window for the next one instead
+  of closing it. Same fields sent, nothing changed on the server. Screenshots in `.github/screenshots/idea-window/`.
 - **A schedule is written in a window in the middle of the list, as a few clicks rather than seven fields.** « New
   schedule » no longer opens a drawer against the edge: a 620px window titled « New recurring ticket » — and « Edit the
   schedule » for one opened from the list, the same window — closed by Escape, its cross or a click beside it, the

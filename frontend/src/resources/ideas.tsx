@@ -12,6 +12,7 @@ import {
   createViewResource,
   generateLinkByResource,
   layout,
+  open,
   useCurrentViewResourceContext,
   type ResourceDefinition,
 } from "react-resource-view"
@@ -27,6 +28,15 @@ import {
   useToneWords,
 } from "@/components/console/idea-cards"
 import { ConfirmDialog } from "@/components/console/confirm-dialog"
+import {
+  ChipsInputController,
+  IdeaFields,
+  IdeaFoot,
+  IdeaForm,
+  IdeaTextInputController,
+  IdeaTitleInputController,
+  IdeaWindow,
+} from "@/components/console/idea-form"
 import { IdeasButton } from "@/components/console/ideas-deck"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -51,7 +61,7 @@ import { onIdeasScored } from "@/lib/ideas-store"
 import { money, number } from "@/lib/numbers"
 import { layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { Idea, Unscored } from "@/lib/types"
-import { isAPage, projectsOnce, useProjects } from "@/resources/projects"
+import { projectsOnce, useProjects } from "@/resources/projects"
 
 /* The ideas, declared once for react-resource-view.
  *
@@ -415,41 +425,37 @@ const category = {
   ],
 }
 
-/* A new idea: its words, what it is about, whom it is for — the project whose list it was
- * written from, unless changed — and, for the workspace, whether it is a
- * ticket or a whole new project. An idea of a project is a ticket of it, so
- * the type says so rather than hiding: the form has no way to follow a field. */
+/* A new idea: its words, what it is about, and whom it is for — the project
+ * whose list it was written from, unless changed — drawn as a quick entry in
+ * its own window (see `idea-form.tsx`). The project and the type are both
+ * written by the menu in the window's header: a new project is the
+ * workspace's only, so it is one more entry of that menu rather than a field
+ * of its own. The category is the edit form's, as chips, with the sentence
+ * about Tech said only once Tech is chosen. */
 const createForm: FormInterface = {
-  label: { submit: "Create" },
+  components: { formDecorator: IdeaForm, formInputs: IdeaFields, formSubmitAction: IdeaFoot },
   inputs: {
-    title,
-    description,
-    category,
-    project: {
-      label: "Project",
-      controller: SelectInputController,
-      getValueOptions: async () => {
-        const known = await projectsOnce().catch(() => null)
-        return [
-          { value: "", label: t("Workspace") },
-          ...(known?.projects ?? [])
-            .filter((row) => isAPage(row.id))
-            .map((row) => ({ value: bare(row.id), label: row.name }))
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        ]
+    title: {
+      ...title,
+      controller: IdeaTitleInputController,
+      get placeholder() {
+        return t("The idea, in one line")
       },
     },
-    kind: {
-      label: "Type",
-      controller: SelectInputController,
-      get description() {
-        return t("A new project is for the workspace only: the idea of a project is a ticket of it.")
+    description: {
+      ...description,
+      controller: IdeaTextInputController,
+      get placeholder() {
+        return t("Why it is worth it — context, link, example…")
       },
-      valueOptions: [
-        { value: "ticket", label: "Ticket" },
-        { value: "project", label: "New project" },
-      ],
     },
+    category: {
+      label: "Category",
+      controller: ChipsInputController,
+      valueOptions: CATEGORIES.map((value) => ({ value, label: CATEGORY_WORDS[value] })),
+    },
+    project: { label: "Project", hidden: () => true },
+    kind: { label: "Type", hidden: () => true, defaultValue: "ticket" },
   },
 }
 
@@ -624,7 +630,14 @@ const options: ResourceDefinition<IdeaItem, IdeaWrite> = {
       title: "New idea",
       buttonLabel: "New idea",
       form: createForm,
-      open: "drawer",
+      // In the middle of the list, as tall as the few lines it holds; left
+      // open once the idea is written, for the form to close it or empty
+      // itself for the next one (see `IdeaForm`).
+      open: open.custom({ type: "idea-new", component: IdeaWindow }),
+      afterSave: "stay",
+      // No card before the server's: one drawn from the form alone has no
+      // author, and a card reads its author.
+      optimistic: false,
     },
     update: {
       title: "Idea",

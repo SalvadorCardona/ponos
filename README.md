@@ -2711,8 +2711,12 @@ a few lines of its description, and who wrote it and when, small. It has one ges
 sight — *Turn into a ticket* (*Create the project* for the idea of one), or *Open the ticket* once
 it is one — and the others a click away: the pencil rewords it, and the *…* menu keeps it,
 throws it away or makes it new again. Its title opens it whole, beside the list, with what it
-should touch, *Done when* and *Out of scope*. *New idea* opens a short form — title,
-description, category, project (the page's own, already picked) — and the idea is stored as written by
+should touch, *Done when* and *Out of scope*. *New idea* opens a quick-entry window, as tall
+as its few lines (a sheet up from the bottom on a phone): whom it is for in a menu at its top
+(the page's own project, already picked; *Propose a new project* at the bottom of that menu makes
+the idea a project-creation ticket), the title with the cursor in it, a few lines of description,
+and the category as chips. *Create the idea* — or Ctrl+Enter (⌘+Enter) — waits for a title;
+*Create another* leaves the window open and empty for the next one. The idea is stored as written by
 hand; *Find me ideas for this project* is there too. The deck's *All ideas* tab is the same list,
 the workspace's when opened from the dashboard. Cards or a table, whichever you pick.
 
