@@ -1746,6 +1746,8 @@ export const FRENCH: Record<string, string> = {
   "Open the project": "Ouvrir le projet",
   "Open the ticket": "Ouvrir le ticket",
   "The decision could not be saved": "La décision n'a pas pu être enregistrée",
+  "Run now": "Lancer maintenant",
+  "The schedule could not be run": "La récurrence n'a pas pu être lancée",
   "Project “{{name}}” deleted": "Projet « {{name}} » supprimé",
   "Its page is in the Notion trash for 30 days.":
     "Sa page est dans la corbeille de Notion pendant 30 jours.",

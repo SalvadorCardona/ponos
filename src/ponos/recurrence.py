@@ -126,6 +126,35 @@ class Recurrence(Base):
                 born.append(entry)
         return born
 
+    def launch(self, page_id: str) -> dict:
+        """One schedule's occurrence, now, whatever its clock says.
+
+        What the console's “Run now” presses. The ticket is the one `recur`
+        would have made, but the bookkeeping is not: `Next` stays where it is,
+        so the planned occurrence still happens, and only `Last` moves. A paused
+        schedule launches too — that is how one is tried before it is turned on —
+        and stays paused. The previous ticket still being open is no reason to
+        refuse: somebody asked, which a pass cannot say.
+
+        A failure is raised rather than said, since there is somebody to tell.
+        """
+        wanted = page_id.replace("-", "")
+        schedule = next(
+            (item for item in self.schedules() if item.page.id.replace("-", "") == wanted), None
+        )
+        if schedule is None:
+            raise LookupError(f"no schedule with id {wanted}")
+        if schedule.problem:
+            raise ValueError(schedule.problem)
+        entry = self._born(schedule, strict=True)
+        assert entry is not None
+        # After the ticket rather than before, unlike a pass: nobody is racing
+        # this one for the occurrence, and a `Last` that moved for a ticket that
+        # was never made would be a lie.
+        self._mark(schedule, {self.config.notion.prop("last_run"): datetime.now().astimezone()})
+        state.record(entry)
+        return entry
+
     def _busy(self, schedule: schedules_module.Schedule) -> bool:
         """Is the previous occurrence still going?
 
@@ -146,7 +175,7 @@ class Recurrence(Base):
             settings.state("done"), settings.state("failed"), settings.state("cancelled")
         )
 
-    def _born(self, schedule: schedules_module.Schedule) -> dict | None:
+    def _born(self, schedule: schedules_module.Schedule, *, strict: bool = False) -> dict | None:
         """One schedule, one ticket, in the ready column.
 
         The body is a line saying where it came from, then the schedule page's
@@ -155,7 +184,8 @@ class Recurrence(Base):
         was actually asked for that day.
 
         A schedule that fails takes only itself down: the pass says so and moves
-        on to the next one.
+        on to the next one. `strict`, for a launch somebody asked for: the
+        failure is raised to them instead.
         """
         settings = self.config.notion
         moment = datetime.now().astimezone()
@@ -176,6 +206,8 @@ class Recurrence(Base):
             brief = self.client.blocks_text(schedule.page.id, live=False)
             page_id = self.client.create_row(self.database, title, values)
         except store.StoreError as error:
+            if strict:
+                raise
             self.say(
                 f"  ! {schedule.name} — the ticket could not be created: "
                 f"{voice_module.line(error)}"

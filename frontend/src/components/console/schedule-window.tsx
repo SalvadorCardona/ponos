@@ -41,9 +41,12 @@ export const opensScheduleInTheWindow = (id: string) => (event: React.MouseEvent
 export function ScheduleWindow({
   titleOf,
   hrefOf,
+  actionsOf,
 }: {
   titleOf: (id: string) => string
   hrefOf: (id: string) => string
+  /** What sits in the header beside the page button: the list's, for the same reason. */
+  actionsOf?: (id: string) => React.ReactNode
 }) {
   const id = useScheduleWindow()
   const { resource } = useCurrentViewResourceContext()
@@ -62,6 +65,7 @@ export function ScheduleWindow({
       title={shown ? titleOf(shown) : ""}
       fallbackTitle={t("Schedule")}
       href={shown ? hrefOf(shown) : undefined}
+      actions={shown && actionsOf ? actionsOf(shown) : undefined}
     >
       {shown ? (
         <ViewResourceContextProvider
