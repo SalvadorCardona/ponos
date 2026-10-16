@@ -817,7 +817,7 @@ SECTIONS: tuple[Section, ...] = (
                       f"{subtype.label} tickets start",
                       "Where a code ticket of this sub-type starts, from the level of Code.",
                       choices=tuple(subtypes.SHIFTS), options=SHIFT_OPTIONS, grid="subtype",
-                      short=f"{subtype.icon} {subtype.label}")
+                      short=subtype.label)
                 for subtype in subtypes.SUBTYPES
             ),
         ),

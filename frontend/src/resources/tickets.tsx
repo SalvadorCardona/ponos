@@ -272,11 +272,11 @@ function choiceInput(
     hidden: () => !currentBoard()?.choices?.[key]?.length,
     getValueOptions: async () => [
       { value: "", label: t(empty), description: meaning ? t(meaning) : undefined },
-      // A sub-type behind its icon and in the developers' word, as the card says it.
+      // A sub-type in the developers' word, as the card says it.
       ...(key === "subtype"
         ? (currentBoard()?.subtypes ?? []).map((subtype) => ({
             value: subtype.key,
-            label: `${subtype.icon} ${subtype.label}`,
+            label: subtype.label,
           }))
         : (currentBoard()?.choices?.[key] ?? [])),
     ],

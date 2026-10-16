@@ -2,7 +2,7 @@ import * as React from "react"
 import { useLocation, useRouter } from "@tanstack/react-router"
 import { ChevronDown, Search, SearchX, SlidersHorizontal, X } from "lucide-react"
 
-import { blockSaid, capital, columnTitle } from "@/components/console/ticket-bits"
+import { blockSaid, capital, columnTitle, SubtypeDot } from "@/components/console/ticket-bits"
 import { EmptyState } from "@/components/console/empty-state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -143,6 +143,8 @@ interface Option {
   value: string
   label: string
   count: number
+  /** A sub-type's dot before the label, in the colour it has everywhere else. */
+  subtype?: string
 }
 
 /* The values a list offers: the board's own choices first, in its order, then
@@ -197,6 +199,7 @@ function FacetFilter({
             onSelect={(event) => event.preventDefault()}
             onCheckedChange={() => onChange(toggled(selected, option.value))}
           >
+            {option.subtype ? <SubtypeDot subtype={option.subtype} /> : null}
             <span className="min-w-0 flex-1 truncate">{option.label}</span>
             <span className="text-muted-foreground ms-3 font-mono text-xs tabular-nums">{option.count}</span>
           </DropdownMenuCheckboxItem>
@@ -390,13 +393,14 @@ export function TicketSearch({
   const choices = board.choices ?? {}
   const facets: Record<Facet, Option[]> = {
     type: offered(tickets, (ticket) => ticket.type, choices.type),
-    // In the table's order, each behind its icon, in the developers' word.
+    // In the table's order, each behind its dot, in the developers' word.
     subtype: offered(
       tickets,
       (ticket) => ticket.subtype ?? "",
       (board.subtypes ?? []).map((subtype) => ({
         value: subtype.key,
-        label: `${subtype.icon} ${subtype.label}`,
+        label: subtype.label,
+        subtype: subtype.key,
       }))
     ),
     status: board.columns

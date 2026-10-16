@@ -26,6 +26,7 @@ import {
   familyColor,
   lasted,
   subtypeColor,
+  SubtypeDot,
   subtypeOf,
 } from "./ticket-bits"
 
@@ -476,9 +477,8 @@ function MadeChart({ made, project }: { made: Made; project?: string }) {
   const order = [...known.map((one) => one.key), ""]
   const nameOf = (key: string) => {
     const one = subtypeOf(key)
-    return one ? `${one.icon} ${one.label}` : t("Unclassified")
+    return one ? one.label : t("Unclassified")
   }
-  const colourOf = (key: string) => (key ? subtypeColor(key) : "color-mix(in oklab, var(--muted-foreground) 45%, transparent)")
 
   const bars = stacks(made, scope)
   const now = bySubtype(made.cells, scope)
@@ -569,8 +569,8 @@ function MadeChart({ made, project }: { made: Made; project?: string }) {
         <figure className="flex min-w-0 flex-col gap-2" aria-label={t("Created, by type and sub-type")}>
           <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
             {present.map((key) => (
-              <li key={key || NONE} className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm" style={{ background: colourOf(key) }} />
+              <li key={key || NONE} className="flex items-center gap-1.5" data-subtype={key || NONE}>
+                <SubtypeDot subtype={key} className="size-2.5" />
                 {nameOf(key)}
                 <span className="font-mono tabular-nums">{number(now[key])}</span>
               </li>
@@ -596,7 +596,8 @@ function MadeChart({ made, project }: { made: Made; project?: string }) {
                       <span
                         key={key || NONE}
                         className={cn("block min-h-[2px] w-full", index === parts.length - 1 && "rounded-t")}
-                        style={{ flexGrow: one.counts[key], background: colourOf(key) }}
+                        style={{ flexGrow: one.counts[key], background: subtypeColor(key) }}
+                        data-subtype={key || NONE}
                       />
                     ))}
                 </div>
@@ -637,9 +638,11 @@ function MadeChart({ made, project }: { made: Made; project?: string }) {
                 {t("Project")}
               </th>
               <th scope="col" className="w-24 truncate pb-1 pl-3 text-right font-medium">
+                <SubtypeDot subtype="feature" className="me-1.5" />
                 {nameOf("feature")}
               </th>
               <th scope="col" className="w-24 truncate pb-1 pl-3 text-right font-medium">
+                <SubtypeDot subtype="bug" className="me-1.5" />
                 {nameOf("bug")}
               </th>
               <th scope="col" className="w-24 truncate pb-1 pl-3 text-right font-medium" title={t("Regression rate")}>
@@ -806,14 +809,14 @@ function BlocksChart({ blocks }: { blocks: NonNullable<Statistics["blocks"]> }) 
 }
 
 /* The code tickets closed, week after week, stacked by sub-type
- * (`subtypes` in `web/statistics.py`) — eight colours at most, each with its
- * icon in the legend — and beside it the table a person reads: how many of
+ * (`subtypes` in `web/statistics.py`) — eight colours at most, the same in
+ * the legend and in the bars — and beside it the table a person reads: how many of
  * each, and what one of them cost and lasted on average. */
 function SubtypesChart({ subtypes }: { subtypes: NonNullable<Statistics["subtypes"]> }) {
   const t = useT()
   if (!subtypes.total)
     return <p className="text-muted-foreground text-sm">{t("No code ticket with a sub-type closed in the period.")}</p>
-  const labelOf = new Map(subtypes.subtypes.map((one) => [one.key, `${one.icon} ${one.label}`]))
+  const labelOf = new Map(subtypes.subtypes.map((one) => [one.key, one.label]))
   const weeks = subtypes.weeks.map((week) => {
     const stack = subtypes.subtypes.map((one) => ({ key: one.key, count: week.counts[one.key] ?? 0 }))
     const total = stack.reduce((sum, part) => sum + part.count, 0)
@@ -835,7 +838,7 @@ function SubtypesChart({ subtypes }: { subtypes: NonNullable<Statistics["subtype
         <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
           {subtypes.subtypes.map((one) => (
             <li key={one.key} className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm" style={{ background: subtypeColor(one.key) }} />
+              <SubtypeDot subtype={one.key} className="size-2.5" />
               {labelOf.get(one.key)}
             </li>
           ))}
@@ -893,7 +896,8 @@ function SubtypesChart({ subtypes }: { subtypes: NonNullable<Statistics["subtype
         <tbody>
           {subtypes.subtypes.map((one) => (
             <tr key={one.key} className="border-t" data-subtype={one.key}>
-              <th scope="row" className="py-1.5 text-left font-normal">
+              <th scope="row" className="flex items-center gap-1.5 py-1.5 text-left font-normal">
+                <SubtypeDot subtype={one.key} />
                 {labelOf.get(one.key)}
               </th>
               <td className="py-1.5 text-right font-mono text-xs font-semibold tabular-nums">{number(one.count)}</td>

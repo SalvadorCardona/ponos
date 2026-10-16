@@ -7068,7 +7068,7 @@ def a_sub_type_somebody_wrote_is_never_overwritten():
 
 @case
 def a_sub_type_is_the_developers_word_in_every_language():
-    """« ✨ Feature » in French too, not « Fonctionnalité »: one label, no entry in french.ts.
+    """« Feature » in French too, not « Fonctionnalité »: one label, no entry in french.ts.
 
     The French words it used to be shown as are still understood, in a title or
     an answer — only what the console shows changed, not what is read.
@@ -7079,7 +7079,7 @@ def a_sub_type_is_the_developers_word_in_every_language():
     ]
     for subtype in subtypes.SUBTYPES:
         assert subtype.as_dict()["label"] == subtype.label, subtype.key
-        assert f'"{subtype.icon} {subtype.label}":' not in dictionary, subtype.key
+        assert f'"{subtype.label}":' not in dictionary, subtype.key
     for word, key in (
         ("Fonctionnalité", "feature"), ("Amélioration", "improvement"), ("Maintenance", "chore"),
         ("Performance", "perf"), ("Sécurité", "security"),
@@ -7220,7 +7220,9 @@ def the_statistics_count_the_closed_tickets_by_sub_type_and_by_week():
     bug = next(item for item in found["subtypes"] if item["key"] == "bug")
     assert (bug["count"], bug["cost"], bug["duration"]) == (2, 2.0, 20.0), bug
     docs = next(item for item in found["subtypes"] if item["key"] == "docs")
-    assert docs["cost"] is None and docs["duration"] is None and docs["icon"] == "📝"
+    assert docs["cost"] is None and docs["duration"] is None and docs["label"] == "Docs"
+    # The console tells a sub-type by its colour alone: no emoji reaches it.
+    assert "icon" not in docs, docs
 
 
 # -- the model of a ticket ----------------------------------------------------
@@ -14532,7 +14534,7 @@ def the_console_says_the_configuration_in_french_too():
     on this side and not on that one would quietly go back to English on a
     console somebody set to French.
 
-    All but one: the head of a sub-type's column in the model table, « ✨
+    All but one: the head of a sub-type's column in the model table, «
     Feature », is the sub-type's own word, and a sub-type is never translated
     (see `SUBTYPES` in subtypes.py) — so it must have no entry at all.
     """

@@ -1255,7 +1255,7 @@ export const FRENCH: Record<string, string> = {
   "Docs tickets start": "Les tickets Docs partent",
   "Security tickets start": "Les tickets Security partent",
   // The sub-type's own word in these phrases, and its column head in the
-  // table (« ✨ Feature »), stay in English: sub-types are not translated, see
+  // table (« Feature »), stay in English: sub-types are not translated, see
   // SUBTYPES in subtypes.py.
   "Code, by sub-type": "Code, par sous-type",
   "Where each sub-type of a code ticket starts, from Code's level":
