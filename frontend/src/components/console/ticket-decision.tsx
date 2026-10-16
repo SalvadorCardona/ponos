@@ -102,11 +102,11 @@ export function DecideButton({
   return (
     <Button
       size="sm"
-      variant={blocked ? "outline" : "default"}
+      variant="outline"
       data-decide={ticket.id}
       title={title}
       className={cn(
-        blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white dark:text-background",
+        blocked ? "text-tr-amber hover:text-tr-amber" : "text-tr-pink hover:text-tr-pink",
         className
       )}
       onClick={(event) => (tabs ? tabs.goTo(tab) : openOnTheTab(event))}

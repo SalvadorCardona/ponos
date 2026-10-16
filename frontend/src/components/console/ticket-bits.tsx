@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DecideButton } from "@/components/console/ticket-decision"
-import { CardTime, hasCardTime } from "@/components/console/ticket-time"
+import { CardTime } from "@/components/console/ticket-time"
 import { moveWithToast as move } from "@/hooks/use-console"
 import { currentBoard, titleOf, useBoard } from "@/lib/board-store"
 import { actionsOf } from "@/lib/decision"
@@ -448,7 +448,6 @@ function FootCi({ ci }: { ci?: Ci | null }) {
         ci.state === "failed" && "text-tr-red font-semibold"
       )}
     >
-      ·
       <Icon className={cn("size-3", color, spin && "animate-spin")} />
       {CI_WORDS()[ci.state]}
     </span>
@@ -462,54 +461,48 @@ function FootCi({ ci }: { ci?: Ci | null }) {
  * both before the cost: a long project name must not push the figure out. */
 export function TicketFoot({ ticket }: { ticket: Ticket }) {
   const t = useT()
+  const hasCost = typeof ticket.cost === "number" && ticket.cost
   return (
-    <div className="flex items-center gap-2 border-t pt-2.5 font-mono text-[0.7rem]">
-      <span className="text-muted-foreground flex min-w-0 flex-1 gap-1">
-        {ticket.project && ticket.project_id ? (
-          <Link
-            to={projectHref(ticket.project_id)}
-            data-slot="ticket-project"
-            title={ticket.project}
-            aria-label={t("Open the project {{name}}", { name: ticket.project })}
-            className="hover:text-foreground focus-visible:ring-ring/50 flex min-w-0 items-center gap-1 rounded-sm outline-none hover:underline focus-visible:ring-2"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <ProjectThumb
-              project={{ name: ticket.project, icon: ticket.project_icon }}
-              className="size-4 rounded-full border-0"
-            />
-            <span className="min-w-0 truncate">{ticket.project}</span>
-          </Link>
-        ) : (
-          <span className="min-w-0 truncate">{ticket.project || t("no project")}</span>
-        )}
-        {ago(ticket.created) ? (
-          <span
-            className="shrink-0 whitespace-nowrap"
-            title={new Date(ticket.created).toLocaleString(currentLanguage(), {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          >
-            · {ago(ticket.created)}
-          </span>
-        ) : null}
-        <FootCi ci={ticket.column === "review" ? ticket.ci : null} />
-      </span>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2.5 font-mono text-[0.7rem]">
+      {ticket.project && ticket.project_id ? (
+        <Link
+          to={projectHref(ticket.project_id)}
+          data-slot="ticket-project"
+          title={ticket.project}
+          aria-label={t("Open the project {{name}}", { name: ticket.project })}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex max-w-full min-w-0 items-center gap-1 rounded-sm outline-none hover:underline focus-visible:ring-2"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <ProjectThumb
+            project={{ name: ticket.project, icon: ticket.project_icon }}
+            className="size-4 rounded-full border-0"
+          />
+          <span className="min-w-0 truncate">{ticket.project}</span>
+        </Link>
+      ) : (
+        <span className="text-muted-foreground max-w-full min-w-0 truncate">{ticket.project || t("no project")}</span>
+      )}
+      <FootCi ci={ticket.column === "review" ? ticket.ci : null} />
+      {ago(ticket.created) ? (
+        <span
+          className="text-muted-foreground whitespace-nowrap"
+          title={new Date(ticket.created).toLocaleString(currentLanguage(), {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        >
+          {ago(ticket.created)}
+        </span>
+      ) : null}
       {/* 12 min · $0.64: the work beside what it cost, the quieter of the two. */}
       <CardTime time={ticket.worktime} />
-      {hasCardTime(ticket.worktime) && typeof ticket.cost === "number" && ticket.cost ? (
-        <span className="text-muted-foreground">·</span>
-      ) : null}
-      {typeof ticket.cost === "number" && ticket.cost ? (
-        <span className="tabular-nums">{money(ticket.cost)}</span>
-      ) : null}
+      {hasCost ? <span className="whitespace-nowrap tabular-nums">{money(ticket.cost as number)}</span> : null}
       {reachable(ticket.url) ? (
         <a
           href={ticket.url}
           target="_blank"
           rel="noreferrer noopener"
-          className="text-muted-foreground hover:text-foreground shrink-0"
+          className="text-muted-foreground hover:text-foreground ms-auto shrink-0"
           aria-label={t("open in Notion")}
           onClick={(event) => event.stopPropagation()}
         >
@@ -697,22 +690,22 @@ export function TicketActions({
       <DropdownMenuContent align="start">{items}</DropdownMenuContent>
     </DropdownMenu>
   )
-  // A card in review is there to be decided on, and says so with one button
-  // across its width; the plain gestures wait behind "…", in the order they are
+  // A card in review is there to be decided on, and says so with one small
+  // button, the same height as the others on the console; the plain gestures wait behind "…", in the order they are
   // reached for, giving it up last and apart. Five buttons in three styles made
   // Decide and validate fight for the eye. The menu only opens the same
   // dialogs: what each gesture asks first, and where it moves the ticket, are
   // those of the buttons it replaces.
   if (ticket.column === "review")
     return (
-      <div className={cn("flex items-center gap-1.5", className)}>
-        <DecideButton ticket={ticket} className="h-12 min-w-0 flex-1 rounded-lg text-sm" />
+      <div className={cn("flex flex-wrap items-center justify-end gap-1.5", className)}>
+        <DecideButton ticket={ticket} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="icon"
-              className="size-12 shrink-0 rounded-lg"
+              size="icon-sm"
+              className="shrink-0"
               aria-label={t("More actions")}
               title={t("More actions")}
             >
