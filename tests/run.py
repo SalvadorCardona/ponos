@@ -14309,6 +14309,25 @@ def the_console_scrolls_in_its_own_colours():
 
 
 @case
+def the_console_buttons_show_the_hand():
+    """Whatever can be clicked shows a hand, whatever is disabled says no.
+
+    Tailwind 4's preflight stopped putting `cursor: pointer` on `<button>`, so
+    every button without its own class kept the arrow and nothing said it could
+    be clicked. The rule lives once, in the base layer, for the source and the
+    built bundle both.
+    """
+    for style in ((FRONTEND / "src/index.css"), _built("css")):
+        text = re.sub(r"\s+", "", style.read_text(encoding="utf-8"))
+        assert "button:not(:disabled)" in text and "cursor:pointer" in text, (
+            "the buttons keep the arrow"
+        )
+        assert "cursor:not-allowed" in text and "button:disabled" in text, (
+            "a disabled button looks as clickable as the others"
+        )
+
+
+@case
 def the_console_asks_for_nothing_it_did_not_ship():
     """Nothing the page loads comes from anywhere but this machine.
 
