@@ -134,3 +134,14 @@ export const asked = (): string => wanted
 export function useAsked(): string {
   return React.useSyncExternalStore(subscribe, () => wanted)
 }
+
+/* A setting is named by its path into the file — `notion.status.ready` — and
+ * react-data-form reads a dot in an input's name as a step into a nested
+ * object: it would file the input under `inputs.notion.status` and lose the
+ * flat entry the form was built with. So the dots become dashes on the way in,
+ * and the field's own name comes back from the description rather than from
+ * the input. */
+export const inputName = (name: string) => name.replaceAll(".", "-")
+
+/** Where a card is, for a link or a search to scroll to. */
+export const cardId = (key: string) => `settings-card-${key}`

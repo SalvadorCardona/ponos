@@ -8,13 +8,12 @@ import {
   type InputControllerComponentInterface,
 } from "react-data-form"
 import {
-  cardViewOptionFactory,
   createResourceCollection,
   createViewResource,
   generateLinkByResource,
-  tableViewOptionFactory,
+  layout,
   useCurrentViewResourceContext,
-  type ResourceOptionInterface,
+  type ResourceDefinition,
 } from "react-resource-view"
 import { toast } from "sonner"
 
@@ -29,7 +28,6 @@ import {
 } from "@/components/console/idea-cards"
 import { ConfirmDialog } from "@/components/console/confirm-dialog"
 import { IdeasButton } from "@/components/console/ideas-deck"
-import { Pagination } from "@/components/console/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -51,7 +49,7 @@ import {
 } from "@/lib/idea-search"
 import { onIdeasScored } from "@/lib/ideas-store"
 import { money, number } from "@/lib/numbers"
-import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
+import { layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import type { Idea, Unscored } from "@/lib/types"
 import { isAPage, projectsOnce, useProjects } from "@/resources/projects"
 
@@ -143,9 +141,9 @@ export function useIdeas(): LastRead {
 
 let asked: Promise<Idea[]> | null = null
 
-/* Every idea, read again — once for everybody who asks while it is out: a
- * gesture is followed by one reread per card, each card's way into a form being
- * the package's button, which refreshes the list when the resource changes. */
+/* Every idea, read again — once for everybody who asks while it is out: the
+ * lists of a page reading themselves again after a change, and the idea opened
+ * over them. */
 function readAgain(): Promise<Idea[]> {
   asked ??= api
     .allIdeas("", true)
@@ -164,39 +162,12 @@ function readAgain(): Promise<Idea[]> {
 }
 
 /* Something changed an idea outside the package's forms — a gesture on a card,
- * a decision in the swipe. Said on both declarations, the way the package says
- * it after a form: a window opened on an idea closes over what it changed. */
+ * a decision in the swipe, a batch scored. Said on both declarations, the way
+ * the package says it after a form: every list of them reads itself again,
+ * with the filters it shows now, and an idea opened over one with it. */
 export function ideasChanged(idea?: Idea) {
   for (const resource of [ideas, scopedIdeas])
     resource.onChange.publish({ data: (idea ? item(idea) : {}) as IdeaItem, action: ActionList.update })
-}
-
-/* Every list drawn, read again after a change — with the filters it shows now.
- *
- * The package's buttons read their list again too, but with the list as it was
- * when the button was drawn: a card drawn under "New" and kept under "Kept"
- * would bring the new ones back under the "Kept" button. So each list drawn
- * says how to read it as it stands, and is asked to once the package's own
- * rereads are on their way — the last one asked for is the one kept. To go once
- * the package reads its list as it stands: see the react-resource-view ticket
- * https://app.notion.com/p/3f8451680af48107b98edafb2f8256e5 */
-const drawn = new Set<{ current: () => void }>()
-
-function readEveryList() {
-  queueMicrotask(() => drawn.forEach((list) => list.current()))
-}
-
-/** Keep this list in step with every change to an idea, whoever made it. */
-export function useReadAgainOnChange() {
-  const { fetchData } = useCurrentViewResourceContext()
-  const latest = React.useRef(() => void fetchData?.())
-  latest.current = () => void fetchData?.()
-  React.useEffect(() => {
-    drawn.add(latest)
-    return () => {
-      drawn.delete(latest)
-    }
-  }, [])
 }
 
 /* -- the filter bar ------------------------------------------------------- */
@@ -357,7 +328,7 @@ const ScoreFilter: InputControllerComponentInterface = ({ formInput, onChange })
 const OrderFilter: InputControllerComponentInterface = ({ formInput, onChange }) => {
   const { filter } = useCurrentViewResourceContext()
   const resting = orderOf({ status: filter?.status })
-  const shown = orderOf({ status: filter?.status, order: formInput.value })
+  const shown = orderOf({ status: filter?.status, sorted: formInput.value })
   return (
     <Choice>
       <Select
@@ -379,7 +350,7 @@ const OrderFilter: InputControllerComponentInterface = ({ formInput, onChange })
   )
 }
 
-/* The filters, in the address as `status`, `category`, `score`, `project`, `author` and `order`; ""
+/* The filters, in the address as `status`, `category`, `score`, `project`, `author` and `sorted`; ""
  * is "all" for each, which is where the list rests. The labels are read from
  * the dictionary as the bar is drawn. */
 const statusFilter = { label: "Status", controller: StatusFilter }
@@ -395,14 +366,14 @@ const formFilter: FormInterface = {
     score: scoreFilter,
     project: { label: "Project", controller: ProjectFilter },
     author: authorFilter,
-    order: orderFilter,
+    sorted: orderFilter,
   },
 }
 
 /* Under a project, or in the swipe: the scope is the filter whoever draws the
  * list injects, and the package keeps an injected filter through a reset. */
 const scopedFormFilter: FormInterface = {
-  inputs: { status: statusFilter, category: categoryFilter, score: scoreFilter, author: authorFilter, order: orderFilter },
+  inputs: { status: statusFilter, category: categoryFilter, score: scoreFilter, author: authorFilter, sorted: orderFilter },
 }
 
 /* -- the forms ------------------------------------------------------------- */
@@ -569,134 +540,118 @@ function IdeasTop() {
 
 /* -- the declaration ------------------------------------------------------ */
 
-const options: ResourceOptionInterface<IdeaItem, IdeaItem, IdeaWrite> = {
+const options: ResourceDefinition<IdeaItem, IdeaWrite> = {
   name: "Ideas",
-  scope: SCOPE,
   path: "/api/ideas",
   icon: Lightbulb,
-  canList: true,
-  canRead: true,
-  canCreate: true,
-  canUpdate: true,
+  titleField: "title",
   // Nothing is ever deleted: an idea thrown away last month may be the right
   // one today, and the next batch is told about it so it is never proposed
   // twice. Throwing it away is the gesture, in the menu of its card.
-  canDelete: false,
+  permissions: { delete: false, export: false },
 
-  getCollection: async (filter) => {
-    const every = await readAgain()
-    return {
-      data: createResourceCollection({
-        id: "/api/ideas",
-        items: ordered(
-          every.filter((idea) => keeps(idea, filter)),
-          filter
-        ).map(item),
-      }),
-    } as never
-  },
-  getItem: async ({ id }) => {
-    const every = await readAgain()
-    const found = every.find((idea) => String(idea.id) === String(id))
-    if (!found) throw new Error(t("This idea is no longer there."))
-    return { data: item(found) }
-  },
-  updateItem: async (patch) => {
-    // Field by field: a patch carries the whole row the form was built from.
-    const written = await api.editIdea(Number(patch.id), {
-      title: String(patch.title ?? ""),
-      description: String(patch.description ?? ""),
-      category: (patch.category ?? "") as Idea["category"],
-    })
-    await readAgain()
-    return { data: item(written) }
-  },
-  createItem: async (fresh) => {
-    const project = String(fresh.project ?? "")
-    const written = await api.writeIdea({
-      title: String(fresh.title ?? ""),
-      description: String(fresh.description ?? ""),
-      project,
-      kind: project ? "ticket" : (fresh.kind ?? "ticket"),
-      category: fresh.category ?? "",
-    })
-    toast.success(t("Idea saved: {{title}}", { title: written.title }))
-    await readAgain()
-    return { data: item(written) }
-  },
-  removeItem: async () => {
-    throw new Error("an idea is not deleted; throwing it away is what keeps it out of the next batch")
+  repository: {
+    getCollection: async (filter) => {
+      const every = await readAgain()
+      return {
+        data: createResourceCollection({
+          id: "/api/ideas",
+          items: ordered(
+            every.filter((idea) => keeps(idea, filter)),
+            filter
+          ).map(item),
+        }),
+      } as never
+    },
+    getItem: async ({ id }) => {
+      const every = await readAgain()
+      const found = every.find((idea) => String(idea.id) === String(id))
+      if (!found) throw new Error(t("This idea is no longer there."))
+      return { data: item(found) }
+    },
+    updateItem: async (patch) => {
+      // Field by field: a patch carries the whole row the form was built from.
+      const written = await api.editIdea(Number(patch.id), {
+        title: String(patch.title ?? ""),
+        description: String(patch.description ?? ""),
+        category: (patch.category ?? "") as Idea["category"],
+      })
+      await readAgain()
+      return { data: item(written) }
+    },
+    createItem: async (fresh) => {
+      const project = String(fresh.project ?? "")
+      const written = await api.writeIdea({
+        title: String(fresh.title ?? ""),
+        description: String(fresh.description ?? ""),
+        project,
+        kind: project ? "ticket" : (fresh.kind ?? "ticket"),
+        category: fresh.category ?? "",
+      })
+      toast.success(t("Idea saved: {{title}}", { title: written.title }))
+      await readAgain()
+      return { data: item(written) }
+    },
+    removeItem: async () => {
+      throw new Error("an idea is not deleted; throwing it away is what keeps it out of the next batch")
+    },
   },
 
-  view: {
-    titleKey: "title",
-    /* The two layouts. The id is said and the name read from the dictionary as
-     * the tab is drawn: the address stays `cards` in every language. */
-    viewVariants: [
-      {
-        ...cardViewOptionFactory({ id: "cards", listComponent: IdeaCards }),
-        get name() {
-          return t("cards")
-        },
-      },
-      {
-        ...tableViewOptionFactory({ id: "table", listComponent: IdeaRows }),
-        get name() {
-          return t("table")
-        },
-      },
-    ],
-  },
   views: {
-    [ActionList.list]: {
-      name: "Ideas",
+    list: {
       description: "What Ponos proposed, kept or thrown away, for the workspace and for each project.",
+      /* The two layouts. Their labels go through the dictionary as the tabs
+       * are drawn, and their address is their type: `cards`, `table`, in
+       * every language. */
+      layouts: [
+        layout.cards({ label: "cards", components: { list: IdeaCards } }),
+        layout.table({ label: "table", components: { list: IdeaRows } }),
+      ],
       // Every card carries its own gestures (see `idea-cards.tsx`).
-      behavior: { rowActions: [] },
+      rowActions: [],
       // The filters are the package's: they live in the address (`status`,
       // `category`, `project`, `author`), and the rows are kept by `keeps`, as the list is read.
-      formFilter,
-      components: { top: IdeasTop, noResult: NoIdea, pagination: Pagination },
+      filters: formFilter,
+      components: { top: IdeasTop, empty: NoIdea },
     },
-    [ActionList.read]: {
-      name: "Idea",
-      viewComponent: IdeaPage,
+    read: {
+      title: "Idea",
+      components: { view: IdeaPage },
       // Over the list, which stays where it was: an idea is read to decide on it.
-      behavior: { openIn: "drawer" },
+      open: "drawer",
     },
-    [ActionList.create]: {
-      name: "New idea",
-      label: { create: "New idea" },
+    create: {
+      title: "New idea",
+      buttonLabel: "New idea",
       form: createForm,
-      behavior: { openIn: "drawer" },
+      open: "drawer",
     },
-    [ActionList.update]: {
-      name: "Idea",
-      label: { update: "Edit" },
+    update: {
+      title: "Idea",
+      buttonLabel: "Edit",
       form: editForm,
-      behavior: { openIn: "drawer" },
+      open: "drawer",
     },
   },
 }
 
-export const ideas = createViewResource<IdeaItem, IdeaItem, IdeaWrite>(IDEAS, options)
+export const ideas = createViewResource<IdeaItem, IdeaWrite>(IDEAS, options)
 
-export const scopedIdeas = createViewResource<IdeaItem, IdeaItem, IdeaWrite>(SCOPED_IDEAS, {
+export const scopedIdeas = createViewResource<IdeaItem, IdeaWrite>(SCOPED_IDEAS, {
   ...options,
   views: {
     ...options.views,
-    [ActionList.list]: {
-      ...options.views?.[ActionList.list],
-      formFilter: scopedFormFilter,
+    list: {
+      ...options.views?.list,
+      filters: scopedFormFilter,
       // No swipe over a list the swipe itself may be drawing, and nothing to
       // write in the address of a page that is somebody else's.
-      components: { noResult: NoIdea, pagination: Pagination },
+      components: { empty: NoIdea },
     },
   },
 })
 
-for (const resource of [ideas, scopedIdeas]) resource.onChange.subscribe(readEveryList)
-onIdeasScored(readEveryList)
+onIdeasScored(() => ideasChanged())
 
 /** Where the ideas are listed, in the layout they were last worked in. */
 export const ideasHref = () =>

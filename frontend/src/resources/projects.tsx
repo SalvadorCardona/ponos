@@ -4,14 +4,13 @@ import { ActionList, SelectInputController, type FormInterface } from "react-dat
 import {
   Link,
   ListPagination,
-  ResourceViewButton,
-  cardViewOptionFactory,
   createResourceCollection,
   createViewResource,
   generateLinkByResource,
-  tableViewOptionFactory,
+  layout,
   useCurrentViewResourceContext,
   useListViewContext,
+  useViewLink,
   type ListComponentPropsInterface,
 } from "react-resource-view"
 
@@ -19,7 +18,6 @@ import { ContextBlock } from "@/components/console/context-block"
 import { EmptyState } from "@/components/console/empty-state"
 import { Eyebrow } from "@/components/console/frame"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
-import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectMenu } from "@/components/console/project-delete"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
@@ -32,7 +30,7 @@ import { useTicketTallies, type Tally } from "@/lib/board-store"
 import { counted, t } from "@/lib/i18n"
 import { repositoryName, shortPath } from "@/lib/places"
 import { KINDS, filtering, keeps } from "@/lib/project-search"
-import { SCOPE, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
+import { carrying, layoutOf, useLayoutInTheAddress } from "@/lib/resource-view"
 import { useRoute } from "@/lib/router"
 import type { Project, Projects } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -140,12 +138,9 @@ export function projectsOnce(): Promise<Projects> {
   return drawn ? Promise.resolve(drawn) : readAgain()
 }
 
-/* The list, read again — but once for everybody who asks while it is out.
- *
- * A save is followed by one reread per card: each card's way into the form is
- * the package's button, and each of those refreshes the list when the resource
- * changes. Eleven projects would be eleven reads of the same board in the same
- * instant; shared, they are one. */
+/* The list, read again — but once for everybody who asks while it is out: the
+ * list itself, the names a schedule's row waits for, the palette, a project
+ * written to and the list reading itself again after it, in the same instant. */
 function readAgain(): Promise<Projects> {
   asked ??= api
     .projects()
@@ -174,20 +169,6 @@ export function useTally(name: string): Tally | null {
 export function useTicketCount(name: string): number | null {
   return useTally(name)?.count ?? null
 }
-
-/* Why the last project read failed, for the page to say rather than swallow.
- *
- * What a view component is handed is `error: true` and nothing else, so the
- * page could only say that something went wrong. On 18 September 2026 that
- * sentence was the whole of what a browser showed while the server was
- * answering `no such route: /api/projects/<id>` — a console left running the
- * code of the day before, serving the page built that morning. The server's own
- * words are what tell those apart from a project that is simply gone.
- */
-let refusal = ""
-
-/** What the server said the last time a project could not be read. */
-export const whyNotRead = (): string => refusal
 
 /** One project, from wherever it is held: its page, or the line that names it. */
 async function one(id: string): Promise<ProjectItem> {
@@ -418,18 +399,19 @@ function RowMenu({ project, onDeleted, className }: { project: ProjectItem; onDe
 /** “+ Ticket”, beside the link of a card or a row and not inside it: the dialog is the dashboard's
  * “New ticket”, with the project already in its field — and none to point at for a line of `config.toml`. */
 function NewTicket({ project, className }: { project: ProjectItem; className?: string }) {
+  const link = useViewLink({ resource: tickets, action: "create" })
   if (!isAPage(project.id)) return null
   return (
     <div className={className}>
-      <ResourceViewButton action={ActionList.create} resource={tickets} defaultData={{ project: project.id }}>
-        <span
-          data-project-new-ticket
-          className={cn(buttonVariants({ variant: "outline", size: "xs" }), "bg-card whitespace-nowrap")}
-        >
-          <Plus />
-          {t("Ticket")}
-        </span>
-      </ResourceViewButton>
+      <Link
+        to={carrying(link.to, { project: project.id })}
+        onClick={link.onOpen}
+        data-project-new-ticket
+        className={cn(buttonVariants({ variant: "outline", size: "xs" }), "bg-card whitespace-nowrap")}
+      >
+        <Plus />
+        {t("Ticket")}
+      </Link>
     </div>
   )
 }
@@ -720,121 +702,94 @@ const formFilter: FormInterface = {
   },
 }
 
-export const projects = createViewResource<ProjectItem, ProjectItem, ProjectWrite>(PROJECTS, {
+export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, {
   name: "Projects",
-  scope: SCOPE,
   path: "/api/projects",
   icon: FolderGit2,
-  canList: true,
-  canRead: true,
-  canCreate: false,
   // A project page is made in Notion, or by a line in `config.toml`; what is
-  // written from here is what an existing one says.
-  canUpdate: true,
-  canDelete: false,
+  // written from here is what an existing one says. Deleting one has a dialog
+  // of its own (see `project-delete.tsx`).
+  permissions: { create: false, delete: false, export: false },
 
-  getCollection: async (filter) => {
-    const read = await readAgain()
-    return {
-      data: createResourceCollection({
-        id: "/api/projects",
-        items: read.projects.map((project) => item(project)).filter((row) => keeps(row, filter)),
-      }),
-    } as never
-  },
-  getItem: async ({ id }) => {
-    const wanted = String(id)
-    try {
-      const data = await one(wanted)
-      refusal = ""
-      return { data }
-    } catch (error) {
-      refusal = error instanceof Error ? error.message : String(error)
-      throw error
-    }
-  },
-  updateItem: async (patch) => {
-    const id = String(patch.id ?? "")
-    if (!isAPage(id))
-      throw new Error(
-        t("This project is a line in config.toml; it is changed in the settings.")
-      )
-    const written = await api.saveProject(id, {
-      name: patch.name ?? "",
-      repository: patch.repository ?? "",
-      path: patch.path ?? "",
-      content: patch.content ?? "",
-    })
-    // The list is drawn from what was last read, and a rename that only showed
-    // on the page you renamed it on would be a rename made twice.
-    await api.projects().then(publish)
-    return { data: item(written) }
-  },
-  createItem: async () => {
-    throw new Error("a project page is made on the board, not from the console")
-  },
-  removeItem: async () => {
-    // Deleting asks for more than an id — the project's name, and what becomes
-    // of its tickets — so it has a dialog of its own: see `project-delete.tsx`.
-    throw new Error("a project is deleted through its confirmation dialog")
+  repository: {
+    getCollection: async (filter) => {
+      const read = await readAgain()
+      return {
+        data: createResourceCollection({
+          id: "/api/projects",
+          items: read.projects.map((project) => item(project)).filter((row) => keeps(row, filter)),
+        }),
+      } as never
+    },
+    // What the server says when it fails is the page's to say (`loadError`):
+    // "no such route" and "no project with id …" are two different afternoons.
+    getItem: async ({ id }) => ({ data: await one(String(id)) }),
+    updateItem: async (patch) => {
+      const id = String(patch.id ?? "")
+      if (!isAPage(id))
+        throw new Error(
+          t("This project is a line in config.toml; it is changed in the settings.")
+        )
+      const written = await api.saveProject(id, {
+        name: patch.name ?? "",
+        repository: patch.repository ?? "",
+        path: patch.path ?? "",
+        content: patch.content ?? "",
+      })
+      // The list is drawn from what was last read, and a rename that only showed
+      // on the page you renamed it on would be a rename made twice.
+      await api.projects().then(publish)
+      return { data: item(written) }
+    },
+    createItem: async () => {
+      throw new Error("a project page is made on the board, not from the console")
+    },
+    removeItem: async () => {
+      // Deleting asks for more than an id — the project's name, and what becomes
+      // of its tickets — so it has a dialog of its own: see `project-delete.tsx`.
+      throw new Error("a project is deleted through its confirmation dialog")
+    },
   },
 
-  view: {
-    /* The two layouts. A variant's name is drawn as it is given and its id is
-     * slugged from it where none is said, so the id is said here and the name
-     * read from the dictionary as the tab is drawn: the address stays `cards`
-     * in every language. */
-    viewVariants: [
-      {
-        ...cardViewOptionFactory({ id: "cards", listComponent: ProjectCards }),
-        get name() {
-          return t("cards")
-        },
-      },
-      {
-        ...tableViewOptionFactory({ id: "table", listComponent: ProjectRows }),
-        get name() {
-          return t("table")
-        },
-      },
-    ],
-  },
   views: {
-    [ActionList.list]: {
-      name: "Projects",
+    list: {
       description:
         "What the tickets are about: where the work happens, and what conventions hold there. One with no repository is not a mistake — its tickets come back as a document.",
+      /* The two layouts. Their labels go through the dictionary as the tabs
+       * are drawn, and their address is their type: `cards`, `table`, in
+       * every language. */
+      layouts: [
+        layout.cards({ label: "cards", components: { list: ProjectCards } }),
+        layout.table({ label: "table", components: { list: ProjectRows } }),
+      ],
       // A card, or a row, is a link to the project's page: no button under it.
-      behavior: { rowActions: [] },
+      rowActions: [],
       // The search is the package's own: it lives in the address (`q`, `type`),
       // and the rows are kept by `keeps`, as the list is read.
-      formFilter,
-      components: {
-        top: ProjectsTop,
-        bottom: ProjectsFoot,
-        noResult: NoProject,
-        pagination: Pagination,
-      },
+      filters: formFilter,
+      components: { top: ProjectsTop, bottom: ProjectsFoot, empty: NoProject },
     },
-    [ActionList.read]: {
-      name: "Project",
-      viewComponent: ProjectPage,
+    read: {
+      title: "Project",
       // The dashboard's width and margins: the page is a header, figures and a
       // board, not a form to keep in a column.
       fullWidth: true,
       // The layout's header, with what only a project has in it: the page has
       // no header of its own.
-      components: { title: ProjectTitle, actions: ProjectActions },
+      components: { view: ProjectPage, title: ProjectTitle, actions: ProjectActions },
     },
-    [ActionList.update]: {
-      name: "Project",
+    update: {
+      title: "Project",
       // What the button that opens this form says. Left to the package it is
       // the action's own name, which reads as a lower-case "update".
-      label: { update: "Edit" },
+      buttonLabel: "Edit",
       form: editForm,
       // Against the edge and at full height: the brief is the field that is
       // actually written here, and it is a page of text.
-      behavior: { openIn: "drawer" },
+      open: "drawer",
+      // The page worth opening from here is the project's, not this form's
+      // own: `ToThePage` is the link to it.
+      expandable: false,
       components: { top: ToThePage },
     },
   },

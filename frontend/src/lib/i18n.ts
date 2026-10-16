@@ -187,12 +187,15 @@ export function setLanguage(next: Language) {
   for (const listener of listeners) listener()
 }
 
-function subscribe(listener: () => void) {
+/** Told when the language changes, before anything is drawn again in it. */
+export function onLanguageChange(listener: () => void) {
   listeners.add(listener)
   return () => {
     listeners.delete(listener)
   }
 }
+
+const subscribe = onLanguageChange
 
 /** The language, read reactively: a component that asks is redrawn when it changes. */
 export function useLanguage(): Language {

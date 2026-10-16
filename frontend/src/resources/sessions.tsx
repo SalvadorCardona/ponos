@@ -45,28 +45,24 @@ const refused = async (): Promise<never> => {
 
 export const sessions = createViewResource<SessionsItem>(SESSIONS, {
   name: "Sessions",
-  scope: SCOPE,
   path: "/api/chat/sessions",
   icon: MessagesSquare,
-  canRead: true,
-  canList: false,
-  canCreate: false,
-  canUpdate: false,
-  canDelete: false,
-
-  getItem: async () => ({
-    data: { id: THE_LIST, name: "Sessions", "@id": "/api/chat/sessions", "@type": SESSIONS },
-  }),
-  getCollection: refused,
-  createItem: refused,
-  updateItem: refused,
-  removeItem: refused,
-
+  // The one page, and nothing to write or delete through the package. Its list
+  // is allowed only to be linked to — the breadcrumb does — and leads to the
+  // page (see `App`).
+  permissions: ["list", "read"],
+  repository: {
+    getItem: async () => ({
+      data: { id: THE_LIST, name: "Sessions", "@id": "/api/chat/sessions", "@type": SESSIONS },
+    }),
+    getCollection: refused,
+    createItem: refused,
+    updateItem: refused,
+    removeItem: refused,
+  },
   views: {
-    [ActionList.read]: {
-      name: "Sessions",
-      viewComponent: LazySessions,
-      components: { navigation: NoHeader },
+    read: {
+      components: { view: LazySessions, navigation: NoHeader },
       fullWidth: true,
     },
   },

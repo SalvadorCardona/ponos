@@ -3,21 +3,26 @@ import { ActionList } from "react-data-form"
 import {
   configureApi,
   configurePorts,
+  configureResourceView,
   generateLinkByResource,
+  parseLink,
   setCurrentScope,
   useCurrentViewResourceContext,
   useLocation,
   useNavigate,
   type ApiDialectInterface,
+  type LinkPropsInterface,
 } from "react-resource-view"
 import { tanstackAdapter } from "react-resource-view/tanstack"
+
+import { Pagination } from "@/components/console/pagination"
 
 import { readQuery, writeQuery } from "./ticket-search"
 
 // The dictionary has to be in place before a resource is declared: the words
 // the views are built with go through it. See `i18n.ts`, which applies it on
 // import.
-import "./i18n"
+import { onLanguageChange } from "./i18n"
 
 /* Wiring react-resource-view into the console, once, before a resource is
  * declared — `createViewResource` reads the dialect as it builds.
@@ -68,7 +73,7 @@ export function configureConsoleViews() {
   setCurrentScope(SCOPE)
 
   configurePorts({
-    navigation: tanstackAdapter,
+    navigation: { ...tanstackAdapter, Link: CarryingLink },
     // The one page the Python server serves is `/`; the rest is the query
     // string, so a deep link survives a reload.
     routing: { mode: "query", param: "view", basePath: "/" },
@@ -79,10 +84,55 @@ export function configureConsoleViews() {
   })
 
   configureApi({ baseUrl: "", dialect: ticketDialect })
+
+  declareDefaults()
+  onLanguageChange(declareDefaults)
+}
+
+/* What every view of the console has in common, under each declaration.
+ *
+ * The pages of a list in the console's words rather than the package's, which
+ * still writes "Showing 1 to 30 sur 475 results" whatever the language.
+ *
+ * Said again whenever the language changes, and that is the other half of
+ * it: react-resource-view 1.0 merges a declaration into its views once, as
+ * the resource is declared, and copies every field of a form as it does — so a
+ * `get description()` that reads the dictionary is read then, in the language
+ * of that moment. Defaults said again are the package's own way of building
+ * every resource anew, and the getters are read again with them. */
+function declareDefaults() {
+  configureResourceView({ defaults: { components: { pagination: Pagination } } })
 }
 
 // On import, so that a resource declared in any module finds the dialect in place.
 configureConsoleViews()
+
+/* -- what a creation starts with ------------------------------------------- */
+
+/* A creation opened in a frame over a page, with what it starts with.
+ *
+ * react-resource-view 1.0 writes the address of a frame from the view it opens
+ * over, and leaves out what the creation starts with, which is the frame's own:
+ * a new ticket made from a project's tickets, or from its card, opened with no
+ * project in it. So the link to a creation in a frame that says nothing of it
+ * carries what it starts with — the one it is given, or the list's it is drawn
+ * in (a project's tickets start with the project) — the way the package
+ * already writes it for a creation on a page of its own, and reads it back. */
+export function carrying(to: string, data: object | undefined): string {
+  if (!data || !Object.keys(data).length) return to
+  if (new URLSearchParams(to.split("?")[1] ?? "").has("defaultData")) return to
+  if (parseLink(to).childViewResource?.resourceAction !== ActionList.create) return to
+  return `${to}${to.includes("?") ? "&" : "?"}defaultData=${encodeURIComponent(JSON.stringify(data))}`
+}
+
+/** The router's link, for the views: see `carrying`. */
+function CarryingLink(props: LinkPropsInterface) {
+  const context = useCurrentViewResourceContext()
+  return React.createElement(tanstackAdapter.Link, {
+    ...props,
+    to: carrying(props.to, context?.defaultData),
+  })
+}
 
 /* -- the layout a list is drawn in ---------------------------------------- */
 
@@ -115,7 +165,7 @@ export const layoutOf = (resourceId: string): string | undefined =>
 export function useLayoutInTheAddress(resourceId: string): void {
   const { view, viewVariant, resource, resourceAction, setViewResource } =
     useCurrentViewResourceContext()
-  const first = view?.viewVariants?.[0]?.id
+  const first = view?.layouts?.[0]?.id
   const listing = resourceAction === ActionList.list
   // The address as the router has it, not as `window.location` has it: a
   // navigation through TanStack lands a moment after it is asked for, and an
@@ -165,7 +215,7 @@ export function useLayoutInTheAddress(resourceId: string): void {
  */
 export function useRememberedLayout(resourceId: string): void {
   const { view, viewVariant } = useCurrentViewResourceContext()
-  const first = view?.viewVariants?.[0]?.id
+  const first = view?.layouts?.[0]?.id
   React.useEffect(() => {
     if (viewVariant) layouts.set(resourceId, viewVariant === first ? "" : viewVariant)
   }, [resourceId, viewVariant, first])

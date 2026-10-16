@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { openInTheWindow } from "@/components/console/ticket-window"
+import { useOpensOverTheList } from "@/components/console/record-window"
 import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import { titleOf, useBoard } from "@/lib/board-store"
@@ -51,6 +51,7 @@ import {
 import { useT } from "@/lib/i18n"
 import type { Decision, Solution, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { tickets } from "@/resources/tickets"
 
 /* What a card waiting on you is for: why it waits, and what to do about it.
  *
@@ -77,6 +78,11 @@ import { cn } from "@/lib/utils"
  */
 
 /** How a ticket shown on screen goes to one of its tabs: none around a card, which opens the window instead. */
+/* The tab of a ticket opened in the window over a list, in the address. Not
+ * `tab`, which is the page's under the window: a project names its own tabs
+ * with it, and has a "brief" too. */
+export const WINDOW_TAB = "ticket-tab"
+
 export const TicketTabContext = React.createContext<{
   goTo: (tab: DecisionTab) => void
   /** The tab on show, which the button has no use to offer a second time. */
@@ -101,6 +107,8 @@ export function DecideButton({
   const tabs = React.useContext(TicketTabContext)
   const action = actionOf(ticket.column)
   const tab = decisionTabOf(ticket.column)
+  // Off the ticket's page, the window over the list, on that tab.
+  const openOnTheTab = useOpensOverTheList(tickets, "read", ticket.id, tab ? `${WINDOW_TAB}=${tab}` : "")
   if (!action || !tab) return null
   // Already on that tab: the button would only point at where you are.
   if (tabs?.shown === tab) return null
@@ -116,7 +124,7 @@ export function DecideButton({
         blocked ? "text-tr-amber hover:text-tr-amber" : "bg-tr-pink hover:bg-tr-pink/90 text-white",
         className
       )}
-      onClick={() => (tabs ? tabs.goTo(tab) : openInTheWindow(ticket.id, tab))}
+      onClick={(event) => (tabs ? tabs.goTo(tab) : openOnTheTab(event))}
     >
       <Icon />
       {t(action)}

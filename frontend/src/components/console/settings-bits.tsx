@@ -38,9 +38,11 @@ import { api, why } from "@/lib/api"
 import { t as translate, useT } from "@/lib/i18n"
 import { splitHelp } from "@/lib/settings-search"
 import {
+  cardId,
   currentSettings,
   draftOf,
   forgetDraft,
+  inputName,
   publishSettings,
   rememberDraft,
   sectionsIn,
@@ -73,17 +75,6 @@ const UNSET = "default:unset"
 
 /** A token you asked to forget. An empty box already means "I did not retype it". */
 const FORGOTTEN = "secret:forgotten"
-
-/* A setting is named by its path into the file — `notion.status.ready` — and
- * react-data-form reads a dot in an input's name as a step into a nested
- * object: it would file the input under `inputs.notion.status` and lose the
- * flat entry the form was built with. So the dots become dashes on the way in,
- * and the field's own name comes back from the description rather than from
- * the input. */
-export const inputName = (name: string) => name.replaceAll(".", "-")
-
-/** Where a card is, for a link or a search to scroll to. */
-export const cardId = (key: string) => `settings-card-${key}`
 
 // The command a card is checked with. The CLI already knows how to say whether
 // a token works; the settings page does not need a second opinion.

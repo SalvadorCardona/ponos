@@ -30,7 +30,7 @@ export function ProjectTickets({ project }: { project: ProjectItem }) {
       filter={{ project: project.name }}
       defaultData={{ project: project.id }}
       viewVariantId={layoutOf(TICKETS)}
-      limit={canCreate ? undefined : { getLimit: () => ({ current: 1, max: 1 }) }}
+      quota={canCreate ? undefined : { get: () => ({ current: 1, max: 1 }) }}
     />
   )
 }

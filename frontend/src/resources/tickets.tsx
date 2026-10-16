@@ -11,15 +11,14 @@ import {
   Link,
   ListTable,
   RowWrapperColumnComponent,
-  columnViewOptionFactory,
   createResourceCollection,
   createViewResource,
   generateLinkByResource,
-  tableViewOptionFactory,
+  layout,
   useCurrentViewResourceContext,
   useListViewContext,
   type ListComponentPropsInterface,
-  type ResourceOptionInterface,
+  type ResourceDefinition,
   type RowComponentPropsInterface,
   type RowInterface,
 } from "react-resource-view"
@@ -50,14 +49,14 @@ import {
   SegmentedInputController,
 } from "@/components/console/new-ticket"
 import { EmptyState } from "@/components/console/empty-state"
-import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { Robot, TicketRobot } from "@/components/console/robot"
 import { RunnerStrip } from "@/components/console/runner-strip"
 import { StatisticsBand } from "@/components/console/statistics"
 import { CardLive } from "@/components/console/session-log"
 import { TicketHead, TicketPage } from "@/components/console/ticket-page"
-import { TicketWindow, opensInTheWindow } from "@/components/console/ticket-window"
+import { useOpensOverTheList } from "@/components/console/record-window"
+import { ticketWindow } from "@/components/console/ticket-window"
 import {
   Marked,
   NoMatch,
@@ -67,7 +66,7 @@ import {
 } from "@/components/console/ticket-search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { api, why } from "@/lib/api"
+import { api } from "@/lib/api"
 import {
   addTicket,
   boardOnce,
@@ -79,7 +78,7 @@ import {
 } from "@/lib/board-store"
 import { counted, t } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
-import { SCOPE, layoutOf, useLayoutInTheAddress, useRememberedLayout } from "@/lib/resource-view"
+import { layoutOf, useLayoutInTheAddress, useRememberedLayout } from "@/lib/resource-view"
 import type { ColumnKey, Ticket, TicketDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -94,10 +93,6 @@ import { cn } from "@/lib/utils"
  */
 
 export const TICKETS = "tickets"
-
-/** Why the last ticket asked for could not be read, as the server said it. */
-let ticketProblem = ""
-export const lastTicketProblem = () => ticketProblem
 
 /* The page under a ticket, read once per opening.
  *
@@ -415,9 +410,10 @@ const TitleCell: InputControllerComponentInterface = ({ formInput }) => {
   const id = String((useFormContext().form.originalData as TicketItem | undefined)?.id ?? "")
   const title = String(formInput.value ?? "")
   const words = useSearchWords()
+  const open = useOpensOverTheList(tickets, "read", id)
   if (!id) return <>{title}</>
   return (
-    <Link to={ticketHref(id)} onClick={opensInTheWindow(id)} className="font-medium hover:underline">
+    <Link to={ticketHref(id)} onClick={open} className="font-medium hover:underline">
       <Marked text={title} words={words} />
     </Link>
   )
@@ -444,7 +440,7 @@ const rowForm: FormInterface = {
 
 /* How a ticket is drawn on the board. The card is the way into the ticket —
  * its title is the link; a click opens it in a
- * window over the board (see `TicketWindow`).
+ * window over the board (see `ticketWindow`).
  *
  * Read top to bottom it answers, in order: what is it, what is said about it,
  * what is it doing, where does the work go, how long has it been sitting there
@@ -470,12 +466,12 @@ const rowForm: FormInterface = {
  */
 function TicketCard({ row }: RowComponentPropsInterface) {
   const ticket = row?.data as TicketItem | undefined
-  const { resource } = useCurrentViewResourceContext()
   // The words of a search, marked where the card says them.
   const words = useSearchWords()
+  // The ticket's window over the list, under a project's page as on the board.
+  const open = useOpensOverTheList(tickets, "read", ticket?.id ?? "")
   if (!ticket) return null
-  const href = generateLinkByResource({ resource, resourceAction: ActionList.read, id: ticket.id })
-  const open = opensInTheWindow(ticket.id)
+  const href = ticketHref(ticket.id)
 
   return (
     <div
@@ -549,14 +545,14 @@ function BoardTop() {
   )
 }
 
-/** The same list drawn inside another page: reread when the stream moves, with the window for its tickets, and none of the dashboard's figures. */
+/** The same list drawn inside another page: reread when the stream moves, and none of the dashboard's figures. */
 function EmbeddedTop() {
   const { fetchData } = useCurrentViewResourceContext()
   useRememberedLayout(TICKETS)
   const latest = React.useRef(fetchData)
   latest.current = fetchData
   React.useEffect(() => subscribeBoard(() => latest.current()), [])
-  return <TicketWindow />
+  return null
 }
 
 function DashboardTop({
@@ -573,14 +569,12 @@ function DashboardTop({
   latest.current = fetchData
   React.useEffect(() => subscribeBoard(() => latest.current()), [])
   // The figures are the board's: a ticket's page is drawn under the same
-  // `top`, and has its own column to say what it is doing. So is the window a
-  // ticket opens in over the list — once, for every card and row of it.
+  // `top`, and has its own column to say what it is doing.
   if (!loading)
     return listing ? (
       <>
         <RunnerStrip action={<IdeasButton inline />} />
         <StatisticsBand />
-        <TicketWindow />
       </>
     ) : null
   return (
@@ -1031,139 +1025,117 @@ function matches(ticket: Ticket, filter: Record<string, unknown> = {}): boolean 
 
 /* -- the declaration ------------------------------------------------------ */
 
-const options: ResourceOptionInterface<TicketItem, TicketItem, TicketWrite> = {
+/* What the board's list is, apart from which tickets it holds and how its
+ * table reads: said once, for the board and for a project's tickets. */
+const viewsOf = (form: FormInterface, empty: React.FC): ResourceDefinition<TicketItem, TicketWrite>["views"] => ({
+  list: {
+    // The resource's name and the line under it are what the list's own header
+    // says, next to its icon: the board opens on its own words. What the board
+    // is, without naming where it is kept: the same console
+    // draws a Notion workspace and a directory of Markdown files, and a
+    // sentence that names one of them is wrong half the time.
+    description: "Your board, live. Drop a card in another column and the runner is told.",
+    form,
+    /* The two tabs over the list. Their labels go through the dictionary as
+     * the tabs are drawn, and their address is their type: `board`, `table`,
+     * in every language. */
+    layouts: [
+      layout.board({
+        label: "board",
+        // The page's whole width, for the board and the table alike: switching
+        // between them must not move the page. The forms keep the column every
+        // other page is drawn in.
+        fullWidth: true,
+        groupBy: "column",
+        // The board's own columns, drawn by `BoardColumns` from the board the
+        // stream holds rather than declared here.
+        columns: [],
+        components: { list: BoardColumns, row: TicketCard },
+      }),
+      layout.table({ label: "table", fullWidth: true, components: { list: TicketTable } }),
+    ],
+    // A row of the table opens the ticket by its title, as a card does, in
+    // the window over the list (see `TitleCell`). The package's own read
+    // button would have been a second way in.
+    rowActions: [],
+    components: { empty },
+  },
+  create: {
+    title: "New ticket",
+    form: createForm,
+    // Over the board rather than instead of it, and in the middle of it: a
+    // handful of fields are a question asked, not a page to settle into. The dialog is
+    // already as wide as a brief wants and scrolls inside when one runs long.
+    open: "dialog",
+  },
+  read: {
+    title: "Ticket",
+    // Over the list it was opened from, in the console's own window (see
+    // `ticket-window.tsx`); its address alone is the ticket's page.
+    open: ticketWindow,
+    // The layout's header, in the same shapes but written for a ticket: its
+    // short id, its whole title.
+    components: { view: TicketPage, navigation: TicketHead },
+  },
+})
+
+const options: ResourceDefinition<TicketItem, TicketWrite> = {
   name: "Dashboard",
-  scope: SCOPE,
   path: "/api/board",
   icon: LayoutGrid,
-  canList: true,
-  canRead: true,
-  canCreate: true,
-  canUpdate: false,
-  canDelete: false,
+  // A card dropped in a column is written through the list itself (see
+  // `DropZone`), not through a form: nothing of a ticket is edited here, and
+  // nothing is deleted — Notion keeps it.
+  permissions: { update: false, delete: false, export: false },
 
-  // The rows are the stream's; asking Notion again here would be asking it
-  // for what every open tab already holds.
-  getCollection: async (filter) => {
-    const board = await boardOnce()
-    return {
-      data: createResourceCollection({
-        id: "/api/board",
-        items: board.tickets.filter((ticket) => matches(ticket, filter)).map(item),
-      }),
-    } as never
-  },
-  // What the board already knows, at once: the title, the column, the
-  // project and the cost are on the card, and the page draws them without
-  // waiting for Notion. The brief is the page's to read (see `readTicket`).
-  // A ticket the board does not hold — an address typed before the board
-  // arrived — is read whole, and that read is the one the page uses.
-  getItem: async ({ id }) => {
-    // Kept for the page to say: the package only says *that* a read failed.
-    ticketProblem = ""
-    const wanted = String(id).replace(/-/g, "")
-    const row = currentBoard()?.tickets.find((ticket) => ticket.id === wanted)
-    if (row) return { data: item(row) }
-    try {
+  repository: {
+    // The rows are the stream's; asking Notion again here would be asking it
+    // for what every open tab already holds.
+    getCollection: async (filter) => {
+      const board = await boardOnce()
+      return {
+        data: createResourceCollection({
+          id: "/api/board",
+          items: board.tickets.filter((ticket) => matches(ticket, filter)).map(item),
+        }),
+      } as never
+    },
+    // What the board already knows, at once: the title, the column, the
+    // project and the cost are on the card, and the page draws them without
+    // waiting for Notion. The brief is the page's to read (see `readTicket`).
+    // A ticket the board does not hold — an address typed before the board
+    // arrived — is read whole, and that read is the one the page uses; what
+    // the server said when it fails is the page's to say (`loadError`).
+    getItem: async ({ id }) => {
+      const wanted = String(id).replace(/-/g, "")
+      const row = currentBoard()?.tickets.find((ticket) => ticket.id === wanted)
+      if (row) return { data: item(row) }
       return { data: item(await readTicket(wanted)) }
-    } catch (error) {
-      ticketProblem = why(error)
-      throw error
-    }
-  },
-  // A card dropped in a column is a status change, and nothing else about a
-  // ticket is written from the board. The same move the buttons on a card
-  // make, put back where it was if the write fails.
-  updateItem: async (patch) => {
-    const id = String(patch.id)
-    const column = patch.column as ColumnKey | undefined
-    const before = currentBoard()?.tickets.find((ticket) => ticket.id === id)
-    if (column) await moveTicket(id, column)
-    const after = currentBoard()?.tickets.find((ticket) => ticket.id === id) ?? before
-    return { data: after ? item(after) : (patch as unknown as TicketItem) }
-  },
-  createItem: async (fresh) => ({ data: await createTicket(fresh) }),
-  removeItem: async () => {
-    throw new Error("a ticket is not deleted from the console; Notion keeps it")
+    },
+    // A card dropped in a column is a status change, and nothing else about a
+    // ticket is written from the board. The same move the buttons on a card
+    // make, put back where it was if the write fails.
+    updateItem: async (patch) => {
+      const id = String(patch.id)
+      const column = patch.column as ColumnKey | undefined
+      const before = currentBoard()?.tickets.find((ticket) => ticket.id === id)
+      if (column) await moveTicket(id, column)
+      const after = currentBoard()?.tickets.find((ticket) => ticket.id === id) ?? before
+      return { data: after ? item(after) : (patch as unknown as TicketItem) }
+    },
+    createItem: async (fresh) => ({ data: await createTicket(fresh) }),
+    removeItem: async () => {
+      throw new Error("a ticket is not deleted from the console; Notion keeps it")
+    },
   },
 
-  view: {
-    name: "Dashboard",
-    form: rowForm,
-    /* The two tabs over the list. A variant's name is drawn as it is given and
-     * its id is slugged from it where none is said, so the id is said here and
-     * the name read from the dictionary as the tab is drawn: the address stays
-     * `board` in every language. */
-    viewVariants: [
-      {
-        ...columnViewOptionFactory({
-          id: "board",
-          // The page's whole width, for the board and the table alike: switching
-          // between them must not move the page. The forms keep the column every
-          // other page is drawn in.
-          fullWidth: true,
-          listComponent: BoardColumns,
-          rowComponent: TicketCard,
-          identifierKey: "column",
-        }),
-        get name() {
-          return t("board")
-        },
-      },
-      {
-        ...tableViewOptionFactory({
-          id: "table",
-          fullWidth: true,
-          listComponent: TicketTable,
-          behavior: { rowActions: [] },
-        }),
-        get name() {
-          return t("table")
-        },
-      },
-    ],
-    components: { top: BoardTop },
-  },
-  views: {
-    // The name and the line under it are what the list's own header says, next
-    // to the resource's icon: the board opens on its own words.
-    [ActionList.list]: {
-      name: "Dashboard",
-      // What the board is, without naming where it is kept: the same console
-      // draws a Notion workspace and a directory of Markdown files, and a
-      // sentence that names one of them is wrong half the time.
-      description:
-        "Your board, live. Drop a card in another column and the runner is told.",
-      // A row of the table opens the ticket by its title, as a card does, in
-      // the window over the list (see `TitleCell`). The package's own read
-      // button left the list for the page, and would have been a second way
-      // in that does something else.
-      behavior: { rowActions: [] },
-      // `top` said again: the package merges a view over the resource's one
-      // key by key, so a `components` here replaces the whole of it — and
-      // without `BoardTop` the list never rereads the board the stream moves.
-      components: { top: BoardTop, noResult: NoTicket, pagination: Pagination },
-    },
-    [ActionList.create]: {
-      name: "New ticket",
-      form: createForm,
-      // Over the board rather than instead of it, and in the middle of it: a
-      // handful of fields are a question asked, not a page to settle into. The dialog is
-      // already as wide as a brief wants and scrolls inside when one runs long.
-      behavior: { openIn: "popup" },
-    },
-    [ActionList.read]: {
-      name: "Ticket",
-      viewComponent: TicketPage,
-      // The layout's header, in the same shapes but written for a ticket: its
-      // short id, its whole title. `top` said again, as on the list: without
-      // it the page no longer rereads the ticket the stream moves.
-      components: { top: BoardTop, navigation: TicketHead },
-    },
-  },
+  // Over every view of a ticket — the list, its page, the window and the
+  // dialog: it rereads the board whenever the stream moves it.
+  components: { top: BoardTop },
+  views: viewsOf(rowForm, NoTicket),
 }
 
-export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(TICKETS, options)
+export const tickets = createViewResource<TicketItem, TicketWrite>(TICKETS, options)
 
 /* The same tickets under a project's page: this declaration, with the table
  * of `projectRowForm`, the search bar without its project filter, and an empty line
@@ -1171,19 +1143,9 @@ export const tickets = createViewResource<TicketItem, TicketItem, TicketWrite>(T
  * options: a column, a card or a way of moving one is changed in one place. */
 export const PROJECT_TICKETS = "project-tickets"
 
-export const projectTickets = createViewResource<TicketItem, TicketItem, TicketWrite>(PROJECT_TICKETS, {
+export const projectTickets = createViewResource<TicketItem, TicketWrite>(PROJECT_TICKETS, {
   ...options,
-  // `createViewResource` merges the resource's `view` into each of its `views`
-  // as it builds them, in place: the list's form is said again, not inherited.
-  view: { ...options.view, form: projectRowForm },
-  views: {
-    ...options.views,
-    [ActionList.list]: {
-      ...options.views?.[ActionList.list],
-      form: projectRowForm,
-      components: { ...options.views?.[ActionList.list]?.components, noResult: NoProjectTicket },
-    },
-  },
+  views: viewsOf(projectRowForm, NoProjectTicket),
 })
 
 /** Where the board is, in the layout it was last worked in. */
