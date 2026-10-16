@@ -1423,6 +1423,21 @@ and nothing is cloned twice — every way of matching a clone you already have i
 first, and a remote two clones already answer to is still a question rather than a third
 copy.
 
+**A project can be created from the console.** *New project*, beside *cards / table* on the
+Projects page or in Ctrl+K, opens a window drawn like *New idea*: the name, a line saying
+what the project does, *Code* or *Writing*, then — for code — its repository either on
+GitHub (`owner/repo` or any github.com address, kept as `https://github.com/owner/repo`) or
+as a folder of this machine, whose `origin` fills the GitHub field in; its public address;
+and the brief, which becomes the body of the page. While it is typed, the console says
+whether that repository is already cloned here or will be at the first ticket. Ctrl+Enter
+creates it, through the same store as everything else — a Notion page, or a file on a
+Markdown board — in the columns the projects database already has (`github` rather than a
+second `Repository` beside it; `Description` and `URL` where the database has them). A
+name the workspace already has, in any case, an address that is not GitHub's, and a folder
+that is not a git repository here are refused under their field, in `runner.language`. The
+new card comes first in the list, marked, its *+ Ticket* ready — or, with *Create a first
+ticket* ticked, the ticket's form opens straight away with the project in it.
+
 A project that names none — and **a ticket with no project at all** — is **document work**.
 It gets a disposable scratch directory instead of a worktree, and the agent's answer is
 written back into the Notion ticket as real blocks: headings, lists, checkboxes, links.

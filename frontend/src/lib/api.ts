@@ -25,7 +25,9 @@ import type {
   Message,
   Pair,
   Pictures,
+  Project,
   ProjectBrief,
+  ProjectCheck,
   ProjectDeleted,
   ProjectDetail,
   Projects,
@@ -69,13 +71,15 @@ export class ApiError extends Error {
    * dialect. Without it the sentence the server refused with reaches the
    * browser's console and nowhere else — and a save that fails quietly is a
    * save you think worked. */
-  readonly data: { error: string }
+  readonly data: { error: string; violations?: { propertyPath: string; message: string }[] }
 
-  constructor(message: string, status: number) {
+  /* `violations`, when the server says which field it refused: the form then
+   * draws the sentence under that field, not only in a toast. */
+  constructor(message: string, status: number, violations?: { propertyPath: string; message: string }[]) {
     super(message)
     this.name = "ApiError"
     this.status = status
-    this.data = { error: message }
+    this.data = violations?.length ? { error: message, violations } : { error: message }
   }
 }
 
@@ -136,8 +140,8 @@ async function answer<T>(response: Response): Promise<T> {
   if (response.status === 401) backToTheDoor()
   const payload = await response.json().catch(() => ({}) as Record<string, unknown>)
   if (!response.ok) {
-    const said = (payload as { error?: string }).error
-    throw new ApiError(said || String(response.status), response.status)
+    const said = payload as { error?: string; violations?: ApiError["data"]["violations"] }
+    throw new ApiError(said.error || String(response.status), response.status, said.violations)
   }
   return payload as T
 }
@@ -180,6 +184,11 @@ export const api = {
         (project === undefined ? "" : `&project=${encodeURIComponent(project)}`)
     ),
   project: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
+  createProject: (values: Record<string, unknown>) => request<Project>("/api/projects", values),
+  checkProject: (repository: string, path: string) =>
+    request<ProjectCheck>(
+      `/api/projects/check?repository=${encodeURIComponent(repository)}&path=${encodeURIComponent(path)}`
+    ),
   projectBrief: (id: string) => request<ProjectBrief>(`/api/projects/${id}/brief`),
   projectSettings: (id: string) => request<ProjectSettings>(`/api/projects/${id}/settings`),
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),

@@ -55,6 +55,7 @@ from ponos.__main__ import build_parser  # noqa: E402
 from ponos.web import api as web_api  # noqa: E402
 from ponos.web import board as web_board  # noqa: E402
 from ponos.web import removal as web_removal  # noqa: E402
+from ponos.web import creation as web_creation  # noqa: E402
 from ponos.web import attachments as web_attachments  # noqa: E402
 from ponos.web import console as web_console  # noqa: E402
 from ponos.web import settings as web_settings  # noqa: E402
@@ -15085,6 +15086,197 @@ def the_console_opens_a_project_and_writes_it_back():
             pass
         else:
             raise AssertionError("an unknown project must not read as a blank one")
+
+
+def _creatable(board: files.Board, language: str = "fr") -> web_api.Api:
+    """A markdown Api that creates projects, speaking `language`."""
+    api = _markdown_api(board)
+    api._config.runner = C.Runner(language=language)
+    api._runner.config = api._config
+    api.creation = web_creation.Creation(api)
+    api.watch = type("Watch", (), {"nudge": lambda self: None})()
+    return api
+
+
+def _refused(create, field: str) -> str:
+    """The sentence a creation is refused with, which must be about `field`."""
+    try:
+        create()
+    except web_creation.Refused as error:
+        assert error.field == field, (error.field, str(error))
+        return str(error)
+    raise AssertionError(f"expected a refusal about {field}")
+
+
+@case
+def a_github_repository_is_written_as_its_whole_address():
+    for given in (
+        "SalvadorCardona/ponos",
+        "https://github.com/SalvadorCardona/ponos",
+        "https://github.com/SalvadorCardona/ponos.git",
+        "github.com/SalvadorCardona/ponos/",
+        "git@github.com:SalvadorCardona/ponos.git",
+        "https://github.com/SalvadorCardona/ponos/tree/main/src",
+    ):
+        assert web_creation.github_url(given) == "https://github.com/SalvadorCardona/ponos", given
+    for given in ("ponos", "https://gitlab.com/someone/ponos", "a/b/c", "-bad/ponos", "owner/..", "owner/a b"):
+        assert web_creation.github_url(given) == "", given
+
+
+@case
+def a_project_is_created_from_the_console_with_what_its_page_says():
+    """A writing project, then a code one from GitHub: the page carries the
+    columns the database already has, the brief is its body, and the answer is
+    a row of the list — the one the list then holds."""
+    with _board() as board:
+        board.create_row("projects", "Existant", {"github": "someone/else"})
+        api = _creatable(board)
+
+        made = api.creation.create(
+            {
+                "name": "  Site   vitrine ",
+                "description": "La page d'accueil.",
+                "kind": "document",
+                # Left over from the form before the type was changed.
+                "repository": "owner/ignored",
+                "site": "https://example.com",
+                "content": "# Voix\n\nÉcris court.",
+            }
+        )
+        assert made["name"] == "Site vitrine" and made["kind"] == "document"
+        assert made["repository"] == "" and made["source"] == "board"
+        page = board.page(made["id"])
+        assert page.title == "Site vitrine"
+        assert store.read(page, "Description") == "La page d'accueil."
+        assert store.read(page, "URL") == "https://example.com"
+        assert not store.read(page, "github")
+        assert board.blocks_text(made["id"]) == "# Voix\n\nÉcris court."
+
+        code = api.creation.create({"name": "Ponos", "kind": "code", "repository": "SalvadorCardona/ponos"})
+        assert code["kind"] == "code"
+        assert code["repository"] == "https://github.com/SalvadorCardona/ponos"
+        # The column this database calls its repository, not a second one.
+        assert store.read(board.page(code["id"]), "github") == code["repository"]
+        assert "Repository" not in board.page(code["id"]).properties
+
+        listed = {row["name"]: row for row in api.all_projects()["projects"]}
+        assert listed["Ponos"]["id"] == code["id"] and listed["Ponos"]["kind"] == "code"
+        assert listed["Site vitrine"]["kind"] == "document"
+
+        # A ticket created on it right after is tied to it, and its runner finds
+        # the clone of the repository it declares by its remote.
+        root = Path(tempfile.mkdtemp())
+        try:
+            clone = root / "ponos"
+            subprocess.run(["git", "init", "-q", str(clone)], check=True)
+            subprocess.run(
+                ["git", "-C", str(clone), "remote", "add", "origin", "git@github.com:SalvadorCardona/ponos.git"],
+                check=True,
+            )
+            ticket = api.create_ticket("Un ticket", project=code["id"])["id"]
+            relation = store.read(board.page(ticket), board.settings().prop("project"))
+            assert relation == [code["id"]]
+            found = projects.Resolver(root, {}).resolve(board, relation[0])
+            assert found.path == clone and found.github == code["repository"]
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+
+@case
+def a_project_is_created_from_a_folder_and_names_its_remote():
+    with _board() as board, tempfile.TemporaryDirectory() as directory:
+        clone = Path(directory) / "jeu"
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        subprocess.run(
+            ["git", "-C", str(clone), "remote", "add", "origin", "git@github.com:SalvadorCardona/jeu.git"],
+            check=True,
+        )
+        api = _creatable(board)
+
+        checked = api.creation.check(path=str(clone))
+        assert checked["path"] == str(clone)
+        assert checked["origin"] == "https://github.com/SalvadorCardona/jeu"
+
+        made = api.creation.create({"name": "Jeu", "kind": "code", "path": f"{clone}/"})
+        assert made["path"] == str(clone)
+        assert made["repository"] == "https://github.com/SalvadorCardona/jeu"
+        assert store.read(board.page(made["id"]), "Path") == str(clone)
+        found = projects.Resolver(Path(directory), {}).resolve(board, made["id"])
+        assert found.path == clone and found.is_code
+
+
+@case
+def a_project_the_console_cannot_create_is_refused_before_anything_is_written():
+    """A name taken, a repository that is not GitHub's, a folder that is not
+    there — each said under its field, in the runner's language, and the board
+    left as it was."""
+    with _board() as board, tempfile.TemporaryDirectory() as directory:
+        board.create_row("projects", "Ponos", {})
+        api = _creatable(board)
+        create = api.creation.create
+
+        said = _refused(lambda: create({"name": "PONOS", "kind": "document"}), "name")
+        assert said == "Un projet s'appelle déjà « Ponos »."
+        _refused(lambda: create({"name": "   ", "kind": "document"}), "name")
+        said = _refused(lambda: create({"name": "Neuf", "kind": "code", "repository": "gitlab.com/a/b"}), "repository")
+        assert "gitlab.com/a/b" in said and "GitHub" in said
+        _refused(lambda: create({"name": "Neuf", "kind": "code"}), "repository")
+        missing = f"{directory}/nowhere"
+        said = _refused(lambda: create({"name": "Neuf", "kind": "code", "path": missing}), "path")
+        assert said == f"Il n'y a pas de dossier à {missing} sur cette machine."
+        _refused(lambda: create({"name": "Neuf", "kind": "code", "path": directory}), "path")
+        _refused(lambda: create({"name": "Neuf", "kind": "code", "path": "relative/folder"}), "path")
+        _refused(lambda: create({"name": "Neuf", "kind": "document", "site": "example.com"}), "site")
+        assert [page.title for page in board.query("projects")] == ["Ponos"]
+
+        # In English for a runner that speaks it.
+        said = _refused(lambda: _creatable(board, "en").creation.create({"name": "ponos"}), "name")
+        assert said == "A project is already called “Ponos”."
+
+        # What the form is told as it is filled in: a refusal said, not raised.
+        checked = api.creation.check("not a repository", missing)
+        assert "repository_error" in checked and "path_error" in checked
+        checked = api.creation.check("owner/name")
+        assert checked == {"repository": "https://github.com/owner/name", "cloned": ""}
+
+
+@case
+def the_console_server_creates_a_project_and_says_which_field_it_refuses():
+    """The route, end to end: a project created is a row of the list; a refusal
+    is a 400 whose violation names the field, which is what the form draws."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    from ponos.web import server as web_server
+
+    with _board() as board:
+        api = _creatable(board)
+        console = web_server.Console(("127.0.0.1", 0), web_server.Handler, api, "tok")
+        threading.Thread(target=console.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{console.server_address[1]}"
+        headers = {"Authorization": "Bearer tok", "Content-Type": "application/json", "X-Ponos": "1"}
+
+        def ask(path: str, body: dict | None = None) -> tuple[int, dict]:
+            data = None if body is None else json.dumps(body).encode()
+            request = urllib.request.Request(base + path, data=data, headers=headers)
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    return response.status, json.loads(response.read())
+            except urllib.error.HTTPError as error:
+                return error.code, json.loads(error.read() or b"{}")
+
+        try:
+            status, made = ask("/api/projects", {"name": "Neuf", "kind": "document"})
+            assert status == 200 and made["name"] == "Neuf" and made["kind"] == "document", made
+            status, refused = ask("/api/projects", {"name": "neuf", "kind": "document"})
+            assert status == 400
+            assert refused["violations"] == [{"propertyPath": "name", "message": refused["error"]}]
+            status, checked = ask("/api/projects/check?" + urllib.parse.urlencode({"repository": "o/n"}))
+            assert status == 200 and checked["repository"] == "https://github.com/o/n", checked
+        finally:
+            console.shutdown()
+            console.server_close()
 
 
 def _deletable(board: files.Board):

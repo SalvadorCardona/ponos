@@ -18,7 +18,8 @@ import { defineConfig } from "@playwright/test"
  * The page of the ideas has one too: it turns an idea into a ticket of Website, which
  * the statistics of Website then count, and it counts the ideas the chat's batch adds. The sessions' tests have one as well: they hold the console's one open conversation, and a turn running there is a turn the ideas' scoring waits behind. And the first connection
  * gets a console nobody has claimed, which its test claims — once. And the tests that
-delete projects get one of their own, with two projects to spare: the others count them.
+delete projects get one of their own, with two projects to spare: the others count them —
+ * and so do the tests that create some.
  *
  * The ports are free ones unless `PONOS_E2E_PORT` names the first (the
  * chat takes the next, the first connection the one after, deleting the one after that, the ideas and the sessions the last): two worktrees running these tests at once must not both
@@ -77,7 +78,7 @@ export default defineConfig({
   projects: [
     {
       name: "console",
-      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "ideas-page.spec.ts", "sessions.spec.ts", "setup.spec.ts", "project-delete.spec.ts"],
+      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "ideas-page.spec.ts", "sessions.spec.ts", "setup.spec.ts", "project-delete.spec.ts", "project-new.spec.ts"],
       use: { baseURL: `http://127.0.0.1:${PORT}` },
     },
     {
@@ -87,7 +88,7 @@ export default defineConfig({
     },
     {
       name: "delete",
-      testMatch: "project-delete.spec.ts",
+      testMatch: ["project-delete.spec.ts", "project-new.spec.ts"],
       use: { baseURL: `http://127.0.0.1:${DELETE_PORT}` },
     },
     {
