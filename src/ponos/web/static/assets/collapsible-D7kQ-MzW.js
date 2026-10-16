@@ -1,1 +1,5 @@
+<<<<<<<< HEAD:src/ponos/web/static/assets/collapsible-D7kQ-MzW.js
 import"./rolldown-runtime-hePW80VL.js";import{i as e,r as t}from"./react-D_Rhr4js.js";import{n,r,t as i}from"./ui-DhHcPeU-.js";e();var a=t();function o({...e}){return(0,a.jsx)(r,{"data-slot":`collapsible`,...e})}function s({...e}){return(0,a.jsx)(n,{"data-slot":`collapsible-trigger`,...e})}function c({...e}){return(0,a.jsx)(i,{"data-slot":`collapsible-content`,...e})}export{c as n,s as r,o as t};
+========
+import"./rolldown-runtime-hePW80VL.js";import{i as e,r as t}from"./react-D_Rhr4js.js";import{n,r,t as i}from"./ui-BzGsqg_9.js";e();var a=t();function o({...e}){return(0,a.jsx)(r,{"data-slot":`collapsible`,...e})}function s({...e}){return(0,a.jsx)(n,{"data-slot":`collapsible-trigger`,...e})}function c({...e}){return(0,a.jsx)(i,{"data-slot":`collapsible-content`,...e})}export{c as n,s as r,o as t};
+>>>>>>>> 1497961 (feat: Ponos — Connecter GitHub en un clic (création automatique d'une GitHub App)):src/ponos/web/static/assets/collapsible-i9HtuJiP.js

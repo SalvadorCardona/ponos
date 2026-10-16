@@ -25,6 +25,9 @@
 #   PONOS_SLACK_TOKEN      the Slack bot token (xoxb-…)        [notify.slack]
 #   ANTHROPIC_API_KEY      the Anthropic key                   [claude]
 #   OPENROUTER_API_KEY     the OpenRouter key                  [openrouter]
+#   PONOS_GITHUB_APPS      the GitHub Apps connected from the console, as one
+#                          JSON line (Settings › GitHub writes it, Disconnect
+#                          removes it — never typed by hand)
 #
 # A secret left in this file by an older version is moved into secrets.env by
 # the next launch, which says so; until then it is ignored. `ponos doctor`
@@ -985,7 +988,8 @@ send_after_transcription = false
 # the pull request, the merge — then goes out under the account its owner names
 # here. An owner this table does not name is worked under whichever account `gh`
 # is signed in as, which is what one account has always done: a machine with one
-# GitHub leaves this empty.
+# GitHub leaves this empty. A GitHub App connected from the console (Settings ›
+# GitHub) comes before this table for the owners it is installed on.
 [github]
 # "animalink" = "dev-animalink"
 # "salvadorcardona" = "salvadevme"

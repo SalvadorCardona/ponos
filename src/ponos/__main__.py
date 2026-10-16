@@ -20,7 +20,7 @@ from datetime import datetime
 
 from . import __version__, channels, cleanup, config as config_module, conversation, credits, git, notion
 from . import db, journal, kinds, legacy, models, resources, store, voice
-from . import project_settings, provision
+from . import github_app, project_settings, provision
 from . import provider as provider_module
 from . import schedules as schedules_module
 from . import session, state, subtypes, systemd
@@ -860,6 +860,31 @@ def _doctor_columns(schema: dict[str, str], settings: config_module.Notion) -> i
     return problems
 
 
+def _doctor_github_app() -> int:
+    """The apps connected from the console, and whether each one still gets a token."""
+    connected = github_app.describe(with_repositories=False)
+    if not connected:
+        print(f"  {DIM}not connected — gh is used (console: Settings › GitHub){RESET}")
+        return 0
+    problems = 0
+    for app in connected:
+        if app["error"]:
+            bad(f"{app['slug']} — {app['error']}")
+            problems += 1
+            continue
+        if not app["installations"]:
+            warn(f"{app['slug']} — installed nowhere: {app['install_url']}")
+            continue
+        for installation in app["installations"]:
+            reach = "every repository" if installation["selection"] == "all" else "the repositories chosen"
+            if github_app.token(installation["account"]):
+                ok(f"{app['slug']} on {installation['account']} — token obtained, {reach}")
+            else:
+                bad(f"{app['slug']} on {installation['account']} — no token from GitHub")
+                problems += 1
+    return problems
+
+
 def command_doctor(args: argparse.Namespace) -> int:
     problems = 0
 
@@ -907,6 +932,9 @@ def command_doctor(args: argparse.Namespace) -> int:
             else:
                 warn(f"{owner}/* — gh is not signed in as {account}: gh auth login")
                 problems += 1
+
+    title("GitHub App")
+    problems += _doctor_github_app()
 
     title("Claude provider")
     problems += _doctor_provider(configuration)
@@ -1064,6 +1092,12 @@ def command_doctor(args: argparse.Namespace) -> int:
         for repo in sorted({path for repos in index.values() for path in repos}):
             if why := _base_without_ci(repo, configuration.github):
                 warn(f"{repo.name}: {why}")
+            # A repository the app does not reach falls back on `gh`, which a
+            # machine connected through the app may well not have signed in.
+            remote = git.remote_url(repo)
+            name = "/".join(git.reference_parts(remote)[1:3]) if "." in remote else ""
+            if name and github_app.covers(name, git.owner(remote)) is False:
+                warn(f"{repo.name}: {name} is not reached by the GitHub App — add it on GitHub")
     else:
         bad(f"{root} does not exist (runner.workspace_root)")
         problems += 1

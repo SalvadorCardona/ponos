@@ -17,6 +17,7 @@ import {
   Terminal,
 } from "lucide-react"
 
+import { ConnectGithub } from "@/components/console/github-page"
 import { Rich } from "@/components/console/text"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -787,7 +788,7 @@ function GithubStep({ container, onNext }: { container: boolean; onNext: () => v
     <StepCard
       title={t("GitHub, for the pull requests")}
       blurb={t(
-        "A code ticket comes back as a pull request, opened with `gh`. It is signed in with `gh auth login`, or given a token in `GH_TOKEN` — the way a container usually is."
+        "A code ticket comes back as a pull request. Connect GitHub in one click: Ponos creates its own GitHub App and you choose the repositories it reaches. Without it, `gh` is used — signed in with `gh auth login`, or given a token in `GH_TOKEN`, the way a container usually is."
       )}
       footer={
         <>
@@ -802,12 +803,17 @@ function GithubStep({ container, onNext }: { container: boolean; onNext: () => v
         </>
       }
     >
+      {github?.via !== "app" ? <ConnectGithub /> : null}
       {github ? (
         github.account ? (
           <Said
             ok
             text={
-              github.via === "GH_TOKEN"
+              github.via === "app"
+                ? t("Pull requests are opened as {{account}}, through the GitHub App.", {
+                    account: github.account,
+                  })
+                : github.via === "GH_TOKEN"
                 ? t("Pull requests are opened as {{account}}, with the token in `GH_TOKEN`.", {
                     account: github.account,
                   })
@@ -818,6 +824,7 @@ function GithubStep({ container, onNext }: { container: boolean; onNext: () => v
           <>
             <Said ok={false} text={github.said || t("gh is not signed in.")} />
             <p className="text-muted-foreground text-sm leading-relaxed">
+              {t("Or, without the app:")}{" "}
               <Rich
                 text={
                   container

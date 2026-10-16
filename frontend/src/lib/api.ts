@@ -10,6 +10,8 @@ import type {
   McpTest,
   Disk,
   Folder,
+  GithubApp,
+  GithubManifest,
   Found,
   Idea,
   Unscored,
@@ -319,6 +321,11 @@ export const api = {
   disk: () => request<Disk>("/api/disk"),
   clean: () => request<Cleaned>("/api/disk/clean", {}),
   mcp: () => request<McpOverview>("/api/mcp"),
+  githubApps: () => request<{ apps: GithubApp[] }>("/api/github"),
+  connectGithub: (organisation: string) =>
+    request<GithubManifest>("/api/github/connect", { organisation }),
+  disconnectGithub: (slug: string) =>
+    request<{ forgotten: string; settings_url: string }>("/api/github/disconnect", { slug }),
   /* Slow, and so its own call: Claude Code starts every server to see if it answers. */
   mcpServers: () => request<McpServers>("/api/mcp/servers"),
   testMcp: (target: "local" | "public") => request<McpTest>("/api/mcp/test", { target }),

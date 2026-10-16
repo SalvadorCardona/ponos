@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import generated, git, journal, progress, resources, session, state, store, subtypes
+from . import generated, git, github_app, journal, progress, resources, session, state, store, subtypes
 from . import prompt as prompt_module
 from . import voice as voice_module
 from .base import Base
@@ -331,10 +331,22 @@ class Execution(Base):
             timeout_minutes=self.config.runner.timeout_minutes,
             session_id=job.session_id,
             resume=job.resume,
-            environment=self.environment,
+            environment={**self.environment, **self._github(job)},
             on_event=_both(run.event, live.event if live else None),
             max_budget_usd=self.config.budget.per_ticket_usd,
         )
+
+    def _github(self, job: Job) -> dict[str, str]:
+        """The GitHub App's token for this job's repository, when one is installed on it.
+
+        Nothing for a ticket without code, and nothing when no app reaches the
+        repository's owner: the session then answers as `gh` does, as before.
+        See `github_app.session_environment`.
+        """
+        if not job.project.is_code or self.dry_run:
+            return {}
+        owner = git.owner(git.remote_url(job.workdir))
+        return github_app.session_environment(owner) if owner else {}
 
     def _report_missing(self, job: Job, outcome: session.Outcome) -> bool:
         """Did this session stop without its report, and may it be asked for it?
@@ -395,7 +407,7 @@ class Execution(Base):
             timeout_minutes=self.config.runner.timeout_minutes,
             session_id=outcome.session_id,
             resume=True,
-            environment=self.environment,
+            environment={**self.environment, **self._github(job)},
             on_event=_both(run.event, live.event if live else None),
             max_budget_usd=self.config.budget.per_ticket_usd,
         )

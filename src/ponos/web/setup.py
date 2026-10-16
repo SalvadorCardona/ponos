@@ -47,7 +47,7 @@ import os
 import shutil
 import subprocess
 
-from .. import __version__, channels, notion, projects, provider, provision, store
+from .. import __version__, channels, github_app, notion, projects, provider, provision, store
 from .. import config as config_module
 from ..channels import telegram as telegram_channel
 from .api import Api
@@ -254,7 +254,13 @@ def github() -> dict:
 
     `GH_TOKEN` in the environment is how a container is usually given one, and
     `gh` reads it without being logged in: asking `gh` who it is covers both.
+    A GitHub App connected from the console comes first, as it does for the
+    tickets — see github_app.py.
     """
+    for app in github_app.describe(with_repositories=False):
+        if accounts := [one["account"] for one in app["installations"]]:
+            return {"state": "ok", "account": f"{app['slug']}[bot] ({', '.join(accounts)})",
+                    "via": "app", "said": "", "command": ""}
     via = "GH_TOKEN" if os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") else "gh"
     if not shutil.which("gh"):
         return {"state": "missing", "account": "", "via": via, "said": "gh is not installed",
