@@ -177,11 +177,33 @@ class Base:
         )
 
     def _notify(
-        self, title: str, body: str, *, urgent: bool = False, link: str = ""
+        self,
+        title: str,
+        body: str,
+        *,
+        urgent: bool = False,
+        warning: bool = False,
+        link: str = "",
+        pull_request: str = "",
     ) -> None:
         if self.config.notify.desktop and not self.dry_run:
+            opening = self.voice.say("open-ticket")
+            # A desktop draws the default action as a click on the notification,
+            # not as a button: with a pull request beside it, the ticket needs
+            # one of its own to still be seen as a choice.
+            buttons = (
+                ((self.voice.say("see-pull-request"), pull_request), (opening, link))
+                if link and pull_request
+                else ()
+            )
             notify.send(
-                title, body, urgent=urgent, link=link, action=self.voice.say("open-ticket")
+                title,
+                body,
+                urgent=urgent,
+                warning=warning,
+                link=link,
+                action=opening,
+                buttons=buttons,
             )
 
     def _announce(self, title: str, body: str) -> None:

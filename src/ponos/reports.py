@@ -338,9 +338,12 @@ class Reports(Base):
         verdict: str,
         body: str,
         *,
-        urgent: bool = False,
         ask: bool = False,
         code: str = "",
+        project: str = "",
+        facts: tuple[object, ...] = (),
+        summary: str = "",
+        pull_request: str = "",
     ) -> None:
         """One moment of a ticket, said everywhere it is worth saying.
 
@@ -358,6 +361,13 @@ class Reports(Base):
         and `verdict` is what is being said, which is not the same question: a
         merge and a pull request to read are both `done` to a setting, and *To
         review* and *Merged* to a reader.
+
+        The screen of this machine is the exception to “same words”: it has two
+        lines, cannot follow a link written in them and draws no Markdown, so it
+        is told the ticket again — `project`, the `facts` that place it with no
+        price or duration, and the session's `summary` — in `Voice.desktop`'s
+        words, and the pull request goes on a button of its own. It stays on
+        screen for a question only, which is the one thing waiting for you.
         """
         said = self.voice
         headline = said.headline(verdict, ticket.title)
@@ -367,7 +377,17 @@ class Reports(Base):
             bell = notifications.kind_of(verdict, code)
             if bell:
                 notifications.add(bell, ticket.id, ticket.title)
-        self._notify(headline, body, urgent=urgent, link=ticket.url)
+        title, text = said.desktop(
+            verdict, ticket.title, project=project, facts=facts, summary=summary or body
+        )
+        self._notify(
+            title,
+            text,
+            urgent=verdict == "blocked",
+            warning=verdict == "failed",
+            link=ticket.url,
+            pull_request=pull_request,
+        )
         settings = self.config.notify
         if self.dry_run or not settings.remote or not settings.wants(event):
             return
@@ -512,7 +532,7 @@ class Reports(Base):
         said = self.voice
         self.say(f"    ✗ {ticket.title} — {reason}")
         asked = said.sentence(reason)
-        self._tell("failed", ticket, "failed", said.brief(asked), urgent=True)
+        self._tell("failed", ticket, "failed", said.brief(asked))
         self._set(
             ticket,
             **{self.config.notion.prop("status"): self.config.notion.state("failed"), **spent},
@@ -573,6 +593,7 @@ class Reports(Base):
             "\n".join(line for line in (done, *lines) if line),
             ask=True,
             code=code,
+            summary=question.ask,
         )
         self._set(
             ticket,

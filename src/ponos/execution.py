@@ -687,14 +687,14 @@ class Execution(Base):
 
         # Where the work is comes first, because it is what you act on: the
         # pull request when there is one, and the branch when there is not.
-        facts = (
+        placed: tuple[str, ...] = (
             said.pull_request(pull_request) or said.say("on-branch", branch=job.branch),
             said.count(commits, "commit"),
-            *said.spent(outcome.seconds, outcome.cost_usd),
         )
         if merged:
-            facts = (*facts[:1], said.say("merged-with", method=self.config.runner.merge_method),
-                     *facts[1:])
+            placed = (*placed[:1], said.say("merged-with", method=self.config.runner.merge_method),
+                      *placed[1:])
+        facts = (*placed, *said.spent(outcome.seconds, outcome.cost_usd))
         verdict = "merged" if merged else "waiting" if later else "review"
         brief = said.brief(outcome.summary)
         # Said on the ticket whichever way it went: a pull request nobody read
@@ -721,6 +721,10 @@ class Execution(Base):
             ticket,
             verdict,
             said.report(said.facts(*facts), brief, pull_request, *forced_lines),
+            project=project.name,
+            facts=placed,
+            summary=outcome.summary,
+            pull_request=pull_request,
         )
         return {
             "ticket": ticket.title,
@@ -876,11 +880,11 @@ class Execution(Base):
             following = said.say("prepared-next", validated=self.config.notion.state("validated"))
         else:
             following = ""
-        facts = (
+        placed = (
             said.say("in-the-page"),
             said.say("nothing-published") if prepared else said.count(blocks, "block"),
-            *said.spent(outcome.seconds, outcome.cost_usd),
         )
+        facts = (*placed, *said.spent(outcome.seconds, outcome.cost_usd))
         verdict = "waiting" if forced else "prepared" if prepared else "review" if review else "read"
         brief = said.brief(outcome.summary)
         self._comment(
@@ -893,7 +897,15 @@ class Execution(Base):
             f"    ✓ {ticket.title} — {blocks} block(s) written to the ticket"
             + (", nothing published: in review" if prepared and not forced else "")
         )
-        self._tell("done", ticket, verdict, said.report(said.facts(*facts), brief, following))
+        self._tell(
+            "done",
+            ticket,
+            verdict,
+            said.report(said.facts(*facts), brief, following),
+            project=job.project.name,
+            facts=placed,
+            summary=outcome.summary,
+        )
         return {
             "ticket": ticket.title,
             "id": ticket.id,
