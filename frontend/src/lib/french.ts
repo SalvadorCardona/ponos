@@ -2140,4 +2140,25 @@ export const FRENCH: Record<string, string> = {
   "Only the Claude models, until OpenRouter is configured.":
     "Seulement les modèles Claude, tant qu'OpenRouter n'est pas configuré.",
   "Set up OpenRouter": "Configurer OpenRouter",
+
+  /* -- a new project ------------------------------------------------------- */
+  "Project created": "Projet créé",
+  Name: "Nom",
+  "Project name": "Nom du projet",
+  "What the project does, in one sentence": "Ce que fait le projet, en une phrase",
+  "Without a repository, its tickets come back as a document.":
+    "Sans dépôt, les tickets reviennent sous forme de document.",
+  "Where the repository is": "Où est le dépôt",
+  "Local folder": "Dossier local",
+  Site: "Site",
+  "Conventions, context, instructions — what every ticket of this project is told first.":
+    "Conventions, contexte, consignes — ce que chaque ticket de ce projet lit en premier.",
+  "A project is already called “{{name}}”.": "Un projet s'appelle déjà « {{name}} ».",
+  "Open it": "L'ouvrir",
+  "Already cloned on this machine, at {{path}}.": "Déjà cloné sur cette machine, dans {{path}}.",
+  "Not cloned on this machine yet: it will be at the first ticket.":
+    "Pas encore cloné sur cette machine : il le sera au premier ticket.",
+  "A git repository, whose origin is {{origin}}.": "Un dépôt git, dont l'origin est {{origin}}.",
+  "A git repository, with no origin remote.": "Un dépôt git, sans remote origin.",
+  "Create a first ticket": "Créer un premier ticket",
 }

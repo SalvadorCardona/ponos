@@ -3,6 +3,7 @@ import {
   BookOpen,
   CalendarClock,
   FolderGit2,
+  FolderPlus,
   LayoutGrid,
   Lightbulb,
   MessageCircle,
@@ -27,7 +28,7 @@ import { useConsole } from "@/hooks/use-console"
 import { hotkeyLabel, useHotkeys } from "@/hooks/use-hotkeys"
 import { titleOf, useBoard } from "@/lib/board-store"
 import { useT } from "@/lib/i18n"
-import { idOf, projectHref, projectsHref, projectsOnce, useProjects } from "@/resources/projects"
+import { idOf, newProjectHref, projectHref, projectsHref, projectsOnce, useProjects } from "@/resources/projects"
 import { ideasHref } from "@/resources/ideas"
 import { schedulesHref } from "@/resources/schedules"
 import { settingsHref } from "@/resources/settings"
@@ -40,7 +41,7 @@ import { toggleTalk } from "@/lib/talk"
  *
  * What it lists is what the console already has — its pages, the projects, the
  * tickets on the board — and the few things done from anywhere: a new ticket,
- * the conversation, a resynchronisation. Nothing in it is a page of its own;
+ * a new project, the conversation, a resynchronisation. Nothing in it is a page of its own;
  * an entry is a link the menu or a card already offers, found by its name.
  *
  * The pages are said again here rather than read off the scope's menu, icons
@@ -147,6 +148,14 @@ export function CommandPalette() {
           >
             <Plus />
             {t("New ticket")}
+          </CommandItem>
+          <CommandItem
+            value={t("New project")}
+            keywords={["create", "project"]}
+            onSelect={() => go(newProjectHref())}
+          >
+            <FolderPlus />
+            {t("New project")}
           </CommandItem>
           <CommandItem
             value={t("Resynchronise now")}

@@ -372,12 +372,17 @@
     max-width: none;
     padding: 0;
   }
+  /* And a new project's, drawn the same way (see `project-form.tsx`). */
+  [role="edit-view"]:has([data-project-new]) {
+    max-width: none;
+    padding: 0;
+  }
 
-  /* A new idea, as a sheet coming up from the bottom of a phone: the
+  /* A new idea — or a new project — as a sheet coming up from the bottom of a phone: the
      keyboard takes the other half of the screen, and the button stays
      under the thumb. */
   @media (width < 40rem) {
-    [data-slot="dialog-content"][data-idea-window] {
+    [data-slot="dialog-content"]:is([data-idea-window], [data-project-window]) {
       inset: auto 0 0 0;
       translate: none;
       width: 100%;

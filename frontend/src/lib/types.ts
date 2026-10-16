@@ -172,6 +172,19 @@ export interface Project {
   icon?: Picture
 }
 
+/** What a repository and a folder turn out to be, asked while a new project is written. */
+export interface ProjectCheck {
+  /** The repository as it will be kept: `https://github.com/owner/name`. */
+  repository?: string
+  /** Where this machine already has its clone; empty, it is cloned at the first ticket. */
+  cloned?: string
+  repository_error?: string
+  path?: string
+  /** The folder's `origin` remote — a GitHub address when it is GitHub's. */
+  origin?: string
+  path_error?: string
+}
+
 /* One of a project's two pictures, as the console draws it.
  *
  * `src` is the console's own address for the image, never the board's: a file

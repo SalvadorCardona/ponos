@@ -376,6 +376,44 @@ _SAID: dict[str, dict[str, str]] = {
         "fr": "Bloqué : son projet, « {project} », a été supprimé depuis la console, donc rien "
         "ne sera exécuté sur ce ticket. Remets-le en prêt une fois relié à un autre projet.",
     },
+    # Why the console's “New project” refuses one. Said under the field it is
+    # about, in the runner's language, like everything else it writes back.
+    "project-no-database": {
+        "en": "This workspace has no projects database to create it in.",
+        "fr": "Cet espace de travail n'a pas de base de projets où le créer.",
+    },
+    "project-needs-name": {
+        "en": "A project needs a name.",
+        "fr": "Un projet a besoin d'un nom.",
+    },
+    "project-name-taken": {
+        "en": "A project is already called “{name}”.",
+        "fr": "Un projet s'appelle déjà « {name} ».",
+    },
+    "project-needs-repository": {
+        "en": "A code project needs a repository: a GitHub address, or a folder on this machine.",
+        "fr": "Un projet de code a besoin d'un dépôt : une adresse GitHub, ou un dossier sur cette machine.",
+    },
+    "project-github-invalid": {
+        "en": "“{given}” is not a GitHub repository: write owner/repo, or its github.com address.",
+        "fr": "« {given} » n'est pas un dépôt GitHub : écris owner/repo, ou son adresse github.com.",
+    },
+    "project-path-relative": {
+        "en": "Write the whole path, from / or from ~.",
+        "fr": "Écris le chemin en entier, depuis / ou depuis ~.",
+    },
+    "project-path-missing": {
+        "en": "There is no folder at {path} on this machine.",
+        "fr": "Il n'y a pas de dossier à {path} sur cette machine.",
+    },
+    "project-path-not-git": {
+        "en": "{path} is not a git repository.",
+        "fr": "{path} n'est pas un dépôt git.",
+    },
+    "project-site-invalid": {
+        "en": "“{given}” is not a web address: it starts with https://.",
+        "fr": "« {given} » n'est pas une adresse web : elle commence par https://.",
+    },
     "unreadable": {
         "en": "I could not read what the ticket says",
         "fr": "je n'ai pas réussi à lire ce que dit le ticket",

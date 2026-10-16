@@ -55,7 +55,7 @@ from .. import __version__
 from .. import config as config_module
 from .. import db, journal, legacy, notifications, openrouter, store, voice
 from ..config import Config, state_dir
-from . import attachments, github, mcp, mcp_setup, oauth, setup
+from . import attachments, creation, github, mcp, mcp_setup, oauth, setup
 from .api import Api
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -514,6 +514,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(notifications.recent())
             if route == "/api/projects":
                 return self._json(self.api.all_projects())
+            if route == "/api/projects/check":
+                return self._json(
+                    self.api.creation.check(
+                        (query.get("repository") or [""])[0], (query.get("path") or [""])[0]
+                    )
+                )
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.project(match.group(1)))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/brief", route):
@@ -776,6 +782,14 @@ class Handler(BaseHTTPRequestHandler):
                 if verb == "project":
                     return self._json(self.api.chat.link(identifier, str(payload.get("project", ""))))
                 return self._json(self.api.chat.delete(identifier))
+            if route == "/api/projects":
+                try:
+                    return self._json(self.api.creation.create(payload))
+                except creation.Refused as error:
+                    # Under the field it is about, as the form draws a refusal.
+                    said = str(error)
+                    violation = {"propertyPath": error.field, "message": said}
+                    return self._json({"error": said, "violations": [violation]}, 400)
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/delete", route):
                 return self._json(self.api.removal.delete(match.group(1), payload))
             if match := re.fullmatch(r"/api/projects/([0-9a-fA-F-]{32,36})/settings", route):

@@ -6,8 +6,10 @@ import {
   ListPagination,
   createResourceCollection,
   createViewResource,
+  generateLink,
   generateLinkByResource,
   layout,
+  open,
   useCurrentViewResourceContext,
   useListViewContext,
   useViewLink,
@@ -21,6 +23,16 @@ import { MarkdownInputController } from "@/components/console/markdown-editor"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { ProjectMenu } from "@/components/console/project-delete"
 import { ProjectActions, ProjectPage, ProjectTitle } from "@/components/console/project-page"
+import {
+  BoxInputController,
+  KindInputController,
+  LineInputController,
+  ProjectFields,
+  ProjectFoot,
+  ProjectForm,
+  ProjectNameInputController,
+  ProjectWindow,
+} from "@/components/console/project-form-lazy"
 import { Chip, LABEL, SEED, ago } from "@/components/console/ticket-bits"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -75,13 +87,17 @@ export type ProjectItem = Project & {
   where: string
 }
 
-/** What the console writes about a project: the page's three columns, and the brief. */
+/** What the console writes about a project: the page's columns, and the brief. */
 export interface ProjectWrite {
   id?: string
   name?: string
   repository?: string
   path?: string
   content?: string
+  /** Only said as a project is created: what it does, its kind and its public address. */
+  description?: string
+  kind?: string
+  site?: string
 }
 
 /** A project the configuration names and the board has never heard of. */
@@ -170,6 +186,40 @@ export function useTicketCount(name: string): number | null {
   return useTally(name)?.count ?? null
 }
 
+/* -- the one just created -------------------------------------------------- */
+
+/* A project created a moment ago is drawn first, and marked, for as long as
+ * the page is open: it is the card somebody is about to use — its "+ Ticket" most of all —
+ * and in its alphabetical place it may well be below the fold. */
+let created = ""
+const createdListeners = new Set<() => void>()
+
+/** The project the console created last, by its page. */
+export const lastCreated = () => created
+
+function useLastCreated(): string {
+  return React.useSyncExternalStore(
+    (listener) => {
+      createdListeners.add(listener)
+      return () => {
+        createdListeners.delete(listener)
+      }
+    },
+    () => created
+  )
+}
+
+function markCreated(id: string) {
+  created = id
+  createdListeners.forEach((listener) => listener())
+}
+
+/** The list, the project just created first. */
+const createdFirst = (rows: Project[]) => {
+  const first = rows.find((project) => project.id === created)
+  return first ? [first, ...rows.filter((project) => project !== first)] : rows
+}
+
 /** One project, from wherever it is held: its page, or the line that names it. */
 async function one(id: string): Promise<ProjectItem> {
   if (isAPage(id)) return item(await api.project(id))
@@ -232,6 +282,72 @@ const editForm: FormInterface = {
       // not the same thing as a message.
       get placeholder() {
         return t("Write it as you would brief somebody joining the project.")
+      },
+      controller: MarkdownInputController,
+    },
+  },
+}
+
+/* A new project: drawn as a new idea is (see `project-form.tsx`), with the
+ * columns of the projects database in the order its page has them — name,
+ * description, then where its code is, its public address, and the brief that
+ * is its body. Only one of the repository and the folder is in view at a time;
+ * either is enough. */
+const createForm: FormInterface = {
+  components: { formDecorator: ProjectForm, formInputs: ProjectFields, formSubmitAction: ProjectFoot },
+  label: {
+    get success() {
+      return t("Project created")
+    },
+  },
+  inputs: {
+    name: {
+      label: "Name",
+      required: true,
+      controller: ProjectNameInputController,
+      get placeholder() {
+        return t("Project name")
+      },
+    },
+    description: {
+      label: "Description",
+      controller: LineInputController,
+      get placeholder() {
+        return t("What the project does, in one sentence")
+      },
+    },
+    kind: {
+      label: "Type",
+      controller: KindInputController,
+      defaultValue: "code",
+      get valueOptions() {
+        return [
+          { value: "code", label: t("Code") },
+          { value: "document", label: t("Writing") },
+        ]
+      },
+    },
+    repository: {
+      label: "GitHub",
+      controller: BoxInputController,
+      placeholder: "owner/repo",
+    },
+    path: {
+      label: "Local folder",
+      controller: BoxInputController,
+      get placeholder() {
+        return t("~/workspace/that-repository")
+      },
+    },
+    site: {
+      label: "Site",
+      controller: BoxInputController,
+      placeholder: "https://",
+    },
+    content: {
+      label: "The brief",
+      get placeholder() {
+        return t("Conventions, context, instructions — what every ticket of this project is told first.")
       },
       controller: MarkdownInputController,
     },
@@ -417,14 +533,21 @@ function NewTicket({ project, className }: { project: ProjectItem; className?: s
 }
 
 function ProjectCard({ project, onDeleted }: { project: ProjectItem; onDeleted: () => void }) {
+  const fresh = useLastCreated() === project.id
+  const card = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (fresh) card.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+  }, [fresh])
   return (
-    <div className="relative h-full">
+    <div ref={card} className="relative h-full">
       <Link
         to={projectHref(project.id)}
         data-project-card
+        data-fresh={fresh || undefined}
         className={cn(
           "group bg-card flex h-full min-w-0 flex-col gap-3 rounded-2xl border p-4",
           "hover:border-primary/50 hover:bg-accent/40",
+          fresh && "border-primary ring-primary/30 ring-[3px]",
           REACHABLE
         )}
       >
@@ -499,7 +622,11 @@ function ProjectRows({ rows = [] }: ListComponentPropsInterface) {
             if (!project) return null
             const repository = repositoryName(project.repository ?? "")
             return (
-              <li key={project.id} className="relative border-b last:border-b-0">
+              <li
+                key={project.id}
+                data-fresh={project.id === created || undefined}
+                className={cn("relative border-b last:border-b-0", project.id === created && "bg-primary/10")}
+              >
                 <Link
                   to={projectHref(project.id)}
                   data-project-row
@@ -706,10 +833,9 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
   name: "Projects",
   path: "/api/projects",
   icon: FolderGit2,
-  // A project page is made in Notion, or by a line in `config.toml`; what is
-  // written from here is what an existing one says. Deleting one has a dialog
-  // of its own (see `project-delete.tsx`).
-  permissions: { create: false, delete: false, export: false },
+  // A project page is made here, in Notion, or by a line in `config.toml`.
+  // Deleting one has a dialog of its own (see `project-delete.tsx`).
+  permissions: { delete: false, export: false },
 
   repository: {
     getCollection: async (filter) => {
@@ -717,7 +843,9 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
       return {
         data: createResourceCollection({
           id: "/api/projects",
-          items: read.projects.map((project) => item(project)).filter((row) => keeps(row, filter)),
+          items: createdFirst(read.projects)
+            .map((project) => item(project))
+            .filter((row) => keeps(row, filter)),
         }),
       } as never
     },
@@ -741,8 +869,22 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
       await api.projects().then(publish)
       return { data: item(written) }
     },
-    createItem: async () => {
-      throw new Error("a project page is made on the board, not from the console")
+    createItem: async (fresh) => {
+      const kind = fresh.kind === "document" ? "document" : "code"
+      const written = await api.createProject({
+        name: String(fresh.name ?? ""),
+        description: String(fresh.description ?? ""),
+        kind,
+        // A writing project has neither, whatever the form still holds.
+        repository: kind === "code" ? String(fresh.repository ?? "") : "",
+        path: kind === "code" ? String(fresh.path ?? "") : "",
+        site: String(fresh.site ?? ""),
+        content: String(fresh.content ?? ""),
+      })
+      markCreated(written.id)
+      // Read again, for the count over the list and the names everywhere else.
+      await readAgain().catch(() => undefined)
+      return { data: item(written) }
     },
     removeItem: async () => {
       // Deleting asks for more than an id — the project's name, and what becomes
@@ -768,6 +910,19 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
       // and the rows are kept by `keeps`, as the list is read.
       filters: formFilter,
       components: { top: ProjectsTop, bottom: ProjectsFoot, empty: NoProject },
+    },
+    create: {
+      title: "New project",
+      buttonLabel: "New project",
+      form: createForm,
+      // In the middle of the list, as tall as what it holds — a sheet from the
+      // bottom on a phone — and closed by the form once the project exists, or
+      // replaced by the first ticket's (see `ProjectForm`).
+      open: open.custom({ type: "project-new", component: ProjectWindow }),
+      afterSave: "stay",
+      // No card before the server's: the id is the page's, and the repository
+      // the server's own spelling of it.
+      optimistic: false,
     },
     read: {
       title: "Project",
@@ -801,6 +956,16 @@ export const projectsHref = () =>
     resource: projects,
     resourceAction: ActionList.list,
     viewVariantId: layoutOf(PROJECTS),
+  })
+
+/** "New project", over the list of projects — the one place its window is drawn in. */
+export const newProjectHref = () =>
+  generateLink({
+    resource: projects,
+    resourceAction: ActionList.list,
+    scope: projects.scope,
+    viewVariantId: layoutOf(PROJECTS),
+    childViewResource: { resource: projects, resourceAction: ActionList.create },
   })
 
 /** Where one project is. */

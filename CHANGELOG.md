@@ -18,6 +18,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Create a project from the console.** *New project* — beside *cards / table* on the Projects page, and in Ctrl+K —
+  opens the same kind of window as *New idea*: name, description, *Code* or *Writing*, the repository on GitHub or as a
+  folder of this machine (whose `origin` fills GitHub in), the public site and the brief, which becomes the page's
+  body. The console says whether the repository is already cloned here or will be at the first ticket; a name already
+  taken, an address that is not GitHub's or a folder that is not a git repository are refused under their field. The
+  new card comes first in the list, marked, with its *+ Ticket* ready — or *Create a first ticket* opens the ticket's
+  form with the project already chosen. Works the same on a Markdown board.
 - **Connect GitHub in one click.** Settings › GitHub (and the GitHub step of the first connection) creates a GitHub
   App from a manifest — on your account or an organisation's — then leads to the choice of its repositories and back
   to the console, which says « GitHub connected » and lists what the app reaches. Code tickets on those repositories
