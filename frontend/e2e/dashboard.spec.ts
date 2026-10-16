@@ -133,6 +133,12 @@ test("one chart says the created, the closed and the open; the other what they w
   await expect(made.locator('[data-slot="regression-rate"]')).toContainText("43 %")
   await expect(made.locator('[data-trend="down"]')).toBeVisible()
 
+  // The per-project table is folded until asked for.
+  await expect(made.locator('[data-slot="made-projects"]')).toHaveCount(0)
+  const more = made.getByRole("button", { name: /^See by project \(\d+\)/ })
+  await expect(more).toHaveAttribute("aria-expanded", "false")
+  await more.click()
+  await expect(made.getByRole("button", { name: "Hide" })).toHaveAttribute("aria-expanded", "true")
   const projects = made.locator('[data-slot="made-projects"] tbody tr')
   await expect(projects.first()).toHaveAttribute("data-project", "Opoil")
   await projects.first().click()

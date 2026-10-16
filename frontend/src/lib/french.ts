@@ -852,6 +852,8 @@ export const FRENCH: Record<string, string> = {
   "Tickets created and closed per day, and still open each evening":
     "Tickets créés et fermés par jour, et encore ouverts chaque soir",
   "Created, by type and sub-type": "Créés, par type et sous-type",
+  "See by project ({{count}})": "Voir par projet ({{count}})",
+  Hide: "Masquer",
   Unclassified: "Non classé",
   "Regression rate": "Taux de régression",
   Regression: "Régression",
