@@ -301,6 +301,9 @@ export interface Schedule {
   project_id: string
   model: string
   priority: string
+  /** What its tickets are born as, by their keys — `code`, `bug` — empty to let them be guessed. */
+  type?: string
+  subtype?: string
   /** What stops this schedule being acted on, in the words `doctor` prints. */
   problem: string
 }
@@ -322,6 +325,8 @@ export interface Schedules {
   /** `storage.mode`: which board these came off. */
   storage?: string
   schedules: Schedule[]
+  /** What the form offers for the type and the sub-type: only the columns the database has. */
+  choices?: Partial<Record<"type" | "subtype", { value: string; label: string }[]>>
 }
 
 export interface ChatState {

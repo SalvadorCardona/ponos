@@ -2050,10 +2050,12 @@ only presses the button for you.
 
 A row is the recipe. `Cadence` (Hourly, Daily, Weekly, Monthly), `At` (the hour, written
 `09:00`), `Day` (Monday, or 1 to 31), and the `Active` tick that turns it on. Whatever
-`Project`, `Model` and `Priority` it carries, the ticket it makes carries too — and the
-**body of the schedule's page is the brief**, copied into each ticket, so the ticket reads
-on its own and its history shows what was asked for that day. Three columns are the
-runner's to write: `Next`, `Last`, and `Last ticket`.
+`Project`, `Model`, `Priority`, `Type` and `Sous-type` it carries, the ticket it makes
+carries too — and the **body of the schedule's page is the brief**, copied into each
+ticket, so the ticket reads on its own and its history shows what was asked for that day.
+A ticket born with a `Type` is never classified: set it to *Code* on a schedule whose
+tickets are code, or a long, well-written brief may well read as *Writing*. Three columns
+are the runner's to write: `Next`, `Last`, and `Last ticket`.
 
 ```
 Schedules                 Ponos                               Tickets
@@ -2066,6 +2068,7 @@ Active ✓, Next ≤ now ────▶ recur()
                             │
                             └─ creates the ticket            ──▶ Ready — body copied,
                                                                  Project / Model / Priority
+                                                                 Type / Sous-type
                                                                  │
                                  the queue of the same pass  ◀────┘
 ```

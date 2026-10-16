@@ -263,6 +263,17 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **A schedule says what its tickets are.** The Schedules database gets `Type` and `Sous-type` columns — the tickets'
+  own options, added by `ponos init` and set in the schedule's window in the console — and each ticket is born with
+  them, beside the project, the model and the priority. A ticket born typed is never classified: a long, well-written
+  brief no longer turns a code schedule's tickets into *Writing* ones that end in *Done*.
+- **A pull request opened by a session that was not on the code road is no longer lost.** When a *Writing* (or any
+  non-code) session runs `gh pr create` itself, Ponos attaches the pull request to the ticket's `Pull Request` column
+  and sends the ticket to review rather than done, saying so in its report — so validating it merges it, as any other.
+- **`~/.local/state/ticket-runner` stops coming back in the journal.** An old directory holding nothing but empty
+  folders and a console token — what an old checkout's test suite recreates — is tidied once, without a word, instead
+  of « was left in place » on every command and every ten seconds.
+
 - **An automatic validation the CI stops says which CI, and why.** With Validation automatique on for
   Code tickets, a pull request whose checks were red stayed in review with « ses vérifications échouent »
   and nothing more — on every pull request of a private repository whose GitHub Actions jobs were refused

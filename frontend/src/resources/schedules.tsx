@@ -32,6 +32,7 @@ import {
   SegmentsInputController,
   TimeInputController,
 } from "@/components/console/recurrence-dialog-lazy"
+import { PillsInputController } from "@/components/console/new-ticket-lazy"
 import { recordWindow, useOpensOverTheList } from "@/components/console/record-window"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -81,7 +82,7 @@ export type ScheduleItem = Schedule & {
   "@type": string
 }
 
-/** What the console writes about a schedule: the seven columns a row is written in, and its body. */
+/** What the console writes about a schedule: the columns a row is written in, and its body. */
 export interface ScheduleWrite {
   id?: string
   name?: string
@@ -91,6 +92,8 @@ export interface ScheduleWrite {
   active?: boolean
   model?: string
   priority?: string
+  type?: string
+  subtype?: string
   body?: string
 }
 
@@ -271,6 +274,13 @@ const MODELS = [
 ]
 const PRIORITIES = ["Low", "Normal", "High", "Urgent"].map((word) => ({ value: word, label: word }))
 
+/* The type and the sub-type its tickets are born with, as the server offers
+ * them: only where the Schedules database has the column (`ponos init` adds
+ * it), and in the board's words. Empty is an answer: the runner then guesses
+ * each ticket's, as it does for one written by hand — and a long brief is
+ * what a classifier reads as writing, which is why a schedule can say. */
+const choicesOf = (key: "type" | "subtype") => read.drawn?.choices?.[key] ?? []
+
 /* The seven fields a schedule is written in, drawn by `RecurrenceFields` in
  * the window the list opens (see `recurrence-dialog.tsx`).
  *
@@ -307,6 +317,23 @@ const fields: FormInterface["inputs"] = {
   at: { label: "Time", controller: TimeInputController },
   model: { label: "Model", controller: SegmentsInputController, valueOptions: MODELS },
   priority: { label: "Priority", controller: SegmentsInputController, valueOptions: PRIORITIES },
+  type: {
+    label: "Type",
+    controller: SegmentsInputController,
+    getValueOptions: async () => choicesOf("type"),
+    hidden: () => !choicesOf("type").length,
+    get description() {
+      return t("The road every ticket takes. Empty, the runner deduces it.")
+    },
+  },
+  subtype: {
+    label: "Sub-type",
+    controller: PillsInputController,
+    getValueOptions: async () => choicesOf("subtype"),
+    // Drawn only beside an empty type or code (see `RecurrenceFields`): it is
+    // ignored on a ticket of another type, as on the board.
+    hidden: () => !choicesOf("subtype").length,
+  },
   // The page body, and the part of a schedule that says what to do: every
   // occurrence is born with it copied under its first line.
   body: {
@@ -723,6 +750,8 @@ export const schedules = createViewResource<ScheduleItem, ScheduleWrite>(SCHEDUL
         active: patch.active === true,
         model: patch.model ?? "",
         priority: patch.priority ?? "",
+        type: patch.type ?? "",
+        subtype: patch.subtype ?? "",
         ...(patch.body === undefined ? {} : { body: patch.body }),
       })
       const fresh = await load()
@@ -739,6 +768,8 @@ export const schedules = createViewResource<ScheduleItem, ScheduleWrite>(SCHEDUL
         day: fresh.day ?? "",
         model: fresh.model ?? "",
         priority: fresh.priority ?? "",
+        type: fresh.type ?? "",
+        subtype: fresh.subtype ?? "",
         ...(fresh.body ? { body: fresh.body } : {}),
       })
       // The server writes a new row unticked, whatever it is sent; "Turn on

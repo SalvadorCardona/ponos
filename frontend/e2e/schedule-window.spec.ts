@@ -172,3 +172,23 @@ test("an opened schedule is the same window, saved with its box", async ({ page 
   await expect.poll(() => saved.length).toBe(1)
   expect(saved[0]).toMatchObject({ name: "Test email", cadence: "Hourly", active: true })
 })
+
+test("the type its tickets are born with is a button, and code says its sub-type too", async ({ page }) => {
+  const sent = await creation(page)
+  const window_ = await open(page)
+  await window_.getByPlaceholder("Revue hebdomadaire des dépendances").fill("Revue")
+  const type = window_.getByRole("group", { name: "Type", exact: true })
+  const subtype = window_.getByRole("group", { name: "Sous-type", exact: true })
+  await expect(type.getByRole("button")).toHaveCount(4)
+  // Empty, the runner deduces each ticket's: the sub-type may still be said.
+  await expect(subtype).toBeVisible()
+  await type.getByRole("button").nth(1).click()
+  await expect(subtype).not.toBeAttached()
+  const code = type.getByRole("button", { name: "Code", exact: true })
+  await code.click()
+  await expect(code).toHaveAttribute("aria-pressed", "true")
+  await subtype.getByRole("button", { name: /Bug/ }).click()
+  await window_.getByRole("button", { name: "Créer la récurrence" }).click()
+  await expect(window_).not.toBeAttached()
+  expect(sent[0].body).toMatchObject({ name: "Revue", type: "code", subtype: "bug" })
+})

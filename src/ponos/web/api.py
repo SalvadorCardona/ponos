@@ -778,8 +778,8 @@ class Api:
     def save_schedule(self, page_id: str, values: dict) -> dict:
         """Change one row of the Schedules database from the console.
 
-        Only the seven columns a schedule is *written* in — the cadence, the
-        hour, the day, the tick, and the three a ticket inherits. Never `Next`
+        Only the columns a schedule is *written* in — the cadence, the hour,
+        the day, the tick, and the five a ticket inherits. Never `Next`
         or `Last`: those are what a pass writes back, and a console that let you
         edit them would let you make an occurrence happen twice.
         """
@@ -801,6 +801,18 @@ class Api:
                 continue
             value = values[key]
             written[name] = bool(value) if key == "active" else str(value or "")
+        # A type and a sub-type said by their keys, as a new ticket's are, and
+        # written as the board spells them: the ticket is born with that word.
+        if "type" in values:
+            kind = str(values["type"] or "").strip()
+            if kind and kind not in kinds_module.KINDS:
+                raise ValueError(f"unknown type “{kind}”")
+            written[settings.prop("type")] = self.runner.kind_name(kind) if kind else ""
+        if "subtype" in values:
+            subtype = str(values["subtype"] or "").strip()
+            if subtype and subtype not in subtypes.KEYS:
+                raise ValueError(f"unknown sub-type “{subtype}”")
+            written[settings.prop("subtype")] = subtypes.option(subtype) if subtype else ""
         if "project" in values:
             written[settings.prop("project")] = [values["project"]] if values["project"] else []
         if "name" in values and str(values["name"]).strip():
@@ -891,7 +903,30 @@ class Api:
             # Markdown board has files.
             "storage": self.config.storage.mode,
             "schedules": [self._schedule(row, projects) for row in rows],
+            # What the form offers for the type and the sub-type, only where the
+            # Schedules database has the column: a value for a missing one would
+            # be dropped on its way in. `ponos init` adds them.
+            "choices": self._schedule_choices(),
         }
+
+    def _schedule_choices(self) -> dict[str, list[dict[str, str]]]:
+        database = self.runner.workspace.schedules
+        try:
+            schema = self.runner.client.schema(database) if database else {}
+        except store.StoreError:
+            return {}
+        settings = self.config.notion
+        choices: dict[str, list[dict[str, str]]] = {}
+        if settings.prop("type") in schema:
+            choices["type"] = [
+                {"value": key, "label": self.runner.kind_name(key)} for key in kinds_module.KINDS
+            ]
+        if settings.prop("subtype") in schema:
+            choices["subtype"] = [
+                {"value": subtype.key, "label": f"{subtype.icon} {subtype.label}"}
+                for subtype in subtypes.SUBTYPES
+            ]
+        return choices
 
     def schedule(self, page_id: str) -> dict:
         """One schedule, as the list says it, plus what is written on its page.
@@ -936,6 +971,9 @@ class Api:
             "project_id": schedule.project.replace("-", ""),
             "model": schedule.model,
             "priority": schedule.priority,
+            # By their keys, as the form sends them back: `code`, `bug`.
+            "type": self.config.notion.kind_of(schedule.kind),
+            "subtype": subtypes.of(schedule.subtype),
             "problem": schedule.problem,
         }
 

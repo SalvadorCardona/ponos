@@ -263,6 +263,7 @@ export function RecurrenceFields() {
   const data = (form.data ?? {}) as Record<string, unknown>
   const cadence = String(data.cadence ?? "")
   const day = String(data.day ?? "")
+  const type = String(data.type ?? "")
 
   const field = (name: string) => {
     const input = inputs.find((candidate) => candidate.name === name)
@@ -301,6 +302,8 @@ export function RecurrenceFields() {
         {field("model")}
         {field("priority")}
       </div>
+      {field("type")}
+      {type === "" || type === "code" ? field("subtype") : null}
       {field("body")}
     </div>
   )

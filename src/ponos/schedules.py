@@ -66,6 +66,10 @@ class Schedule:
     project: str
     model: str
     priority: str
+    # What its tickets are, as the board spells it, "" for "let it be guessed":
+    # copied onto each ticket, which the classifier then leaves alone.
+    kind: str = ""
+    subtype: str = ""
     problem: str = ""
 
 
@@ -138,6 +142,8 @@ def read(page: store.Page, settings: Notion) -> Schedule:
         project=first("project"),
         model=str(value("model") or "").strip(),
         priority=str(value("priority") or "").strip(),
+        kind=str(value("type") or "").strip(),
+        subtype=str(value("subtype") or "").strip(),
     )
     schedule.problem = _problem(schedule)
     return schedule

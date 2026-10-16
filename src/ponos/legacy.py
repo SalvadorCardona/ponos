@@ -92,6 +92,10 @@ def directories(say=None) -> list[str]:
         if not old.is_dir() or old.is_symlink():
             continue
         try:
+            if new.exists() and all(_residue(entry) for entry in old.iterdir()):
+                # Nothing anybody would miss: tidied once, without a word.
+                _tidy(old, new)
+                continue
             if not new.exists():
                 new.parent.mkdir(parents=True, exist_ok=True)
                 old.rename(new)
@@ -99,7 +103,9 @@ def directories(say=None) -> list[str]:
                 kept = []
                 for entry in sorted(old.iterdir()):
                     target = new / entry.name
-                    if target.exists():
+                    if target.exists() and _residue(entry):
+                        _tidy(entry, target)
+                    elif target.exists():
                         kept.append(entry.name)
                     else:
                         entry.rename(target)
@@ -120,6 +126,39 @@ def directories(say=None) -> list[str]:
             _sessions(old, new)
     _configuration()
     return moved
+
+
+def _residue(entry: Path) -> bool:
+    """An old entry nobody would miss: an empty directory, or the console's token.
+
+    What a process still written under the old name leaves behind when it
+    starts on a machine already moved — an old checkout's test suite, run
+    without `XDG_STATE_HOME`, did exactly that: an empty `logs` and a
+    `web/token` drawn for a console that never ran. Kept as it was, the old
+    directory had the line « was left in place » said on every command, and
+    every ten seconds in the journal, about nothing.
+    """
+    if entry.is_symlink():
+        return False
+    if entry.is_file():
+        return entry.parent.name == "web" and entry.name == "token"
+    if entry.is_dir():
+        return all(_residue(child) for child in entry.iterdir())
+    return False
+
+
+def _tidy(old: Path, new: Path) -> None:
+    """A residue, merged into the new directory: what it lacks is moved, the rest
+    dropped — the new directory's own token is the one in use."""
+    if old.is_dir():
+        new.mkdir(parents=True, exist_ok=True)
+        for child in old.iterdir():
+            _tidy(child, new / child.name)
+        old.rmdir()
+    elif new.exists():
+        old.unlink()
+    else:
+        old.rename(new)
 
 
 def _worktrees(root: Path) -> None:
