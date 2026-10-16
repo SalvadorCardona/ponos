@@ -48,7 +48,7 @@ import {
   PillsInputController,
   ProjectInputController,
   SegmentedInputController,
-} from "@/components/console/new-ticket"
+} from "@/components/console/new-ticket-lazy"
 import { EmptyState } from "@/components/console/empty-state"
 import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"

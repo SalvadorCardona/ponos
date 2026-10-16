@@ -7,6 +7,7 @@ import {
   type InputControllerComponentInterface,
 } from "react-data-form"
 
+import { EDITOR_SETTLES } from "@/components/console/new-ticket-lazy"
 import { ComboboxInputController } from "@/components/console/combobox"
 import { Kbd } from "@/components/console/confirm-dialog"
 import { every } from "@/components/console/runner-strip"
@@ -34,9 +35,6 @@ import { cn } from "@/lib/utils"
  * fields said is now said once, by the card at the bottom of the settings —
  * what this ticket, with this project and this type, will come back as.
  */
-
-/** How long the editor takes to tell the form what it holds: see `useSendOnControlEnter`. */
-export const EDITOR_SETTLES = 300
 
 /** The board's projects, read once per dialog: for the badge beside the field and for the card. */
 const Projects = React.createContext<Project[]>([])
