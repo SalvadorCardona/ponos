@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FileText, GitBranch, GitPullRequest, Globe, Megaphone, Plus } from "lucide-react"
+import { GitBranch, Plus } from "lucide-react"
 import {
   InputControllerProvider,
   getFormInputsFromForm,
@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useConsole } from "@/hooks/use-console"
 import { api } from "@/lib/api"
-import { currentBoard } from "@/lib/board-store"
 import { enterLabel } from "@/lib/confirm"
 import { isMac } from "@/lib/hotkeys"
 import { t } from "@/lib/i18n"
@@ -31,9 +30,7 @@ import { cn } from "@/lib/utils"
  * `resources/tickets` and submitted the way they always were: only where each
  * one is drawn changed (`NewTicketFields`, the form's `formInputs`), and the
  * single "Create" with a "Ready to run" box above it became two buttons
- * (`NewTicketFoot`, its `formSubmitAction`). What the sentences under the
- * fields said is now said once, by the card at the bottom of the settings —
- * what this ticket, with this project and this type, will come back as.
+ * (`NewTicketFoot`, its `formSubmitAction`).
  */
 
 /** The board's projects, read once per dialog: for the badge beside the field and for the card. */
@@ -247,64 +244,9 @@ export function NewTicketFields() {
           {code ? field("subtype") : null}
           {field("priority")}
           {field("model")}
-          <Outcome
-            project={projects.find((candidate) => candidate.id === data.project)}
-            type={type}
-            subtype={subtype}
-          />
         </aside>
       </div>
     </Projects>
-  )
-}
-
-/* What the ticket will come back as, said for the project and the type chosen
- * — the sentences that used to sit under each field, said once and only the
- * one that applies. */
-function Outcome({ project, type, subtype }: { project?: Project; type: string; subtype: string }) {
-  const repository = hasRepository(project)
-  const found = currentBoard()?.subtypes?.find((candidate) => candidate.key === subtype)
-  let icon = <FileText />
-  let said = t("A document, written on the ticket's page.")
-  if (type === "external") {
-    icon = <Globe />
-    said = t("Work done elsewhere — a browser, a service — and its log on the ticket's page.")
-  } else if (type === "publication") {
-    icon = <Megaphone />
-    said = t("Prepared, then published once you validate it.")
-  } else if ((type === "code" || !type) && repository && project) {
-    icon = <GitPullRequest />
-    said = t("A pull request on {{project}}.", { project: project.name })
-  } else if (type === "code") {
-    icon = <GitPullRequest />
-    said = t("A code ticket needs a project with a repository.")
-  }
-  return (
-    <section
-      data-slot="ticket-outcome"
-      className="bg-background/60 mt-auto flex flex-col gap-2 rounded-xl border p-3 text-xs"
-    >
-      <h3 className="text-muted-foreground font-medium">{t("What it will give")}</h3>
-      <p className="flex items-start gap-2 text-sm [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0">
-        {icon}
-        <span>{said}</span>
-      </p>
-      {!type ? <p className="text-muted-foreground">{t("The runner deduces the type before it starts.")}</p> : null}
-      {type === "code" ? (
-        found ? (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <dt className="text-muted-foreground">{t("Commit")}</dt>
-            <dd className="font-mono">{found.commit}:</dd>
-            <dt className="text-muted-foreground">CHANGELOG</dt>
-            <dd>{found.changelog || t("no entry")}</dd>
-          </dl>
-        ) : (
-          <p className="text-muted-foreground">
-            {t("The runner deduces the commit prefix and the CHANGELOG section.")}
-          </p>
-        )
-      ) : null}
-    </section>
   )
 }
 

@@ -230,6 +230,9 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The New ticket window no longer says what the ticket will come back as.** The « Ce que ça donnera » card at the
+  foot of its settings column is gone, whatever the type; the type and the project are still chosen the same way.
+
 - **The chat shows the steps as a timeline of cards, in plain words.** No more *Show / Hide the steps* toggle: each step
   of a turn is a card, drawn as it happens (spinner, then done or failed), closed until opened, with *Expand all* /
   *Collapse all* above them. A card is titled « I check that everything works », « I look at the scheduled tasks »,
