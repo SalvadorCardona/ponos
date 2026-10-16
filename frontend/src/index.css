@@ -348,6 +348,27 @@
     padding-bottom: 0;
   }
 
+  /* A new idea's form, the whole width of its window (see `idea-form.tsx`). */
+  [role="edit-view"]:has([data-idea-form]) {
+    max-width: none;
+    padding: 0;
+  }
+
+  /* A new idea, as a sheet coming up from the bottom of a phone: the
+     keyboard takes the other half of the screen, and the button stays
+     under the thumb. */
+  @media (width < 40rem) {
+    [data-slot="dialog-content"][data-idea-window] {
+      inset: auto 0 0 0;
+      translate: none;
+      width: 100%;
+      max-width: none;
+      max-height: 92dvh;
+      border-width: 1px 0 0;
+      border-radius: 1rem 1rem 0 0;
+    }
+  }
+
   /* A ticket's window, the whole screen on a phone: a ticket is a page to
      read, and a phone has no board beside it to keep in view. Said after the
      rule above, which would otherwise keep a margin round it. */
