@@ -81,7 +81,7 @@ function Figure({
         <span className="text-muted-foreground shrink-0">{label}</span>
         <span
           className={cn(
-            "text-muted-foreground/70 truncate",
+            "text-muted-foreground truncate",
             spare && "@min-[44rem]:@max-[60rem]:hidden"
           )}
           title={note}

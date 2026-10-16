@@ -88,7 +88,7 @@ export const SegmentedInputController: InputControllerComponentInterface = ({ fo
               "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 min-w-0 flex-auto rounded-md px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-[3px]",
               alarm && "text-destructive hover:text-destructive",
               chosen && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-              chosen && alarm && "bg-destructive hover:bg-destructive text-white hover:text-white"
+              chosen && alarm && "bg-destructive hover:bg-destructive text-destructive-foreground hover:text-destructive-foreground"
             )}
           >
             {option.label}

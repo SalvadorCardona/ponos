@@ -29,10 +29,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* The radii, Hermez's: all of them proportions of `--radius`, up to the
+     2xl–4xl shadcn's newer components round in, so a theme with square
+     corners has no pill left anywhere. */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-3xl: calc(var(--radius) * 1.8);
+  --radius-4xl: calc(var(--radius) * 2.2);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -69,6 +75,11 @@
   --color-tr-red: var(--tr-red);
   --color-tr-violet: var(--tr-violet);
   --color-tr-pink: var(--tr-pink);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --color-series-1: var(--series-1);
   --color-series-2: var(--series-2);
 
@@ -76,12 +87,20 @@
 
   /* The faces are the tokens' — see `tokens.css`. */
   --font-sans: var(--sans);
+  --font-heading: var(--heading);
   --font-mono: var(--mono);
 
   /* What a message says, in the console and on a ticket: a step above the
      small print around it, with the room to breathe that size asks for. */
   --text-message: 0.9375rem;
   --text-message--line-height: 1.6;
+}
+
+/* The shadows, Hermez's, in the colour and the strength the tokens give them. */
+@theme {
+  --shadow-sm: 0 1px 2px 0 rgb(var(--shadow-color) / calc(var(--shadow-strength) * 0.8));
+  --shadow-md: 0 4px 12px -2px rgb(var(--shadow-color) / var(--shadow-strength));
+  --shadow-lg: 0 12px 28px -6px rgb(var(--shadow-color) / calc(var(--shadow-strength) * 1.2));
 }
 
 @layer base {
@@ -409,6 +428,16 @@
   }
 }
 
+/* Every heading in the design system's face, weight and tracking, whoever
+   drew it — the console's own pages and the packages' alike. Outside any
+   layer, so it wins over a `font-semibold` written on the heading itself, and
+   in `:where`, so a rule of the console's that does mean to differ still can. */
+:where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--heading);
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+
 /* The Markdown editor, in the console's palette and at the size of a form.
 
    Outside any layer, because Crepe's own sheets are: a rule in a layer loses to
@@ -436,7 +465,7 @@
   --crepe-color-selected: color-mix(in srgb, var(--primary), transparent 75%);
   --crepe-color-inline-area: var(--muted);
   --crepe-base-font-size: 14px;
-  --crepe-font-title: var(--sans);
+  --crepe-font-title: var(--heading);
   --crepe-font-default: var(--sans);
   --crepe-font-code: var(--mono);
   --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.2);
@@ -446,7 +475,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: calc(var(--radius) * 0.8);
   background-color: var(--field);
 }
 [data-slot="markdown-editor"]:focus-within {

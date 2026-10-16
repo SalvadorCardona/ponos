@@ -1,4 +1,4 @@
-/* Ponos's design tokens: every colour, both faces, the radius.
+/* Ponos's design tokens: every colour, the faces, the radius.
  *
  * One file, because there are two pages that have to look like one product —
  * the console, which imports it from `index.css`, and the landing page, which
@@ -10,70 +10,86 @@
 
 /* The console's palette, as shadcn/ui names things.
  *
- * Dark is the console's own mode — it sits beside a terminal and a Notion board
- * and the thing it shows most of the time is a log — so dark is where the
- * palette is decided and light is the translation of it. The ladder is four
- * steps deep: the page, the card on it, the popover above that, and the fill
- * behind a control. The accent is the blue of the robot — the mascot's body,
- * `#78a0ff` to `#5079e6` in the logo — and it is the one colour on the page
- * that means "this is the button": nothing else is allowed to use it, which is
- * why the tags' "in progress" and the chart's first series are a cyan, not a
- * second blue to mistake for it.
+ * It is Hermez's, the design system every shadcn project of the agency shares
+ * (SalvadorCardona/brand-assets, `site/src/styles.css`, the Portfolio theme):
+ * warm "stone" greys, the brand's orange, and the values below are taken from
+ * there rather than picked here. The brand's orange itself, `#e46212`, is the
+ * focus ring and the first colour of a chart; a button wears the deeper
+ * `#bf4a02`, because white on `#e46212` is 3.6:1 and on `#bf4a02` 5.0:1.
  *
- * Light cannot take the robot's own blue — white on `#5079e6` is 3.9:1 and
- * `text-primary` on white is the same, and both view libraries use it — so it
- * takes the deeper end of the same hue, 5.5:1 under white text. Dark takes the
- * robot's blue as it is, with a navy text on it (7.8:1).
+ * The design system is light only; the console is not. Dark is still the mode
+ * it opens in — it sits beside a terminal and a Notion board and the thing it
+ * shows most of the time is a log — and its dark is the same stone, taken one
+ * ladder down: the page, the card on it, the popover above that, and the fill
+ * behind a control. The orange lightens to `#ff8b44` there, under a stone text
+ * (7.5:1).
  *
  * `--tr-*` are the console's own colours: the ones a column heading, a status
  * tag or a session step is drawn in. They are not shadcn's to name, and they
  * are declared here so a component can ask for `text-tr-green` and get the same
- * green everywhere. `--field` is not shadcn's either: it is the fill every
- * control sits on, and it exists because a form of filled boxes reads as a form
- * where a form of outlines reads as a table.
+ * green everywhere. Each is at least 4.5:1 on every surface it is written on —
+ * the page, a card, the muted fill, and the 10–15% tint of itself an alert or a
+ * tag is filled with — which is why the light ones are a shade deeper than
+ * Tailwind's 700s. `--field` is not shadcn's either: it is the fill every
+ * control sits on, and it exists because a form of filled boxes reads as a
+ * form where a form of outlines reads as a table.
  */
 
 :root {
-  --radius: 0.625rem;
+  /* The base radius; every other one is derived from it (see `index.css`). */
+  --radius: 0.75rem;
 
-  --background: #fbfbf9;
-  --foreground: #14161a;
+  --background: #fafaf9;
+  --foreground: #1c1917;
   --card: #ffffff;
-  --card-foreground: #14161a;
+  --card-foreground: #1c1917;
   --popover: #ffffff;
-  --popover-foreground: #14161a;
-  --primary: #3a62d1;
+  --popover-foreground: #1c1917;
+  --primary: #bf4a02;
   --primary-foreground: #ffffff;
-  --secondary: #f1f2ee;
-  --secondary-foreground: #14161a;
-  --muted: #f1f2ee;
-  /* #6b7280 was 4.3:1 on the muted fill and 4.0:1 on a hovered row, under
-     the 4.5:1 an 11px label needs. This one is 4.8:1 on the darkest of them. */
-  --muted-foreground: #5f6573;
-  --accent: #eceee8;
-  --accent-foreground: #14161a;
-  --destructive: #c8332a;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #292524;
+  --muted: #f5f5f4;
+  --muted-foreground: #57534e;
+  --accent: #fff6ee;
+  --accent-foreground: #1c1917;
+  /* The design system's `#dc2626` is 4.4:1 on the muted fill a priority's
+     "Urgent" sits on, and less on the tint of itself an error is drawn on:
+     the same red, a step deeper. */
+  --destructive: #cc2020;
   --destructive-foreground: #ffffff;
-  --border: #e4e5e0;
-  --input: #e4e5e0;
-  --ring: #3a62d1;
-  --field: #f4f5f1;
+  --border: #e7e5e4;
+  --input: #d6d3d1;
+  --ring: #e46212;
+  --field: #f5f5f4;
 
-  --sidebar: #f5f5f2;
-  --sidebar-foreground: #14161a;
-  --sidebar-primary: #3a62d1;
+  --sidebar: #f5f5f4;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #bf4a02;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9eae4;
-  --sidebar-accent-foreground: #14161a;
-  --sidebar-border: #e4e5e0;
-  --sidebar-ring: #3a62d1;
+  --sidebar-accent: #eeecea;
+  --sidebar-accent-foreground: #1c1917;
+  --sidebar-border: #e7e5e4;
+  --sidebar-ring: #e46212;
 
-  --tr-blue: #0e7490;
-  --tr-green: #15803d;
-  --tr-amber: #b45309;
-  --tr-red: #c8332a;
+  --tr-blue: #0e7189;
+  --tr-green: #147a3a;
+  --tr-amber: #a14a08;
+  --tr-red: #c2312a;
   --tr-violet: #7c3aed;
-  --tr-pink: #db2777;
+  --tr-pink: #c2206a;
+
+  /* The design system's data palette. */
+  --chart-1: #e46212;
+  --chart-2: #0f766e;
+  --chart-3: #ca8a04;
+  --chart-4: #7c3aed;
+  --chart-5: #2563eb;
+
+  /* What a shadow is made of, the colour as RGB channels and how strong it is:
+     the shadows themselves are drawn in `index.css`. */
+  --shadow-color: 28 25 23;
+  --shadow-strength: 0.08;
 
   /* The two series a chart draws, and only charts: slots 1 and 2 of a
      palette checked for colour blindness in both themes, rather than the
@@ -104,37 +120,39 @@
 }
 
 .dark {
-  --background: #0e0f13;
-  --foreground: #f1f2f4;
-  --card: #16181e;
-  --card-foreground: #f1f2f4;
-  --popover: #1b1e26;
-  --popover-foreground: #f1f2f4;
-  --primary: #82a8ff;
-  --primary-foreground: #0b1430;
-  --secondary: #1b1e26;
-  --secondary-foreground: #f1f2f4;
-  --muted: #1b1e26;
-  --muted-foreground: #8d95a5;
-  --accent: #232833;
-  --accent-foreground: #f1f2f4;
-  --destructive: #f2685f;
-  --destructive-foreground: #12141a;
-  --border: #262a34;
-  --input: #262a34;
-  --ring: #82a8ff;
-  --field: #1a1d24;
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+  --card: #1c1917;
+  --card-foreground: #fafaf9;
+  --popover: #292524;
+  --popover-foreground: #fafaf9;
+  --primary: #ff8b44;
+  --primary-foreground: #1c1917;
+  --secondary: #292524;
+  --secondary-foreground: #fafaf9;
+  --muted: #292524;
+  --muted-foreground: #a8a29e;
+  /* A step above the popover, warmed toward the orange as the light
+     highlight is, so a hovered row in a menu still shows. */
+  --accent: #2f2723;
+  --accent-foreground: #fafaf9;
+  --destructive: #f87171;
+  --destructive-foreground: #1c1917;
+  --border: #fafaf91c;
+  --input: #fafaf926;
+  --ring: #e46212;
+  --field: #221f1d;
 
   /* A shade below the page, not above it: the sidebar is the frame, and a
      frame that glows brighter than what it holds is a frame you keep reading. */
-  --sidebar: #0b0c0f;
-  --sidebar-foreground: #f1f2f4;
-  --sidebar-primary: #82a8ff;
-  --sidebar-primary-foreground: #0b1430;
-  --sidebar-accent: #1e222b;
-  --sidebar-accent-foreground: #f1f2f4;
-  --sidebar-border: #1e222b;
-  --sidebar-ring: #82a8ff;
+  --sidebar: #090807;
+  --sidebar-foreground: #fafaf9;
+  --sidebar-primary: #ff8b44;
+  --sidebar-primary-foreground: #1c1917;
+  --sidebar-accent: #292524;
+  --sidebar-accent-foreground: #fafaf9;
+  --sidebar-border: #fafaf91c;
+  --sidebar-ring: #e46212;
 
   --tr-blue: #22d3ee;
   --tr-green: #4ade80;
@@ -142,6 +160,9 @@
   --tr-red: #f2685f;
   --tr-violet: #9b7bff;
   --tr-pink: #f26bae;
+
+  --shadow-color: 0 0 0;
+  --shadow-strength: 0.4;
 
   --series-1: #2cb5d4;
   --series-2: #d95926;
@@ -162,15 +183,19 @@
   --subtype-security: #f28a55;
 }
 
-/* The two faces the product speaks in: a geometric grotesque for everything
-   that is prose, and a monospace for everything that is a fact — an id, a
-   path, a cost, a timestamp. Named first are the ones the design was drawn
-   in; what follows is what the machine already has, because the console is
-   served by a Python process on a loopback port and is not going to ask the
-   network for a typeface before it can show you a log. The landing page does
-   ask, and gets the first names. */
+/* The faces, the design system's: Bricolage Grotesque, very bold, for the
+   headings, and the machine's own faces for everything else — the prose, and
+   the monospace every fact is written in (an id, a path, a cost, a
+   timestamp). The console is served by a Python process on a loopback port and
+   is not going to ask the network for a typeface before it can show you a log:
+   the heading face is bundled with it (`main.tsx`, from Fontsource), and the
+   landing page fetches it. */
 :root {
-  --sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
-    Consolas, monospace;
+  --heading: "Bricolage Grotesque Variable", "Bricolage Grotesque", ui-sans-serif, system-ui,
+    sans-serif;
+  --heading-weight: 800;
+  --heading-tracking: -0.025em;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
 }

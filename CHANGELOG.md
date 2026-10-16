@@ -211,6 +211,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The console and the landing page wear Hermez's design system (the Portfolio theme).** Warm stone greys, the
+  brand's orange for the buttons and the focus ring, headings in a very bold Bricolage Grotesque — bundled with the
+  console, no font service — and the system's own face for the text; the radii are derived from one `--radius`. The
+  console still opens dark, on the same stone. The status colours keep their meaning, a shade deeper in light where
+  they fell under 4.5:1, and the few texts written white on a light colour in dark are now dark.
 - **Desktop notifications are two short, clean lines.** The title is the verdict and the ticket, without the project
   it opens on, cut on a word around 60 characters; the body says the project and where the work is (PR #, commits,
   « answer in the page »), then the summary cut around 120 characters — no address, no price, no duration, no

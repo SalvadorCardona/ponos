@@ -13818,7 +13818,7 @@ def the_console_and_the_landing_page_share_one_set_of_tokens():
     source = (FRONTEND / "src/tokens.css").read_text(encoding="utf-8")
     copy = (ROOT / "docs/tokens.css").read_text(encoding="utf-8")
     assert copy == source, "docs/tokens.css is stale — run npm run build in frontend/ and commit it"
-    for name in ("--primary", "--background", "--radius", "--tr-green", "--series-1", "--sans", "--mono"):
+    for name in ("--primary", "--background", "--radius", "--tr-green", "--series-1", "--sans", "--mono", "--heading"):
         assert f"{name}:" in source, f"{name} is not among the tokens"
     assert ".dark {" in source, "the tokens have no dark theme"
     index = (FRONTEND / "src/index.css").read_text(encoding="utf-8")
@@ -13835,7 +13835,9 @@ def the_console_and_the_landing_page_share_one_set_of_tokens():
     for gone in ("Inter", "Instrument Serif", "#3b82f6"):
         # A whole word: `IntersectionObserver` is not the old face.
         assert not re.search(rf"(?<!\w){re.escape(gone)}(?!\w)", page), f"{gone} is the old identity"
-    assert "family=DM+Sans" in page and "JetBrains+Mono" in page, "the site does not load the console's faces"
+    assert "family=Bricolage+Grotesque" in page, "the site does not load the headings' face"
+    for gone in ("DM+Sans", "JetBrains+Mono"):
+        assert gone not in page, f"{gone} is the old identity"
     assert "ponos-theme" in page and "prefers-color-scheme" in page, "the site has no light and dark"
 
 
