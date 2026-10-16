@@ -209,6 +209,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   `unknown`), and written into a new **`Blocage`** select of the Notion board — run
   `ponos init` to add it; `ponos doctor` says when it is missing.
 
+### Changed
+
+- **A card in review offers one thing to do: Decide.** A pink button across the card's width, and beside
+  it a « ⋯ » that holds the rest, in the order you reach for it — *Validate and publish*, *Run the agent
+  again*, *Mark done* and, apart and in red, *Cancel the ticket*. Five buttons in three styles made Decide
+  and validate fight for the eye. Each gesture asks what it asked before and moves the ticket where it did;
+  the state of the CI moves to the line along the bottom, beside the age and the cost, red when it fails.
+
 ### Fixed
 
 - **An automatic validation the CI stops says which CI, and why.** With Validation automatique on for

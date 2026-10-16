@@ -496,7 +496,8 @@ function TicketCard({ row }: RowComponentPropsInterface) {
       <TicketHeld ticket={ticket} />
       {/* A blocked card says why in its Unblock button's tooltip. */}
       {ticket.column !== "blocked" ? <TicketBlock block={ticket.block} /> : null}
-      <TicketCi ci={ticket.ci} />
+      {/* In review, the checks are said in the line along the bottom. */}
+      {ticket.column !== "review" ? <TicketCi ci={ticket.ci} /> : null}
 
       {ticket.column === "running" ? (
         <CardLive ticket={ticket} />

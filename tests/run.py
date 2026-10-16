@@ -13769,7 +13769,7 @@ def the_heros_picture_is_the_loop_and_ends_on_your_decision():
     assert "Validate" in label and "Run again" in label, "the picture's description does not tell the decision"
     # The console's own words, so the picture does not promise a button that is not there.
     bits = (FRONTEND / "src/components/console/ticket-bits.tsx").read_text(encoding="utf-8")
-    assert 't("validate")' in bits and 't("run again")' in bits
+    assert 't("Validate and publish")' in bits and 't("run again")' in bits
 
 
 @case
