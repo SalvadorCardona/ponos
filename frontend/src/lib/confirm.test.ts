@@ -36,6 +36,10 @@ test("on a button, Enter presses that button and nothing else", () => {
   assert.equal(enterConfirms(press("Enter"), { tagName: "BUTTON" }), false)
 })
 
+test("on a checkbox drawn as a button, Enter confirms: it toggles nothing", () => {
+  assert.equal(enterConfirms(press("Enter"), { tagName: "BUTTON", role: "checkbox" }), true)
+})
+
 test("in a field of several lines Enter is a new line, and Ctrl+Enter or ⌘+Enter confirms", () => {
   assert.equal(takesLines({ tagName: "TEXTAREA" }), true)
   assert.equal(takesLines({ tagName: "DIV", isContentEditable: true }), true)

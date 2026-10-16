@@ -129,7 +129,8 @@ export function ConfirmDialog({
         }}
         onKeyDown={(event) => {
           contentProps?.onKeyDown?.(event)
-          if (event.defaultPrevented) return
+          // A checkbox swallows Enter (preventDefault) without using it.
+          if (event.defaultPrevented && (event.target as HTMLElement).getAttribute("role") !== "checkbox") return
           if (event.key === "Enter" && event.repeat) {
             event.preventDefault()
             return
