@@ -1046,6 +1046,13 @@ def command_doctor(args: argparse.Namespace) -> int:
         ok(f"dictation — transcribed by {configuration.openrouter.transcription_model}")
     else:
         print(f"  {DIM}dictation off — it is transcribed by OpenRouter: openrouter.key{RESET}")
+    chat_model = configuration.web.chat_model
+    if chat_model and "/" in chat_model and not configuration.openrouter.key:
+        warn(f"web.chat_model = {chat_model} is an OpenRouter model, and openrouter.key is empty")
+    elif chat_model:
+        ok(f"new console sessions start on {chat_model}")
+    elif configuration.openrouter.key:
+        ok("console sessions: Claude models, and every OpenRouter model")
 
     title("Repositories")
     root = configuration.runner.workspace_root

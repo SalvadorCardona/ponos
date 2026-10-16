@@ -13,6 +13,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { hotkeyLabel, useHotkeys } from "@/hooks/use-hotkeys"
 import { useT } from "@/lib/i18n"
+import { CLOSED, OPENED, TOGGLED } from "@/lib/talk"
 import { cn } from "@/lib/utils"
 
 import { ConsolePane } from "./console-pane"
@@ -31,23 +32,6 @@ import { ConsolePane } from "./console-pane"
  * is a tab of the ticket's page now, counted — see `TicketPage` — and the
  * bubble has one role left.
  */
-
-/* Opened from elsewhere: a section of the settings runs `> doctor` and the
- * answer arrives in the transcript, which is no use behind a closed drawer. An
- * event rather than a value in the console's context, for the same reason the
- * settings are reread on one: whoever asks does not have to be near whoever
- * answers. */
-const OPENED = "ponos:talk"
-
-/** Open the drawer, from anywhere on the page. */
-export const openTalk = () => window.dispatchEvent(new Event(OPENED))
-
-/* Opened or closed, whichever it is not: the palette's entry, which says the
- * same thing as the shortcut. */
-const TOGGLED = "ponos:talk-toggle"
-
-/** Open the drawer if it is closed, close it if it is open. */
-export const toggleTalk = () => window.dispatchEvent(new Event(TOGGLED))
 
 /* How wide the drawer is.
  *
@@ -125,8 +109,11 @@ export function TalkDrawer() {
     const opened = () => change(true)
     const toggled = () => change((current) => !current)
     window.addEventListener(OPENED, opened)
+    const closed = () => change(false)
     window.addEventListener(TOGGLED, toggled)
+    window.addEventListener(CLOSED, closed)
     return () => {
+      window.removeEventListener(CLOSED, closed)
       window.removeEventListener(OPENED, opened)
       window.removeEventListener(TOGGLED, toggled)
     }

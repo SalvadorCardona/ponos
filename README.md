@@ -2247,8 +2247,22 @@ change the light. On a phone, where the bar has room for none of those words, th
 the last read and the version are one pill — a dot and *live* — that a tap opens on all
 three. Every page has an address — `/?view=console/tickets/list`,
 `/?view=console/tickets/read/<id>` — so a reload, a bookmark or a link pasted into a chat
-lands where you were. The page of sessions the console used to have is gone, and its old
-address leads to the board: a session is followed on its ticket.
+lands where you were. The page of *running* sessions the console used to have is gone, and its old
+address leads to the board: a ticket's session is followed on its ticket.
+
+**Sessions** is the entry for the other kind — your conversations with the workspace, the ones
+the bubble opens. Each is kept in `ponos.db`, so they survive a restart: the page lists them
+from the latest to the oldest, with a title made of the first message (renamable, as is the
+project it is about), the date of the last message and the model it ran on. A row reopens the
+conversation with its whole transcript and carries on where it stopped — it is the same Claude
+Code session, resumed. The search looks in the titles and, failing that, in what was said;
+*New session* starts another; deleting asks for a box to be ticked, as deleting a project does,
+and takes the transcript and the files sent in it. The model is chosen from the conversation
+itself, in the bar over it, and kept per session: the Claude models (`opus`, `sonnet`, `haiku`,
+`fable`) and, once `openrouter.key` is set, any model OpenRouter lists — searched by name, the
+ones you used last first. A session on an OpenRouter model talks to OpenRouter whatever
+`claude.provider` says; without a key the picker offers Claude's models and leads to the
+setting. `web.chat_model` is the model a new session starts on.
 
 **The dashboard** opens on the period's [statistics](#statistics-on-the-dashboard), then
 the board. **The board** is the Notion board, read from Notion and written back to it, drawn as
@@ -2904,6 +2918,7 @@ Never `tailscale funnel`: that one is the whole Internet.
 | `web.password` | `""` | kept in the file, or in the environment — see below |
 | `web.poll_seconds` | `15` | how often the console asks Notion what changed (a two-minute overlapping window; the whole board every five minutes) — only while a browser is connected |
 | `web.chat_timeout_minutes` | `20` | past this, a chat turn is killed |
+| `web.chat_model` | `""` | the model a new conversation starts on (`opus`…, or an OpenRouter slug); empty: `runner.model` |
 
 ### The first connection
 

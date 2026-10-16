@@ -16,12 +16,12 @@ import { defineConfig } from "@playwright/test"
  * the rest share the other one and run in parallel. The ideas share the chat's: what
  * they keep is written onto its board, and the others count the tickets of theirs.
  * The page of the ideas has one too: it turns an idea into a ticket of Website, which
- * the statistics of Website then count, and it counts the ideas the chat's batch adds. And the first connection
+ * the statistics of Website then count, and it counts the ideas the chat's batch adds. The sessions' tests have one as well: they hold the console's one open conversation, and a turn running there is a turn the ideas' scoring waits behind. And the first connection
  * gets a console nobody has claimed, which its test claims — once. And the tests that
 delete projects get one of their own, with two projects to spare: the others count them.
  *
  * The ports are free ones unless `PONOS_E2E_PORT` names the first (the
- * chat takes the next, the first connection the one after, deleting the last): two worktrees running these tests at once must not both
+ * chat takes the next, the first connection the one after, deleting the one after that, the ideas and the sessions the last): two worktrees running these tests at once must not both
  * ask for 8790. They are kept in the environment because Playwright reads this
  * file again in every worker, and a worker that drew its own would knock on a
  * port nobody serves.
@@ -44,12 +44,14 @@ if (!process.env.PONOS_E2E_CHAT_PORT) {
   process.env.PONOS_E2E_SETUP_PORT = String(given ? given + 2 : await free())
   process.env.PONOS_E2E_DELETE_PORT = String(given ? given + 3 : await free())
   process.env.PONOS_E2E_IDEAS_PORT = String(given ? given + 4 : await free())
+  process.env.PONOS_E2E_SESSIONS_PORT = String(given ? given + 5 : await free())
 }
 const PORT = Number(process.env.PONOS_E2E_PORT)
 const CHAT_PORT = Number(process.env.PONOS_E2E_CHAT_PORT)
 const SETUP_PORT = Number(process.env.PONOS_E2E_SETUP_PORT)
 const DELETE_PORT = Number(process.env.PONOS_E2E_DELETE_PORT)
 const IDEAS_PORT = Number(process.env.PONOS_E2E_IDEAS_PORT)
+const SESSIONS_PORT = Number(process.env.PONOS_E2E_SESSIONS_PORT)
 
 const serve = (port: number, mode = "") => ({
   command: `python3 e2e/console.py ${port} ${mode}`.trim(),
@@ -75,7 +77,7 @@ export default defineConfig({
   projects: [
     {
       name: "console",
-      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "ideas-page.spec.ts", "setup.spec.ts", "project-delete.spec.ts"],
+      testIgnore: ["chat.spec.ts", "ideas.spec.ts", "ideas-page.spec.ts", "sessions.spec.ts", "setup.spec.ts", "project-delete.spec.ts"],
       use: { baseURL: `http://127.0.0.1:${PORT}` },
     },
     {
@@ -94,10 +96,15 @@ export default defineConfig({
       use: { baseURL: `http://127.0.0.1:${IDEAS_PORT}` },
     },
     {
+      name: "sessions",
+      testMatch: "sessions.spec.ts",
+      use: { baseURL: `http://127.0.0.1:${SESSIONS_PORT}` },
+    },
+    {
       name: "setup",
       testMatch: "setup.spec.ts",
       use: { baseURL: `http://127.0.0.1:${SETUP_PORT}` },
     },
   ],
-  webServer: [serve(PORT), serve(CHAT_PORT), serve(SETUP_PORT, "unclaimed"), serve(DELETE_PORT, "doomed"), serve(IDEAS_PORT)],
+  webServer: [serve(PORT), serve(CHAT_PORT), serve(SETUP_PORT, "unclaimed"), serve(DELETE_PORT, "doomed"), serve(IDEAS_PORT), serve(SESSIONS_PORT)],
 })

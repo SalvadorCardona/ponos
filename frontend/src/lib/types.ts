@@ -312,6 +312,14 @@ export interface Schedules {
 }
 
 export interface ChatState {
+  /** The console's own identifier of the open session, not Claude Code's. */
+  id?: string
+  title?: string
+  /** The model the session was given; empty: the default of the settings. */
+  model?: string
+  /** What the next turn runs on: the session's own, else the default. */
+  model_in_use?: string
+  project?: string
   session_id: string
   turns: number
   resume_command: string
@@ -321,6 +329,31 @@ export interface ChatState {
   attachments?: { max_mb: number; accepted: string[]; ffmpeg: boolean }
   /** Whether the microphone can be offered, and why not when it cannot. */
   dictation?: { ready: boolean; why: string; send: boolean }
+}
+
+/** One row of the Sessions page: a conversation the console has kept. */
+export interface ChatSession {
+  id: string
+  title: string
+  model: string
+  project: string
+  turns: number
+  /** The last message's date, ISO. */
+  updated: string
+  /** The one the console is talking to now. */
+  current: boolean
+  /** With a search: found in the title, or deeper in the transcript. */
+  matched?: "title" | "content"
+}
+
+/** What the model picker offers. */
+export interface ChatModels {
+  claude: { id: string; name: string }[]
+  openrouter: { configured: boolean; models: { id: string; name: string }[]; error: string }
+  /** Slugs and names the sessions last ran on, the latest first. */
+  recent: string[]
+  default: string
+  in_use: string
 }
 
 /** A file kept by the server for a message: what the transcript draws it from. */
@@ -498,6 +531,10 @@ export interface StepEvent extends Step {
 
 export type ChatEvent =
   | { stage: "reset" }
+  | { stage: "opened" }
+  | { stage: "renamed"; id?: string }
+  | { stage: "deleted"; id?: string }
+  | { stage: "model"; model?: string }
   | { stage: "sent"; text: string; attachments?: Attached[]; session_id: string }
   | ({ stage: "step" } & Step)
   | { stage: "stopping" }

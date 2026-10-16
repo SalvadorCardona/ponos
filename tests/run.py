@@ -8067,22 +8067,186 @@ def a_file_past_the_limit_or_of_the_wrong_kind_is_refused_with_a_reason():
 
 
 @case
-def a_new_conversation_takes_its_files_with_it():
+def a_new_conversation_leaves_the_old_one_its_files_until_it_is_deleted():
     with _chat() as chat:
+        chat.send("look at this")
+        _said_to(chat)
         said = chat.attach("a.png", io.BytesIO(b"png"), 3)
-        folder = chat.folder().path
+        chat.send("and this one")
+        _said_to(chat)
+        old, folder = chat.id, chat.folder().path
         assert folder.is_dir()
         chat.reset()
-        assert not folder.exists(), "the files went with the conversation"
+        assert folder.is_dir(), "the old conversation is still in the list, with its files"
         try:
             chat.attachment(said["id"])
         except LookupError:
             pass
         else:
-            raise AssertionError("a file outlived its conversation")
+            raise AssertionError("the new conversation reads the old one's files")
         again = chat.attach("b.png", io.BytesIO(b"png"), 3)
         assert chat.folder().path != folder, "a new conversation, a new folder"
         assert chat.attachment(again["id"]).name == "b.png"
+        chat.delete(old)
+        assert not folder.exists(), "deleting a conversation takes its files with it"
+        assert [item["id"] for item in chat.sessions()] == [], "the new one has said nothing yet"
+
+
+@case
+def conversations_are_listed_reopened_renamed_and_searched():
+    with _chat() as chat:
+        chat.send("How do I rotate the Notion token?\nSecond line")
+        _said_to(chat)
+        first = chat.id
+        assert chat.title == "How do I rotate the Notion token?", chat.title
+        chat.reset()
+        assert chat.history() == [] and chat.session_id == ""
+        chat.send("Draft the release notes")
+        _said_to(chat)
+        second = chat.id
+        listed = chat.sessions()
+        assert [item["id"] for item in listed] == [second, first], "the latest first"
+        assert listed[0]["current"] and not listed[1]["current"]
+        assert [item["id"] for item in chat.sessions("notion")] == [first]
+        assert chat.sessions("notion")[0]["matched"] == "title"
+        assert chat.sessions("seen")[0]["matched"] == "content", "the answers are searched too"
+        assert chat.sessions("100%") == [], "a wildcard is a character"
+        chat.rename(first, "  Token   rotation ")
+        assert chat.sessions("rotation")[0]["title"] == "Token rotation"
+        chat.link(first, " Website ")
+        assert chat.sessions("website")[0]["project"] == "Website", "found by its project too"
+        chat.open(first)
+        assert chat.id == first and chat.history()[0]["text"].startswith("How do I rotate")
+        chat.send("and then?")
+        assert "and then?" in _said_to(chat), "the session is resumed, without the brief again"
+        assert chat.prompts[-1].startswith("[This conversation is about the project “Website”.]")
+        assert chat.session_id and chat.turns == 2
+        try:
+            chat.open("0123456789ab")
+        except LookupError:
+            pass
+        else:
+            raise AssertionError("opened a conversation that does not exist")
+        chat.delete(first)
+        assert [item["id"] for item in chat.sessions()] == [second]
+        assert chat.history() == [], "the deleted one was open: a blank one takes its place"
+
+
+@case
+def a_conversation_keeps_its_model_and_the_settings_name_the_default():
+    with _chat('[web]\nchat_model = "haiku"\n') as chat:
+        assert chat.effective_model() == "haiku", "the setting is the default of a new session"
+        chat.choose("opus")
+        assert chat.state()["model"] == "opus"
+        chat.send("hello")
+        _said_to(chat)
+        first = chat.id
+        chat.reset()
+        assert chat.effective_model() == "haiku", "a new session starts on the default again"
+        chat.open(first)
+        assert chat.effective_model() == "opus", "and the other one remembers its own"
+        chat.choose("")
+        assert chat.effective_model() == "haiku"
+        for refused in ("openai/gpt-5", "--dangerous", "a b"):
+            try:
+                chat.choose(refused)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"{refused} was accepted")
+        offered = chat.models()
+        assert [item["id"] for item in offered["claude"]] == ["opus", "sonnet", "haiku", "fable"]
+        assert offered["openrouter"] == {"configured": False, "models": [], "error": ""}
+
+
+@case
+def an_openrouter_model_goes_through_openrouter_whatever_the_provider():
+    body = '[openrouter]\nkey = "sk-or-test"\n'
+    with _chat(body) as chat:
+        seen: list[dict] = []
+        original = session.run
+
+        def run(prompt, **rest):
+            seen.append(rest)
+            return original(prompt, **rest)
+
+        session.run = run
+        chat.choose("deepseek/deepseek-r1")
+        chat.send("hello")
+        _said_to(chat)
+        assert seen[-1]["model"] == "deepseek/deepseek-r1", "a slug is not rewritten"
+        assert seen[-1]["environment"]["ANTHROPIC_AUTH_TOKEN"] == "sk-or-test"
+        assert seen[-1]["environment"]["ANTHROPIC_BASE_URL"].startswith("https://openrouter.ai")
+        chat.choose("sonnet")
+        chat.send("again")
+        _said_to(chat)
+        assert seen[-1]["model"] == "sonnet"
+        assert "ANTHROPIC_BASE_URL" not in seen[-1]["environment"], "a Claude model stays on the CLI"
+        assert chat.models()["recent"] == ["sonnet"]
+
+
+@case
+def the_catalogue_of_openrouter_is_read_once_and_a_failure_is_said():
+    import urllib.request
+    from ponos import openrouter as router
+
+    answers = [json.dumps({"data": [{"id": "a/b", "name": "A: B"}, {"name": "no id"}]}).encode()]
+    opened: list[str] = []
+
+    class Reply:
+        def __init__(self, body: bytes) -> None:
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return self.body
+
+    def urlopen(request, timeout=0):
+        opened.append(request.full_url)
+        return Reply(answers[0])
+
+    original, router._catalogue = urllib.request.urlopen, {}
+    urllib.request.urlopen = urlopen
+    try:
+        settings = _config('[openrouter]\nkey = "k"\n').openrouter
+        assert router.catalogue(settings) == [{"id": "a/b", "name": "A: B"}]
+        router.catalogue(settings)
+        assert len(opened) == 1, "kept for a while"
+        router._catalogue = {}
+        answers[0] = b"nope"
+        try:
+            router.catalogue(settings)
+        except router.Unavailable as error:
+            assert "not JSON" in str(error)
+        else:
+            raise AssertionError("a page that is not JSON was read as a catalogue")
+    finally:
+        urllib.request.urlopen, router._catalogue = original, {}
+
+
+@case
+def the_single_conversation_of_chat_json_becomes_the_first_of_the_list():
+    with _state_home():
+        web_console.web_dir().joinpath("chat.json").write_text(
+            json.dumps({
+                "session_id": "abc", "turns": 1,
+                "messages": [
+                    {"role": "you", "text": "an old question", "at": "2026-01-01T10:00:00+00:00"},
+                    {"role": "workspace", "text": "an old answer", "at": "2026-01-01T10:01:00+00:00"},
+                ],
+            }),
+            encoding="utf-8",
+        )
+        chat = web_console.Chat(_config(""), lambda *a, **k: None)
+        assert chat.title == "an old question" and chat.session_id == "abc"
+        assert len(chat.history()) == 2
+        assert not (web_console.web_dir() / "chat.json").exists(), "read once, then set aside"
+        assert len(web_console.Chat(_config(""), lambda *a, **k: None).sessions()) == 1
 
 
 @case

@@ -18,6 +18,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **A « Sessions » entry in the menu: the history of the conversations with the workspace, and a choice of model per
+  conversation.** The chat is no longer one conversation that « new conversation » buries: each is kept in `ponos.db`
+  (the former `chat.json` becomes the first of the list) with a title made of its first message — renamable — the date
+  of its last message, its model and, if you give it one, its project. A row reopens the conversation with its whole
+  transcript and resumes the same Claude Code session; the search looks in the titles and in what was said; deleting
+  asks for a box to be ticked, as for a project. A picker in the bar over the conversation changes the model, kept per
+  session: `opus`, `sonnet`, `haiku` and `fable`, and — with an OpenRouter key — any model of OpenRouter's catalogue,
+  searched by name, the latest used first (without a key, only Claude's, with a link to the setting). A session on an
+  OpenRouter model goes through OpenRouter whatever `claude.provider` says. `web.chat_model` sets the model a new session
+  starts on.
 - **A schedule can be run now: a ▶ « Lancer maintenant » button on each row of the table and in the
   header of an opened schedule.** The runner writes the ticket into the ready column exactly as it
   would at the due moment, a toast says « Ticket créé » with a link to it, and `Last` is updated —

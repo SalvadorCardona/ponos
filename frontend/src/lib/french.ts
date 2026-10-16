@@ -1180,6 +1180,10 @@ export const FRENCH: Record<string, string> = {
   "Which Claude model works the tickets, and how much of your subscription the runner may spend.":
     "Quel modèle Claude traite les tickets, et quelle part de votre abonnement le runner peut consommer.",
   "Default model": "Modèle par défaut",
+  "Model of a new session": "Modèle d'une nouvelle session",
+  "`opus`, `sonnet`, `haiku`, `fable`, or an OpenRouter model such as `openai/gpt-5`. Empty: the model above.":
+    "`opus`, `sonnet`, `haiku`, `fable`, ou un modèle OpenRouter comme `openai/gpt-5`. Vide : le modèle ci-dessus.",
+  "The model above": "Le modèle ci-dessus",
   "`opus`, `sonnet` or `haiku`, for instance. Empty: Claude Code's own default. A ticket's Model column wins over it.":
     "`opus`, `sonnet` ou `haiku`, par exemple. Vide : le modèle par défaut de Claude Code. La colonne Model d'un ticket l'emporte.",
   "Choose the model when it is empty": "Choisir le modèle quand il est vide",
@@ -2022,4 +2026,33 @@ export const FRENCH: Record<string, string> = {
   "Reading the addresses…": "Lecture des adresses…",
   "What an MCP is, how to plug Ponos into Claude, and the ones the sessions use.": "Ce qu'est un MCP, comment brancher Ponos à Claude, et ceux qu'utilisent les sessions.",
   "MCP": "MCP",
+  // Sessions — the conversations kept by the console, and the model they run on.
+  "Every conversation with your workspace. Open one to carry on where it stopped.":
+    "Toutes les conversations avec votre espace de travail. Ouvrez-en une pour reprendre là où elle s'était arrêtée.",
+  "New session": "Nouvelle session",
+  "Search the titles and what was said": "Chercher dans les titres et dans ce qui s'est dit",
+  "Reading the sessions…": "Lecture des sessions…",
+  "No session matches.": "Aucune session ne correspond.",
+  "No session yet. Start one with the button above.":
+    "Aucune session pour l'instant. Lancez-en une avec le bouton ci-dessus.",
+  "Untitled session": "Session sans titre",
+  open: "ouverte",
+  "{{count}} exchange": "{{count}} échange",
+  "{{count}} exchanges": "{{count}} échanges",
+  "found in the conversation": "trouvé dans la conversation",
+  Rename: "Renommer",
+  "The session could not be opened": "La session n'a pas pu être ouverte",
+  "Session “{{name}}” deleted": "Session « {{name}} » supprimée",
+  "Its conversation and the files sent in it are deleted for good.":
+    "Sa conversation et les fichiers qui y ont été envoyés sont supprimés pour de bon.",
+  "Delete the session": "Supprimer la session",
+  "Yes, I am sure I want to delete this session": "Oui, je suis sûr de supprimer cette session",
+  "Model of this session": "Modèle de cette session",
+  "Search a model…": "Chercher un modèle…",
+  "Reading the models…": "Lecture des modèles…",
+  "No such model": "Aucun modèle de ce nom",
+  "Recently used": "Utilisés récemment",
+  "Only the Claude models, until OpenRouter is configured.":
+    "Seulement les modèles Claude, tant qu'OpenRouter n'est pas configuré.",
+  "Set up OpenRouter": "Configurer OpenRouter",
 }

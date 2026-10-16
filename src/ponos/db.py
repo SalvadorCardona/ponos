@@ -748,6 +748,26 @@ def _ci(connection: sqlite3.Connection) -> None:
     )
 
 
+def _chats(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE chats (
+            id        TEXT PRIMARY KEY,
+            title     TEXT NOT NULL DEFAULT '',
+            model     TEXT NOT NULL DEFAULT '',
+            project   TEXT NOT NULL DEFAULT '',
+            claude    TEXT NOT NULL DEFAULT '',
+            turns     INTEGER NOT NULL DEFAULT 0,
+            folder    TEXT NOT NULL DEFAULT '',
+            created   TEXT NOT NULL DEFAULT '',
+            updated   TEXT NOT NULL DEFAULT '',
+            messages  TEXT NOT NULL DEFAULT '[]'
+        )
+        """
+    )
+    connection.execute("CREATE INDEX chats_updated ON chats (updated)")
+
+
 # Appended to, never edited or renamed: a file remembers each of these by name,
 # and the version of a file is how many of them it has been through. Statements go through `execute` one at a time — `executescript`
 # commits whatever transaction is open before it starts, which would apply half
@@ -780,6 +800,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _notifications,
     _ci,
     _ideas_have_a_score,
+    _chats,
 )
 
 # Any way a read or a write of the database can fail. A note the runner keeps

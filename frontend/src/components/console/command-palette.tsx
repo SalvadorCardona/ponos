@@ -34,7 +34,7 @@ import { settingsHref } from "@/resources/settings"
 import { boardHref, ticketHref, tickets } from "@/resources/tickets"
 
 import { CONTEXT_ANCHOR } from "./context-block"
-import { toggleTalk } from "./talk-drawer"
+import { toggleTalk } from "@/lib/talk"
 
 /* Ctrl+K: everywhere the console can take you, typed rather than clicked.
  *

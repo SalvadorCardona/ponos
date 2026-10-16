@@ -74,12 +74,22 @@ def chosen(config: Config) -> str:
     return "cli"
 
 
-def environment(config: Config) -> dict[str, str]:
+def on_openrouter(model: str) -> bool:
+    """Is this model an OpenRouter slug — `vendor/model` — and not a Claude name?"""
+    return "/" in model.strip()
+
+
+def environment(config: Config, model: str = "") -> dict[str, str]:
     """What a session is started with, on top of the environment it inherits.
 
     The OpenRouter key is handed over whatever the provider — a ticket may want a
     GPT whoever answers it. An Anthropic key only when it is the provider: given
     to a CLI session, it would quietly take the place of the subscription.
+
+    A session asked to run on an OpenRouter slug is the exception to the rule
+    below: it talks to OpenRouter whatever the provider, because that is the
+    only place the slug means anything — the console's chat can change model, and
+    so gateway, from one message to the next.
     """
     variables = openrouter.environment(config.openrouter)
     which = chosen(config)
@@ -89,6 +99,9 @@ def environment(config: Config) -> dict[str, str]:
         # A key that is only *available* must not carry the sessions off.
         variables.pop("ANTHROPIC_BASE_URL", None)
         variables.pop("ANTHROPIC_AUTH_TOKEN", None)
+    if model and on_openrouter(model) and config.openrouter.key:
+        variables["ANTHROPIC_BASE_URL"] = config.openrouter.base_url.rstrip("/") or OPENROUTER_URL
+        variables["ANTHROPIC_AUTH_TOKEN"] = config.openrouter.key
     return variables
 
 
