@@ -24,7 +24,14 @@ const badge = (page: Page, id: string) =>
 test("a code ticket wears its sub-type, and a ticket without one wears none", async ({ page }) => {
   await open(page)
   await expect(badge(page, SECURITY)).toHaveAttribute("data-subtype", "security")
-  await expect(badge(page, SECURITY)).toContainText("🔒")
+  // Its colour says it, on a dot: no emoji any more.
+  await expect(badge(page, SECURITY)).toHaveText("Security")
+  const dot = (id: string) =>
+    badge(page, id)
+      .locator('[data-slot="subtype-dot"]')
+      .evaluate((element) => getComputedStyle(element).backgroundColor)
+  expect(await dot(SECURITY)).not.toBe("rgba(0, 0, 0, 0)")
+  expect(await dot(SECURITY)).not.toBe(await dot(BUG))
   await expect(badge(page, BUG)).toHaveAttribute("data-subtype", "bug")
   await expect(badge(page, BUG)).toContainText("Bug")
   await expect(page.locator(`[data-ticket-card="${NONE}"]`)).toBeVisible()
@@ -44,7 +51,7 @@ test.describe("in French", () => {
 
   test("the sub-type keeps the developers' word, on the card and in the filter", async ({ page }) => {
     await open(page)
-    await expect(badge(page, SECURITY)).toHaveText("🔒Security")
+    await expect(badge(page, SECURITY)).toHaveText("Security")
     await expect(page.locator(`[data-ticket-card="${SECURITY}"]`)).not.toContainText("Sécurité")
     await page.locator(`[data-ticket-card="${SECURITY}"]`).screenshot({ path: "test-results/subtype-security-fr.png" })
     await open(page, "/?subtype=security")

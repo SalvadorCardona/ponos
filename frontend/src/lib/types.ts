@@ -78,7 +78,6 @@ export interface Subtype {
   /** The developers' word — « Feature », « Security » — shown as it is in
    * every language: a sub-type is never translated, see `SUBTYPES` in subtypes.py. */
   label: string
-  icon: string
   /** The prefix of its commits: `fix`, `feat`… */
   commit: string
   /** Its CHANGELOG section, empty for none. */

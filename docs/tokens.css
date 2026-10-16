@@ -107,8 +107,10 @@
   --family-question: #eda100;
   --family-access: #e87ba4;
 
-  /* The sub-types of a code ticket (subtypes.py), on the icon of their badge
-     and in the bars of the statistics. */
+  /* The sub-types of a code ticket (subtypes.py), on the dot of their badge
+     and in the bars of the statistics — the colour alone tells them apart,
+     with no emoji beside it. `none` is a ticket of no sub-type: a darker grey
+     than Chore's, never mistaken for it. */
   --subtype-bug: #c8332a;
   --subtype-feature: #15803d;
   --subtype-improvement: #2a78d6;
@@ -117,6 +119,7 @@
   --subtype-perf: #c98500;
   --subtype-docs: #8b6b4a;
   --subtype-security: #eb6834;
+  --subtype-none: #374151;
 }
 
 .dark {
@@ -181,6 +184,7 @@
   --subtype-perf: #e5a94e;
   --subtype-docs: #b8946c;
   --subtype-security: #f28a55;
+  --subtype-none: #6b7280;
 }
 
 /* The faces, the design system's: Bricolage Grotesque, very bold, for the

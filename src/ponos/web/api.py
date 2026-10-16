@@ -923,7 +923,7 @@ class Api:
             ]
         if settings.prop("subtype") in schema:
             choices["subtype"] = [
-                {"value": subtype.key, "label": f"{subtype.icon} {subtype.label}"}
+                {"value": subtype.key, "label": subtype.label}
                 for subtype in subtypes.SUBTYPES
             ]
         return choices

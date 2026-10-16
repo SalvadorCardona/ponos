@@ -54,7 +54,7 @@ test("a new ticket carries its priority, type and model, and Ctrl+Enter launches
   await expect(segment(dialog, "Priority", "High")).toHaveAttribute("aria-pressed", "true")
   await segment(dialog, "Type", "Code").click()
   await choose(page, dialog, "Model", "haiku")
-  await segment(dialog, "Sub-type", "🐞 Bug").click()
+  await segment(dialog, "Sub-type", "Bug").click()
   await dialog.getByLabel("Title").fill("Announce it")
   await page.screenshot({ path: "test-results/new-ticket.png" })
   await dialog.getByLabel("Title").press("Control+Enter")
@@ -77,13 +77,13 @@ test("the sub-type is a code ticket's: shown for Code, hidden for any other type
   await expect(subtype).toHaveCount(0)
   await segment(dialog, "Type", "Code").click()
   await expect(subtype).toBeVisible()
-  await segment(dialog, "Sub-type", "✨ Feature").click()
+  await segment(dialog, "Sub-type", "Feature").click()
   await segment(dialog, "Type", "Writing").click()
   await expect(subtype).toHaveCount(0)
   await segment(dialog, "Type", "Code").click()
   await expect(subtype).toBeVisible()
   // Taken away with the type it belonged to.
-  await expect(segment(dialog, "Sub-type", "✨ Feature")).toHaveAttribute("aria-pressed", "false")
+  await expect(segment(dialog, "Sub-type", "Feature")).toHaveAttribute("aria-pressed", "false")
 })
 
 test("no card says what the ticket will come back as, whatever the type", async ({ page }) => {

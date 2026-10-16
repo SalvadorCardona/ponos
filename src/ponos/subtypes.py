@@ -12,7 +12,9 @@ sub-type, everything the rest of the runner needs of it:
 
 - the **option** the board writes it as, and the other spellings it is known
   by — the English word, the prefix of the old titles (`[Ops]` was a chore);
-- its **icon** and its **colour**, on the card and in Notion;
+- its **colour**, on the card and in Notion — and its **icon**, which only the
+  command line still prints: the console tells them apart by colour alone,
+  an emoji beside a coloured dot said the same thing twice;
 - the **prefix** of its commit and its pull request, the conventional commits
   one, and the **section** of the CHANGELOG it goes under — or none;
 - how it moves the **level of the model** a code ticket starts at: a page of
@@ -81,7 +83,6 @@ class Subtype:
             "key": self.key,
             "option": self.option,
             "label": self.label,
-            "icon": self.icon,
             "colour": self.colour,
             "commit": self.commit,
             "changelog": self.changelog,

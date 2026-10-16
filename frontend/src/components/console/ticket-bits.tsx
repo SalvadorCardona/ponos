@@ -303,12 +303,24 @@ export function subtypeOf(key?: string): Subtype | undefined {
   return key ? currentBoard()?.subtypes?.find((subtype) => subtype.key === key) : undefined
 }
 
-/** The colour of a sub-type — on its icon and in its bars, never on its words. */
-export const subtypeColor = (key: string): string => `var(--subtype-${key}, currentColor)`
+/** The colour of a sub-type — on its dot and in its bars, never on its words. "" is no sub-type at all. */
+export const subtypeColor = (key: string): string => `var(--subtype-${key || "none"}, currentColor)`
 
-/* What kind of change a code ticket is, as a small badge: its icon and its
- * name, the border in its colour. Discreet on purpose — it is read after the
- * title, not before it. Nothing for a ticket without one. */
+/** A sub-type's dot: the one mark it is known by, in the legend, the filters and the badge alike. */
+export function SubtypeDot({ subtype, className }: { subtype: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      data-slot="subtype-dot"
+      className={cn("inline-block size-2 shrink-0 rounded-full", className)}
+      style={{ background: subtypeColor(subtype) }}
+    />
+  )
+}
+
+/* What kind of change a code ticket is, as a small badge: a dot and its name,
+ * the border in its colour. Discreet on purpose — it is read after the title,
+ * not before it. Nothing for a ticket without one. */
 export function TicketSubtype({ subtype }: { subtype?: string }) {
   const known = subtypeOf(subtype)
   if (!known) return null
@@ -323,12 +335,10 @@ export function TicketSubtype({ subtype }: { subtype?: string }) {
       <span
         data-slot="ticket-subtype"
         data-subtype={known.key}
-        className="inline-flex items-center gap-1"
+        className="inline-flex items-center gap-1.5"
         title={`${known.commit}:${known.changelog ? ` · CHANGELOG ${known.changelog}` : ""}`}
       >
-        <span aria-hidden className="text-[0.8rem] leading-none">
-          {known.icon}
-        </span>
+        <SubtypeDot subtype={known.key} />
         {known.label}
       </span>
     </Chip>

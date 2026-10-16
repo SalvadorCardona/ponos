@@ -233,6 +233,11 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 - **The New ticket window no longer says what the ticket will come back as.** The « Ce que ça donnera » card at the
   foot of its settings column is gone, whatever the type; the type and the project are still chosen the same way.
 
+- **Sub-types are told apart by their colour, without emojis.** 🐞, ✨, ⬆️ and the others are gone from the console:
+  on a card's badge, in the sub-type filter, in the forms, in the model settings and in the statistics, a sub-type is
+  a coloured dot and its name — red for Bug, green for Feature, blue for Improvement, grey for Chore, violet for
+  Refactor, amber for Perf, brown for Docs, orange for Security, dark grey for *Unclassified*. The dots of a legend
+  are the colours of its bars, in the light theme as in the dark one. `ponos subtypes` in a terminal keeps its icons.
 - **The chat shows the steps as a timeline of cards, in plain words.** No more *Show / Hide the steps* toggle: each step
   of a turn is a card, drawn as it happens (spinner, then done or failed), closed until opened, with *Expand all* /
   *Collapse all* above them. A card is titled « I check that everything works », « I look at the scheduled tasks »,

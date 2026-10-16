@@ -129,6 +129,16 @@ test("one chart says the created, the closed and the open; the other what they w
 
   const made = band(page).locator('[data-slot="made-chart"]')
   await expect(made.getByText("Unclassified")).toBeVisible()
+  // A sub-type is its colour, the same on the legend's dot and in the bars — and no emoji.
+  const legend = made.locator("figure ul")
+  await expect(legend).toHaveText(/^[\p{L}\p{N}\s]+$/u)
+  for (const key of ["bug", "feature", "-"]) {
+    const dot = legend.locator(`li[data-subtype="${key}"] [data-slot="subtype-dot"]`)
+    const bar = made.locator(`[data-slot="made-bucket"] [data-subtype="${key}"]`).first()
+    const colour = await dot.evaluate((element) => getComputedStyle(element).backgroundColor)
+    expect(colour).not.toBe("rgba(0, 0, 0, 0)")
+    await expect(bar).toHaveCSS("background-color", colour)
+  }
   // 3 bugs over 3 bugs and 4 features; the period before was all bugs.
   await expect(made.locator('[data-slot="regression-rate"]')).toContainText("43 %")
   await expect(made.locator('[data-trend="down"]')).toBeVisible()
