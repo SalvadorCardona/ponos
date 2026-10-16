@@ -11517,8 +11517,19 @@ def a_desktop_notification_takes_you_to_the_ticket_it_names():
     )
     assert command[3:] == [
         "https://notion.so/t", "Blocked · Le header", "Which header?", "normal",
-        "Open the ticket",
+        "Open the ticket", "plain",
     ]
+
+    with _notifying() as launched:
+        notify.send(
+            "To review · t", "PR #42", link="https://notion.so/t", warning=True,
+            buttons=(("See the PR", "https://github.com/o/r/pull/42"),
+                     ("Open the ticket", "https://notion.so/t")),
+        )
+    assert launched[0][8:] == [
+        "warning", "See the PR", "https://github.com/o/r/pull/42",
+        "Open the ticket", "https://notion.so/t",
+    ], "each button travels to the child with where it goes"
 
 
 @case
@@ -11545,7 +11556,11 @@ def the_notification_posted_over_dbus_is_the_one_notify_send_would_have_sent():
         posted.append(command) or subprocess.CompletedProcess(command, 0, "(uint32 42,)\n", "")
     )
     try:
-        assert notify._post("Blocked · t", '42 "why"', urgent=True) == "42"
+        assert notify._post("Blocked · t", '42 "why"', urgent=True, warning=True) == "42"
+        assert notify._post(
+            "To review · t", "PR #42", urgent=False,
+            buttons=(("See the PR", "https://github.com/o/r/pull/42"),),
+        ) == "42"
     finally:
         subprocess.run = original
     command = posted[0]
@@ -11554,6 +11569,24 @@ def the_notification_posted_over_dbus_is_the_one_notify_send_would_have_sent():
         '"Ponos"', "0", '"dialog-warning"', '"Blocked · t"', '"42 \\"why\\""',
         '["default", "Open the ticket"]', "{'urgency': <byte 2>}", "-1",
     ], "a body is a string, even when it reads like a number"
+    command = posted[1]
+    tail = command[command.index("--") + 1:]
+    assert tail[2] == f'"{notify.ICON}"', "Ponos's own icon, not the information sign"
+    assert tail[5] == '["default", "Open the ticket", "open-0", "See the PR"]'
+    assert tail[6] == "{'urgency': <byte 1>}"
+
+
+@case
+def the_icon_of_ponos_falls_back_on_the_system_ones():
+    assert notify.ICON.is_file(), "the console's icon ships with the runner"
+    assert notify._icon(False) == str(notify.ICON)
+    assert notify._icon(True) == "dialog-warning", "a failure says so by its icon"
+    original = notify.ICON
+    notify.ICON = original.with_name("missing.png")
+    try:
+        assert notify._icon(False) == "dialog-information"
+    finally:
+        notify.ICON = original
 
 
 @case
@@ -11567,7 +11600,17 @@ def only_a_click_opens_the_page_and_a_dismissal_never_does():
         "   uint32 7\n",
         '   string "default"\n',
     )
-    assert notify._clicked(clicked, "7")
+    assert notify._clicked(clicked, "7") == "default"
+
+    button = watching(
+        "signal ... interface=org.freedesktop.Notifications; member=ActivationToken\n",
+        "   uint32 7\n",
+        '   string "token"\n',
+        "signal ... interface=org.freedesktop.Notifications; member=ActionInvoked\n",
+        "   uint32 7\n",
+        '   string "open-0"\n',
+    )
+    assert notify._clicked(button, "7") == "open-0", "which button, not only that one was"
 
     dismissed = watching(
         "signal ... interface=org.freedesktop.Notifications; member=NotificationClosed\n",
@@ -11605,8 +11648,9 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
             runner._tell("done", ticket, "review", "branch")
     finally:
         notify.send = original
-    assert seen == [{"title": "To review · t", "urgent": False,
-                     "link": "https://notion.so/t", "action": "Open the ticket"}]
+    assert seen == [{"title": "To review · t", "urgent": False, "warning": False,
+                     "link": "https://notion.so/t", "action": "Open the ticket",
+                     "buttons": ()}]
 
     seen.clear()
     runner.config.runner.language = "fr"
@@ -11617,6 +11661,81 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
     finally:
         notify.send = original
     assert seen[0]["title"] == "À relire · t" and seen[0]["action"] == "Ouvrir le ticket"
+
+    seen.clear()
+    pull = "https://github.com/o/r/pull/42"
+    notify.send = lambda title, body, **rest: seen.append({"title": title, "body": body, **rest})
+    try:
+        with _state_home():
+            runner._tell(
+                "done", ticket, "review", f"PR #42 · 3 commits · 4 minutes · 0,82 $\nDone.\n{pull}",
+                project="Leadz", facts=("PR #42", "3 commits"), summary="Done.",
+                pull_request=pull,
+            )
+            runner._tell("blocked", ticket, "blocked", "Which one?", ask=True, summary="Which one?")
+            runner._tell("failed", ticket, "failed", "It broke.")
+    finally:
+        notify.send = original
+    review, blocked, failed = seen
+    assert review["body"] == "Leadz · PR #42 · 3 commits\nDone.", "no address, price, or duration"
+    assert review["buttons"] == (("Voir la PR", pull), ("Ouvrir le ticket", "https://notion.so/t"))
+    assert blocked["title"] == "Question · t" and blocked["urgent"] is True
+    assert blocked["body"] == "Réponds dans le ticket\nWhich one?"
+    assert failed["urgent"] is False and failed["warning"] is True, "a failure goes away by itself"
+    assert failed["buttons"] == ()
+
+
+@case
+def a_desktop_notification_is_two_short_lines_of_plain_text():
+    """The comment's words do not fit a desktop: see `Voice.desktop`."""
+    said = voice.Voice("fr")
+    title, body = said.desktop(
+        "review",
+        "Leadz — [Audit] Tester l'app en prod via Claude in Chrome (créer, modifier, supprimer)",
+        project="Leadz",
+        facts=("PR #42", "3 commits"),
+        summary="Le formulaire est refait : puces pour la catégorie et le type, bouton désactivé "
+        "sans titre, message d'erreur sous chaque champ et focus sur le premier champ fautif.",
+    )
+    assert title == "À relire · [Audit] Tester l'app en prod via Claude in…", title
+    assert len(title) <= voice.TITLE + 1 and "Leadz" not in title, "the project is said once"
+    first, second = body.split("\n")
+    assert first == "Leadz · PR #42 · 3 commits"
+    assert second.endswith("…") and len(second) <= voice.GIST + 1, second
+    assert second.startswith("Le formulaire est refait : puces"), "French spacing is kept"
+    assert not second[:-1].endswith(" "), "cut on a word"
+
+    # Markdown, addresses and markup, none of which a desktop can draw or follow.
+    title, body = said.desktop(
+        "review", "Leadz — Fix `the` form", project="Leadz",
+        facts=(said.say("on-branch", branch="feat/x"), "2 commits"),
+        summary="Done in **two** steps, see [the doc](https://x.y/doc) and "
+        "https://github.com/o/r/pull/9 — <b>Tom</b> & `snake_case` kept.",
+    )
+    assert title == "À relire · Fix the form"
+    assert body == (
+        "Leadz · branche feat/x · 2 commits\n"
+        "Done in two steps, see the doc and — &lt;b&gt;Tom&lt;/b&gt; &amp; snake_case kept."
+    ), body
+    assert "http" not in body and "`" not in body and "**" not in body
+
+    # A question, said as one, without the options it cannot be answered with.
+    title, body = said.desktop("blocked", "Ponos — Which header?", summary="Which header?")
+    assert title == "Question · Which header?"
+    assert body == "Ponos · Réponds dans le ticket\nWhich header?"
+    assert voice.Voice("en").desktop("blocked", "t", summary="x") == (
+        "Question · t", "Answer in the ticket\nx"
+    )
+
+    # No project to compare to: only a short prefix is taken for one.
+    assert said.desktop("failed", "Un titre: long et sans projet nommé ici", summary="Raté.") == (
+        "Échec · long et sans projet nommé ici", "Un titre\nRaté."
+    )
+    assert said.desktop("failed", "Corriger le bug du formulaire - côté serveur")[0] == (
+        "Échec · Corriger le bug du formulaire - côté serveur"
+    )
+    # The project is not dropped from a title it does not open.
+    assert said.desktop("read", "Résumé — v2", project="Leadz")[0] == "À lire · Résumé — v2"
 
 
 # -- the bell ----------------------------------------------------------------

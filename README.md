@@ -2059,7 +2059,8 @@ whole thing off without a single row being unticked.
 
 A desktop notification names its ticket, and clicking it opens that ticket's Notion page
 — the notification is where you act from, not a title you then go and look for on the
-board. But it only works if you are in front of that desktop, and the two moments that
+board. It is two lines, not the comment: the project and the pull request on the first, the
+summary on the second, and a **See the PR** button when there is one. But it only works if you are in front of that desktop, and the two moments that
 need you are exactly the two you are least likely to be there for: the agent
 asked a question, and a pull request is waiting. So the runner can also write to
 **Telegram** or **Slack** — and this is the half that matters: **what you answer there

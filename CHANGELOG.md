@@ -211,6 +211,12 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **Desktop notifications are two short, clean lines.** The title is the verdict and the ticket, without the project
+  it opens on, cut on a word around 60 characters; the body says the project and where the work is (PR #, commits,
+  « answer in the page »), then the summary cut around 120 characters — no address, no price, no duration, no
+  Markdown. A pull request gets a « See the PR » button beside « Open the ticket », the icon is Ponos's, and only a
+  question stays on screen (« Question », « Answer in the ticket »): a failure goes away like any notification, with
+  the warning icon. Notion comments and Telegram or Slack messages are unchanged.
 - **A blocked ticket is answered in its discussion: the Unblock tab is gone.** The question the session stopped on is
   said once, as a bubble from Ponos — what is done, why it stops, the question in bold — with quick replies under it:
   *Yes* / *No*, one per option of a choice (in full, wrapped, never cut), *Yes, close it* when the session proposes to

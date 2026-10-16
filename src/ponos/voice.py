@@ -64,6 +64,12 @@ _SPELLINGS = {
 # this is what happens when it is answered with three.
 BRIEF = 200
 
+# What a desktop notification has room for, which is much less than a phone:
+# a title the desktop cuts on one line, and a body it shows two or three lines
+# of — so two, the second one cut here rather than by the desktop.
+TITLE = 60
+GIST = 120
+
 # The mark every report opens with, one per verdict. It is read by a person at a
 # glance — green is nothing to do, the hand is a question — and by the runner, as
 # the thing that tells its own comment from your answer: see `is_report`.
@@ -117,6 +123,47 @@ def plain(text: str) -> str:
 def line(error: object) -> str:
     """The first line of an error, which is the part meant for a human."""
     return str(error).splitlines()[0] if str(error).strip() else ""
+
+
+def _bare(text: object) -> str:
+    """Text without what only a comment can draw: links, addresses, Markdown.
+
+    A link keeps its words and loses its address; an address on its own goes
+    altogether, since nobody can click it from where it is shown.
+    """
+    said = str(text or "")
+    said = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", said)
+    said = re.sub(r"<?\b(?:https?://|www\.)\S+", "", said)
+    said = re.sub(r"(?m)^\s*(?:#{1,6}|>|[-*+]|\d+\.)\s+", "", said)
+    said = re.sub(r"(\*\*|__|~~)(.+?)\1", r"\2", said)
+    said = re.sub(r"(?<![\w*])\*(\S(?:.*?\S)?)\*(?![\w*])", r"\1", said)
+    said = re.sub(r"(?<!\w)_(\S(?:.*?\S)?)_(?!\w)", r"\1", said)
+    said = said.replace("`", "")
+    said = " ".join(said.split())
+    return re.sub(r"\s+([,.)])", r"\1", said).strip(" ·—-:")
+
+
+def _escaped(text: str) -> str:
+    """Safe from a desktop that reads a notification's body as markup."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _project_and_title(title: str, project: str = "") -> tuple[str, str]:
+    """A ticket's project and its title, without the one repeated in the other.
+
+    Tickets are often named “Leadz — Fix the form”, which a notification that
+    already names the project would say twice. The prefix is dropped when it is
+    the project; with no project to compare it to, a short one is taken for it.
+    """
+    title = " ".join(str(title or "").split())
+    found = re.match(r"(.+?)\s+[—–-]\s+(.+)", title) or re.match(r"([^:]+?):\s+(.+)", title)
+    if found:
+        head, rest = found.group(1).strip(), found.group(2).strip()
+        if project and head.casefold() == project.strip().casefold():
+            return project.strip(), rest
+        if not project and len(head) <= 30 and len(head.split()) <= 3 and "[" not in head:
+            return head, rest
+    return project.strip(), title
 
 
 def _wanted(raw: str) -> str:
@@ -841,6 +888,12 @@ _SAID: dict[str, dict[str, str]] = {
     },
     # The button a desktop draws under a notification that has a ticket to open.
     "open-ticket": {"en": "Open the ticket", "fr": "Ouvrir le ticket"},
+    # And the one beside it when the ticket ended on a pull request.
+    "see-pull-request": {"en": "See the PR", "fr": "Voir la PR"},
+    # A blocked ticket on the desktop: what it is, said for somebody who cannot
+    # answer from there — the options and the “yes / no” stay in the comment.
+    "desktop-blocked": {"en": "Question", "fr": "Question"},
+    "answer-in-ticket": {"en": "Answer in the ticket", "fr": "Réponds dans le ticket"},
     # -- answering from Telegram or Slack -------------------------------------
     # A relayed answer opens on where it came from, and that opening is what
     # tells the next run it is yours — see `openings`, which reads every
@@ -1118,6 +1171,37 @@ class Voice:
         on, so that the two read as one thing said twice.
         """
         return self.say("headline", verdict=self.say("verdict-" + name), title=title)
+
+    def desktop(
+        self,
+        name: str,
+        title: str,
+        *,
+        project: str = "",
+        facts: tuple[object, ...] = (),
+        summary: object = "",
+    ) -> tuple[str, str]:
+        """A desktop notification's title and body, which are not the comment's.
+
+        The comment is read in Notion, where a link is a link and Markdown is
+        drawn; a desktop shows two lines of plain text, and a click on any of it
+        opens the ticket. So nothing goes here that only makes sense in a
+        comment — no address, no price, no duration (the board has both), no
+        backticks — and the project, which the ticket's own title often opens
+        on, is said once, on the first line of the body. A question is said as
+        a question, without the options: nobody answers one from there.
+        """
+        project, title = _project_and_title(title, project)
+        verdict = self.say("desktop-blocked" if name == "blocked" else "verdict-" + name)
+        heading = self.brief(self.say("headline", verdict=verdict, title=_bare(title)), TITLE)
+        placed = [project, *facts]
+        if name == "blocked":
+            placed.append(self.say("answer-in-ticket"))
+        lines = (
+            self.facts(*(_bare(fact) for fact in placed)),
+            self.brief(_bare(summary), GIST),
+        )
+        return heading, "\n".join(_escaped(line) for line in lines if line)
 
     def report(self, headline: str, *lines: object) -> str:
         """One comment: the verdict, one sentence, one link. In that order.

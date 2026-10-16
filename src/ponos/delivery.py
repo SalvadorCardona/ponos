@@ -1268,7 +1268,14 @@ class Delivery(Base):
         brief = said.brief(outcome.summary)
         self._comment(ticket, said.report(said.verdict("published", *facts), brief, forced))
         self.say(f"    ✓ {ticket.title} — published")
-        self._tell("done", ticket, "published", said.report(said.facts(*facts), brief, forced))
+        self._tell(
+            "done",
+            ticket,
+            "published",
+            said.report(said.facts(*facts), brief, forced),
+            project=project.name,
+            summary=outcome.summary,
+        )
         return {
             "ticket": ticket.title,
             "id": ticket.id,
