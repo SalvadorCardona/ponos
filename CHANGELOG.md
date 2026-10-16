@@ -210,6 +210,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   itself, and the card says « CI : rouge sur `Tests`, là où `main` ne l'est pas » — or « CI : pas démarrée —
   GitHub dit : The job was not started because… », which is the account to look at, not the code. A job
   GitHub refused to start is not run again either: it would be refused the same way.
+- **The Calendar view of the schedules shows every launch, not just the next one.** It drew one event
+  per schedule, on the day of its `Next` — a daily schedule was one dot, an hourly one too, and
+  nothing said what had already happened. It now lays out the runner's own rule forward from the very
+  `Next` the list shows, in the runner's timezone (nine o'clock stays nine on either side of the
+  change to winter time): a daily schedule is there every day, an hourly one is folded into a single
+  « 24 lancements » event a day, a schedule that is off has no launch to come, and `Last` is drawn
+  greyed as the launch that has happened. The week and the day show the whole of it, from 00:00 to
+  23:00 instead of 07:00 to 21:00, and an event's window says what it is and leads to the schedule.
 
 - **Ideas are scored again, and a scoring that fails says why.** A scoring call was stopped at 0.10 dollars
   while it costs 0.12 to 0.14, so no idea was ever scored and nothing said so. The ceiling is now 0.50 dollars

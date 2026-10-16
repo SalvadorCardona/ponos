@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CalendarClock, CalendarOff, ExternalLink, Loader2, Play } from "lucide-react"
+import { CalendarCheck, CalendarClock, CalendarOff, ExternalLink, Loader2, Play } from "lucide-react"
 import { toast } from "sonner"
 import {
   ActionList,
@@ -16,9 +16,12 @@ import {
   createViewResource,
   generateLinkByResource,
   Link,
+  ListCalendar,
   tableViewOptionFactory,
   useCurrentViewResourceContext,
   useNavigate,
+  type ListComponentPropsInterface,
+  type RowComponentPropsInterface,
   type RowInterface,
 } from "react-resource-view"
 
@@ -554,6 +557,100 @@ function NoSchedule() {
   )
 }
 
+/* -- the calendar ---------------------------------------------------------- */
+
+/* What the calendar lays out is not the rows. A row says one date — `Next` — and
+ * a schedule that fires every day is on the calendar every day, so the rows are
+ * unfolded into their launches first (`lib/occurrences.ts`, the runner's own
+ * rule walked forward from the very `Next` the list shows): the ones to come,
+ * and `Last` as the one that has happened, drawn greyed. A schedule that is
+ * off has no launch to come, whatever date it was left with.
+ *
+ * An hourly one is twenty-four a day, which no cell holds: a day with four
+ * launches or more of the same schedule is one event, "24 launches", and its
+ * hours are in the window it opens.
+ */
+const PAST_COLOR = "#94a3b8"
+
+interface Launch {
+  id: string
+  "@id": string
+  title: string
+  when: string
+  color?: string
+  kind: "past" | "upcoming"
+  schedule: string
+  times: number[]
+  cadence: string
+  at: string
+  day: string
+}
+
+const ScheduleCalendar = ({ rows }: ListComponentPropsInterface<ScheduleItem>) => {
+  const { drawn } = useSchedules()
+  const zone = drawn?.timezone
+  // Read when the calendar is first drawn, not with the page: the table is
+  // what the list opens on, and its first load has a weight it answers for.
+  const [walk, setWalk] = React.useState<typeof import("@/lib/occurrences") | null>(null)
+  React.useEffect(() => {
+    void import("@/lib/occurrences").then(setWalk)
+  }, [])
+  const launches = React.useMemo(() => {
+    if (!walk) return []
+    const found = rows.map((row) => row.data)
+    const byId = new Map(found.map((schedule) => [schedule.id, schedule]))
+    return walk.entries(found, Date.now(), walk.zoneOf(zone)).map((entry): RowInterface<Launch> => {
+      const schedule = byId.get(entry.schedule)!
+      const folded = entry.times.length > 1
+      return {
+        data: {
+          id: entry.key,
+          "@id": entry.key,
+          title: folded
+            ? t("{{count}} launches · {{name}}", { name: schedule.name, count: String(entry.times.length) })
+            : schedule.name,
+          when: new Date(entry.start).toISOString(),
+          color: entry.kind === "past" ? PAST_COLOR : undefined,
+          kind: entry.kind,
+          schedule: schedule.id,
+          times: entry.times,
+          cadence: schedule.cadence,
+          at: schedule.at,
+          day: schedule.day,
+        },
+      }
+    })
+  }, [rows, zone, walk])
+  return <ListCalendar rows={launches} />
+}
+
+const hour = (instant: number) =>
+  new Date(instant).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })
+
+/** What the window over a launch says: whether it has happened, when, and the way to the schedule. */
+const LaunchPreview = ({ row }: RowComponentPropsInterface<Launch>) => {
+  const launch = row?.data
+  if (!launch) return null
+  return (
+    <div className="flex w-full flex-col gap-2 text-sm">
+      <p className="text-muted-foreground text-xs">
+        {launch.kind === "past" ? t("Last launch: it has happened.") : t("Due: not born yet.")}
+        {launch.cadence ? ` ${t(launch.cadence)}` : ""}
+      </p>
+      {launch.times.length > 1 ? (
+        <p className="font-mono text-xs leading-relaxed">{launch.times.map(hour).join(" · ")}</p>
+      ) : null}
+      <Link
+        to={scheduleHref(launch.schedule)}
+        onClick={opensScheduleInTheWindow(launch.schedule)}
+        className="text-primary underline-offset-2 hover:underline"
+      >
+        {t("Open the schedule")}
+      </Link>
+    </div>
+  )
+}
+
 /* -- the declaration ------------------------------------------------------ */
 
 export const schedules = createViewResource<ScheduleItem, ScheduleItem, ScheduleWrite>(SCHEDULES, {
@@ -651,13 +748,20 @@ export const schedules = createViewResource<ScheduleItem, ScheduleItem, Schedule
       {
         ...calendarViewOptionFactory({
           id: "calendar",
-          dateKey: "next",
-          titleKey: "name",
+          // What `ScheduleCalendar` hands the package: launches, not rows.
+          dateKey: "when",
+          titleKey: "title",
+          colorKey: "color",
+          listComponent: ScheduleCalendar as never,
+          rowComponent: LaunchPreview as never,
           // The month, because that is the span a cadence is read in — the day
-          // and the week are a tab away, on the package's own switch.
+          // and the week are a tab away, on the package's own switch. The whole
+          // day in those two: a launch at 03:00 is not one to leave off the grid.
           mode: "month",
+          hourStart: 0,
+          hourEnd: 23,
           getIcon: (row: RowInterface<Record<string, unknown>>) =>
-            row.data?.active ? CalendarClock : CalendarOff,
+            row.data?.kind === "past" ? CalendarCheck : CalendarClock,
         }),
         get name() {
           return t("calendar")

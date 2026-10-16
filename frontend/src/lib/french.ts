@@ -509,6 +509,10 @@ export const FRENCH: Record<string, string> = {
   Copied: "Copié",
   "Copy the full id": "Copier l’id complet",
   "Open the full page": "Ouvrir en page complète",
+  "{{count}} launches · {{name}}": "{{count}} lancements · {{name}}",
+  "Last launch: it has happened.": "Dernier lancement : il a eu lieu.",
+  "Due: not born yet.": "À venir : pas encore lancé.",
+  "Open the schedule": "Ouvrir la récurrence",
   "Open the schedule's page on the board": "Ouvrir la page de la récurrence sur le board",
   "Drop to attach to your message": "Déposez pour joindre à votre message",
   "Photos, videos and documents, up to {{limit}} MB each":

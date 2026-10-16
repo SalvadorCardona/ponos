@@ -302,6 +302,8 @@ export interface Schedules {
   enabled: boolean
   /** Whether the workspace has a Schedules database at all. */
   database: boolean
+  /** The zone the hours are said in (the runner's), for the calendar to lay them out in; empty when unknown. */
+  timezone?: string
   /** What that page is called, for the sentence that says it is missing. */
   page: string
   /** `storage.mode`: which board these came off. */

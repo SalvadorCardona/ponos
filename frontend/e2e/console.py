@@ -246,6 +246,9 @@ def board(root: Path, doomed: bool = False) -> None:
     for id, name, active in ((PAUSED, "Test email", False), (DUE, "Weekly digest", True)):
         page = {"id": id, "title": name, "Cadence": "Hourly", "At": "00:00",
                 "Active": active, "Next": "2026-09-09T21:00:00+02:00"}
+        # The turned-off one did fire, a minute ago: the calendar's only past.
+        if not active:
+            page["Last"] = (datetime.now().astimezone() - timedelta(minutes=1)).isoformat(timespec="minutes")
         (schedules / f"{name.lower().replace(' ', '-')}-{id[-8:]}.md").write_text(
             files.render(page, "Send it."), encoding="utf-8"
         )
