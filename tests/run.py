@@ -11699,7 +11699,7 @@ def the_notification_posted_over_dbus_is_the_one_notify_send_would_have_sent():
 
 @case
 def the_icon_of_ponos_falls_back_on_the_system_ones():
-    assert notify.ICON.is_file(), "the console's icon ships with the runner"
+    assert notify.ICON.is_file(), "the mascot's icon ships with the runner"
     assert notify._icon(False) == str(notify.ICON)
     assert notify._icon(True) == "dialog-warning", "a failure says so by its icon"
     original = notify.ICON
@@ -11769,7 +11769,7 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
             runner._tell("done", ticket, "review", "branch")
     finally:
         notify.send = original
-    assert seen == [{"title": "To review · t", "urgent": False, "warning": False,
+    assert seen == [{"title": "To review", "urgent": False, "warning": False,
                      "link": "https://notion.so/t", "action": "Open the ticket",
                      "buttons": ()}]
 
@@ -11781,7 +11781,7 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
             runner._tell("done", ticket, "review", "branch")
     finally:
         notify.send = original
-    assert seen[0]["title"] == "À relire · t" and seen[0]["action"] == "Ouvrir le ticket"
+    assert seen[0]["title"] == "À relire" and seen[0]["action"] == "Ouvrir le ticket"
 
     seen.clear()
     pull = "https://github.com/o/r/pull/42"
@@ -11798,65 +11798,119 @@ def a_ticket_notification_carries_its_page_to_the_screen_too():
     finally:
         notify.send = original
     review, blocked, failed = seen
-    assert review["body"] == "Leadz · PR #42 · 3 commits\nDone.", "no address, price, or duration"
+    assert review["title"] == "À relire — Leadz"
+    assert review["body"] == "t\nDone.", "no address, price, or duration"
     assert review["buttons"] == (("Voir la PR", pull), ("Ouvrir le ticket", "https://notion.so/t"))
-    assert blocked["title"] == "Question · t" and blocked["urgent"] is True
-    assert blocked["body"] == "Réponds dans le ticket\nWhich one?"
+    assert blocked["title"] == "Ponos a une question" and blocked["urgent"] is True
+    assert blocked["body"] == "t\nWhich one?\nRéponds dans le ticket"
     assert failed["urgent"] is False and failed["warning"] is True, "a failure goes away by itself"
     assert failed["buttons"] == ()
 
 
 @case
-def a_desktop_notification_is_two_short_lines_of_plain_text():
+def a_desktop_notification_says_what_happened_where_and_what_to_do():
     """The comment's words do not fit a desktop: see `Voice.desktop`."""
     said = voice.Voice("fr")
     title, body = said.desktop(
         "review",
         "Leadz — [Audit] Tester l'app en prod via Claude in Chrome (créer, modifier, supprimer)",
         project="Leadz",
-        facts=("PR #42", "3 commits"),
         summary="Le formulaire est refait : puces pour la catégorie et le type, bouton désactivé "
         "sans titre, message d'erreur sous chaque champ et focus sur le premier champ fautif.",
     )
-    assert title == "À relire · [Audit] Tester l'app en prod via Claude in…", title
-    assert len(title) <= voice.TITLE + 1 and "Leadz" not in title, "the project is said once"
-    first, second = body.split("\n")
-    assert first == "Leadz · PR #42 · 3 commits"
-    assert second.endswith("…") and len(second) <= voice.GIST + 1, second
-    assert second.startswith("Le formulaire est refait : puces"), "French spacing is kept"
-    assert not second[:-1].endswith(" "), "cut on a word"
+    assert title == "À relire — Leadz", "the event and the project, the whole of a lock screen"
+    ticket, sentence = body.split("\n")
+    assert ticket == "[Audit] Tester l'app en prod via Claude in Chrome (créer…", ticket
+    assert len(ticket) <= voice.TITLE + 1, "the title is cut on a word, with an ellipsis"
+    assert sentence.endswith("…") and len(sentence) <= voice.GIST + 1, sentence
+    assert sentence.startswith("Le formulaire est refait : puces"), "French spacing is kept"
+    assert not sentence[:-1].endswith(" "), "cut on a word"
 
     # Markdown, addresses and markup, none of which a desktop can draw or follow.
     title, body = said.desktop(
         "review", "Leadz — Fix `the` form", project="Leadz",
-        facts=(said.say("on-branch", branch="feat/x"), "2 commits"),
         summary="Done in **two** steps, see [the doc](https://x.y/doc) and "
         "https://github.com/o/r/pull/9 — <b>Tom</b> & `snake_case` kept.",
     )
-    assert title == "À relire · Fix the form"
+    assert title == "À relire — Leadz"
     assert body == (
-        "Leadz · branche feat/x · 2 commits\n"
+        "Fix the form\n"
         "Done in two steps, see the doc and — &lt;b&gt;Tom&lt;/b&gt; &amp; snake_case kept."
     ), body
     assert "http" not in body and "`" not in body and "**" not in body
 
     # A question, said as one, without the options it cannot be answered with.
-    title, body = said.desktop("blocked", "Ponos — Which header?", summary="Which header?")
-    assert title == "Question · Which header?"
-    assert body == "Ponos · Réponds dans le ticket\nWhich header?"
+    title, body = said.desktop("blocked", "Ponos — Which header?", summary="Quel en-tête ?")
+    assert title == "Ponos a une question — Ponos"
+    assert body == "Which header?\nQuel en-tête ?\nRéponds dans le ticket"
     assert voice.Voice("en").desktop("blocked", "t", summary="x") == (
-        "Question · t", "Answer in the ticket\nx"
+        "Ponos has a question", "t\nx\nAnswer in the ticket"
     )
 
+    # Never a bare "Ponos" with nothing under it, and a sentence even when the
+    # session said none.
+    assert said.desktop("failed", "Adam — Corriger le formulaire") == (
+        "Ticket en erreur — Adam", "Corriger le formulaire\nLe travail s'est arrêté sur une erreur"
+    )
+    assert said.desktop("review", "Adam — Corriger le formulaire", project="Adam") == (
+        "À relire — Adam", "Corriger le formulaire\nUne pull request est prête"
+    )
+    assert said.desktop("merged", "Adam — Une tâche", project="Adam")[0] == "Ticket terminé — Adam"
+    assert said.desktop("prepared", "Portfolio — Une tâche")[0] == "À valider — Portfolio"
+    assert said.desktop("read", "Résumé", project="Leadz")[0] == "À lire — Leadz"
     # No project to compare to: only a short prefix is taken for one.
-    assert said.desktop("failed", "Un titre: long et sans projet nommé ici", summary="Raté.") == (
-        "Échec · long et sans projet nommé ici", "Un titre\nRaté."
-    )
     assert said.desktop("failed", "Corriger le bug du formulaire - côté serveur")[0] == (
-        "Échec · Corriger le bug du formulaire - côté serveur"
+        "Ticket en erreur"
     )
-    # The project is not dropped from a title it does not open.
-    assert said.desktop("read", "Résumé — v2", project="Leadz")[0] == "À lire · Résumé — v2"
+    assert said.desktop("failed", "Corriger le bug du formulaire - côté serveur")[1].startswith(
+        "Corriger le bug du formulaire - côté serveur\n"
+    ), "the ticket's name is whole when it fits"
+
+
+@case
+def a_ticket_that_speaks_again_replaces_its_notification_instead_of_stacking():
+    posted: list[list[str]] = []
+    original = subprocess.run
+    subprocess.run = lambda command, **rest: (
+        posted.append(command) or subprocess.CompletedProcess(command, 0, "(uint32 7,)\n", "")
+    )
+    try:
+        assert notify._post("t", "b", urgent=False, replaces="5", key="https://notion.so/t") == "7"
+    finally:
+        subprocess.run = original
+    tail = posted[0][posted[0].index("--") + 1:]
+    assert tail[1] == "5", "posted over the ticket's last one"
+    assert tail[6] == (
+        "{'urgency': <byte 1>, 'x-canonical-private-synchronous': <\"https://notion.so/t\">}"
+    )
+
+    with _state_home():
+        assert notify._remembered("https://notion.so/t") == {}
+        notify._remember("https://notion.so/t", "7", {})
+        assert notify._remembered("https://notion.so/t")["id"] == "7"
+        assert notify._remembered("https://notion.so/other") == {}
+
+    with _notifying() as launched:
+        notify.send("t", "b")
+    assert "string:x-canonical-private-synchronous:" not in " ".join(launched[0])
+    with _notifying(missing="gdbus") as launched:
+        notify.send("t", "b", link="https://notion.so/t")
+    assert launched[0][launched[0].index("--hint") + 1] == (
+        "string:x-canonical-private-synchronous:https://notion.so/t"
+    )
+
+
+@case
+def the_icon_of_ponos_is_cut_out_in_the_sizes_a_desktop_asks_for():
+    """An opaque square is drawn by a desktop as a black one."""
+    import struct
+    import zlib
+
+    for size in (48, 64, 128, 256):
+        data = (notify.ICON.parent / f"ponos-{size}.png").read_bytes()
+        width, height, depth, colour = struct.unpack(">IIBB", data[16:26])
+        assert (width, height) == (size, size) and colour == 6, "RGBA, so with an alpha channel"
+    assert notify.ICON.name == "ponos-256.png"
 
 
 # -- the bell ----------------------------------------------------------------
@@ -11911,6 +11965,9 @@ def a_question_a_review_and_a_failure_ring_the_bell_but_a_dry_run_does_not():
     runner = Runner.__new__(Runner)
     runner._journals = {}
     runner.config = _config("")
+    # The bell is what is under test: a real notification here would land on the
+    # screen of whoever runs the suite, titled "Question · t".
+    runner.config.notify.desktop = False
     runner.quiet = True
     ticket = type("T", (), {
         "page": notion.Page(id=TICKET, url="u", title="t"), "id": TICKET, "title": "t", "url": "u",

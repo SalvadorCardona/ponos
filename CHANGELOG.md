@@ -263,6 +263,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **Desktop notifications say what happened, where, and what to do.** The title is the event and the project (*Ponos a
+  une question — Leadz*, *Ticket terminé — Adam*, *Ticket en erreur — Portfolio*), the body the ticket's name, cut on a
+  word, and one sentence — never a bare « Ponos ». A ticket's later notification replaces its earlier one instead of
+  stacking, and the test suite no longer posts notifications of its own on the desktop of whoever runs it (the
+  « Question · t » that read « Answer in the ticket » in English).
+- **The Ponos icon has no black square in notifications and the dock.** The mascot, cut out on a transparent
+  background in 48, 64, 128 and 256 px, replaces the console's opaque square, and `install.sh` puts it in the icon
+  theme.
 - **A schedule says what its tickets are.** The Schedules database gets `Type` and `Sous-type` columns — the tickets'
   own options, added by `ponos init` and set in the schedule's window in the console — and each ticket is born with
   them, beside the project, the model and the priority. A ticket born typed is never classified: a long, well-written

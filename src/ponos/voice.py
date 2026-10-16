@@ -166,6 +166,13 @@ def _project_and_title(title: str, project: str = "") -> tuple[str, str]:
     return project.strip(), title
 
 
+_DESKTOP_EVENT = {
+    "blocked": "blocked", "failed": "failed", "prepared": "prepared", "review": "review",
+    "merged": "done", "published": "done",
+}
+_DESKTOP_NEXT = ("blocked", "failed", "review", "read", "merged", "published", "prepared")
+
+
 def _wanted(raw: str) -> str:
     return str(raw or "").strip().lower().replace("_", "-").split("-")[0]
 
@@ -939,9 +946,23 @@ _SAID: dict[str, dict[str, str]] = {
     "open-ticket": {"en": "Open the ticket", "fr": "Ouvrir le ticket"},
     # And the one beside it when the ticket ended on a pull request.
     "see-pull-request": {"en": "See the PR", "fr": "Voir la PR"},
-    # A blocked ticket on the desktop: what it is, said for somebody who cannot
-    # answer from there — the options and the “yes / no” stay in the comment.
-    "desktop-blocked": {"en": "Question", "fr": "Question"},
+    # A notification on the desktop says what happened, on which project, and
+    # what is left to do — in that order, and with no verdict word borrowed from
+    # the comment: "Stuck" on a lock screen is not an event.
+    "desktop-title-blocked": {"en": "Ponos has a question", "fr": "Ponos a une question"},
+    "desktop-title-failed": {"en": "Ticket failed", "fr": "Ticket en erreur"},
+    "desktop-title-done": {"en": "Ticket done", "fr": "Ticket terminé"},
+    "desktop-title-prepared": {"en": "To validate", "fr": "À valider"},
+    "desktop-title-review": {"en": "To review", "fr": "À relire"},
+    "desktop-title-project": {"en": "{event} — {project}", "fr": "{event} — {project}"},
+    # What to do about it, when the session has said nothing more specific.
+    "desktop-next-blocked": {"en": "A question is waiting", "fr": "Une question attend ta réponse"},
+    "desktop-next-failed": {"en": "The run stopped on an error", "fr": "Le travail s'est arrêté sur une erreur"},
+    "desktop-next-review": {"en": "A pull request is ready", "fr": "Une pull request est prête"},
+    "desktop-next-read": {"en": "The result is ready to read", "fr": "Le résultat est prêt à lire"},
+    "desktop-next-merged": {"en": "The pull request is merged", "fr": "La pull request est fusionnée"},
+    "desktop-next-published": {"en": "The result is published", "fr": "Le résultat est publié"},
+    "desktop-next-prepared": {"en": "Validate it in the ticket", "fr": "Valide-le dans le ticket"},
     "answer-in-ticket": {"en": "Answer in the ticket", "fr": "Réponds dans le ticket"},
     # -- answering from Telegram or Slack -------------------------------------
     # A relayed answer opens on where it came from, and that opening is what
@@ -1227,29 +1248,29 @@ class Voice:
         title: str,
         *,
         project: str = "",
-        facts: tuple[object, ...] = (),
         summary: object = "",
     ) -> tuple[str, str]:
         """A desktop notification's title and body, which are not the comment's.
 
         The comment is read in Notion, where a link is a link and Markdown is
-        drawn; a desktop shows two lines of plain text, and a click on any of it
-        opens the ticket. So nothing goes here that only makes sense in a
-        comment — no address, no price, no duration (the board has both), no
-        backticks — and the project, which the ticket's own title often opens
-        on, is said once, on the first line of the body. A question is said as
-        a question, without the options: nobody answers one from there.
+        drawn; a desktop shows a few lines of plain text, and a click on any of
+        it opens the ticket. So nothing goes here that only makes sense in a
+        comment — no address, no price, no duration, no backticks — and what is
+        said is, in order: the event and its project (the title, which is all a
+        lock screen keeps), then the ticket's name, cut on a word, and one
+        sentence — the session's own, or what is expected of you. A question is
+        said as a question, without the options: nobody answers one from there.
         """
         project, title = _project_and_title(title, project)
-        verdict = self.say("desktop-blocked" if name == "blocked" else "verdict-" + name)
-        heading = self.brief(self.say("headline", verdict=verdict, title=_bare(title)), TITLE)
-        placed = [project, *facts]
-        if name == "blocked":
-            placed.append(self.say("answer-in-ticket"))
-        lines = (
-            self.facts(*(_bare(fact) for fact in placed)),
-            self.brief(_bare(summary), GIST),
+        kind = _DESKTOP_EVENT.get(name)
+        event = self.say("desktop-title-" + kind if kind else "verdict-" + name)
+        heading = self.say("desktop-title-project", event=event, project=project) if project else event
+        sentence = self.brief(_bare(summary), GIST) or self.say(
+            "desktop-next-" + name if name in _DESKTOP_NEXT else "desktop-next-failed"
         )
+        lines = [self.brief(_bare(title), TITLE), sentence]
+        if name == "blocked":
+            lines.append(self.say("answer-in-ticket"))
         return heading, "\n".join(_escaped(line) for line in lines if line)
 
     def report(self, headline: str, *lines: object) -> str:

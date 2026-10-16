@@ -238,6 +238,17 @@ if [ -d "$APP_DIR/desktop" ]; then
     fi
 fi
 
+# The mascot, cut out on a transparent background, in the sizes a desktop asks
+# for: the notifications and the dock both look it up by the name `ponos`.
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
+if [ -d "$APP_DIR/src/ponos/icons" ]; then
+    for size in 48 64 128 256; do
+        mkdir -p "$ICON_DIR/${size}x${size}/apps"
+        cp "$APP_DIR/src/ponos/icons/ponos-$size.png" "$ICON_DIR/${size}x${size}/apps/ponos.png"
+    done
+    have gtk-update-icon-cache && gtk-update-icon-cache -q -t "$ICON_DIR" >/dev/null 2>&1
+fi
+
 # --- 6. timer and console ---------------------------------------------------
 if [ "${TR_NO_SERVICE:-0}" != "1" ] && have systemctl; then
     # The interval lives in the configuration, so that changing it later is one

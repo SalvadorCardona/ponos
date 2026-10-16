@@ -362,11 +362,10 @@ class Reports(Base):
         merge and a pull request to read are both `done` to a setting, and *To
         review* and *Merged* to a reader.
 
-        The screen of this machine is the exception to “same words”: it has two
-        lines, cannot follow a link written in them and draws no Markdown, so it
-        is told the ticket again — `project`, the `facts` that place it with no
-        price or duration, and the session's `summary` — in `Voice.desktop`'s
-        words, and the pull request goes on a button of its own. It stays on
+        The screen of this machine is the exception to “same words”: it cannot
+        follow a link written in them and draws no Markdown, so it is told the
+        ticket again — `project` and the session's `summary` — in
+        `Voice.desktop`'s words, one notification per ticket, and the pull request goes on a button of its own. It stays on
         screen for a question only, which is the one thing waiting for you.
         """
         said = self.voice
@@ -378,7 +377,7 @@ class Reports(Base):
             if bell:
                 notifications.add(bell, ticket.id, ticket.title)
         title, text = said.desktop(
-            verdict, ticket.title, project=project, facts=facts, summary=summary or body
+            verdict, ticket.title, project=project, summary=summary or body
         )
         self._notify(
             title,

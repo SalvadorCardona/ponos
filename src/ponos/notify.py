@@ -19,17 +19,27 @@ Everything here fails quietly: a machine with no notification daemon, a service
 without a session bus, a missing `notify-send` — none of that is a reason for a
 ticket to fail. A click that leads nowhere is not either, so every step of the
 clickable path falls back to the plain notification.
+
+One ticket, one notification: a ticket that asks, is answered, then finishes
+would otherwise leave three lines on screen — and on a lock screen, a dozen
+that all read "Ponos". The child remembers the identifier its ticket's last
+notification was given and posts the next one *over* it, and the child that was
+still waiting on the old one is let go, so a click is never answered twice.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
 from pathlib import Path
+
+from . import config
 
 APP = "Ponos"
 BUS = "org.freedesktop.Notifications"
@@ -48,9 +58,17 @@ ACTION = "Open the ticket"
 LIFETIME = 3600
 
 # Ponos's own face, rather than the information sign every application has: the
-# console's icon, which ships with the runner. A checkout or an install that lost
-# it falls back on the system's icons, never on no notification.
-ICON = Path(__file__).resolve().parent / "web" / "static" / "pwa" / "icon-192.png"
+# mascot cut out on a transparent background, which ships with the runner — the
+# console's icons are opaque squares, and a desktop draws that square as a black
+# one. `install.sh` puts the same drawing in the icon theme for the dock. A
+# checkout or an install that lost it falls back on the system's icons, never on
+# no notification.
+ICON = Path(__file__).resolve().parent / "icons" / "ponos-256.png"
+
+# Which ticket a notification is about, handed to the detached child through its
+# environment so that its command line stays what an older parent also sends.
+KEY = "PONOS_NOTIFY_KEY"
+SYNCHRONOUS = "x-canonical-private-synchronous"
 
 
 def send(
@@ -74,10 +92,12 @@ def send(
         title, body, urgent=urgent, warning=warning, link=link, action=action, buttons=buttons
     ):
         return True
-    return _plain(title, body, urgent=urgent, warning=warning)
+    return _plain(title, body, urgent=urgent, warning=warning, key=link)
 
 
-def _plain(title: str, body: str, *, urgent: bool, warning: bool = False) -> bool:
+def _plain(
+    title: str, body: str, *, urgent: bool, warning: bool = False, key: str = ""
+) -> bool:
     binary = shutil.which("notify-send")
     if not binary:
         return False
@@ -88,6 +108,8 @@ def _plain(title: str, body: str, *, urgent: bool, warning: bool = False) -> boo
                 "--app-name", APP,
                 "--urgency", "critical" if urgent else "normal",
                 "--icon", _icon(warning),
+                # What GNOME and Ubuntu read as "replace the one with this tag".
+                *(["--hint", f"string:{SYNCHRONOUS}:{key}"] if key else []),
                 title,
                 body,
             ],
@@ -126,6 +148,7 @@ def _hand_over(
     if not all(shutil.which(tool) for tool in ("gdbus", "dbus-monitor", "xdg-open")):
         return False
     environment = dict(os.environ)
+    environment[KEY] = link
     root = str(Path(__file__).resolve().parents[1])
     carried = environment.get("PYTHONPATH", "")
     environment["PYTHONPATH"] = f"{root}{os.pathsep}{carried}" if carried else root
@@ -169,17 +192,23 @@ def follow(
     """
     # A button is known by its place, which is all the desktop hands back.
     places = {"default": link, **{f"open-{index}": url for index, (_, url) in enumerate(buttons)}}
+    key = os.environ.get(KEY, "")
     watcher = _watch()
+    previous = _remembered(key)
     identifier = (
-        _post(title, body, urgent=urgent, action=action, warning=warning, buttons=buttons)
+        _post(
+            title, body, urgent=urgent, action=action, warning=warning, buttons=buttons,
+            replaces=previous.get("id", "0"), key=key,
+        )
         if watcher
         else ""
     )
     if not identifier:
         if watcher:
             watcher.terminate()
-        _plain(title, body, urgent=urgent, warning=warning)
+        _plain(title, body, urgent=urgent, warning=warning, key=key)
         return
+    _remember(key, identifier, previous)
     # A daemon timer, so that the click that comes first ends the child rather
     # than leaving it to sit out the hour it was given.
     deadline = threading.Timer(LIFETIME, watcher.terminate)
@@ -199,6 +228,52 @@ def follow(
     finally:
         deadline.cancel()
         watcher.terminate()
+
+
+def _memory() -> Path:
+    return config.state_dir() / "notifications.json"
+
+
+def _remembered(key: str) -> dict[str, str]:
+    """The identifier and the child of the last notification about this ticket."""
+    if not key:
+        return {}
+    try:
+        found = json.loads(_memory().read_text()).get(key)
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def _remember(key: str, identifier: str, previous: dict[str, str]) -> None:
+    """Keep this notification as the ticket's, and let go of the child of the last.
+
+    The old child is only ended when it really is one of ours: the pid it left
+    may be a day old and belong to something else by now.
+    """
+    if not key:
+        return
+    stale = str(previous.get("pid", ""))
+    if stale.isdigit() and int(stale) != os.getpid():
+        try:
+            if b"ponos.notify" in Path(f"/proc/{stale}/cmdline").read_bytes():
+                os.kill(int(stale), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
+    try:
+        try:
+            known = json.loads(_memory().read_text())
+        except (OSError, ValueError):
+            known = {}
+        known = {
+            name: entry for name, entry in list(known.items())[-50:] if isinstance(entry, dict)
+        }
+        known.pop(key, None)
+        known[key] = {"id": identifier, "pid": str(os.getpid())}
+        _memory().parent.mkdir(parents=True, exist_ok=True)
+        _memory().write_text(json.dumps(known))
+    except (OSError, ValueError):
+        pass
 
 
 def _watch() -> subprocess.Popen | None:
@@ -222,8 +297,13 @@ def _post(
     action: str = ACTION,
     warning: bool = False,
     buttons: tuple[tuple[str, str], ...] = (),
+    replaces: str = "0",
+    key: str = "",
 ) -> str:
     """Show the notification, and return the identifier the desktop gave it.
+
+    `replaces` is the identifier of the ticket's previous notification, which
+    this one takes the place of; `0` is a notification of its own.
 
     `--` before the arguments because the expiry is `-1`, "for as long as the
     desktop likes", and `gdbus` would otherwise read it as an option of its own.
@@ -231,6 +311,9 @@ def _post(
     actions = ", ".join(
         [f'"default", {_text(action)}']
         + [f'"open-{index}", {_text(label)}' for index, (label, _) in enumerate(buttons)]
+    )
+    hints = f"'urgency': <byte {2 if urgent else 1}>" + (
+        f", '{SYNCHRONOUS}': <{_text(key)}>" if key else ""
     )
     try:
         answer = subprocess.run(
@@ -240,8 +323,8 @@ def _post(
                 "--object-path", OBJECT,
                 "--method", f"{BUS}.Notify",
                 "--",
-                _text(APP), "0", _text(_icon(warning)), _text(title), _text(body),
-                f"[{actions}]", f"{{'urgency': <byte {2 if urgent else 1}>}}", "-1",
+                _text(APP), replaces if replaces.isdigit() else "0", _text(_icon(warning)),
+                _text(title), _text(body), f"[{actions}]", f"{{{hints}}}", "-1",
             ],
             check=False,
             timeout=10,
