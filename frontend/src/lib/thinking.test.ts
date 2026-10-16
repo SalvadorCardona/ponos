@@ -49,12 +49,34 @@ test("the folded steps count what was done, and what went wrong, not what was sa
   )
 })
 
-test("a step is named by its tool and what it was pointed at", () => {
-  assert.deepEqual(named(step("Read", "src/ui/hud.ts")), { key: "Reads {{name}}", params: { name: "src/ui/hud.ts" } })
-  assert.deepEqual(named(step("Bash", "pnpm test")), { key: "Runs {{command}}", params: { command: "pnpm test" } })
-  assert.equal(named(step("Search", "objectives")).params?.query, "objectives")
-  assert.equal(named(step("Read", "  ")).key, "Reads a file")
-  assert.deepEqual(named(step("create-pages", "Objectifs")).params, { tool: "create-pages", detail: "Objectifs" })
+test("a step is titled in plain words, never by its command or its tool", () => {
+  assert.equal(named(step("Read", "src/ui/hud.ts")).key, "I read the project’s code")
+  assert.equal(named(step("Search", "objectives")).key, "I search the project’s code")
+  assert.equal(named(step("Read", "  ")).key, "I read the project’s code")
+  assert.equal(named(step("create-pages", "Objectifs")).key, "I work on the project")
+  for (const label of ["Read", "Edit", "Write", "Search", "Web", "Sub-agent", "Plan", "Error", "Bash", "other"]) {
+    const line = named(step(label, "rm -rf /tmp/x && ponos schedules"))
+    assert.equal(line.params, undefined)
+  }
+})
+
+test("a command is titled by its kind", () => {
+  const key = (detail: string) => named(step("Bash", detail)).key
+  assert.equal(
+    key('timeout 60 ponos schedules 2>&1 | head -12; cd ~/.local/share/ponos/app/src && timeout 120 python3 -c "from ponos import config as C"'),
+    "I look at the scheduled tasks"
+  )
+  assert.equal(key("ponos list"), "I look at the board")
+  assert.equal(key('git add -A && git commit -m "x"'), "I save and send the changes")
+  assert.equal(key("git push origin main"), "I save and send the changes")
+  assert.equal(key("git log --oneline"), "I look at the project’s history")
+  assert.equal(key("cd app && python3 tests/run.py"), "I check that everything works")
+  assert.equal(key("npm test"), "I check that everything works")
+  assert.equal(key("npm ci"), "I install what the project needs")
+  assert.equal(key("grep -rn foo src"), "I look through the project’s files")
+  assert.equal(key("cat ~/.local/share/ponos/app/x.py"), "I look through the project’s files")
+  assert.equal(key("python3 -c 'print(1)'"), "I work on the project")
+  assert.equal(named(step("Bash", "")).key, "I work on the project")
 })
 
 test("an outline lists the tool calls, and how each went", () => {

@@ -28,16 +28,17 @@ async function ask(page: Page, text: string) {
   await field.press("Enter")
 }
 
-test("a turn shows Ponos at work, then the answer, with its steps folded", async ({ page }) => {
+test("a turn shows Ponos at work, then the answer, with its steps as a timeline", async ({ page }) => {
   await openConsole(page)
   await ask(page, "what is on the board?")
 
   const thinking = page.locator("[data-slot=thinking]:not([data-done])")
   await expect(thinking.locator("ponos-robot")).toBeVisible()
-  await expect(thinking.getByText(/^Reads .*api\.py/)).toBeVisible()
+  // The steps are there as they come, in plain words — never the command.
+  await expect(thinking.getByText("I read the project’s code").first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
-  // The log is not the conversation: nothing of it shows while it is written.
   await expect(page.getByText("python3 -m app.check")).toBeHidden()
+  await expect(page.getByRole("button", { name: /Show the steps|Hide the steps/ })).toHaveCount(0)
 
   await expect(page.getByText("Done. The board has 13 tickets.")).toBeVisible()
   await expect(thinking).toHaveCount(0)
@@ -45,22 +46,27 @@ test("a turn shows Ponos at work, then the answer, with its steps folded", async
   const answer = page.locator("[data-slot=message]").filter({ hasText: "Done. The board has 13 tickets." })
   await expect(answer.locator("[data-slot=message-header]")).toHaveText(/^\s*Ponos/)
   await expect(answer.locator("[data-slot=turn-avatar] ponos-robot")).toBeVisible()
-  const fold = page.getByRole("button", { name: /Show the steps · 3 steps/ }).last()
-  await expect(fold).toBeVisible()
-  await expect(fold).toContainText("$0.0123")
-  await expect(fold.getByText("1", { exact: true })).toBeVisible()
+  const summary = page.locator("[data-slot=steps]").last()
+  await expect(summary).toContainText("3 steps")
+  await expect(summary).toContainText("$0.0123")
+  // One card per step, closed; the one that failed says so, with its mark.
+  const read = page.getByRole("button", { name: /I read the project’s code/ }).last()
+  const failed = page.getByRole("button", { name: /failed.*I work on the project/ }).last()
+  await expect(read).toHaveAttribute("aria-expanded", "false")
+  await expect(failed).toHaveAttribute("aria-expanded", "false")
   await expect(page.getByText("python3 -m app.check")).toBeHidden()
 
-  await fold.click()
-  // One line per step, by name; the one that failed is open on its own.
-  const failed = page.getByRole("button", { name: /Runs python3 -m app.check/ })
-  await expect(page.getByRole("button", { name: /Reads .*api\.py/ }).last()).toHaveAttribute("aria-expanded", "false")
-  await expect(failed).toHaveAttribute("aria-expanded", "true")
+  // The technical detail is one click down.
   await failed.click()
-  await expect(failed).toHaveAttribute("aria-expanded", "false")
-  await failed.press("Enter")
   await expect(failed).toHaveAttribute("aria-expanded", "true")
-  await expect(page.getByRole("button", { name: /Hide the steps/ }).last()).toBeVisible()
+  await expect(page.getByText("python3 -m app.check")).toBeVisible()
+  await failed.press("Enter")
+  await expect(failed).toHaveAttribute("aria-expanded", "false")
+
+  await summary.getByRole("button", { name: "Expand all" }).click()
+  await expect(read).toHaveAttribute("aria-expanded", "true")
+  await summary.getByRole("button", { name: "Collapse all" }).click()
+  await expect(read).toHaveAttribute("aria-expanded", "false")
 })
 
 test("Stop ends the turn, says so, and the conversation carries on", async ({ page }) => {
@@ -73,7 +79,7 @@ test("Stop ends the turn, says so, and the conversation carries on", async ({ pa
 
   await ask(page, "take it slowly")
   await expect(page.getByText("fixing an error…")).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/^Runs /)).toBeVisible()
+  await expect(page.locator("[data-slot=step][data-state=running]")).toBeVisible()
   const stop = page.getByRole("button", { name: "Stop" })
   await stop.click()
   // The double click: the second lands on a button already stopping, or gone.
@@ -82,7 +88,7 @@ test("Stop ends the turn, says so, and the conversation carries on", async ({ pa
   await expect(page.getByText("stopped by you")).toBeVisible()
   await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)
   await expect(page.getByRole("textbox", { name: FIELD })).toBeFocused()
-  await expect(page.getByRole("button", { name: /Show the steps · 4 steps/ }).last()).toBeVisible()
+  await expect(page.locator("[data-slot=steps]").last()).toContainText("4 steps")
 
   await ask(page, "just the count, then")
   await expect(page.getByText("Resumed, and done. The board has 13 tickets.")).toBeVisible()
@@ -94,7 +100,7 @@ test("Escape from the empty field stops the turn, and leaves the drawer open", a
   const stopped = await page.getByText("stopped by you").count()
   await ask(page, "slowly, please")
   await expect(page.getByText("fixing an error…")).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/^Runs /)).toBeVisible()
+  await expect(page.locator("[data-slot=step][data-state=running]")).toBeVisible()
   const field = page.getByRole("textbox", { name: FIELD })
   await field.focus()
   await field.press("Escape")

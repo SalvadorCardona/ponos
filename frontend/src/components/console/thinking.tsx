@@ -1,30 +1,28 @@
 import * as React from "react"
-import { ChevronRightIcon } from "lucide-react"
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { counted, useT } from "@/lib/i18n"
 import { money } from "@/lib/numbers"
 import { clock } from "@/lib/composer"
 import { doing, named, tally } from "@/lib/thinking"
 import type { Step } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 import { Robot } from "./robot"
 import { Steps } from "./steps"
 
 /* How the workspace's turn reads in the conversation: Ponos, then the answer.
  *
- * The steps — every Bash, every Traceback — used to be the conversation while a
- * turn ran, and stayed in it after. They are a log, and a log is for whoever
- * goes looking: here they are folded under one line, closed until opened, and
- * what is shown instead is Ponos thinking and a few words about what it is on.
- * The robot is the mascot's own component, so under prefers-reduced-motion it
- * holds its pose by itself and the words carry the whole of it.
+ * While a turn runs, Ponos thinking and a few words about what it is on; under
+ * them, the steps as a timeline of cards, drawn as they come and kept after the
+ * turn — a log is for whoever goes looking, but a reader who cannot read one
+ * still sees that work is going on, so the titles are sentences and the log is
+ * one click down on each card. The robot is the mascot's own component, so under
+ * prefers-reduced-motion it holds its pose by itself and the words carry the
+ * whole of it.
  *
- * Once the turn ends the robot goes and the fold stays, its line saying how
- * many steps, how long and how much — and how many of them failed, with a dot,
- * so that a turn that fought its way to the answer can be told from one that
- * did not without opening it.
+ * Once the turn ends the robot goes and the timeline stays, headed by how many
+ * steps, how long and how much — and how many of them failed, with a dot, so
+ * that a turn that fought its way to the answer can be told from one that did
+ * not without opening it.
  */
 export function Thinking({
   steps,
@@ -87,43 +85,12 @@ export function Thinking({
           </div>
         </div>
       )}
-      {count.steps || done ? <Fold steps={steps} done={done} summary={summary} errors={count.errors} /> : null}
+      {count.steps ? (
+        <Steps steps={steps} done={done} summary={summary.join(" · ")} errors={count.errors} />
+      ) : done ? (
+        <p className="text-muted-foreground font-mono text-[0.7rem]">{summary.join(" · ")}</p>
+      ) : null}
     </div>
-  )
-}
-
-function Fold({ steps, done, summary, errors }: { steps: Step[]; done: boolean; summary: string[]; errors: number }) {
-  const t = useT()
-  const [open, setOpen] = React.useState(false)
-  const any = steps.some((step) => !step.said)
-  if (!any)
-    return <p className="text-muted-foreground font-mono text-[0.7rem]">{summary.join(" · ")}</p>
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex max-w-full items-center gap-1.5 rounded-md font-mono text-[0.7rem] outline-none focus-visible:ring-2"
-      >
-        <ChevronRightIcon
-          className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-90")}
-        />
-        <span className="truncate">
-          {[open ? t("Hide the steps") : t("Show the steps"), ...summary].join(" · ")}
-        </span>
-        {errors ? (
-          <span
-            className="text-tr-red ml-0.5 inline-flex shrink-0 items-center gap-1"
-            title={counted(errors, "{{count}} step went wrong", "{{count}} steps went wrong")}
-          >
-            <span aria-hidden="true" className="bg-tr-red size-1.5 rounded-full" />
-            <span className="sr-only">{counted(errors, "{{count}} step went wrong", "{{count}} steps went wrong")}</span>
-            <span aria-hidden="true">{errors}</span>
-          </span>
-        ) : null}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-1.5">
-        <Steps steps={steps} done={done} />
-      </CollapsibleContent>
-    </Collapsible>
   )
 }
 
