@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils"
  */
 
 /** A key cap, small enough to sit in a button. Hidden on a touch screen. */
-function Kbd({ children, className }: { children: React.ReactNode; className?: string }) {
+export function Kbd({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <kbd
       aria-hidden

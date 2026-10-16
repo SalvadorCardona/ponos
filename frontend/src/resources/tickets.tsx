@@ -2,7 +2,6 @@ import * as React from "react"
 import { ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react"
 import {
   ActionList,
-  BooleanInputController,
   SelectInputController,
   useFormContext,
   type FormInterface,
@@ -25,7 +24,6 @@ import {
   type RowInterface,
 } from "react-resource-view"
 
-import { ComboboxInputController } from "@/components/console/combobox"
 import { MarkdownInputController } from "@/components/console/markdown-editor"
 import {
   columnTitle,
@@ -43,11 +41,19 @@ import {
   when,
 } from "@/components/console/ticket-bits"
 import { IdeasButton } from "@/components/console/ideas-deck"
+import {
+  EDITOR_SETTLES,
+  NewTicketFields,
+  NewTicketFoot,
+  PillsInputController,
+  ProjectInputController,
+  SegmentedInputController,
+} from "@/components/console/new-ticket"
 import { EmptyState } from "@/components/console/empty-state"
 import { Pagination } from "@/components/console/pagination"
 import { ProjectThumb } from "@/components/console/project-picture"
 import { Robot, TicketRobot } from "@/components/console/robot"
-import { RunnerStrip, every } from "@/components/console/runner-strip"
+import { RunnerStrip } from "@/components/console/runner-strip"
 import { StatisticsBand } from "@/components/console/statistics"
 import { CardLive } from "@/components/console/session-log"
 import { TicketHead, TicketPage } from "@/components/console/ticket-page"
@@ -61,7 +67,6 @@ import {
 } from "@/components/console/ticket-search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useConsole } from "@/hooks/use-console"
 import { api, why } from "@/lib/api"
 import {
   addTicket,
@@ -208,6 +213,8 @@ const TitleInputController: InputControllerComponentInterface = ({ formInput, on
         placeholder={t(formInput.placeholder ?? "")}
         required
         autoComplete="off"
+        // The one line the board shows: the largest thing in the dialog.
+        className="h-11 text-lg font-semibold md:text-lg"
         // The dialog opens before the form inside it is drawn, so the only
         // thing it can hand the cursor to is its cross. A new ticket starts
         // with its title: the field takes the cursor as it appears.
@@ -224,12 +231,13 @@ const TitleInputController: InputControllerComponentInterface = ({ formInput, on
   )
 }
 
-/* Ctrl+Enter (⌘+Enter on a Mac) creates the ticket from any field of the form,
- * the brief included — Enter alone is a new line there. Listened to on the
- * form, before the field: the editor would otherwise take the key for itself.
- * From the brief it waits a moment, because the editor tells the form what it
- * holds a little after the last key, and the last words typed would be left
- * out of the ticket. */
+/* Ctrl+Enter (⌘+Enter on a Mac) launches the ticket from any field of the
+ * form, the brief included — Enter alone is a new line there. It is the launch
+ * button pressed, so a draft asked for a moment ago does not make this one a
+ * draft too. Listened to on the form, before the field: the editor would
+ * otherwise take the key for itself. From the brief it waits a moment, because
+ * the editor tells the form what it holds a little after the last key, and the
+ * last words typed would be left out of the ticket. */
 function useSendOnControlEnter(field: React.RefObject<HTMLElement | null>) {
   React.useEffect(() => {
     const form = field.current?.closest("form")
@@ -239,45 +247,36 @@ function useSendOnControlEnter(field: React.RefObject<HTMLElement | null>) {
       event.preventDefault()
       event.stopPropagation()
       const editing = (event.target as Element | null)?.closest?.('[data-slot="markdown-editor"]')
-      window.setTimeout(() => form.requestSubmit(), editing ? 300 : 0)
+      const launch = () => {
+        const button = form.querySelector<HTMLButtonElement>("[data-launch]")
+        if (button) button.click()
+        else form.requestSubmit()
+      }
+      window.setTimeout(launch, editing ? EDITOR_SETTLES : 0)
     }
     form.addEventListener("keydown", send, true)
     return () => form.removeEventListener("keydown", send, true)
   }, [field])
 }
 
-/* What ticking "Ready to run" does, said under it: the ticket is a session at
- * the runner's next pass, and a session is paid for. The interval is the
- * runner's own, so the sentence says when that is — or only "the next pass"
- * when the timer that makes passes is not running. */
-function ReadyNote() {
-  const { runner } = useConsole()
-  const seconds = runner?.timer === "enabled" ? (runner.interval_seconds ?? 0) : 0
-  return (
-    <>
-      {seconds
-        ? t("Ticked, a session starts at the next pass (within {{every}}).", { every: every(seconds) })
-        : t("Ticked, a session starts at the next pass.")}{" "}
-      {t("Off, and the ticket is a draft the runner leaves alone.")}
-    </>
-  )
-}
-
-/* The three selects a board may or may not have a column for: priority, type,
- * model. Drawn only where it has one — a value for a missing column would be
- * dropped on its way in — and always optional. The options are the board's
- * (see `Api._choices`): read from the board the console already holds, which
- * is there before a dialog over it can open. */
-function choiceInput(key: "priority" | "type" | "model" | "subtype", empty: string, description: string) {
+/* The four a board may or may not have a column for: priority, type,
+ * sub-type, model. Drawn only where it has one — a value for a missing column
+ * would be dropped on its way in — and always optional. The options are the
+ * board's (see `Api._choices`): read from the board the console already holds,
+ * which is there before a dialog over it can open. The empty one comes first,
+ * and says in its tooltip what empty means. */
+function choiceInput(
+  key: "priority" | "type" | "model" | "subtype",
+  empty: string,
+  meaning: string,
+  controller: InputControllerComponentInterface
+) {
   return {
     label: { type: "Type", priority: "Priority", model: "Model", subtype: "Sub-type" }[key],
-    get description() {
-      return t(description)
-    },
-    controller: SelectInputController,
+    controller,
     hidden: () => !currentBoard()?.choices?.[key]?.length,
     getValueOptions: async () => [
-      { value: "", label: empty },
+      { value: "", label: t(empty), description: meaning ? t(meaning) : undefined },
       // A sub-type behind its icon and in the developers' word, as the card says it.
       ...(key === "subtype"
         ? (currentBoard()?.subtypes ?? []).map((subtype) => ({
@@ -299,49 +298,41 @@ class FieldProblem extends Error {
   }
 }
 /* What a new ticket asks for. Drawn by react-data-form, submitted to
- * `createItem`.
+ * `createItem` — in the two columns of `NewTicketFields`, with the draft and
+ * launch buttons of `NewTicketFoot` under them (see `new-ticket.tsx`).
  *
- * A label and the button are translated by the package as it draws them; the
- * sentence under a field and the greyed example in it are not — they are used
- * as they are given. Those two are read from the dictionary here, as the field
- * is drawn, which is what the getters are for: the declaration is built once,
- * and the language can change after it.
+ * A label is translated by the package as it draws it; the greyed example in
+ * a field is not — it is used as it is given. That one is read from the
+ * dictionary here, as the field is drawn, which is what the getter is for: the
+ * declaration is built once, and the language can change after it.
  */
 const createForm: FormInterface = {
-  // The dialog already says "New ticket" over it.
-  label: { submit: "Create" },
+  components: { formInputs: NewTicketFields, formSubmitAction: NewTicketFoot },
   inputs: {
     title: {
       label: "Title",
-      get description() {
-        return t("What has to be done, in one line. It is what the board shows.")
-      },
       required: true,
       // An example, and a key: the package reads the placeholder through the
       // dictionary as it draws the field. It used to be French in every
       // language.
       placeholder: "Remove the banner from the dashboard",
       controller: TitleInputController,
+      // The example in the field says what it is: the label is for the screen reader.
+      className: "[&_[data-slot=field-label]]:sr-only",
     },
     body: {
       label: "The brief",
-      get description() {
-        return t(
-          "The whole of what the runner is told. Written on the ticket's page, and read from there."
-        )
-      },
       get placeholder() {
         return t("What must change, where, and how you will know it is done.")
       },
       controller: MarkdownInputController,
+      // The decorator around the field: the brief takes what the column has left.
+      className: "flex min-h-0 flex-1 flex-col [&>[data-slot=field]]:flex-1 [&_[data-slot=markdown-editor]]:min-h-60 [&_[data-slot=markdown-editor]]:flex-1",
     },
     project: {
       label: "Project",
-      get description() {
-        return t("A project with a repository gets a pull request; none at all gets a document.")
-      },
       // A board can hold many projects: typed into, not scrolled through.
-      controller: ComboboxInputController,
+      controller: ProjectInputController,
       getValueOptions: async () => {
         const { projects } = await api.projects().catch(() => ({ projects: [] }))
         return [
@@ -362,30 +353,36 @@ const createForm: FormInterface = {
         ]
       },
     },
-    priority: choiceInput(
-      "priority",
-      "no priority",
-      "Which ready ticket goes first. Empty, it waits its turn."
-    ),
     type: choiceInput(
       "type",
-      "deduced by the runner",
-      "The road the ticket takes. Empty, the runner deduces it before the ticket runs."
+      "Auto",
+      "The road the ticket takes. Empty, the runner deduces it before the ticket runs.",
+      SegmentedInputController
     ),
     subtype: choiceInput(
       "subtype",
       "deduced by the runner",
-      "What kind of change a code ticket is: the prefix of its commit and its CHANGELOG section. Empty, the runner deduces it."
+      "What kind of change a code ticket is: the prefix of its commit and its CHANGELOG section. Empty, the runner deduces it.",
+      PillsInputController
     ),
-    model: choiceInput("model", "the runner's model", "Empty, the model the runner is set to."),
-    ready: {
-      label: "Ready to run",
-      get description() {
-        return <ReadyNote />
+    priority: choiceInput(
+      "priority",
+      "None",
+      "Which ready ticket goes first. Empty, it waits its turn.",
+      SegmentedInputController
+    ),
+    // On one line: label, then the select.
+    model: {
+      ...choiceInput("model", "the runner's model", "", SelectInputController),
+      // Empty is the runner's model, and the select says so rather than "Select…".
+      get placeholder() {
+        return t("the runner's model")
       },
-      controller: BooleanInputController,
-      defaultValue: true,
+      className:
+        "[&>[data-slot=field]]:grid [&>[data-slot=field]]:grid-cols-[auto_minmax(0,1fr)] [&>[data-slot=field]]:items-center [&>[data-slot=field]]:gap-3 [&_[data-slot=field-label]]:mb-0 [&_[data-slot=select-trigger]]:h-8 [&_[data-slot=select-trigger]]:w-full",
     },
+    // Said by the button that sends the form: "Draft" or "Launch the ticket".
+    ready: { defaultValue: true, hidden: () => true },
   },
 }
 

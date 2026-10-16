@@ -267,6 +267,14 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **« New ticket » is a wide dialog in two columns: the brief on the left, the settings on the right.** The title is
+  one large field, the brief takes the rest of the column, and two buttons under it add a « Done when » section or a
+  « Files concerned » one. The type and the priority are buttons all in view — *Auto* leaves the type to the runner,
+  *Urgent* is in red — the sub-type is pills shown only for a *Code* ticket, and the model sits on one line. The lines
+  of help under each field are gone: a card under the settings says what the ticket will come back as — a pull
+  request on the project when it has a repository, a document otherwise, and for a code ticket its commit prefix and
+  its CHANGELOG section. The « Ready to run » box became two buttons: *Draft*, and *Launch the ticket* (Ctrl/⌘+Enter).
+  Below 760 px the settings go under the brief.
 - **A ticket's sub-type and an idea's category keep the developers' word, in every language.** The
   console in French says « ✨ Feature », « 🔒 Security », « ⬆️ Improvement », « 🧹 Chore » — not
   *Fonctionnalité*, *Sécurité*, *Amélioration*, *Maintenance* — on the card, the ticket page, the
