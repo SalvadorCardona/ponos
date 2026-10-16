@@ -568,6 +568,14 @@ if "say what kind of ticket it is" in prompt:
           "session_id": session, "num_turns": 1, "total_cost_usd": 0.001})
     raise SystemExit(0)
 
+# The same for the sub-type of a code ticket that has its type already.
+if "say what kind of change it is" in prompt:
+    said = os.environ.get("FAKE_CLAUDE_SUBTYPE", "")
+    emit({"type": "assistant", "message": {"content": [{"type": "text", "text": said}]}})
+    emit({"type": "result", "subtype": "success", "is_error": False, "result": said,
+          "session_id": session, "num_turns": 1, "total_cost_usd": 0.001})
+    raise SystemExit(0)
+
 # What a session says on its way, before it says how it ended — the sentence
 # the live report writes into the ticket, and nothing else does.
 narrated = os.environ.get("FAKE_CLAUDE_SAY", "")
@@ -806,9 +814,30 @@ if args[:2] == ["pr", "comment"]:
            "body": option("--body")})
     raise SystemExit(0)
 
+# The CI of every pull request, as `FAKE_GH_CHECKS` sets it: GitHub's check
+# runs, as `statusCheckRollup` lists them. Like the gh Ubuntu ships (2.46), this
+# one knows no `pr checks --json` — the runner falls back on the rollup.
+checks = json.loads(os.environ.get("FAKE_GH_CHECKS") or "[]")
+if args[:2] == ["pr", "checks"]:
+    if "--json" in args:
+        print("unknown flag: --json", file=sys.stderr)
+        raise SystemExit(1)
+    if not checks:
+        print("no checks reported on the branch", file=sys.stderr)
+        raise SystemExit(1)
+    raise SystemExit(0 if all(one["conclusion"] == "SUCCESS" for one in checks) else 1)
+
+# What GitHub writes on a job it refused to start, read as `.[].message`.
+if args[:1] == ["api"] and any(part.endswith("/annotations") for part in args):
+    print(os.environ.get("FAKE_GH_ANNOTATION", ""))
+    raise SystemExit(0)
+
 if args[:2] == ["pr", "view"]:
     url = args[2] if len(args) > 2 and args[2].startswith("http") else ""
     opened = pull_request(url)
+    if "statusCheckRollup" in args:
+        print(json.dumps({"statusCheckRollup": checks}))
+        raise SystemExit(0)
     if "headRefName,baseRefName" in args:
         if not opened:
             raise SystemExit(1)
@@ -1001,6 +1030,30 @@ class Bench:
             },
         }
 
+    def subtyped(self) -> None:
+        """The board given its Type and Sous-type columns, as `init` gives them now."""
+        self.typed()
+        database = self.board.databases[self.database]
+        database["properties"] = {
+            **database["properties"],
+            "Sous-type": {
+                "type": "select",
+                "select": {"options": [{"name": name} for name in (
+                    "Bug", "Feature", "Amélioration", "Chore", "Refactor", "Perf", "Docs",
+                    "Sécurité",
+                )]},
+            },
+        }
+
+    def with_ci(self, repository: Path) -> None:
+        """A workflow on `main`: the runner now waits for the checks of its pull requests."""
+        workflows = repository / ".github" / "workflows"
+        workflows.mkdir(parents=True)
+        (workflows / "ci.yml").write_text("on: pull_request\n", encoding="utf-8")
+        _git(["add", ".github"], repository)
+        _git(["commit", "-m", "une CI"], repository)
+        _git(["push", "origin", "main"], repository)
+
     def move(self, ticket: str, column: str) -> None:
         """A ticket dragged from one column to the next, as you would in Notion."""
         self.board.pages[ticket]["properties"]["Status"] = _stored(
@@ -1135,7 +1188,10 @@ def bench(**overrides: object):
                 "FAKE_CLAUDE_SILENT": "",
                 "FAKE_CLAUDE_ELSEWHERE": "",
                 "FAKE_CLAUDE_DIRTY": "",
+                "FAKE_CLAUDE_SUBTYPE": "",
                 "FAKE_GH_REFUSE": "",
+                "FAKE_GH_CHECKS": "",
+                "FAKE_GH_ANNOTATION": "",
                 **{name: str(path) for name, path in logs.items()},
             }
             with _environ(environment):
@@ -1470,6 +1526,122 @@ def a_forced_merge_github_refuses_leaves_the_ticket_in_review_with_the_reason():
         assert "is failing" in said[-1], said[-1]
         card = str(machine.board.value(ticket, "Progress") or "")
         assert "Not merged" in card and "is failing" in card, card
+
+
+def _check_runs(*verdicts: str) -> str:
+    """`FAKE_GH_CHECKS` for jobs that ended with these conclusions."""
+    return json.dumps([
+        {"__typename": "CheckRun", "name": f"job {number}", "status": "COMPLETED",
+         "conclusion": verdict,
+         "detailsUrl": f"https://github.com/fake/repo/actions/runs/7/job/{number}"}
+        for number, verdict in enumerate(verdicts, start=1)
+    ])
+
+
+@case
+def a_code_ticket_is_merged_once_its_ci_is_green_whatever_its_sub_type():
+    """Force validated reads the type, never the sub-type: written, from a prefix or
+    deduced, each code ticket waits for its green CI and lands on `main`, done."""
+    # One at a time, one repository each: the fake `gh` numbers its pull
+    # requests as it goes, and two opened at once would share a number.
+    with bench(force_validated_code=True, max_concurrent=1) as machine:
+        machine.subtyped()
+        repositories = []
+        tickets = []
+        for name, title, subtype in (
+            ("site", "Corriger l'entête", "Bug"),
+            ("blog", "[Feature] Un badge", ""),
+            ("shop", "Le pied de page", ""),
+        ):
+            repository = machine.repository(name)
+            machine.with_ci(repository)
+            ticket = machine.ticket(title, "Une phrase.", machine.project(name, repository))
+            machine.board.pages[ticket]["properties"]["Type"] = _stored(
+                {"select": {"name": "Code"}}
+            )
+            if subtype:
+                machine.board.pages[ticket]["properties"]["Sous-type"] = _stored(
+                    {"select": {"name": subtype}}
+                )
+            repositories.append(repository)
+            tickets.append(ticket)
+        written, prefixed, deduced = tickets
+        os.environ["FAKE_CLAUDE_SUBTYPE"] = json.dumps(
+            {"subtype": "bug", "reason": "Un lien cassé.", "confidence": "high"}
+        )
+        os.environ["FAKE_GH_CHECKS"] = _check_runs("SUCCESS", "SUCCESS")
+
+        machine.run()
+
+        for ticket, subtype in ((written, "Bug"), (prefixed, "Feature"), (deduced, "Bug")):
+            assert machine.status(ticket) == "Done", (ticket, machine.status(ticket))
+            assert machine.board.value(ticket, "Sous-type") == subtype, ticket
+            assert "Force validated: Code" in machine.board.said(ticket)[-1]
+        assert len(machine.merges()) == 3, machine.merges()
+        assert all("FAKE.md" in machine.files_on(one, "main") for one in repositories)
+
+
+@case
+def a_ticket_blocked_on_its_type_is_merged_once_somebody_gives_it():
+    """A type in doubt stops the ticket with the question; answered, it takes the
+    whole road like any other, forced merge included."""
+    with bench(force_validated_code=True) as machine:
+        machine.subtyped()
+        repository = machine.repository("site")
+        project = machine.project("Site", repository)
+        ticket = machine.ticket("[Bug] Le formulaire", "Il ne part plus.", project)
+        os.environ["FAKE_CLAUDE_KIND"] = json.dumps({
+            "type": "code", "reason": "Peut-être.", "confidence": "low", "alternative": "",
+        })
+
+        machine.run()
+
+        assert machine.status(ticket) == "Blocked", machine.status(ticket)
+        assert "Type" in machine.board.said(ticket)[-1], machine.board.said(ticket)[-1]
+        assert not machine.pull_requests()
+
+        machine.board.pages[ticket]["properties"]["Type"] = _stored({"select": {"name": "Code"}})
+        machine.move(ticket, "Ready")
+        machine.run()
+
+        assert machine.status(ticket) == "Done", machine.status(ticket)
+        assert machine.board.value(ticket, "Sous-type") == "Bug"
+        assert len(machine.merges()) == 1, machine.merges()
+
+
+@case
+def a_forced_merge_stopped_by_its_ci_says_on_the_card_which_ci_and_why():
+    """Red by the code: the checks are named. Never started by GitHub: its reason,
+    word for word — it is the account to look at, not the code. Neither merged."""
+    not_started = (
+        "The job was not started because recent account payments have failed or your "
+        "spending limit needs to be increased."
+    )
+    for verdicts, annotation, expected in (
+        (("SUCCESS", "FAILURE"), "", "red on `job 2`"),
+        (("FAILURE", "FAILURE"), not_started, "spending limit"),
+    ):
+        with bench(force_validated_code=True) as machine:
+            machine.board.databases[machine.database]["properties"] = {
+                **machine.board.databases[machine.database]["properties"],
+                "Progress": {"type": "rich_text", "rich_text": {}},
+            }
+            repository = machine.repository("site")
+            machine.with_ci(repository)
+            project = machine.project("Site", repository)
+            ticket = machine.ticket("Corriger l'entête", "Le titre est faux.", project)
+            os.environ["FAKE_GH_CHECKS"] = _check_runs(*verdicts)
+            os.environ["FAKE_GH_ANNOTATION"] = annotation
+
+            machine.run()
+
+            assert machine.status(ticket) == "In review", machine.status(ticket)
+            assert not machine.merges(), machine.merges()
+            assert "FAKE.md" not in machine.files_on(repository, "main")
+            said = machine.board.said(ticket)[-1]
+            assert "Not merged, left in review" in said and expected in said, said
+            card = str(machine.board.value(ticket, "Progress") or "")
+            assert expected in card, card
 
 
 @case

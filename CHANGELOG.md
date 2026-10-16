@@ -201,6 +201,16 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Fixed
 
+- **An automatic validation the CI stops says which CI, and why.** With Validation automatique on for
+  Code tickets, a pull request whose checks were red stayed in review with « ses vérifications échouent »
+  and nothing more — on every pull request of a private repository whose GitHub Actions jobs were refused
+  for the account's billing, as on one whose tests really failed. With the `gh` Ubuntu ships (2.46), which
+  has no `gh pr checks --json`, the runner could not even read which checks were red: no names, no second
+  run, no comparison with the base, nothing in the console's panel. It now reads them from the pull request
+  itself, and the card says « CI : rouge sur `Tests`, là où `main` ne l'est pas » — or « CI : pas démarrée —
+  GitHub dit : The job was not started because… », which is the account to look at, not the code. A job
+  GitHub refused to start is not run again either: it would be refused the same way.
+
 - **Ideas are scored again, and a scoring that fails says why.** A scoring call was stopped at 0.10 dollars
   while it costs 0.12 to 0.14, so no idea was ever scored and nothing said so. The ceiling is now 0.50 dollars
   a call, the prompt carries less (a shorter brief, fewer tickets and ideas to compare with), and a call whose

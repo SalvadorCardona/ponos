@@ -645,6 +645,10 @@ _SAID: dict[str, dict[str, str]] = {
         "en": "CI: red on {names}, where `{base}` is not.",
         "fr": "CI : rouge sur {names}, là où `{base}` ne l'est pas.",
     },
+    "checks-unstarted": {
+        "en": "CI: did not start — GitHub says: {reason}",
+        "fr": "CI : pas démarrée — GitHub dit : {reason}",
+    },
     "checks-pending": {
         "en": "CI: still running when the merge was asked.",
         "fr": "CI : encore en cours au moment de la fusion.",

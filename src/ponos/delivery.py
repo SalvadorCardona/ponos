@@ -410,17 +410,20 @@ class Delivery(Base):
         `_merge` replays it, hands a conflict to a session, asks again — on the
         next pass and without holding a place here. So is CI still running when
         the wait runs out. Behind or conflicting already, GitHub is not even
-        asked. What is left — checks red here and only here, a review or a
-        rule of the branch — is a question, and waits in review, where you would
-        have found it without the option: the work is done and the pull request
-        is open. On a board with no validated column, everything waits there.
+        asked. What is left — checks red here and only here, jobs GitHub never
+        started, a review or a rule of the branch — is a question, and waits in
+        review, where you would have found it without the option: the work is
+        done and the pull request is open. The card says which, in the words
+        `_checked` found for it: “its checks fail” told nobody whether to look
+        at the code or at the account. On a board with no validated column,
+        everything waits there.
         """
         accounts = self.config.github
         rebase = self.config.runner.rebase
-        checks, _ = self._checked(url, job.workdir, job.base)
+        checks, checked = self._checked(url, job.workdir, job.base)
         later = False
-        if checks == "failed":
-            refusal = self.voice.say("forced-checks-red")
+        if checks in ("failed", "unstarted"):
+            refusal = checked or self.voice.say("forced-checks-red")
         elif checks == "base-red" and self.validated_column():
             self._set_aside(job.ticket, job.project, url, job.base)
             refusal, later = self.voice.say("forced-base-red"), True
@@ -464,8 +467,12 @@ class Delivery(Base):
         What is left is red here and only here, and that is the one answer that
         still stops the merge — with the checks named, rather than “CI: red”.
 
-        Returns `passed`, `pending`, `none`, `base-red` or `failed`, and the
-        sentence that says it.
+        And a red that is no verdict at all: jobs GitHub refused to start, an
+        account's billing rather than the code. That is `unstarted`, with
+        GitHub's own reason, and it is neither run again nor blamed on anybody.
+
+        Returns `passed`, `pending`, `none`, `base-red`, `unstarted` or
+        `failed`, and the sentence that says it.
         """
         accounts = self.config.github
         said = self.voice
@@ -475,6 +482,11 @@ class Delivery(Base):
         if checks != "failed":
             return checks, said.say(f"checks-{checks}")
         failing = git.failing_checks(url, accounts)
+        if unstarted := git.unstarted_checks(url, accounts):
+            # Not red: never run. A second run is refused the same way, and the
+            # base has nothing to say about an account.
+            self.say(f"    · checks never started — {unstarted}")
+            return "unstarted", said.say("checks-unstarted", reason=unstarted)
         if git.rerun_failed_checks(url, accounts):
             self.say(f"    · checks red ({', '.join(failing) or '?'}) — run again once")
             checks = git.wait_for_checks(
@@ -980,7 +992,7 @@ class Delivery(Base):
             checks, checked, repair = self._mend(job, url, checked)
             if repair and self._out_of_credit(repair):
                 return self._requeue(ticket, validated, repair)
-        if checks == "failed":
+        if checks in ("failed", "unstarted"):
             state.forget_rebases(ticket.id)
             return self._fail(
                 ticket,

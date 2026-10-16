@@ -1093,6 +1093,8 @@ def checks(url: str, accounts: Accounts | None = None, timeout: int = 60) -> lis
         timeout=timeout,
         token=token_for(url, accounts),
     )
+    if "unknown flag" in f"{result.err}\n{result.out}":
+        return _rolled_up(url, accounts, timeout)
     try:
         listed = json.loads(result.out or "[]")
     except ValueError:
@@ -1100,6 +1102,56 @@ def checks(url: str, accounts: Accounts | None = None, timeout: int = 60) -> lis
     if not isinstance(listed, list):
         return []
     return [one for one in listed if isinstance(one, dict)]
+
+
+# How `gh pr checks` sorts what GitHub says of a check into its buckets, for the
+# gh too old to be asked for them. Anything not named here is still running.
+_BUCKETS = {
+    "SUCCESS": "pass",
+    "SKIPPED": "skipping",
+    "NEUTRAL": "skipping",
+    "FAILURE": "fail",
+    "ERROR": "fail",
+    "TIMED_OUT": "fail",
+    "ACTION_REQUIRED": "fail",
+    "STARTUP_FAILURE": "fail",
+    "CANCELLED": "cancel",
+}
+
+
+def _rolled_up(url: str, accounts: Accounts | None = None, timeout: int = 60) -> list[dict]:
+    """The checks of a pull request, for a `gh` that has no `pr checks --json`.
+
+    `--json` came to `gh pr checks` in 2.48, and Ubuntu ships 2.46: on such a
+    machine every check read as unknown — no names, nothing run again, no
+    comparison with the base — and a forced merge stopped on a red it could not
+    say anything about. `gh pr view --json statusCheckRollup` is far older, and
+    says the same things in GitHub's own words, sorted here as `gh` sorts them.
+    """
+    result = run(
+        ["gh", "pr", "view", url, "--json", "statusCheckRollup"],
+        timeout=timeout,
+        token=token_for(url, accounts),
+    )
+    try:
+        rollup = json.loads(result.out or "{}").get("statusCheckRollup") if result.ok else None
+    except (ValueError, AttributeError):
+        return []
+    listed = []
+    for one in rollup if isinstance(rollup, list) else []:
+        if not isinstance(one, dict):
+            continue
+        if one.get("__typename") == "StatusContext":
+            name, link, verdict = one.get("context"), one.get("targetUrl"), one.get("state")
+        else:
+            name, link = one.get("name"), one.get("detailsUrl")
+            verdict = one.get("conclusion") if one.get("status") == "COMPLETED" else ""
+        listed.append({
+            "name": str(name or ""),
+            "bucket": _BUCKETS.get(str(verdict or "").upper(), "pending"),
+            "link": str(link or ""),
+        })
+    return listed
 
 
 def _failing(url: str, accounts: Accounts | None = None) -> list[dict]:
@@ -1110,6 +1162,43 @@ def _failing(url: str, accounts: Accounts | None = None) -> list[dict]:
 def failing_checks(url: str, accounts: Accounts | None = None) -> list[str]:
     """The names of the pull request's checks that failed, or nothing when unknown."""
     return sorted({str(one.get("name") or "") for one in _failing(url, accounts)} - {""})
+
+
+def unstarted_checks(url: str, accounts: Accounts | None = None) -> str:
+    """Why GitHub never started the pull request's red jobs — or "" when they ran.
+
+    A job GitHub refuses to start — an account whose payment failed, a
+    spending limit reached — is red in two seconds, exactly like a test that
+    failed. It says nothing about the code, and nothing a session or a second
+    run could change: what does is in the annotation GitHub leaves on it, which
+    is returned as it is written. Only when *every* red check is such a job: one
+    that did run and failed is the code's red, and is read as such.
+    """
+    failing = _failing(url, accounts)
+    parts = reference_parts(url)
+    if not failing or len(parts) < 3:
+        return ""
+    host, owner_name = parts[0], "/".join(parts[1:3])
+    token = token_for(url, accounts)
+    reasons = []
+    for one in failing:
+        job = re.search(r"/actions/runs/\d+/job/(\d+)", str(one.get("link") or ""))
+        if not job:
+            return ""
+        result = run(
+            ["gh", "api", "--hostname", host,
+             f"repos/{owner_name}/check-runs/{job.group(1)}/annotations", "-q", ".[].message"],
+            timeout=60,
+            token=token,
+        )
+        said = next(
+            (line.strip() for line in result.out.splitlines() if "was not started" in line),
+            "",
+        ) if result.ok else ""
+        if not said:
+            return ""
+        reasons.append(said)
+    return reasons[0]
 
 
 def rerun_failed_checks(url: str, accounts: Accounts | None = None) -> bool:
