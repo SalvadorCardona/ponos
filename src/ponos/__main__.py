@@ -1566,6 +1566,8 @@ def _doctor_schedules(
         ("project", "relation", "the project every ticket it makes points at"),
         ("model", "select", "the model every ticket it makes runs on"),
         ("priority", "select", "the priority every ticket it makes carries"),
+        ("type", "select", "the type every ticket it makes is born with — empty, it is guessed"),
+        ("subtype", "select", "the sub-type every code ticket it makes is born with"),
     ):
         name = settings.prop(key)
         kind = schema.get(name)

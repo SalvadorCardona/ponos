@@ -556,6 +556,48 @@ def open_link(uri: str) -> int:
     )
 
 
+# A pull request's address, as `gh pr create` prints it on its last line.
+_PULL_REQUEST = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+")
+
+
+def pull_requests(log: Path) -> list[str]:
+    """The pull requests a session opened itself, read from its log, in order.
+
+    Only what `gh pr create` printed: a URL met anywhere else — a `git log`,
+    a `gh pr list`, a page read — is a pull request somebody else opened, and
+    attaching it to the ticket would be lying. Nothing when the log cannot be
+    read: this is a net under the board, never a reason to fail a ticket.
+    """
+    creating: set[str] = set()
+    found: list[str] = []
+    try:
+        lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        content = (event.get("message") or {}).get("content") if isinstance(event, dict) else None
+        for block in content if isinstance(content, list) else []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                command = str((block.get("input") or {}).get("command") or "")
+                if re.search(r"\bgh\s+pr\s+create\b", command):
+                    creating.add(str(block.get("id")))
+            elif block.get("type") == "tool_result" and str(block.get("tool_use_id")) in creating:
+                printed = block.get("content")
+                if isinstance(printed, list):
+                    printed = " ".join(str(part.get("text") or "") for part in printed
+                                       if isinstance(part, dict))
+                for url in _PULL_REQUEST.findall(str(printed or "")):
+                    if url not in found:
+                        found.append(url)
+    return found
+
+
 def _feed(process: subprocess.Popen, prompt: str) -> None:
     """Hand the prompt to the session on stdin, then close it: that is the end."""
     try:

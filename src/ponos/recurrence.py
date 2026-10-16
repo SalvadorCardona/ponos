@@ -183,6 +183,13 @@ class Recurrence(Base):
         than linked, so the ticket reads on its own and its history shows what
         was actually asked for that day.
 
+        The project, the model, the priority, the type and the sub-type are
+        copied too. The type above all: a ticket born with one is never
+        classified (see `Preparation._kind`), and a brief long and well written
+        enough reads as « Rédaction » to a classifier — a code ticket that then
+        writes its answer in the page and goes to done, its pull request opened
+        by hand and lost to the board.
+
         A schedule that fails takes only itself down: the pass says so and moves
         on to the next one. `strict`, for a launch somebody asked for: the
         failure is raised to them instead.
@@ -196,6 +203,8 @@ class Recurrence(Base):
             ("project", schedule.project),
             ("model", schedule.model),
             ("priority", schedule.priority),
+            ("type", schedule.kind),
+            ("subtype", schedule.subtype),
         ):
             if value:
                 values[settings.prop(key)] = value

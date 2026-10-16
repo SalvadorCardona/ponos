@@ -813,7 +813,22 @@ class Execution(Base):
                 outcome=outcome,
             )
 
-        return self._deliver_text(job, outcome, content, review=anyway, kept=answer_file)
+        # A session that was not on a code ticket's road opened a pull request
+        # anyway: attached to the ticket and sent to review, so it is merged
+        # through the validated column like any other — rather than left on
+        # GitHub, out of sight of the board, under a ticket that says done.
+        opened = session.pull_requests(outcome.log)
+        note = ""
+        if opened:
+            self.say(f"    · the session opened {', '.join(opened)} itself — attached, sent to review")
+            note = said.paragraphs(
+                said.say("pull-request-adopted", url=opened[-1]),
+                said.say("pull-requests-also", urls=", ".join(opened[:-1])) if opened[1:] else "",
+            )
+        return self._deliver_text(
+            job, outcome, content, review=anyway or bool(opened), kept=answer_file,
+            note=note, pull_request=opened[-1] if opened else "",
+        )
 
     def _deliver_text(
         self,
@@ -824,12 +839,14 @@ class Execution(Base):
         review: bool = False,
         kept: Path | None = None,
         note: str = "",
+        pull_request: str = "",
     ) -> dict:
         """A ticket whose deliverable is a text, written into its page.
 
         `review` sends it to be read rather than to done; `kept` is where the
         text still is on disk, should the page refuse it; `note` is one more
-        line for the report.
+        line for the report; `pull_request` is one the session opened itself,
+        written into the ticket's column so validating it merges it.
         """
         ticket = job.ticket
         said = self.voice
@@ -864,7 +881,7 @@ class Execution(Base):
         # for the pass that has credit again to publish it, as it would one you
         # had moved there yourself. A board with no such column has nowhere to
         # hold it, and the ticket waits in review as it always did.
-        following = self._forced("publication", job.project) if prepared else ""
+        following = self._forced("publication", job.project) if prepared and not pull_request else ""
         forced = bool(following)
         postponed = forced and bool(self.under_reserve())
         if postponed and not self.validated_column():
@@ -876,6 +893,8 @@ class Execution(Base):
             ),
             **self._measures(outcome),
         }
+        if pull_request:
+            values[self.config.notion.prop("pull_request")] = pull_request
         if not forced or postponed:
             column = "validated" if postponed else "review" if prepared or review else "done"
             values[self.config.notion.prop("status")] = self.config.notion.state(column)
@@ -925,6 +944,7 @@ class Execution(Base):
             "project": job.project.name,
             "kind": "publication" if prepared else "document",
             "blocks": blocks,
+            **({"pull_request": pull_request} if pull_request else {}),
             "session": outcome.session_id,
             "seconds": round(outcome.seconds, 1),
             "cost_usd": outcome.cost_usd,

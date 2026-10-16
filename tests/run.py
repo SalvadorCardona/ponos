@@ -2827,6 +2827,12 @@ def _schedule_page(page_id: str, **values) -> notion.Page:
                             "relation": [{"id": last_ticket}] if last_ticket else []},
             "Project": {"type": "relation", "relation": [{"id": "p-animalink"}]},
             "Priority": {"type": "select", "select": {"name": "Normal"}},
+            **({"Type": {"type": "select", "select": {"name": values["type"]}}}
+               if values.get("type") else {}),
+            **({"Sous-type": {"type": "select", "select": {"name": values["subtype"]}}}
+               if values.get("subtype") else {}),
+            **({"Model": {"type": "select", "select": {"name": values["model"]}}}
+               if values.get("model") else {}),
         },
     )
 
@@ -2923,6 +2929,46 @@ def a_machine_that_was_off_for_three_days_produces_one_ticket_and_not_twelve():
     ahead = schedules.scheduled_for(_written(runner.client, "Next"))
     assert ahead is not None and ahead > datetime.now().astimezone()
     assert ahead < datetime.now().astimezone() + timedelta(days=1), "the next one, not the fourth"
+
+
+@case
+def a_code_schedule_makes_a_code_ticket_that_nobody_classifies():
+    """A long, well-written brief read as « Rédaction » by the classifier sent
+    four Whisper Desk tickets to done with their pull requests lost: the
+    schedule says what its tickets are, and the ticket is born with it."""
+    stale = (datetime.now().astimezone() - timedelta(hours=1)).isoformat()
+    runner = _recurring([_schedule_page(
+        "s-1", next=stale, type="Code", subtype="Feature", model="opus"
+    )])
+    assert len(runner.recur()) == 1
+    _, values = runner.client.created[0]
+    assert values["Type"] == "Code" and values["Sous-type"] == "Feature"
+    assert values["Model"] == "opus" and values["Priority"] == "Normal"
+
+    # Born typed, it is never handed to the classifier.
+    born = notion.Page(id="t-1", url="", title="Revue — 2026-10-16", properties={
+        "Type": {"type": "select", "select": {"name": values["Type"]}},
+        "Sous-type": {"type": "select", "select": {"name": values["Sous-type"]}},
+    })
+    runner.client.schema = lambda database_id: {"Status": "status", "Type": "select",
+                                                "Sous-type": "select"}
+
+    def classified(*_):
+        raise AssertionError("a typed ticket is not classified")
+
+    runner._classify = classified
+    runner._ask_subtype = classified
+    assert runner._kind(ticket_module.Ticket(born), "", projects.Project(name="", path=None)) == ("code", "")
+    assert runner._subtype(ticket_module.Ticket(born), "") == ("feature", "")
+
+
+@case
+def a_schedule_without_a_type_leaves_its_ticket_to_be_classified():
+    stale = (datetime.now().astimezone() - timedelta(hours=1)).isoformat()
+    runner = _recurring([_schedule_page("s-1", next=stale)])
+    runner.recur()
+    _, values = runner.client.created[0]
+    assert "Type" not in values and "Sous-type" not in values
 
 
 @case
@@ -3091,8 +3137,13 @@ def the_schedules_database_is_built_after_the_tickets_it_points_at():
     provision.provision(board, _settings(), "root")
 
     schema = board._schemas["db-schedules"]
-    for expected in ("Cadence", "At", "Day", "Active", "Next", "Last", "Last ticket"):
+    for expected in ("Cadence", "At", "Day", "Active", "Next", "Last", "Last ticket",
+                     "Type", "Sous-type"):
         assert expected in schema, expected
+    # The same options as the tickets', so a value copied across is one they offer.
+    tickets = board._schemas["db-tickets"]
+    for column in ("Type", "Sous-type"):
+        assert schema[column] == tickets[column], column
     assert schema["Last ticket"]["relation"]["database_id"] == "db-tickets"
     assert schema["Project"]["relation"]["database_id"] == "db-projects"
     assert board.created.index("db-tickets") < board.created.index("db-schedules")
@@ -3104,7 +3155,7 @@ def the_schedules_database_is_built_after_the_tickets_it_points_at():
     example = board._rows["db-schedules"]
     assert len(example) == 1
     row = provision.schedules_schema(_settings(), "db-tickets", "db-projects")
-    assert len(row) == 11, "ten columns beside the title"
+    assert len(row) == 13, "twelve columns beside the title"
 
 
 @case
@@ -4002,6 +4053,73 @@ def _answered_on(comments: list[str], answer: str, write: str) -> tuple[Runner, 
     job = _doc_job(page)
     job.comments = comments
     return runner, runner._execute_document(job)
+
+
+def _session_log(*steps: tuple[str, str]) -> Path:
+    """A session's stream-json log: each step a Bash command and what it printed."""
+    log = Path(tempfile.mkdtemp()) / "s.jsonl"
+    lines = []
+    for number, (command, printed) in enumerate(steps):
+        lines.append({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": f"u{number}", "name": "Bash", "input": {"command": command}}
+        ]}})
+        lines.append({"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": f"u{number}", "content": printed}
+        ]}})
+    log.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return log
+
+
+@case
+def a_pull_request_a_writing_session_opened_is_attached_and_sent_to_review():
+    """Four Whisper Desk tickets classified « Rédaction » opened their pull
+    requests themselves: done, an empty Pull Request column, nothing to review,
+    and two of them doing the same thing. Never again a pull request lost."""
+    url = "https://github.com/SalvadorCardona/whisper-desk/pull/21"
+    page = _reviewed("p-doc", "In progress", None)
+    runner = _board_runner([page], {"review": "In review", "done": "Done"})
+    runner.client.append_markdown = lambda _page, _text: 2
+    log = _session_log(
+        ("git log --oneline -3", "abc fix: something https://github.com/x/y/pull/3"),
+        ("gh pr create --title 'feat: Wispr Flow' --body x", f"Creating pull request\n{url}\n"),
+    )
+
+    def answered(job, template):
+        (job.workdir / "ANSWER.md").write_text("Fait : la PR est ouverte.")
+        return session.Outcome(ok=True, blocked=False, session_id="s-1", summary="ok",
+                               answer="RESULT: ok — PR ouverte", log=log)
+
+    runner._run_session = answered
+    job = _doc_job(page)
+    job.kind = "writing"
+    runner._execute_document(job)
+    values = runner.client.written[-1][1]
+    assert values["Status"] == "In review", "in review, where a pull request waits"
+    assert values["Pull Request"] == url, "the pull request is the ticket's"
+    said = runner.client.comments_written[-1]
+    assert url in said and "review" in said.lower(), said
+
+    assert session.pull_requests(log) == [url], "only what `gh pr create` printed"
+
+
+@case
+def a_writing_session_that_opened_nothing_still_ends_in_done():
+    page = _reviewed("p-doc", "In progress", None)
+    runner = _board_runner([page], {"review": "In review", "done": "Done"})
+    runner.client.append_markdown = lambda _page, _text: 2
+    log = _session_log(("gh pr list", "https://github.com/x/y/pull/3\n"))
+
+    def answered(job, template):
+        (job.workdir / "ANSWER.md").write_text("Le texte.")
+        return session.Outcome(ok=True, blocked=False, session_id="s-1", summary="ok",
+                               answer="RESULT: ok — écrit", log=log)
+
+    runner._run_session = answered
+    job = _doc_job(page)
+    job.kind = "writing"
+    runner._execute_document(job)
+    values = runner.client.written[-1][1]
+    assert values["Status"] == "Done" and "Pull Request" not in values
 
 
 @case
@@ -16252,6 +16370,23 @@ def the_console_writes_a_schedule_without_touching_what_a_pass_writes_back():
         assert again.active is True and again.at == "07:30" and again.priority == "High"
         assert again.next is None and again.last is None
 
+        # The type and the sub-type its tickets are born with, said by their
+        # keys and written in the board's words; empty lets them be guessed.
+        api.save_schedule(created["id"], {"type": "code", "subtype": "bug"})
+        typed = schedules.read(board.page(created["id"]), board.settings())
+        assert (typed.kind, typed.subtype) == ("Code", "Bug"), (typed.kind, typed.subtype)
+        listed = api.schedules()
+        assert listed["schedules"][0]["type"] == "code" and listed["schedules"][0]["subtype"] == "bug"
+        assert [choice["value"] for choice in listed["choices"]["type"]] == list(kinds.KINDS)
+        api.save_schedule(created["id"], {"type": ""})
+        assert schedules.read(board.page(created["id"]), board.settings()).kind == ""
+        try:
+            api.save_schedule(created["id"], {"type": "poem"})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a type that is none of the four is refused")
+
         # What a pass writes back is not the form's to set — so a payload made
         # only of those is refused, rather than quietly doing nothing.
         try:
@@ -17259,6 +17394,50 @@ def an_installation_from_before_the_rename_starts_with_everything_it_had():
                            capture_output=True, text=True, timeout=60)
     assert again.returncode == 0 and "moved" not in again.stderr, "and only once"
 
+
+
+@case
+def an_old_state_directory_holding_only_a_console_token_is_tidied_once_and_silently():
+    """Recreated by an old checkout's test suite, with nothing but an empty
+    `logs` and a `web/token` in it: the new state already has its own, and the
+    line « was left in place » came back on every command, every ten seconds."""
+    home = Path(tempfile.mkdtemp())
+    old = home / "state" / legacy.OLD
+    new = home / "state" / "ponos"
+    (old / "logs").mkdir(parents=True)
+    (old / "web").mkdir()
+    (old / "web" / "token").write_text("stale\n")
+    (new / "logs").mkdir(parents=True)
+    (new / "web").mkdir()
+    (new / "web" / "token").write_text("in use\n")
+    said: list[str] = []
+    previous = {key: os.environ.get(key) for key in ("XDG_STATE_HOME", "XDG_CONFIG_HOME")}
+    os.environ.update(XDG_STATE_HOME=str(home / "state"), XDG_CONFIG_HOME=str(home / "config"))
+    try:
+        legacy.directories(said.append)
+        assert said == [], said
+        assert not old.exists(), "gone, so the next command has nothing to say"
+        assert (new / "web" / "token").read_text() == "in use\n", "the token in use is kept"
+
+        # Without a token of its own, the new state takes the old one, as quietly.
+        (old / "web").mkdir(parents=True)
+        (old / "web" / "token").write_text("stale\n")
+        shutil.rmtree(new / "web")
+        legacy.directories(said.append)
+        assert said == [] and not old.exists()
+        assert (new / "web" / "token").read_text() == "stale\n"
+
+        # Something that matters is still moved and said, as before.
+        (old / "board").mkdir(parents=True)
+        (old / "board" / "fix-the-footer.md").write_text("# Fix the footer\n")
+        legacy.directories(said.append)
+        assert (new / "board").is_dir() and len(said) == 1 and "moved" in said[0]
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 @case

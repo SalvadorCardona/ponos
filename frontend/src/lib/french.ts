@@ -716,6 +716,7 @@ export const FRENCH: Record<string, string> = {
     "Choisissez une cadence et une heure pour voir quand le prochain ticket sera créé.",
   "What Ponos must do every time": "Ce que Ponos doit faire à chaque fois",
   "Copied into every ticket created.": "Recopié dans chaque ticket créé.",
+  "The road every ticket takes. Empty, the runner deduces it.": "Le chemin que prend chaque ticket. Vide, le runner le déduit.",
   "Run npm outdated in the repository, update what can be, and open a pull request. Done when the CI is green.":
     "Lancer npm outdated dans le dépôt, mettre à jour ce qui peut l'être et ouvrir une pull request. C'est fait quand la CI est verte.",
   "Turn on right away": "Activer tout de suite",

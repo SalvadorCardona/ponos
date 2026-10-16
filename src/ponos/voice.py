@@ -219,6 +219,17 @@ _SAID: dict[str, dict[str, str]] = {
     "on-branch": {"en": "branch `{branch}`", "fr": "branche `{branch}`"},
     "in-the-page": {"en": "answer in the page", "fr": "réponse dans la page"},
     "nothing-published": {"en": "nothing published", "fr": "rien de publié"},
+    # A ticket that was not code, whose session opened a pull request anyway.
+    "pull-request-adopted": {
+        "en": "The session opened a pull request itself, outside Ponos's road: {url} — "
+        "attached to the ticket, which waits in review rather than done. Validate it to merge.",
+        "fr": "La session a ouvert elle-même une pull request, hors du circuit de Ponos : {url} — "
+        "rattachée au ticket, qui attend en review plutôt que d'aller en done. Valide-le pour la fusionner.",
+    },
+    "pull-requests-also": {
+        "en": "It opened others too: {urls}.",
+        "fr": "Elle en a ouvert d'autres : {urls}.",
+    },
     "confidence": {"en": "{level} confidence", "fr": "confiance {level}"},
     "confidence-low": {"en": "low", "fr": "faible"},
     "confidence-medium": {"en": "medium", "fr": "moyenne"},

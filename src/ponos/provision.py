@@ -202,11 +202,7 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
         settings.prop("waiting"): {"checkbox": {}},
         # The road a ticket takes. Optional, and empty until somebody — or the
         # runner, before the ticket runs — says which: see kinds.py.
-        settings.prop("type"): _select(
-            [settings.kind(key) for key in _TYPE_COLOURS], {
-                settings.kind(key): colour for key, colour in _TYPE_COLOURS.items()
-            }
-        ),
+        settings.prop("type"): type_select(settings),
         # Why a ticket stopped, one option per cause of the catalogue, coloured
         # by family — so a Notion view can be filtered and grouped by it.
         settings.prop("block"): _select(
@@ -216,10 +212,7 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
         # The checks of the pull request while the ticket is in review.
         settings.prop("ci"): _select(list(ci.LABELS.values()), _CI_COLOURS),
         # What kind of change a code ticket is, in the colours of its card.
-        settings.prop("subtype"): _select(
-            [subtype.option for subtype in subtypes.SUBTYPES],
-            {subtype.option: subtype.colour for subtype in subtypes.SUBTYPES},
-        ),
+        settings.prop("subtype"): subtype_select(),
     }
     # Single-property relations: the ticket points at its project, and the
     # projects database is not given a back-reference it would never read.
@@ -228,6 +221,22 @@ def tickets_schema(settings: Notion, projects: str = "", agents: str = "") -> di
     if agents:
         schema[settings.prop("role")] = _relation(agents)
     return schema
+
+
+def type_select(settings: Notion) -> dict:
+    """The Type column, the same on a ticket and on the schedule it is born of."""
+    return _select(
+        [settings.kind(key) for key in _TYPE_COLOURS],
+        {settings.kind(key): colour for key, colour in _TYPE_COLOURS.items()},
+    )
+
+
+def subtype_select() -> dict:
+    """The Sous-type column, the same on a ticket and on the schedule it is born of."""
+    return _select(
+        [subtype.option for subtype in subtypes.SUBTYPES],
+        {subtype.option: subtype.colour for subtype in subtypes.SUBTYPES},
+    )
 
 
 def cadence_options() -> list[dict]:
@@ -242,10 +251,15 @@ def cadence_options() -> list[dict]:
 def schedules_schema(settings: Notion, tickets: str = "", projects: str = "") -> dict:
     """A schedule is the recipe for a ticket, and how often it is born.
 
-    Ten columns beside the title: the seven you fill in — cadence, hour, day,
-    the tick that turns it on, and the three the ticket inherits — and the three
+    Twelve columns beside the title: the nine you fill in — cadence, hour, day,
+    the tick that turns it on, and the five the ticket inherits — and the three
     a pass writes back, which are how the runner knows an occurrence has been
     taken and whether the last one is finished.
+
+    The type and the sub-type are the tickets' own columns, options included:
+    a brief long and well written enough reads as « Rédaction » to the
+    classifier, and a schedule whose tickets are code has to be able to say so
+    rather than leave it to how each occurrence happens to read.
     """
     schema: dict = {
         "Name": {"title": {}},
@@ -257,6 +271,8 @@ def schedules_schema(settings: Notion, tickets: str = "", projects: str = "") ->
         settings.prop("last_run"): {"date": {}},
         settings.prop("model"): _select(MODELS),
         settings.prop("priority"): _select(PRIORITIES, _PRIORITY_COLOURS),
+        settings.prop("type"): type_select(settings),
+        settings.prop("subtype"): subtype_select(),
     }
     # The tickets database is the one relation that could not exist yet when the
     # other schemas were built: a schedule points at what it last produced.
