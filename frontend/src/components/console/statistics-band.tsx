@@ -1,6 +1,6 @@
 import * as React from "react"
 import { format, subDays } from "date-fns"
-import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, ChevronRight } from "lucide-react"
+import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, ChevronRight, ChevronUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -139,6 +139,29 @@ function useBlocksShown() {
     setShown(next)
     try {
       localStorage.setItem(BLOCKS_KEY, next ? "shown" : "hidden")
+    } catch {
+      // Storage off: the choice lasts as long as the tab.
+    }
+  }, [])
+  return [shown, change] as const
+}
+
+/* Whether the per-project table under the "created" chart is open. Folded by
+ * default: six rows make that card far taller than the ones beside it. */
+const PROJECTS_KEY = "ponos-statistics-made-projects"
+
+function useProjectsShown() {
+  const [shown, setShown] = React.useState(() => {
+    try {
+      return localStorage.getItem(PROJECTS_KEY) === "shown"
+    } catch {
+      return false
+    }
+  })
+  const change = React.useCallback((next: boolean) => {
+    setShown(next)
+    try {
+      localStorage.setItem(PROJECTS_KEY, next ? "shown" : "hidden")
     } catch {
       // Storage off: the choice lasts as long as the tab.
     }
@@ -470,6 +493,7 @@ function MadeChart({ made, project }: { made: Made; project?: string }) {
     a.localeCompare(b)
   )
   const rows = project === undefined && chosen === null ? byProject(made, scope.kind) : []
+  const [shown, setShown] = useProjectsShown()
   const said = (bucket: string) =>
     made.unit === "week"
       ? t("week of {{day}}", { day: date(bucket).toLocaleDateString(locale(), { day: "numeric", month: "short" }) })
@@ -592,7 +616,21 @@ function MadeChart({ made, project }: { made: Made; project?: string }) {
       )}
 
       {rows.length > 1 ? (
-        <table className="w-full min-w-0 table-fixed text-sm" data-slot="made-projects">
+        <button
+          type="button"
+          onClick={() => setShown(!shown)}
+          aria-expanded={shown}
+          aria-controls="made-projects"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 self-start rounded-sm text-xs underline-offset-2 hover:underline"
+          data-slot="made-projects-toggle"
+        >
+          {shown ? t("Hide") : t("See by project ({{count}})", { count: Math.min(rows.length, 6) })}
+          {shown ? <ChevronUp className="size-3" aria-hidden /> : <ChevronDown className="size-3" aria-hidden />}
+        </button>
+      ) : null}
+
+      {rows.length > 1 && shown ? (
+        <table id="made-projects" className="w-full min-w-0 table-fixed text-sm" data-slot="made-projects">
           <thead>
             <tr className="text-muted-foreground text-xs">
               <th scope="col" className="pb-1 text-left font-medium">
