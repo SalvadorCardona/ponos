@@ -685,24 +685,40 @@ export const FRENCH: Record<string, string> = {
   Last: "Dernière",
   Problem: "Problème",
   "New schedule": "Nouvelle récurrence",
-  "A ticket that comes back": "Un ticket qui revient",
-  "nothing said": "rien de précisé",
-  "What the ticket it makes will be called. Every occurrence carries this name.":
-    "Le nom du ticket qu'elle produit. Chaque occurrence porte ce nom.",
+  // The window a schedule is written in (see `recurrence-dialog.tsx`).
+  "New recurring ticket": "Nouveau ticket récurrent",
+  "Edit the schedule": "Modifier la récurrence",
+  "Ponos creates this ticket automatically, at the cadence you choose.":
+    "Ponos crée ce ticket automatiquement, à la cadence choisie.",
+  "Ticket title": "Titre du ticket",
   "Weekly dependency review": "Revue hebdomadaire des dépendances",
-  "The hour, written 09:00. Empty, and the hour the pass runs at answers.":
-    "L'heure, écrite 09:00. Vide, c'est l'heure de la passe qui répond.",
-  "Which day a weekly or monthly one lands on.":
-    "Le jour où tombe une récurrence hebdomadaire ou mensuelle.",
-  "Monday, or 1 to 31": "Lundi, ou 1 à 31",
-  "Off, and nothing is born — the row is kept, and the hours with it.":
-    "Décochée, rien ne naît — la ligne est gardée, et ses horaires avec.",
-  "Created unticked: nothing is born until you turn it on.":
-    "Créée décochée : rien ne naît tant que vous ne l'activez pas.",
   "A schedule needs a name": "Une récurrence a besoin d'un nom",
-  "Copied into every ticket it makes: what to do, where, and how you will know it is done.":
-    "Recopié dans chaque ticket qu'elle produit : quoi faire, où, et comment savoir que c'est fait.",
-  "What each occurrence has to do.": "Ce que chaque occurrence doit faire.",
+  "When?": "Quand ?",
+  "Every hour": "Chaque heure",
+  "Every day": "Chaque jour",
+  "Every week": "Chaque semaine",
+  "Every month": "Chaque mois",
+  Time: "Heure",
+  "On the": "Le",
+  "of the month": "du mois",
+  "Every hour at :{{minute}}.": "Chaque heure à :{{minute}}.",
+  "Every day at {{time}}.": "Chaque jour à {{time}}.",
+  "Every week at {{time}}.": "Chaque semaine à {{time}}.",
+  "Every {{day}} at {{time}}.": "Chaque {{day}} à {{time}}.",
+  "On day {{day}} of every month at {{time}}.": "Le {{day}} de chaque mois à {{time}}.",
+  "{{date}} at {{time}}": "{{date}} à {{time}}",
+  "at the next pass": "à la prochaine passe",
+  "Next ticket: {{when}}.": "Prochain ticket : {{when}}.",
+  "Next ticket, once it is turned on: {{when}}.": "Prochain ticket, une fois activée : {{when}}.",
+  "Choose a cadence and an hour to see when the next ticket is created.":
+    "Choisissez une cadence et une heure pour voir quand le prochain ticket sera créé.",
+  "What Ponos must do every time": "Ce que Ponos doit faire à chaque fois",
+  "Copied into every ticket created.": "Recopié dans chaque ticket créé.",
+  "Run npm outdated in the repository, update what can be, and open a pull request. Done when the CI is green.":
+    "Lancer npm outdated dans le dépôt, mettre à jour ce qui peut l'être et ouvrir une pull request. C'est fait quand la CI est verte.",
+  "Turn on right away": "Activer tout de suite",
+  "Turned on": "Activée",
+  "Create the schedule": "Créer la récurrence",
 
   /* -- the Markdown editor ---------------------------------------------------- */
   /* The menu `/` opens and the bar over a selection. `Context` and `Link` are

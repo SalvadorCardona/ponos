@@ -51,7 +51,7 @@ test("an event says what it is and opens the schedule in the window of the list"
   await page.getByRole("button", { name: /Test email/ }).click()
   await expect(page.getByText("Dernier lancement")).toBeVisible()
   await page.getByRole("link", { name: "Ouvrir la récurrence" }).click()
-  await expect(page.getByRole("dialog").locator('[data-slot="dialog-title"]')).toHaveText("Test email")
+  await expect(page.getByRole("dialog").locator('[data-slot="dialog-header"]')).toContainText("Test email")
 })
 
 test("the week and the day show the launches of the night too", async ({ page }) => {

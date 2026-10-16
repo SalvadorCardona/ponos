@@ -12,8 +12,16 @@ import {
 } from "react-resource-view"
 
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useT } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
 
 /* The window a record is opened in over its list: the ticket's over the board,
  * a schedule's over the schedules. One shell, so the two are the same size, on a
@@ -33,20 +41,32 @@ export interface RecordWindowHead {
   /** The small line over the title: a ticket's short id. */
   eyebrow?: string
   title: string
+  /** The line under the title. */
+  description?: string
   /** What the record can be made to do, drawn before its page button. */
   actions?: React.ReactNode
 }
+
+/* How a form inside the window closes it — its own Cancel button. Nothing on
+ * the record's full page, which has no window to close. */
+const CloseWindow = React.createContext<(() => void) | null>(null)
+
+/** The window's way out, for what is drawn inside it; null on the record's own page. */
+export const useCloseWindow = () => React.use(CloseWindow)
 
 /** The window, as the `open` of a view: `useHead` is asked about the record the address names. */
 export function recordWindow({
   type,
   fallbackTitle,
   useHead,
+  className,
 }: {
   type: string
   /** What the title says while the record is not known (yet), as a key of the dictionary. */
   fallbackTitle: string
   useHead: (id: string) => RecordWindowHead
+  /** The window's own size, where the record's form wants another. */
+  className?: string
 }): OpenFrame {
   function Frame({ close, expandHref, children }: OpenFrameProps) {
     const t = useT()
@@ -57,7 +77,9 @@ export function recordWindow({
         onClose={close}
         eyebrow={head.eyebrow}
         title={head.title}
+        description={head.description}
         fallbackTitle={t(fallbackTitle)}
+        className={className}
         href={expandHref}
         actions={head.actions}
       >
@@ -95,13 +117,16 @@ function RecordWindow({
   onClose,
   eyebrow,
   title,
+  description,
   fallbackTitle,
   href,
   actions,
+  className,
   children,
 }: RecordWindowHead & {
   onClose: () => void
   fallbackTitle: string
+  className?: string
   /** The record's full page; no button without one. */
   href?: string
   children: React.ReactNode
@@ -112,8 +137,12 @@ function RecordWindow({
       <DialogContent
         data-ticket-window
         showCloseButton={false}
-        aria-describedby={undefined}
-        className="gap-0 p-0 sm:max-w-3xl"
+        // Said out loud, though the page behind is already hidden from a screen
+        // reader while it is open: some read the attribute and nothing else.
+        aria-modal="true"
+        // Described by its line under the title when it has one.
+        {...(description ? {} : { "aria-describedby": undefined })}
+        className={cn("gap-0 p-0 sm:max-w-3xl", className)}
       >
         <DialogHeader className="flex-row items-start gap-2 border-b px-5 py-3 text-left sm:text-left">
           <div className="min-w-0 flex-1">
@@ -124,6 +153,9 @@ function RecordWindow({
             >
               {title || fallbackTitle}
             </DialogTitle>
+            {description ? (
+              <DialogDescription className="mt-0.5 text-sm">{description}</DialogDescription>
+            ) : null}
           </div>
           {actions}
           {href ? (
@@ -142,7 +174,9 @@ function RecordWindow({
             </Button>
           </DialogClose>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <CloseWindow value={onClose}>{children}</CloseWindow>
+        </div>
       </DialogContent>
     </Dialog>
   )

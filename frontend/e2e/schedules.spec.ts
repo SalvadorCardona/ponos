@@ -51,8 +51,9 @@ test("a schedule's name opens it in the window of the board, full screen on a ph
   await open(page)
   await row(page, "Test email").getByRole("link", { name: "Test email" }).click()
   const window_ = page.getByRole("dialog")
-  await expect(window_.locator('[data-slot="dialog-title"]')).toHaveText("Test email")
-  await expect(window_.getByText("Contexte").first()).toBeVisible()
+  await expect(window_.locator('[data-slot="dialog-title"]')).toHaveText("Modifier la récurrence")
+  await expect(window_.locator('[data-slot="dialog-header"]')).toContainText("Test email")
+  await expect(window_.getByText("Ce que Ponos doit faire à chaque fois").first()).toBeVisible()
   await expect
     .poll(async () => {
       const box = await window_.boundingBox()

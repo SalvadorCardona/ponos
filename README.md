@@ -812,8 +812,9 @@ headed by the **global context** (the standing text every ticket is told first, 
 projects: folded to a few lines, opened by *See all*, editable in place rather than read-only;
 the old `Context` address leads there)
 and an editable **Schedules** — a row is turned off
-from the list itself, a pencil opens the six columns it is written in and the context its
-tickets are born with, and a new schedule is created unticked whatever the form said. Every
+from the list itself, its name opens the six columns it is written in and the context its
+tickets are born with, in a window that says when the next ticket is born, and a new schedule
+is created unticked unless its « Turn on right away » box is ticked. Every
 field of the console that holds Markdown — that context, the standing one, a project's
 brief, a new ticket — is a Notion-like editor rather than a text area.
 
@@ -2544,8 +2545,10 @@ it**, without deleting anything and without opening a form. *Calendar* is for th
 question a schedule really answers — when the next one lands: the occurrences are laid out
 by day, week or month, and clicking one opens what it will make.
 
-*New schedule* and the pencil on a row write the six columns a schedule is written in —
-the cadence, the hour, the day, the tick, and the model and priority the ticket inherits.
+*New schedule* and the name of a row open the window that writes the six columns a schedule
+is written in — the cadence, the hour, the day, the tick, and the model and priority the
+ticket inherits — as buttons rather than selects: the day only appears for a weekly or a
+monthly one, the hour is a time field, and a line under them says when the next ticket is born.
 Never `Next`, `Last` or the ticket the last occurrence made: those are what a *pass* writes
 back, and a console that let you edit them would let you make an occurrence happen twice.
 A row nobody can read says what is wrong with it instead of a date it does not have, a
