@@ -1007,7 +1007,10 @@ class Api:
         """
         first, last = statistics.period(start, end, datetime.now().date())
         tickets = self.board()["tickets"]
-        return statistics.figures(tickets, state.history(1_000_000), first, last, project=project)
+        return statistics.figures(
+            tickets, state.history(1_000_000), first, last, project=project,
+            kind_of=self.config.notion.kind_of,
+        )
 
     def disk(self, *, fresh: bool = False) -> dict:
         """The room the runner takes on this machine, and what keeps it in check."""

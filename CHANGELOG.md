@@ -32,6 +32,15 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
   wears it beside the cost (12 min · $0.64). It is read from the runs the
   journal already keeps, so it survives a restart, and tickets from before it
   have theirs; a ticket with no run says « — » rather than a wrong figure.
+- **The dashboard's statistics say whether a project moves on or mends what it broke.** The two
+  charts *Created and closed* and *Open tickets* are one, *Activity*: the tickets created and
+  closed as bars a day, the open ones as a line over them, the three figures of a day under the
+  pointer. A *Validated* ticket now counts as closed, so the open ones are every card but *Done*,
+  *Validated* and *Cancelled*. Beside it, the tickets created by type and sub-type, day by day or
+  week by week, filtered by type and by project, with a *Unclassified* part for the ones with no
+  sub-type yet, and the **regression rate** — bugs over bugs, features and improvements — with its
+  trend against the period before and, over every project, a table of the ones that break the most.
+
 - **A code ticket says what kind of change it is: Bug, Feature, Amélioration, Chore, Refactor,
   Perf, Docs or Sécurité.** A `Sous-type` select on the board (`ponos init` adds it, `ponos doctor`
   asks for it), ignored on the other types. Empty, the runner fills it before the ticket runs: from

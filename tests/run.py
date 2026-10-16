@@ -9386,6 +9386,81 @@ def a_cancelled_ticket_is_neither_closed_nor_open_and_keeps_its_cost():
 
 
 @case
+def the_open_tickets_of_the_last_day_are_the_boards_not_closed_ones():
+    """Open on the evening of today is every card but done, validated and cancelled.
+
+    Validated is approved and left to the runner to merge: nothing is left for
+    anybody, so it leaves the open ones — dated by the edit that moved it,
+    which is all the board says until the runner's history dates the merge.
+    """
+    from datetime import date
+
+    columns = ("draft", "ready", "running", "blocked", "review", "validated", "done", "cancelled")
+    tickets = [
+        _card(column, column, "2026-09-01T09:00:00.000Z", edited="2026-09-03T09:00:00.000Z")
+        for column in columns
+    ]
+    figures = web_statistics.figures(
+        tickets, [], date(2026, 9, 1), date(2026, 9, 4), timezone.utc
+    )
+    board = sum(1 for ticket in tickets if ticket["column"] not in ("done", "validated", "cancelled"))
+    assert [item["open"] for item in figures["days"]] == [8, 8, board, board], figures["days"]
+    assert figures["totals"]["open"] == board == 5
+    assert [item["closed"] for item in figures["days"]] == [0, 0, 2, 0]
+
+
+@case
+def the_tickets_created_are_handed_by_type_sub_type_and_project():
+    """Cells the console filters on the spot, day by day up to a month, and the period before.
+
+    A code ticket with no sub-type, or one the table does not know, is a cell
+    with none — unclassified, still counted — and the period before is the
+    one of the same length that ends the day before.
+    """
+    from datetime import date
+
+    def card(key: str, created: str, kind: str, subtype: str = "", project: str = "") -> dict:
+        return {**_card(key, "ready", created, project=project), "type": kind, "subtype": subtype}
+
+    tickets = [
+        card("a", "2026-09-08T09:00:00.000Z", "Code", "bug", "Opoil"),
+        card("b", "2026-09-08T10:00:00.000Z", "Code", "bug", "Opoil"),
+        card("c", "2026-09-09T09:00:00.000Z", "Code", "feature", "ponos"),
+        card("d", "2026-09-09T09:00:00.000Z", "Code", "", "ponos"),
+        card("e", "2026-09-10T09:00:00.000Z", "Rédaction", "", "ponos"),
+        card("f", "2026-09-10T09:00:00.000Z", "Code", "made-up", "ponos"),
+        # The week before: compared with, not drawn.
+        card("g", "2026-09-02T09:00:00.000Z", "Code", "feature", "Opoil"),
+        # Before that: neither.
+        card("h", "2026-08-20T09:00:00.000Z", "Code", "bug", "Opoil"),
+    ]
+    kinds = {"code": "code", "rédaction": "writing"}
+    figures = web_statistics.figures(
+        tickets, [], date(2026, 9, 7), date(2026, 9, 13), timezone.utc,
+        kind_of=lambda option: kinds.get(option.casefold(), ""),
+    )
+    made = figures["made"]
+    assert made["unit"] == "day"
+    assert made["buckets"][0] == "2026-09-07" and len(made["buckets"]) == 7
+    assert made["cells"] == [
+        {"bucket": "2026-09-08", "kind": "code", "subtype": "bug", "project": "Opoil", "count": 2},
+        {"bucket": "2026-09-09", "kind": "code", "subtype": "", "project": "ponos", "count": 1},
+        {"bucket": "2026-09-09", "kind": "code", "subtype": "feature", "project": "ponos", "count": 1},
+        {"bucket": "2026-09-10", "kind": "code", "subtype": "", "project": "ponos", "count": 1},
+        {"bucket": "2026-09-10", "kind": "writing", "subtype": "", "project": "ponos", "count": 1},
+    ], made["cells"]
+    assert made["before"] == [{"kind": "code", "subtype": "feature", "project": "Opoil", "count": 1}]
+
+    # Past a month, a bucket is a week, named by its Monday.
+    longer = web_statistics.figures(tickets, [], date(2026, 8, 1), date(2026, 9, 13), timezone.utc)
+    assert longer["made"]["unit"] == "week"
+    assert longer["made"]["buckets"][:2] == ["2026-07-27", "2026-08-03"]
+    assert {cell["bucket"] for cell in longer["made"]["cells"]} == {"2026-08-17", "2026-08-31", "2026-09-07"}
+    # No type said: none of the four.
+    assert {cell["kind"] for cell in longer["made"]["cells"]} == {""}
+
+
+@case
 def the_projects_figures_add_up_to_the_boards():
     """Created and spent, project by project, are the board's — less the tickets with no project.
 
