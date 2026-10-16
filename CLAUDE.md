@@ -77,7 +77,8 @@ deux suites, puis publie l'image sur `ghcr.io`.
   projet décide pour lui-même par-dessus, gardé dans `ponos.db`), `store.py` (la couture
   vers un tableau, quel qu'il soit) et les trois qui la remplissent —
   `notion.py`, `files.py` (le board en fichiers Markdown), `sync.py` (les deux
-  en phase) —, `git.py`, `session.py`, `provider.py` (qui répond aux sessions :
+  en phase) —, `git.py`, `github_app.py` (la GitHub App créée depuis la console,
+  ses jetons d'installation, devant `gh`), `session.py`, `provider.py` (qui répond aux sessions :
   le CLI connecté, une clé Anthropic ou OpenRouter), `voice.py` (les mots et la langue),
   `channels/` (Telegram, Slack), `web/` (serveur de la console et API ;
   `web/console.py` tient la conversation avec l'espace de travail, et

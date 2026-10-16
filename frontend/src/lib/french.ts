@@ -1714,8 +1714,8 @@ export const FRENCH: Record<string, string> = {
   "Building the board…": "Construction du tableau…",
   "Connect and build the board": "Connecter et construire le tableau",
   "GitHub, for the pull requests": "GitHub, pour les pull requests",
-  "A code ticket comes back as a pull request, opened with `gh`. It is signed in with `gh auth login`, or given a token in `GH_TOKEN` — the way a container usually is.":
-    "Un ticket de code revient en pull request, ouverte avec `gh`. Il se connecte avec `gh auth login`, ou reçoit un jeton dans `GH_TOKEN` — comme un conteneur le reçoit d'habitude.",
+  "A code ticket comes back as a pull request. Connect GitHub in one click: Ponos creates its own GitHub App and you choose the repositories it reaches. Without it, `gh` is used — signed in with `gh auth login`, or given a token in `GH_TOKEN`, the way a container usually is.":
+    "Un ticket de code revient en pull request. Connectez GitHub en un clic : Ponos crée sa propre GitHub App et vous choisissez les dépôts qu'elle atteint. Sans elle, `gh` est utilisé — connecté avec `gh auth login`, ou muni d'un jeton dans `GH_TOKEN`, comme l'est d'ordinaire un conteneur.",
   "Check again": "Vérifier à nouveau",
   "Pull requests are opened as {{account}}, with the token in `GH_TOKEN`.":
     "Les pull requests sont ouvertes en tant que {{account}}, avec le jeton de `GH_TOKEN`.",
@@ -1726,6 +1726,39 @@ export const FRENCH: Record<string, string> = {
     "Renseignez `GH_TOKEN` dans l'environnement du service et redéployez — ou connectez-vous depuis son terminal :",
   "In a terminal on this machine:": "Dans un terminal de cette machine :",
   "Asking gh…": "Question à gh…",
+  "Pull requests are opened as {{account}}, through the GitHub App.":
+    "Les pull requests sont ouvertes en tant que {{account}}, par la GitHub App.",
+  "Or, without the app:": "Ou, sans l'app :",
+  // The settings' GitHub page.
+  "The GitHub App tickets clone, push and open their pull requests with.":
+    "La GitHub App avec laquelle les tickets clonent, poussent et ouvrent leurs pull requests.",
+  "Connect GitHub": "Connecter GitHub",
+  "Connect another account": "Connecter un autre compte",
+  "Organisation (optional)": "Organisation (facultatif)",
+  "Empty: your personal account": "Vide : votre compte personnel",
+  "GitHub could not be reached": "GitHub n'a pas pu être joint",
+  "GitHub connected": "GitHub connecté",
+  "One click creates a GitHub App for this console, then GitHub asks which repositories it may reach. Tickets then clone, push and open their pull requests as the app — no gh auth login, no token to paste.":
+    "Un clic crée une GitHub App pour cette console, puis GitHub demande quels dépôts elle peut atteindre. Les tickets clonent, poussent et ouvrent alors leurs pull requests au nom de l'app — sans gh auth login, sans jeton à coller.",
+  "Not connected: tickets use gh, as signed in on this machine.":
+    "Non connecté : les tickets utilisent gh, tel qu'il est connecté sur cette machine.",
+  "Your browser has to reach this console for GitHub to bring you back: this machine’s address is enough. For an organisation, give its name — you need to be one of its owners.":
+    "Votre navigateur doit joindre cette console pour que GitHub vous y ramène : l'adresse de cette machine suffit. Pour une organisation, donnez son nom — il faut en être l'un des propriétaires.",
+  "Asking GitHub…": "Question à GitHub…",
+  "Connected as {{app}} on {{accounts}}.": "Connecté en tant que {{app}} sur {{accounts}}.",
+  "The app exists, but it is installed nowhere yet: choose its repositories.":
+    "L'app existe, mais elle n'est encore installée nulle part : choisissez ses dépôts.",
+  "Every repository of {{account}}": "Tous les dépôts de {{account}}",
+  "Repositories of {{account}}": "Dépôts de {{account}}",
+  "No repository yet.": "Aucun dépôt pour l'instant.",
+  "Add repositories": "Ajouter des dépôts",
+  "Disconnect": "Déconnecter",
+  "Disconnect {{app}}?": "Déconnecter {{app}} ?",
+  "Its keys are deleted from this machine, and tickets go back to gh for its repositories. The app stays on GitHub until you delete it there.":
+    "Ses clés sont supprimées de cette machine, et les tickets reviennent à gh pour ses dépôts. L'app reste sur GitHub jusqu'à ce que vous l'y supprimiez.",
+  "The app could not be disconnected": "L'app n'a pas pu être déconnectée",
+  "{{app}} is disconnected: its keys are deleted from this machine. The app itself still exists on GitHub — delete it there:":
+    "{{app}} est déconnectée : ses clés sont supprimées de cette machine. L'app elle-même existe toujours sur GitHub — supprimez-la là-bas :",
   "Being told, and answering": "Être prévenu, et répondre",
   "Optional — but on a server, the only way to hear about a blocked ticket: no desktop notification reaches you from a container. A question asked there is answered in the chat, and the answer lands on the ticket.":
     "Facultatif — mais sur un serveur, le seul moyen d'apprendre qu'un ticket est bloqué : aucune notification de bureau ne vous atteint depuis un conteneur. Une question posée là se répond dans la discussion, et la réponse arrive sur le ticket.",

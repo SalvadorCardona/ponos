@@ -242,7 +242,7 @@ itself and nothing else. The rest is one chapter per module:
 | `ticket.py` | `Ticket` and `Job`, the two nouns everything else passes around |
 
 Around them sit the modules a run leans on rather than consists of: `store.py` and the
-two boards behind it (`notion.py`, `files.py`, `sync.py`), `git.py`, `session.py`,
+two boards behind it (`notion.py`, `files.py`, `sync.py`), `git.py`, `github_app.py` (the GitHub App and its tokens), `session.py`,
 `voice.py`, `kinds.py` (the four types of ticket, and what counts as a doubt), `progress.py`, `conversation.py`, `schedules.py`, `credits.py`, `db.py` (the local SQLite
 memory, `ponos.db`, and its numbered migrations), `journal.py` (every run and its steps, in it), `channels/` and `web/`.
 
@@ -714,10 +714,54 @@ reads no audio, so a message dictated in the console is transcribed by
 `openrouter.transcription_model` (`openai/whisper-1` by default) before it is a message at
 all. Without a key, the microphone is greyed out and says why.
 
+### Connect GitHub in one click
+
+`gh auth login` is a step somebody types on the machine, a token tied to their own
+account, and one that sees every repository they can. The console has a shorter road:
+**Settings › GitHub › Connect GitHub** (also a step of the first connection). One click,
+and Ponos has its own GitHub App, installed on the repositories you choose — nothing to
+copy, no token to paste.
+
+1. The console posts a **manifest** to GitHub — the app already described: named
+   *Ponos — {this machine}*, private, with the repository permissions a code ticket needs
+   (contents, pull requests and workflows to write; metadata, checks, statuses, actions and
+   issues to read), no organisation permission and no webhook. Give an **organisation** in
+   the field beside the button to create it there (you have to be one of its owners);
+   empty, it is your personal account.
+2. GitHub shows *Create GitHub App*. Accept, and it sends you back to the console with a
+   code, which the console exchanges for the app's credentials — once, within the hour,
+   and only with the `state` it sent out, which is good once and for an hour too.
+3. The console goes straight on to the app's installation page: pick the repositories.
+4. GitHub sends you back to **Settings › GitHub**, which says *GitHub connected*, as which
+   app, on which account, and lists the repositories it reaches. *Add repositories* leads
+   back to the installation page; *Disconnect* deletes the credentials from this machine
+   and says where to delete the app on GitHub.
+
+The browser has to reach the console for the two ways back — `localhost` is enough, the
+redirections happen in your browser. The console uses the address you reached it by, or
+`web.url` when you came through it.
+
+From then on, every repository whose owner the app is installed on is worked **as the
+app**: the clone, the push and the pull request go out with an installation token, and the
+pull requests and the commits are signed `{app}[bot]`. The token lasts an hour and is
+renewed ten minutes before it lapses; a session that runs longer is given a credential
+helper and a `gh` that fetch a new one themselves. The token is handed to `git` through
+its environment — never written into `.git/config` — and to `gh` and the sessions as
+`GH_TOKEN`, so every tool that already speaks `gh` keeps working. The app's key and its
+tokens are never shown, in the console, the logs or a ticket: the credentials are one line
+of `secrets.env` (`PONOS_GITHUB_APPS`), 0600 like the other secrets.
+
+A private app is installed on the account that owns it alone: your own repositories and an
+organisation's are **two apps**, connected one after the other (*Connect another account*).
+Each repository is worked by the one installed on its owner. An owner no app is installed
+on — and a machine with no app at all — is worked through `gh` exactly as before, and so is
+everything when GitHub does not answer. `ponos doctor` says which apps are connected,
+whether each one still gets a token, and which repositories of the workspace no app reaches.
+
 ### Several GitHub accounts
 
-One machine often answers to two GitHubs — your own and a client's — and `gh` only ever
-has **one of them active**. Everything the runner asks it about a repository the other
+Without the app, and for the owners it is not installed on: one machine often answers to
+two GitHubs — your own and a client's — and `gh` only ever has **one of them active**. Everything the runner asks it about a repository the other
 account owns is then refused for reasons that read like a bug: a pull request that cannot
 be created, a repository GitHub says does not exist, a merge nobody is allowed to make.
 

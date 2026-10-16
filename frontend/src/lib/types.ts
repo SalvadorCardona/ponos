@@ -691,6 +691,35 @@ export interface McpOverview {
   clients: { id: string; name: string; scope: string }[]
 }
 
+/** One account a GitHub App is installed on, and what it reaches there. */
+export interface GithubInstallation {
+  id: number
+  account: string
+  /** `all`, or `selected` when the repositories were picked one by one. */
+  selection: string
+  repositories: string[]
+  error: string
+}
+
+/** A GitHub App this console created — names and places, never a key. */
+export interface GithubApp {
+  slug: string
+  name: string
+  owner: string
+  url: string
+  settings_url: string
+  install_url: string
+  installations: GithubInstallation[]
+  error: string
+}
+
+/** What the page posts to GitHub to create an app: where, and the manifest. */
+export interface GithubManifest {
+  action: string
+  manifest: string
+  state: string
+}
+
 /** One MCP server Claude Code holds, as `claude mcp list` says it. */
 export interface McpServer {
   name: string

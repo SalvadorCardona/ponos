@@ -18,6 +18,13 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Added
 
+- **Connect GitHub in one click.** Settings › GitHub (and the GitHub step of the first connection) creates a GitHub
+  App from a manifest — on your account or an organisation's — then leads to the choice of its repositories and back
+  to the console, which says « GitHub connected » and lists what the app reaches. Code tickets on those repositories
+  then clone, push and open their pull requests as `{app}[bot]` with an installation token renewed on its own, even
+  during a session of more than an hour — no `gh auth login` on the machine. The app's credentials join the other
+  secrets in `secrets.env`; *Disconnect* deletes them. Without an app, `gh` works as before; `ponos doctor` reports the
+  connection.
 - **A « Sessions » entry in the menu: the history of the conversations with the workspace, and a choice of model per
   conversation.** The chat is no longer one conversation that « new conversation » buries: each is kept in `ponos.db`
   (the former `chat.json` becomes the first of the list) with a title made of its first message — renamable — the date

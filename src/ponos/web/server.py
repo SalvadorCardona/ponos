@@ -55,7 +55,7 @@ from .. import __version__
 from .. import config as config_module
 from .. import db, journal, legacy, notifications, openrouter, store, voice
 from ..config import Config, state_dir
-from . import attachments, mcp, mcp_setup, oauth, setup
+from . import attachments, github, mcp, mcp_setup, oauth, setup
 from .api import Api
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -437,6 +437,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(405, b"", "text/plain", {"Allow": "POST"})
         if route == "/oauth/authorize":
             return self._authorize({key: values[0] for key, values in query.items()})
+        # GitHub's two ways back, which come without the cookie — see web/github.py.
+        if route == "/api/github/manifest/callback":
+            code, answer = github.callback(
+                (query.get("code") or [""])[0], (query.get("state") or [""])[0]
+            )
+            if code == 303:
+                return self._send(303, b"", "text/plain", {"Location": answer})
+            return self._send(code, answer.encode(), "text/html; charset=utf-8")
+        if route == "/api/github/installed":
+            drawn = github.installed((query.get("setup_action") or [""])[0])
+            return self._send(200, drawn.encode(), "text/html; charset=utf-8")
         # What makes the console installable: the browser fetches these for
         # itself, and a manifest request leaves without the cookie unless the
         # page asks otherwise — they are the same files for everybody, and hold
@@ -583,6 +594,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(setup.claude_login())
             if route == "/api/setup/github":
                 return self._json(setup.github())
+            if route == "/api/github":
+                return self._json(github.status())
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})", route):
                 return self._json(self.api.ticket(match.group(1)))
             if match := re.fullmatch(r"/api/tickets/([0-9a-fA-F-]{32,36})/talk", route):
@@ -693,6 +706,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(setup.save_notion(self.api, payload))
             if route == "/api/setup/channels":
                 return self._json(setup.save_channels(self.api, payload))
+            if route == "/api/github/connect":
+                return self._json(
+                    github.connect(self._base(), str(payload.get("organisation", "")))
+                )
+            if route == "/api/github/disconnect":
+                return self._json(github.disconnect(str(payload.get("slug", ""))))
             if route == "/api/tickets":
                 return self._json(
                     self.api.create_ticket(

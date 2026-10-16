@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Bell, Cpu, FolderGit2, Inbox, Play, Plug, Settings2, SlidersHorizontal } from "lucide-react"
+import { Bell, Cpu, FolderGit2, GitPullRequest, Inbox, Play, Plug, Settings2, SlidersHorizontal } from "lucide-react"
 import { ActionList } from "react-data-form"
 import {
   createViewResource,
@@ -16,7 +16,7 @@ import type { SettingGroup, Settings } from "@/lib/types"
 /* The configuration, declared once for react-resource-view.
  *
  * `config.toml` is one thing, so it is one record: the page is the `read` view
- * of a resource with a single item, and each of its six groups, and the MCP page, is a sub-page
+ * of a resource with a single item, and each of its six groups, the GitHub page and the MCP page, is a sub-page
  * of it — the tab you are on carried in the address, so a link to the
  * notification settings is a link you can send somebody.
  *
@@ -54,12 +54,27 @@ const ICONS: Record<string, IconType> = {
   code: FolderGit2,
   communication: Bell,
   mcp: Plug,
+  "github-app": GitPullRequest,
 }
 
 /* The one page the file does not describe: the MCP tab is about the console
  * and Claude Code, not about a key of `config.toml`, so it is added here after
  * the server's groups rather than described by them. */
 const MCP_TAB = "mcp"
+
+/* The GitHub tab, for the same reason: the app Ponos works GitHub through is
+ * kept with the secrets, not in a key of the file. */
+const GITHUB_TAB = "github-app"
+
+const LazyGithubPage = React.lazy(() =>
+  import("@/components/console/github-page").then((module) => ({ default: module.GithubPage }))
+)
+
+const GithubPage = () => (
+  <React.Suspense fallback={null}>
+    <LazyGithubPage />
+  </React.Suspense>
+)
 
 /* The MCP tab: a page opened now and then, kept out of the first load, which has a budget. */
 const LazyMcpPage = React.lazy(() =>
@@ -112,6 +127,14 @@ function tellTheTabs() {
     icon: ICONS[group.key] ?? Settings2,
     component: pageFor(group),
   }))
+  if (pages.length)
+    pages.push({
+      id: GITHUB_TAB,
+      label: "GitHub",
+      description: "The GitHub App tickets clone, push and open their pull requests with.",
+      icon: ICONS[GITHUB_TAB],
+      component: GithubPage,
+    })
   if (pages.length)
     pages.push({
       id: MCP_TAB,
