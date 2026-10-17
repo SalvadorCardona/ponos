@@ -591,7 +591,7 @@ function ProjectCards({ rows = [] }: ListComponentPropsInterface) {
   const { fetchData } = useCurrentViewResourceContext()
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {rows.map((row) => {
           const project = row.data as ProjectItem | undefined
           return project ? <ProjectCard key={project.id} project={project} onDeleted={() => void fetchData?.()} /> : null
@@ -1001,13 +1001,13 @@ export const projects = createViewResource<ProjectItem, ProjectWrite>(PROJECTS, 
     list: {
       description:
         "What the tickets are about: where the work happens, and what conventions hold there. One with no repository is not a mistake — its tickets come back as a document.",
-      /* The two layouts. Their labels go through the dictionary as the tabs
+      /* The three layouts, each at the width of the page. Their labels go through the dictionary as the tabs
        * are drawn, and their address is their type: `cards`, `table`, in
        * every language. */
       layouts: [
-        layout.cards({ id: SPLIT, label: "split", components: { list: ProjectMaster } }),
-        layout.cards({ label: "cards", components: { list: ProjectCards } }),
-        layout.table({ label: "table", components: { list: ProjectRows } }),
+        layout.cards({ id: SPLIT, label: "split", fullWidth: true, components: { list: ProjectMaster } }),
+        layout.cards({ label: "cards", fullWidth: true, components: { list: ProjectCards } }),
+        layout.table({ label: "table", fullWidth: true, components: { list: ProjectRows } }),
       ],
       // A card, or a row, is a link to the project's page: no button under it.
       rowActions: [],
