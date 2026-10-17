@@ -230,6 +230,10 @@ somebody cuts a release; see `.claude/skills/release/SKILL.md`.
 
 ### Changed
 
+- **The Projects page uses the whole width of the screen.** The centred column and its wide empty margins are gone, in
+  the split, cards and table layouts alike: the list keeps its width, the context and the project picked take the
+  rest, and the cards show up to five per row on a large screen. A phone is unchanged.
+
 - **The New ticket window no longer says what the ticket will come back as.** The « Ce que ça donnera » card at the
   foot of its settings column is gone, whatever the type; the type and the project are still chosen the same way.
 
